@@ -167,9 +167,8 @@ export default function Login() {
         <div className="flex flex-col sm:flex-row items-center justify-between pt-6 border-t border-white/5 text-[11px] text-gray-500 gap-2">
           <span>© 2026 Project-X Networks.</span>
           <div className="flex space-x-4">
-            <a href="#" className="hover:text-gray-300 transition-colors">Privacy</a>
-            <a href="#" className="hover:text-gray-300 transition-colors">Terms</a>
-            <a href="#" className="hover:text-gray-300 transition-colors">Support</a>
+            <Link to="/terms-and-conditions" className="hover:text-gray-300 transition-colors">Terms</Link>
+            <Link to="/privacy-policy" className="hover:text-gray-300 transition-colors">Privacy</Link>
           </div>
         </div>
       </div>

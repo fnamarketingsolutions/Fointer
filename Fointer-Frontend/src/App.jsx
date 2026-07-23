@@ -16,6 +16,12 @@ import TermsAndConditions from './pages/policies/TermsAndConditions';
 import Dashboard from './pages/dashboard/Dashboard';
 import UserNotifications from './pages/dashboard/UserMenus/UserNotifications';
 import AdminDashboard from './features/adminDashboard/AdminDashboard';
+import HowToUse from './pages/policies/HowToUse';
+import NetworkUseCase from './pages/policies/NetworkUseCase';
+import UserAgreement from './pages/policies/UserAgreement';
+import ContentPolicy from './pages/policies/ContentPolicy';
+import CookiePolicy from './pages/policies/CookiePolicy';
+import CodeOfConduct from './pages/policies/CodeofConduct';
 
 const ScrollToTop = () => {
   const { pathname } = useLocation();
@@ -32,12 +38,14 @@ const App = () => {
 
   const isDashboardRoute = location.pathname.startsWith('/dashboard');
   const isAdminRoute = location.pathname.startsWith('/admin');
+  const isLoginRoute = location.pathname.startsWith('/login');
+  const isSignupRoute = location.pathname.startsWith('/signup');
 
   return (
     <>
       <ScrollToTop />
 
-      {!isDashboardRoute && !isAdminRoute && <Navbar />}
+      {!isDashboardRoute && !isAdminRoute && !isLoginRoute && !isSignupRoute && <Navbar />}
 
       <Routes>
         <Route path="/" element={<HeroSection />} />
@@ -48,8 +56,18 @@ const App = () => {
         <Route path="/services" element={<ServiceHero />} />
         <Route path="/contact-us" element={<ContactHero />} />
 
+
+         {/* policy pages */}
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />
         <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
+        <Route path="/how-to-use" element={<HowToUse />} />
+        <Route path="/code-of-conduct" element={<CodeOfConduct />} />
+        <Route path="/network-use-cases" element={<NetworkUseCase />} />
+        <Route path="/user-agreement" element={<UserAgreement />} />
+        <Route path="/content-policy" element={<ContentPolicy />} />
+        <Route path="/cookie-policy" element={<CookiePolicy />} />
+
+
 
         <Route path="/admin-check" element={<Navigate to="/admin" replace />} />
 
@@ -87,7 +105,7 @@ const App = () => {
         />
       </Routes>
 
-      {!isDashboardRoute && !isAdminRoute && <Footer />}
+      {!isDashboardRoute && !isAdminRoute && !isLoginRoute && !isSignupRoute && <Footer />}
     </>
   );
 };

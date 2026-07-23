@@ -31,9 +31,11 @@ export default function Footer() {
         <div>
           <h4 className="text-xs font-bold uppercase tracking-widest text-[#F8A201] mb-4">Platform</h4>
           <ul className="space-y-2.5 text-xs text-gray-400">
-            <li><a href="#" className="hover:text-amber-50 transition-colors">About Us</a></li>
-            <li><a href="#" className="hover:text-amber-50 transition-colors">Contact Us</a></li>
-            
+            <li><a href="/about" className="hover:text-amber-50 transition-colors">About Us</a></li>
+            <li><a href="/contact" className="hover:text-amber-50 transition-colors">Contact Us</a></li>
+            <li><a href="/how-to-use" className="hover:text-amber-50 transition-colors">How TO Use</a></li>
+            <li><a href="/code-of-conduct" className="hover:text-amber-50 transition-colors">Code Of Conduct</a></li>
+            <li><a href="/network-use-cases" className="hover:text-amber-50 transition-colors">Network Use Cases</a></li>
           </ul>
         </div>
 
@@ -43,7 +45,9 @@ export default function Footer() {
           <ul className="space-y-2.5 text-xs text-gray-400">
             <li><Link to="/privacy-policy" className="hover:text-amber-50 transition-colors">Privacy Policy</Link></li>
             <li><Link to="/terms-and-conditions" className="hover:text-amber-50 transition-colors">Terms and Conditions</Link></li>
-   
+            <li><Link to="/user-agreement" className="hover:text-amber-50 transition-colors">User Agreement</Link></li>
+            <li><Link to="/content-policy" className="hover:text-amber-50 transition-colors">Content Policy</Link></li>
+            <li><Link to="/cookie-policy" className="hover:text-amber-50 transition-colors">Cookie Notice</Link></li>
           </ul>
         </div>
 

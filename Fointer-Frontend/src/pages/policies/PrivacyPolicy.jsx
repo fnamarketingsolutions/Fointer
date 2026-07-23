@@ -1,243 +1,321 @@
-import React, { useState } from 'react';
-
-const sections = [
-  { id: 'collection', title: '1. Information We Collect' },
-  { id: 'usage', title: '2. How We Use Your Data' },
-  { id: 'cookies', title: '3. Cookies & Tracking' },
-  { id: 'sharing', title: '4. Information Sharing' },
-  { id: 'security', title: '5. Data Security' },
-  { id: 'rights', title: '6. Your Privacy Rights' },
-  { id: 'children', title: "7. Children's Privacy" },
-  { id: 'contact', title: '8. Contact Our DPO' },
-];
+import React, { useState, useEffect } from 'react';
+import { 
+  ShieldCheck, 
+  Database, 
+  ListChecks, 
+  Share2, 
+  UserCheck, 
+  Clock, 
+  Baby, 
+  RefreshCw, 
+  Mail, 
+  MapPin,
+  Lock
+} from 'lucide-react';
 
 export default function PrivacyPolicy() {
-  const [activeSection, setActiveSection] = useState('collection');
+  const [currentDate, setCurrentDate] = useState(new Date());
 
-  const scrollToSection = (id) => {
-    setActiveSection(id);
-    const element = document.getElementById(id);
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  };
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentDate(new Date());
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
 
   return (
-    <div className="min-h-screen bg-[#110C08] text-[#E0D8D0] font-sans">
+    <div className="bg-[#130D08] text-white min-h-screen py-16 px-4 sm:px-6 lg:px-8 font-sans relative overflow-hidden">
       
-      {/* Header Banner */}
-      <header className="bg-[#1A1A1A] border-b border-[#261E15] py-14 px-4 sm:px-6 lg:px-8 text-center relative overflow-hidden">
-        <div className="max-w-4xl mx-auto relative z-10">
-          <span className="inline-flex items-center gap-1.5 bg-[#F8A201]/10 text-[#F8A201] text-xs font-semibold tracking-wider uppercase px-3 py-1 rounded-full mb-4 border border-[#F8A201]/30">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#F8A201]"></span>
+      {/* Background Radial Ambient Glows */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-[#F8A201]/10 rounded-full blur-[180px] pointer-events-none z-0" />
+      <div className="absolute bottom-10 right-0 w-[500px] h-[500px] bg-[#F8A201]/5 rounded-full blur-[160px] pointer-events-none z-0" />
+
+      <div className="max-w-5xl mx-auto relative z-10 space-y-12">
+        
+        {/* Header Section */}
+        <div className="text-center space-y-4 max-w-3xl mx-auto pt-8">
+          <span className="text-[11px] font-semibold tracking-[0.25em] text-[#F8A201] uppercase px-4 py-1.5 rounded-full border border-[#F8A201]/30 bg-[#1A130C]/80 inline-block backdrop-blur-md">
             Data Protection
           </span>
-          <h1 className="text-3xl sm:text-5xl font-serif font-normal text-white tracking-tight">
-            Privacy <span className="text-[#F8A201] italic">Policy</span>
-          </h1>
-          <p className="mt-3 text-sm sm:text-base text-gray-400 max-w-xl mx-auto font-light">
-            Learn how we collect, use, and safeguard your personal information across our elite community.
-          </p>
-          <p className="mt-3 text-xs text-[#F8A201]/70 font-mono">
-            LAST REVISED: JULY 2026
-          </p>
-        </div>
-      </header>
-
-      {/* Main Layout Container */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 lg:py-14">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           
-          {/* Sticky Navigation Sidebar */}
-          <aside className="lg:col-span-4">
-            <div className="sticky top-8 bg-[#1A1A1A]/90 backdrop-blur-md p-5 rounded-xl border border-[#261E15] shadow-2xl">
-              <div className="flex items-center justify-between mb-4 pb-3 border-b border-[#261E15]">
-                <h2 className="text-xs font-bold text-[#F8A201] uppercase tracking-widest font-mono">
-                  Table of Contents
+          <h1 className="text-4xl sm:text-6xl font-serif text-amber-50 leading-tight">
+            Fointer Networks <span className="italic font-normal text-[#F8A201]">Privacy Policy</span>
+          </h1>
+          
+          <p className="text-gray-300 text-sm sm:text-base md:text-lg font-light leading-relaxed pt-2">
+            We believe privacy is a fundamental right. Learn how we collect, use, and safeguard your personal information.
+          </p>
+
+          <div className="pt-2 flex items-center justify-center gap-2 text-xs text-[#F8A201]/90 font-mono tracking-wider">
+            <span className="w-2 h-2 rounded-full bg-[#F8A201] animate-pulse" />
+            <span>
+              EFFECTIVE: {currentDate.toLocaleDateString()} {currentDate.toLocaleTimeString()}
+            </span>
+          </div>
+        </div>
+
+        {/* Main Privacy Cards List */}
+        <div className="space-y-8">
+          
+          {/* 01. Introduction */}
+          <div className="bg-[#1A130C]/90 border border-[#F8A201]/25 hover:border-[#F8A201]/50 rounded-3xl p-6 sm:p-10 backdrop-blur-md shadow-2xl transition-all duration-300 relative overflow-hidden">
+            <div className="flex items-center gap-4 border-b border-white/10 pb-6 mb-6">
+              <div className="p-3 rounded-2xl bg-[#F8A201]/10 text-[#F8A201] border border-[#F8A201]/30">
+                <ShieldCheck className="w-6 h-6 sm:w-8 sm:h-8" />
+              </div>
+              <div>
+                <span className="text-xs font-mono tracking-widest text-[#F8A201] uppercase font-bold">01</span>
+                <h2 className="text-2xl sm:text-3xl font-serif text-amber-50">
+                  Introduction
                 </h2>
-                <span className="text-xs text-gray-500 font-mono">{sections.length} SECTIONS</span>
               </div>
-              <nav className="space-y-1.5">
-                {sections.map((item) => {
-                  const isActive = activeSection === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => scrollToSection(item.id)}
-                      className={`w-full text-left px-3.5 py-2.5 text-sm rounded-lg transition-all duration-200 flex items-center justify-between ${
-                        isActive
-                          ? 'bg-[#261E15] text-[#F8A201] border-l-2 border-[#F8A201] font-medium shadow-sm'
-                          : 'text-gray-400 hover:bg-[#261E15]/50 hover:text-gray-200'
-                      }`}
-                    >
-                      <span className="truncate">{item.title}</span>
-                      {isActive && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#F8A201] shrink-0 ml-2"></span>
-                      )}
-                    </button>
-                  );
-                })}
-              </nav>
             </div>
-          </aside>
+            <p className="text-xs sm:text-sm text-gray-300 font-light leading-relaxed">
+              At Fointer, we believe that privacy is a fundamental right. We are committed to empowering our users to control their personal information. This privacy policy explains how Fointer Networks, Inc. ("Fointer," "we," "us," or "our") collects, uses, and shares information about you when you use our websites, mobile apps, widgets, APIs, emails, and other online products and services (collectively, the "Services") or when you otherwise interact with us.
+            </p>
+          </div>
 
-          {/* Main Content Body */}
-          <main className="lg:col-span-8 bg-[#1A1A1A]/60 p-6 sm:p-10 rounded-xl border border-[#261E15] space-y-12">
-            
-            {/* Section 1 */}
-            <section id="collection" className="scroll-mt-8">
-              <h2 className="text-xl sm:text-2xl font-serif text-white flex items-center gap-3 border-b border-[#261E15] pb-3 mb-4">
-                <span className="text-[#F8A201] font-mono text-sm font-bold">01</span>
-                Information We Collect
-              </h2>
-              <p className="text-sm sm:text-base leading-relaxed text-gray-300 font-light mb-5">
-                We collect information to provide a personalized, secure, and engaging community experience. This includes:
-              </p>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-                <div className="p-4 bg-[#261E15]/60 border border-[#F8A201]/20 rounded-lg">
-                  <h3 className="font-semibold text-sm text-[#F8A201] mb-1">Directly Provided Information</h3>
-                  <p className="text-xs text-gray-400 font-light leading-relaxed">Account registration details (username, email, password), profile avatar, bio, and community forum contributions.</p>
-                </div>
-                <div className="p-4 bg-[#261E15]/60 border border-[#F8A201]/20 rounded-lg">
-                  <h3 className="font-semibold text-sm text-[#F8A201] mb-1">Automatically Collected Data</h3>
-                  <p className="text-xs text-gray-400 font-light leading-relaxed">IP address, browser type, device details, operating system, and interaction logs within the community platform.</p>
+          {/* 02. Information We Collect */}
+          <div className="bg-[#1A130C]/90 border border-[#F8A201]/25 hover:border-[#F8A201]/50 rounded-3xl p-6 sm:p-10 backdrop-blur-md shadow-2xl transition-all duration-300 relative overflow-hidden">
+            <div className="flex items-center gap-4 border-b border-white/10 pb-6 mb-6">
+              <div className="p-3 rounded-2xl bg-[#F8A201]/10 text-[#F8A201] border border-[#F8A201]/30">
+                <Database className="w-6 h-6 sm:w-8 sm:h-8" />
+              </div>
+              <div>
+                <span className="text-xs font-mono tracking-widest text-[#F8A201] uppercase font-bold">02</span>
+                <h2 className="text-2xl sm:text-3xl font-serif text-amber-50">
+                  Information We Collect
+                </h2>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="space-y-4">
+                <h3 className="text-base font-serif font-semibold text-[#F8A201]">Information You Provide to Us</h3>
+                <div className="space-y-3">
+                  <div className="bg-[#130D08]/80 border border-white/10 rounded-xl p-4">
+                    <p className="text-xs sm:text-sm text-gray-300 font-light leading-relaxed">
+                      <strong className="text-white font-medium">Account Information:</strong> You may use our Services without creating an account, but to engage fully, you need to create an account. During registration, you provide us with a username and password, and you may provide other optional information such as your email address, profile picture, and bio.
+                    </p>
+                  </div>
+                  <div className="bg-[#130D08]/80 border border-white/10 rounded-xl p-4">
+                    <p className="text-xs sm:text-sm text-gray-300 font-light leading-relaxed">
+                      <strong className="text-white font-medium">Content You Submit:</strong> We collect content that you submit to the Services, such as posts, comments, and messages to other users.
+                    </p>
+                  </div>
+                  <div className="bg-[#130D08]/80 border border-white/10 rounded-xl p-4">
+                    <p className="text-xs sm:text-sm text-gray-300 font-light leading-relaxed">
+                      <strong className="text-white font-medium">Transactional Information:</strong> If you make purchases through our Services, we collect information necessary to complete the transaction, including payment information.
+                    </p>
+                  </div>
                 </div>
               </div>
-            </section>
 
-            {/* Section 2 */}
-            <section id="usage" className="scroll-mt-8">
-              <h2 className="text-xl sm:text-2xl font-serif text-white flex items-center gap-3 border-b border-[#261E15] pb-3 mb-4">
-                <span className="text-[#F8A201] font-mono text-sm font-bold">02</span>
-                How We Use Your Data
-              </h2>
-              <p className="text-sm sm:text-base leading-relaxed text-gray-300 font-light mb-3">
-                Your data helps us maintain operational security and enhance member interactions:
-              </p>
-              <ul className="space-y-3 text-sm sm:text-base text-gray-300 font-light">
-                <li className="flex items-start gap-3">
-                  <span className="text-[#F8A201] mt-1 font-bold">›</span>
-                  <span><strong className="text-white font-medium">Platform Operations:</strong> To authenticate account access, process member notifications, and maintain community feature functionality.</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <span className="text-[#F8A201] mt-1 font-bold">›</span>
-                  <span><strong className="text-white font-medium">Safety & Moderation:</strong> To detect malicious bots, enforce guidelines, and prevent fraudulent activity.</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <span className="text-[#F8A201] mt-1 font-bold">›</span>
-                  <span><strong className="text-white font-medium">Communication:</strong> To deliver essential account alerts, security warnings, and optional newsletter updates.</span>
-                </li>
-              </ul>
-            </section>
+              <div className="space-y-4">
+                <h3 className="text-base font-serif font-semibold text-[#F8A201]">Information We Collect Automatically</h3>
+                <div className="space-y-3">
+                  <div className="bg-[#130D08]/80 border border-white/10 rounded-xl p-4">
+                    <p className="text-xs sm:text-sm text-gray-300 font-light leading-relaxed">
+                      <strong className="text-white font-medium">Log Information:</strong> We log information about your use of the Services, including IP addresses, browser type, operating system, and device information.
+                    </p>
+                  </div>
+                  <div className="bg-[#130D08]/80 border border-white/10 rounded-xl p-4">
+                    <p className="text-xs sm:text-sm text-gray-300 font-light leading-relaxed">
+                      <strong className="text-white font-medium">Cookies and Tracking Technologies:</strong> We use cookies and other tracking technologies to provide functionality and to recognize you across different Services and devices.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
 
-            {/* Section 3 */}
-            <section id="cookies" className="scroll-mt-8">
-              <h2 className="text-xl sm:text-2xl font-serif text-white flex items-center gap-3 border-b border-[#261E15] pb-3 mb-4">
-                <span className="text-[#F8A201] font-mono text-sm font-bold">03</span>
-                Cookies & Tracking Technologies
-              </h2>
-              <p className="text-sm sm:text-base leading-relaxed text-gray-300 font-light mb-5">
-                We use cookies and similar browser session storage technologies to maintain login sessions and remember site display preferences.
-              </p>
-              <div className="p-4 bg-[#261E15] text-gray-300 rounded-lg border-l-2 border-[#F8A201] text-xs sm:text-sm">
-                <p>
-                  <strong className="text-[#F8A201] font-semibold">Managing Preferences:</strong> You can choose to disable non-essential cookies via your web browser settings. However, disabling essential cookies may impact your ability to stay logged in.
+          {/* 03. How We Use Your Information */}
+          <div className="bg-[#1A130C]/90 border border-[#F8A201]/25 hover:border-[#F8A201]/50 rounded-3xl p-6 sm:p-10 backdrop-blur-md shadow-2xl transition-all duration-300 relative overflow-hidden">
+            <div className="flex items-center gap-4 border-b border-white/10 pb-6 mb-6">
+              <div className="p-3 rounded-2xl bg-[#F8A201]/10 text-[#F8A201] border border-[#F8A201]/30">
+                <ListChecks className="w-6 h-6 sm:w-8 sm:h-8" />
+              </div>
+              <div>
+                <span className="text-xs font-mono tracking-widest text-[#F8A201] uppercase font-bold">03</span>
+                <h2 className="text-2xl sm:text-3xl font-serif text-amber-50">
+                  How We Use Your Information
+                </h2>
+              </div>
+            </div>
+
+            <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {[
+                "To provide and maintain our Services;",
+                "To improve and personalize your experience;",
+                "To understand and analyze how you use our Services;",
+                "To communicate with you, either directly or through one of our partners, including for customer service, to provide updates and other information, and for marketing;",
+                "To process your transactions."
+              ].map((item, index) => (
+                <li key={index} className="bg-[#130D08]/80 border border-white/10 rounded-xl p-4 text-xs sm:text-sm text-gray-300 font-light flex items-start gap-3">
+                  <span className="text-[#F8A201] font-bold mt-0.5">•</span>
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* 04. Sharing Your Information */}
+          <div className="bg-[#1A130C]/90 border border-[#F8A201]/25 hover:border-[#F8A201]/50 rounded-3xl p-6 sm:p-10 backdrop-blur-md shadow-2xl transition-all duration-300 relative overflow-hidden">
+            <div className="flex items-center gap-4 border-b border-white/10 pb-6 mb-6">
+              <div className="p-3 rounded-2xl bg-[#F8A201]/10 text-[#F8A201] border border-[#F8A201]/30">
+                <Share2 className="w-6 h-6 sm:w-8 sm:h-8" />
+              </div>
+              <div>
+                <span className="text-xs font-mono tracking-widest text-[#F8A201] uppercase font-bold">04</span>
+                <h2 className="text-2xl sm:text-3xl font-serif text-amber-50">
+                  Sharing Your Information
+                </h2>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="bg-[#130D08]/80 border border-white/10 rounded-xl p-4">
+                <p className="text-xs sm:text-sm text-gray-300 font-light leading-relaxed">
+                  <strong className="text-[#F8A201] font-medium">With Your Consent:</strong> We may share and disclose information with your consent or at your direction.
                 </p>
               </div>
-            </section>
-
-            {/* Section 4 */}
-            <section id="sharing" className="scroll-mt-8">
-              <h2 className="text-xl sm:text-2xl font-serif text-white flex items-center gap-3 border-b border-[#261E15] pb-3 mb-4">
-                <span className="text-[#F8A201] font-mono text-sm font-bold">04</span>
-                Information Sharing & Disclosure
-              </h2>
-              <p className="text-sm sm:text-base leading-relaxed text-gray-300 font-light mb-3">
-                <strong className="text-white font-medium">We do not sell or rent your personal information to third parties.</strong> We only disclose information under the following conditions:
-              </p>
-              <ul className="space-y-3 text-sm sm:text-base text-gray-300 font-light">
-                <li className="flex items-start gap-3">
-                  <span className="text-[#F8A201] mt-1 font-bold">›</span>
-                  <span><strong className="text-white font-medium">Trusted Infrastructure Providers:</strong> Hosting and cloud database vendors processing data securely on our behalf.</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <span className="text-[#F8A201] mt-1 font-bold">›</span>
-                  <span><strong className="text-white font-medium">Legal Compliance:</strong> When required by court orders, subpoenas, or official government requests.</span>
-                </li>
-              </ul>
-            </section>
-
-            {/* Section 5 */}
-            <section id="security" className="scroll-mt-8">
-              <h2 className="text-xl sm:text-2xl font-serif text-white flex items-center gap-3 border-b border-[#261E15] pb-3 mb-4">
-                <span className="text-[#F8A201] font-mono text-sm font-bold">05</span>
-                Data Security
-              </h2>
-              <p className="text-sm sm:text-base leading-relaxed text-gray-300 font-light">
-                We implement modern physical, electronic, and administrative safeguards including standard SSL/TLS encryption for transit, salted password hashing, and restricted database access controls.
-              </p>
-            </section>
-
-            {/* Section 6 */}
-            <section id="rights" className="scroll-mt-8">
-              <h2 className="text-xl sm:text-2xl font-serif text-white flex items-center gap-3 border-b border-[#261E15] pb-3 mb-4">
-                <span className="text-[#F8A201] font-mono text-sm font-bold">06</span>
-                Your Privacy Rights
-              </h2>
-              <p className="text-sm sm:text-base leading-relaxed text-gray-300 font-light mb-3">
-                Depending on your geographic location, you hold specific data rights:
-              </p>
-              <ul className="space-y-2 text-sm text-gray-300 font-light">
-                <li className="flex items-center gap-2">
-                  <span className="text-[#F8A201] font-bold">•</span>
-                  <span><strong className="text-white font-medium">Access & Export:</strong> Request a copy of the personal data we store about you.</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="text-[#F8A201] font-bold">•</span>
-                  <span><strong className="text-white font-medium">Correction:</strong> Edit inaccurate account information via your user profile page.</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="text-[#F8A201] font-bold">•</span>
-                  <span><strong className="text-white font-medium">Erasure:</strong> Request the complete deletion of your account and associated profile data.</span>
-                </li>
-              </ul>
-            </section>
-
-            {/* Section 7 */}
-            <section id="children" className="scroll-mt-8">
-              <h2 className="text-xl sm:text-2xl font-serif text-white flex items-center gap-3 border-b border-[#261E15] pb-3 mb-4">
-                <span className="text-[#F8A201] font-mono text-sm font-bold">07</span>
-                Children's Privacy
-              </h2>
-              <p className="text-sm sm:text-base leading-relaxed text-gray-300 font-light">
-                Our services are strictly designed for users aged 13 and older (or 16 depending on regional standards). We do not knowingly collect information from children under this threshold.
-              </p>
-            </section>
-
-            {/* Section 8 / Contact Box */}
-            <section id="contact" className="scroll-mt-8 pt-2">
-              <div className="bg-[#261E15] border border-[#F8A201]/40 rounded-xl p-6 sm:p-8 text-center sm:text-left sm:flex sm:items-center sm:justify-between gap-6 shadow-xl">
-                <div>
-                  <h2 className="text-lg sm:text-xl font-serif text-white mb-1">
-                    Have privacy concerns or data requests?
-                  </h2>
-                  <p className="text-xs sm:text-sm text-gray-400 font-light">
-                    Direct your inquiries to our Data Protection Officer.
-                  </p>
-                </div>
-                <a
-                  href="mailto:privacy@community.com"
-                  className="mt-4 sm:mt-0 inline-block bg-[#F8A201] hover:bg-[#F8A201]/90 text-[#110C08] font-bold text-xs uppercase tracking-wider px-6 py-3 rounded-lg transition-colors duration-200 shadow-md shrink-0"
-                >
-                  Email Data Team
-                </a>
+              <div className="bg-[#130D08]/80 border border-white/10 rounded-xl p-4">
+                <p className="text-xs sm:text-sm text-gray-300 font-light leading-relaxed">
+                  <strong className="text-[#F8A201] font-medium">Service Providers:</strong> We engage service providers to perform functions and provide services to us. We may share your private personal information with such service providers subject to confidentiality obligations consistent with this privacy policy.
+                </p>
               </div>
-            </section>
+              <div className="bg-[#130D08]/80 border border-white/10 rounded-xl p-4">
+                <p className="text-xs sm:text-sm text-gray-300 font-light leading-relaxed">
+                  <strong className="text-[#F8A201] font-medium">Compliance with Law:</strong> We may disclose your information to a third party if (a) it's necessary to comply with a legal obligation, (b) it's necessary to protect and defend our rights or property, or (c) it's necessary to prevent or investigate possible wrongdoing in connection with the Services.
+                </p>
+              </div>
+            </div>
+          </div>
 
-          </main>
+          {/* 05. Your Choices */}
+          <div className="bg-[#1A130C]/90 border border-[#F8A201]/25 hover:border-[#F8A201]/50 rounded-3xl p-6 sm:p-10 backdrop-blur-md shadow-2xl transition-all duration-300 relative overflow-hidden">
+            <div className="flex items-center gap-4 border-b border-white/10 pb-6 mb-6">
+              <div className="p-3 rounded-2xl bg-[#F8A201]/10 text-[#F8A201] border border-[#F8A201]/30">
+                <UserCheck className="w-6 h-6 sm:w-8 sm:h-8" />
+              </div>
+              <div>
+                <span className="text-xs font-mono tracking-widest text-[#F8A201] uppercase font-bold">05</span>
+                <h2 className="text-2xl sm:text-3xl font-serif text-amber-50">
+                  Your Choices
+                </h2>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-[#130D08]/80 border border-white/10 rounded-2xl p-5 space-y-2">
+                <h3 className="text-sm font-serif font-semibold text-[#F8A201]">Account Information</h3>
+                <p className="text-xs text-gray-300 font-light leading-relaxed">
+                  You may update, correct or delete information from your account at any time by logging into your online account.
+                </p>
+              </div>
+              <div className="bg-[#130D08]/80 border border-white/10 rounded-2xl p-5 space-y-2">
+                <h3 className="text-sm font-serif font-semibold text-[#F8A201]">Cookies</h3>
+                <p className="text-xs text-gray-300 font-light leading-relaxed">
+                  You can instruct your browser to refuse all cookies or to indicate when a cookie is being sent.
+                </p>
+              </div>
+              <div className="bg-[#130D08]/80 border border-white/10 rounded-2xl p-5 space-y-2">
+                <h3 className="text-sm font-serif font-semibold text-[#F8A201]">Marketing Communications</h3>
+                <p className="text-xs text-gray-300 font-light leading-relaxed">
+                  You can opt-out of receiving promotional communications from us by following the unsubscribe instructions included in our messages.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* 06 & 07. Data Retention & Children's Privacy */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="bg-[#1A130C]/90 border border-[#F8A201]/25 hover:border-[#F8A201]/50 rounded-3xl p-6 sm:p-8 backdrop-blur-md shadow-2xl space-y-4">
+              <div className="flex items-center gap-3 border-b border-white/10 pb-4">
+                <div className="p-2.5 rounded-xl bg-[#F8A201]/10 text-[#F8A201] border border-[#F8A201]/30">
+                  <Clock className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="text-xs font-mono text-[#F8A201] font-bold">06</span>
+                  <h3 className="text-lg font-serif text-amber-50">Data Retention</h3>
+                </div>
+              </div>
+              <p className="text-xs sm:text-sm text-gray-300 font-light leading-relaxed">
+                We retain personal information we collect from you where we have an ongoing legitimate business need to do so. When we have no ongoing legitimate business need to process your personal information, we will either delete or anonymize it.
+              </p>
+            </div>
+
+            <div className="bg-[#1A130C]/90 border border-[#F8A201]/25 hover:border-[#F8A201]/50 rounded-3xl p-6 sm:p-8 backdrop-blur-md shadow-2xl space-y-4">
+              <div className="flex items-center gap-3 border-b border-white/10 pb-4">
+                <div className="p-2.5 rounded-xl bg-[#F8A201]/10 text-[#F8A201] border border-[#F8A201]/30">
+                  <Baby className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="text-xs font-mono text-[#F8A201] font-bold">07</span>
+                  <h3 className="text-lg font-serif text-amber-50">Children's Privacy</h3>
+                </div>
+              </div>
+              <p className="text-xs sm:text-sm text-gray-300 font-light leading-relaxed">
+                Fointer does not knowingly collect or solicit any information from anyone under the age of 13 or knowingly allow such persons to register for the Services. The Services and their content are not directed at children under the age of 13.
+              </p>
+            </div>
+          </div>
+
+          {/* 08. Changes to This Policy */}
+          <div className="bg-[#1A130C]/90 border border-[#F8A201]/25 hover:border-[#F8A201]/50 rounded-3xl p-6 sm:p-8 backdrop-blur-md shadow-2xl flex items-start gap-4">
+            <div className="p-3 rounded-2xl bg-[#F8A201]/10 text-[#F8A201] border border-[#F8A201]/30 flex-shrink-0">
+              <RefreshCw className="w-6 h-6" />
+            </div>
+            <div>
+              <span className="text-xs font-mono text-[#F8A201] font-bold">08</span>
+              <h3 className="text-xl font-serif text-amber-50 mb-2">Changes to This Policy</h3>
+              <p className="text-xs sm:text-sm text-gray-300 font-light leading-relaxed">
+                We may update this privacy policy from time to time in order to reflect, for example, changes to our practices or for other operational, legal, or regulatory reasons.
+              </p>
+            </div>
+          </div>
+
+          {/* 09. Contact Us Box */}
+          <div className="bg-[#1A130C]/90 border border-[#F8A201]/30 rounded-3xl p-6 sm:p-10 backdrop-blur-md shadow-2xl space-y-6">
+            <div className="flex items-center gap-4 border-b border-white/10 pb-6">
+              <div className="p-3 rounded-2xl bg-[#F8A201]/10 text-[#F8A201] border border-[#F8A201]/30">
+                <Mail className="w-6 h-6 sm:w-8 sm:h-8" />
+              </div>
+              <div>
+                <span className="text-xs font-mono tracking-widest text-[#F8A201] uppercase font-bold">09</span>
+                <h2 className="text-2xl sm:text-3xl font-serif text-amber-50">
+                  Contact Us
+                </h2>
+              </div>
+            </div>
+
+            <p className="text-xs sm:text-sm text-gray-300 font-light leading-relaxed">
+              For more information about our privacy practices, if you have questions, or if you would like to make a complaint, please contact us by email at <a href="mailto:userservices@fointer.net" className="text-[#F8A201] font-mono hover:underline">userservices@fointer.net</a> or by mail using the details provided below:
+            </p>
+
+            <div className="bg-[#130D08]/90 border border-[#F8A201]/30 rounded-2xl p-6 space-y-3">
+              <div className="flex items-center gap-2 text-[#F8A201]">
+                <MapPin className="w-4 h-4" />
+                <h3 className="text-base font-serif font-semibold text-white">Fointer Networks, Inc.</h3>
+              </div>
+              <p className="text-xs sm:text-sm text-gray-300 font-light leading-relaxed pl-6">
+                50 Southgate Road<br />
+                Valley Stream, NY 11581
+              </p>
+              <div className="pt-3 border-t border-white/10 pl-6">
+                <span className="text-xs text-gray-400 font-mono">Email Inquiry: userservices@fointer.net</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-gray-400 font-light italic text-center pt-2">
+              This policy is designed to provide transparency into our privacy practices and principles in a format that users can navigate, read, and understand. We are committed to treating your personal data with care and respect.
+            </p>
+          </div>
+
         </div>
+
       </div>
     </div>
   );
-}   
+}

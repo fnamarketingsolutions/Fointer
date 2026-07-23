@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { FiEye, FiEyeOff } from 'react-icons/fi';
+import { ArrowLeft } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { sigupUser } from '../api/auth';
 import { useAuth } from '../context/AuthContext';
@@ -97,12 +98,24 @@ export default function SignUp() {
 
       <div className="md:w-1/2 w-full flex flex-col justify-between p-8 md:p-14 bg-[#130D08]">
         <div className="max-w-md w-full mx-auto my-auto py-8">
-          <div className="mb-8">
-            <h2 className="text-3xl font-serif text-amber-50">Create an Account</h2>
-            <p className="text-xs text-gray-400 mt-2">
-              Enter your details to register and get started.
-            </p>
-          </div>
+        <div className="mb-8">
+  {/* Back Arrow Button */}
+  <button 
+  onClick={() => window.history.back()} 
+  className="mb-4 inline-flex items-center text-xs font-medium text-white hover:text-[#F8A201] transition-colors group cursor-pointer border-b border-white hover:border-[#F8A201] pb-1 gap-1"
+  aria-label="Go back"
+>
+  <div className="transition-all">
+    <ArrowLeft className="w-4 h-4 text-white group-hover:text-[#F8A201] group-hover:-translate-x-0.5 transition-transform" />
+  </div>
+  <span className="tracking-wide text-white group-hover:text-[#F8A201] transition-colors">Go Back</span>
+</button>
+
+  <h2 className="text-3xl font-serif text-amber-50">Create an Account</h2>
+  <p className="text-xs text-gray-400 mt-2">
+    Enter your details to register and get started.
+  </p>
+</div>
 
           {errorMessage && (
             <div className="mb-5 p-3 rounded-lg bg-red-950/60 border border-red-500/40 text-red-200 text-xs text-center leading-relaxed">

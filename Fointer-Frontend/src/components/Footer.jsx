@@ -5,12 +5,12 @@ import { Link } from 'react-router-dom';
 
 export default function Footer() {
   return (
-    <footer className="bg-[#130D08] text-white pt-16 pb-8 px-4 sm:px-6 lg:px-8 border-t border-white/10">
-      <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-5 gap-10 pb-12">
+    <footer className="bg-[#130D08] text-white pt-16 pb-8 border-t border-white/10">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-5 gap-10 pb-12">
         
         {/* Brand Column */}
         <div className="md:col-span-2 space-y-2">
-          <img src={logo} alt="Fointer" className="w-20 h-22" />
+          <img src={logo} alt="Fointer" className="h-20 w-18 object-contain rounded pt-2" />
           <p className="text-xs text-gray-400 max-w-sm leading-relaxed font-light">
             Defining the next era of digital sovereignty and elite collaboration for the focused professional.
           </p>
@@ -32,7 +32,7 @@ export default function Footer() {
           <h4 className="text-xs font-bold uppercase tracking-widest text-[#F8A201] mb-4">Platform</h4>
           <ul className="space-y-2.5 text-xs text-gray-400">
             <li><a href="/about" className="hover:text-amber-50 transition-colors">About Us</a></li>
-            <li><a href="/contact" className="hover:text-amber-50 transition-colors">Contact Us</a></li>
+            <li><a href="/contact-us" className="hover:text-amber-50 transition-colors">Contact Us</a></li>
             <li><a href="/how-to-use" className="hover:text-amber-50 transition-colors">How TO Use</a></li>
             <li><a href="/code-of-conduct" className="hover:text-amber-50 transition-colors">Code Of Conduct</a></li>
             <li><a href="/network-use-cases" className="hover:text-amber-50 transition-colors">Network Use Cases</a></li>
@@ -79,7 +79,7 @@ export default function Footer() {
       </div>
 
       {/* Bottom Bar */}
-      <div className="max-w-7xl mx-auto pt-8 border-t border-white/5 flex flex-col sm:flex-row items-center justify-center text-[11px] text-gray-500 gap-4">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 border-t border-white/5 flex flex-col sm:flex-row items-center justify-center text-[11px] text-gray-500 gap-4">
       <p>© {new Date().getFullYear()} FOINTER Networks. All rights reserved.</p>
       
       </div>

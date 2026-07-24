@@ -25,12 +25,12 @@ export default function MissionSection() {
   ];
 
   return (
-    <section className="bg-[#130D08] text-white py-20 px-4 sm:px-6 lg:px-8 border-t border-amber-900/20 font-sans relative overflow-hidden">
+    <section className="bg-[#130D08] text-white py-20 border-t border-amber-900/20 font-sans relative overflow-hidden">
       
       {/* Background Glow Effect */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[#F8A201]/5 rounded-full blur-[140px] pointer-events-none" />
 
-      <div className="max-w-7xl mx-auto relative z-10">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         
         {/* Header Block */}
         <div className="text-center max-w-3xl mx-auto space-y-4">

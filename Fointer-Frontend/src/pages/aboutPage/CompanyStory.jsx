@@ -3,8 +3,8 @@ import { motion } from 'framer-motion';
 
 const CompanyStory = () => {
   return (
-    <section className="bg-[#130D08] text-white py-24 px-4 sm:px-6 lg:px-8 border-t border-amber-900/20 font-sans">
-      <div className="max-w-7xl mx-auto space-y-16">
+    <section className="bg-[#130D08] text-white py-24 border-t border-amber-900/20 font-sans">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-16">
         
         {/* Top Equal-Height Row: Mission Heading & Visual (Left) + Mission Narrative (Right) */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-stretch">

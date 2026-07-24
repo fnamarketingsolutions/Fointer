@@ -4,12 +4,12 @@ import { Link } from 'react-router-dom';
 
 export default function JoinUsSection() {
   return (
-    <section className="bg-[#130D08] text-white py-20 px-4 sm:px-6 lg:px-8 border-t border-amber-900/20 font-sans relative overflow-hidden">
+    <section className="bg-[#130D08] text-white py-20 border-t border-amber-900/20 font-sans relative overflow-hidden">
       
       {/* Background Radial Ambient Glow */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[#F8A201]/10 rounded-full blur-[150px] pointer-events-none z-0" />
 
-      <div className="max-w-3xl mx-auto relative z-10 flex flex-col items-center text-center space-y-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 flex flex-col items-center text-center space-y-6">
         
         {/* Heading */}
         <h2 className="text-3xl sm:text-5xl font-serif text-amber-50 leading-tight">

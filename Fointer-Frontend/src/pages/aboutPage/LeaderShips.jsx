@@ -50,8 +50,8 @@ const LeadershipCarousel = () => {
   };
 
   return (
-    <section className="bg-[#130D08] text-white py-24 px-4 sm:px-6 lg:px-8 border-t border-amber-900/20 font-sans">
-      <div className="max-w-7xl mx-auto">
+    <section className="bg-[#130D08] text-white py-24 border-t border-amber-900/20 font-sans">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Header with Navigation Controls */}
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-6">

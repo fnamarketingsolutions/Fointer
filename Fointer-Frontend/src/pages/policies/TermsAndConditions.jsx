@@ -26,8 +26,8 @@ export default function TermsAndConditions() {
     <div className="min-h-screen bg-[#110C08] text-[#E0D8D0] font-sans">
       
       {/* Header Banner */}
-      <header className="bg-[#1A1A1A] border-b border-[#261E15] py-14 px-4 sm:px-6 lg:px-8 text-center relative overflow-hidden">
-        <div className="max-w-4xl mx-auto relative z-10">
+      <header className="bg-[#1A1A1A] border-b border-[#261E15] py-14 text-center relative overflow-hidden">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <span className="inline-flex items-center gap-1.5 bg-[#F8A201]/10 text-[#F8A201] text-xs font-semibold tracking-wider uppercase px-3 py-1 rounded-full mb-4 border border-[#F8A201]/30">
             <span className="w-1.5 h-1.5 rounded-full bg-[#F8A201]"></span>
             Legal Framework

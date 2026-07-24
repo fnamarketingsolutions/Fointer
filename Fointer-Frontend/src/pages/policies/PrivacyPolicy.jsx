@@ -25,13 +25,13 @@ export default function PrivacyPolicy() {
   }, []);
 
   return (
-    <div className="bg-[#130D08] text-white min-h-screen py-16 px-4 sm:px-6 lg:px-8 font-sans relative overflow-hidden">
+    <div className="bg-[#130D08] text-white min-h-screen py-16 font-sans relative overflow-hidden">
       
       {/* Background Radial Ambient Glows */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-[#F8A201]/10 rounded-full blur-[180px] pointer-events-none z-0" />
       <div className="absolute bottom-10 right-0 w-[500px] h-[500px] bg-[#F8A201]/5 rounded-full blur-[160px] pointer-events-none z-0" />
 
-      <div className="max-w-5xl mx-auto relative z-10 space-y-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 space-y-12">
         
         {/* Header Section */}
         <div className="text-center space-y-4 max-w-3xl mx-auto pt-8">

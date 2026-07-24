@@ -47,8 +47,8 @@ export default function Services() {
   ];
 
   return (
-    <section className="bg-[#130D08] text-white py-24 px-4 sm:px-6 lg:px-8 border-t border-white/5 font-sans">
-      <div className="max-w-7xl mx-auto">
+    <section className="bg-[#130D08] text-white py-24 border-t border-white/5 font-sans">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Header Block */}
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-14 gap-6">
@@ -108,15 +108,7 @@ export default function Services() {
                 </div>
               </div>
 
-              {/* Card Footer Action */}
-              <div className="px-6 pb-6 pt-2">
-                <a
-                  href="#"
-                  className="inline-flex items-center gap-2 text-xs font-semibold text-[#F8A201] uppercase tracking-wider group-hover:underline"
-                >
-                  Learn More <FiArrowUpRight size={16} />
-                </a>
-              </div>
+              
             </motion.div>
           ))}
         </div>

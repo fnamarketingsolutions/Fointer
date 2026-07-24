@@ -38,8 +38,8 @@ export default function ClientReviews() {
   };
 
   return (
-    <section className="bg-[#130D08] text-white py-24 px-4 sm:px-6 lg:px-8 border-t border-white/5 relative">
-      <div className="max-w-4xl mx-auto">
+    <section className="bg-[#130D08] text-white py-24 border-t border-white/5 relative">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         <div className="text-center mb-12">
           <p className="text-xs uppercase tracking-[0.25em] text-[#F8A201] font-bold">

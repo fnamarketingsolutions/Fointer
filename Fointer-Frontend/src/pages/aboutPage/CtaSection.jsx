@@ -3,12 +3,12 @@ import { Mail, ArrowRight, Sparkles } from 'lucide-react';
 
 export default function CTASection() {
   return (
-    <section className="bg-[#130D08] text-white py-20 px-4 sm:px-6 lg:px-8 border-t border-amber-900/20 font-sans relative overflow-hidden">
+    <section className="bg-[#130D08] text-white py-20 border-t border-amber-900/20 font-sans relative overflow-hidden">
       
       {/* Background Radial Ambient Glow for the outer section */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[#F8A201]/10 rounded-full blur-[150px] pointer-events-none z-0" />
 
-      <div className="max-w-5xl mx-auto relative z-10">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         
         {/* Main CTA Block Container */}
         <div className="bg-[#1A130C] border border-[#F8A201]/30 rounded-3xl p-8 sm:p-12 lg:p-16 shadow-2xl relative overflow-hidden text-center flex flex-col items-center space-y-8">

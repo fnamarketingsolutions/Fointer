@@ -4,13 +4,13 @@ import { motion } from 'framer-motion';
 const ContactInfo = () => {
   return (
     <>
-      <section className="relative min-h-[85vh] w-full bg-[#130D08] text-white flex items-center justify-center px-4 py-12 md:py-20 overflow-hidden">
+      <section className="relative min-h-[85vh] w-full bg-[#130D08] text-white flex items-center justify-center py-12 md:py-20 overflow-hidden">
         
         {/* Background Radial Glow (Exact same as About Hero) */}
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[500px] h-[500px] bg-[#F8A201]/10 rounded-full blur-[120px] pointer-events-none" />
 
         {/* Main Container */}
-        <div className="relative max-w-6xl w-full grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16 items-center z-10">
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16 items-center z-10">
           
           {/* Left Column: Content & Quick Info */}
           <div className="flex flex-col space-y-6">

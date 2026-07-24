@@ -46,20 +46,7 @@ export default function HeroSection() {
           Connect with industry titans, participate in bespoke commerce, and engage in high-fidelity discourse. Welcome to the elite layer of the digital world.
         </motion.p>
 
-        {/* Action Buttons */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.6 }}
-          className="mt-10 flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto"
-        >
-          <button className="w-full sm:w-auto px-8 py-3.5 bg-[#F8A201] text-[#130D08] font-bold text-xs uppercase tracking-widest rounded-lg hover:bg-[#e09200] transition-colors shadow-lg shadow-[#F8A201]/10 active:scale-[0.98]">
-            Request Invitation
-          </button>
-          <button className="w-full sm:w-auto px-8 py-3.5 border border-white/20 text-white font-bold text-xs uppercase tracking-widest rounded-lg hover:border-[#F8A201] hover:text-[#F8A201] transition-all active:scale-[0.98]">
-            Explore Network
-          </button>
-        </motion.div>
+     
 
         {/* Stats Container */}
         <motion.div

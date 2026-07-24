@@ -10,11 +10,12 @@ import JoinUsSection from './JoinUsSection';
 const AboutHero = () => {
   return (
     <>
-      <section className="relative bg-[#130D08] text-white pt-28 pb-20 px-4 sm:px-6 lg:px-8 min-h-[90vh] flex flex-col justify-center items-center overflow-hidden">
+      <section className="relative bg-[#130D08] text-white pt-28 pb-20 min-h-[90vh] flex flex-col justify-center items-center overflow-hidden">
         
         {/* Background Radial Glow */}
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[500px] h-[500px] bg-[#F8A201]/10 rounded-full blur-[120px] pointer-events-none" />
 
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full flex flex-col items-center">
         {/* Pill Badge */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -82,6 +83,7 @@ const AboutHero = () => {
               <p className="text-[11px] text-gray-400 tracking-widest uppercase mt-1">COMMUNITY SATISFACTION</p>
             </div>
         </motion.div>
+        </div>
 
       </section>
       

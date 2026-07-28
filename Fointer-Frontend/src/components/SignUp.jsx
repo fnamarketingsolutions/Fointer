@@ -14,6 +14,8 @@ export default function SignUp() {
     loading: socialLoading,
     error: socialError,
     setError: setSocialError,
+    pendingVerification,
+    clearPendingVerification,
     handleGoogleAuth,
     handleFacebookAuth,
   } = useSocialAuth();
@@ -35,6 +37,7 @@ export default function SignUp() {
   const [verifyLoading, setVerifyLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
 
+  const activeVerificationEmail = verificationEmail || pendingVerification?.email || '';
   const errorMessage = emailError || socialError;
 
   const handleChange = (e) => {
@@ -47,6 +50,7 @@ export default function SignUp() {
     setEmailError('');
     setSignupSuccess('');
     setSocialError('');
+    clearPendingVerification();
 
     try {
       const response = await sigupUser(formData);
@@ -67,13 +71,13 @@ export default function SignUp() {
   };
 
   const handleResend = async () => {
-    if (!verificationEmail) return;
+    if (!activeVerificationEmail) return;
 
     setResendLoading(true);
     setEmailError('');
 
     try {
-      const response = await resendVerificationEmail(verificationEmail);
+      const response = await resendVerificationEmail(activeVerificationEmail);
       setSignupSuccess(response?.message || 'OTP sent again.');
     } catch (error) {
       setEmailError(
@@ -86,13 +90,13 @@ export default function SignUp() {
 
   const handleVerifyOtp = async (e) => {
     e.preventDefault();
-    if (!verificationEmail || otp.length !== 6) return;
+    if (!activeVerificationEmail || otp.length !== 6) return;
 
     setVerifyLoading(true);
     setEmailError('');
 
     try {
-      const response = await verifyEmailOtp(verificationEmail, otp);
+      const response = await verifyEmailOtp(activeVerificationEmail, otp);
       if (response?.success && response.user) {
         loginSuccess(response.user);
         navigate(response.user.role === 'admin' ? '/admin' : '/dashboard');
@@ -167,7 +171,7 @@ export default function SignUp() {
           {signupSuccess && (
             <div className="mb-5 p-3 rounded-lg bg-emerald-950/60 border border-emerald-500/40 text-emerald-200 text-xs text-center leading-relaxed">
               {signupSuccess}
-              {verificationEmail ? ` (${verificationEmail})` : ''}
+              {activeVerificationEmail ? ` (${activeVerificationEmail})` : ''}
             </div>
           )}
 
@@ -177,7 +181,7 @@ export default function SignUp() {
             </div>
           )}
 
-          {!verificationEmail ? (
+          {!activeVerificationEmail ? (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-medium text-gray-300 uppercase tracking-wider mb-1.5">
@@ -324,7 +328,7 @@ export default function SignUp() {
             </Link>
           </p>
 
-          {verificationEmail && (
+          {activeVerificationEmail && (
             <div className="mt-4 text-center text-xs text-gray-400">
               Didn&apos;t get the OTP?{' '}
               <button

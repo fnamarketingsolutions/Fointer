@@ -13,6 +13,8 @@ export default function Login() {
     loading: socialLoading,
     error: socialError,
     setError: setSocialError,
+    pendingVerification,
+    clearPendingVerification,
     handleGoogleAuth,
     handleFacebookAuth,
   } = useSocialAuth();
@@ -26,6 +28,7 @@ export default function Login() {
   const [verifyLoading, setVerifyLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
 
+  const activeVerificationEmail = verificationEmail || pendingVerification?.email || '';
   const errorMessage = emailError || socialError;
 
   const handleChange = (e) => {
@@ -38,6 +41,7 @@ export default function Login() {
     setEmailError('');
     setVerificationEmail('');
     setSocialError('');
+    clearPendingVerification();
 
     try {
       const response = await loginUser(formData);
@@ -59,17 +63,17 @@ export default function Login() {
   };
 
   const handleResend = async () => {
-    if (!verificationEmail) return;
+    if (!activeVerificationEmail) return;
 
     setResendLoading(true);
     setEmailError('');
 
     try {
-      const response = await resendVerificationEmail(verificationEmail);
-      setEmailError(response?.message || 'Verification email sent.');
+      const response = await resendVerificationEmail(activeVerificationEmail);
+      setEmailError(response?.message || 'OTP sent.');
     } catch (error) {
       setEmailError(
-        error?.response?.data?.message || 'Could not resend verification email.'
+        error?.response?.data?.message || 'Could not resend OTP.'
       );
     } finally {
       setResendLoading(false);
@@ -78,13 +82,13 @@ export default function Login() {
 
   const handleVerifyOtp = async (e) => {
     e.preventDefault();
-    if (!verificationEmail || otp.length !== 6) return;
+    if (!activeVerificationEmail || otp.length !== 6) return;
 
     setVerifyLoading(true);
     setEmailError('');
 
     try {
-      const response = await verifyEmailOtp(verificationEmail, otp);
+      const response = await verifyEmailOtp(activeVerificationEmail, otp);
       if (response?.success && response.user) {
         loginSuccess(response.user);
         navigate(response.user.role === 'admin' ? '/admin' : '/dashboard');
@@ -182,7 +186,7 @@ export default function Login() {
             </div>
           )}
 
-          {!verificationEmail ? (
+          {!activeVerificationEmail ? (
             <form onSubmit={handleSubmit} className="space-y-5">
               {renderInputField('Email Address', 'email', 'email', 'john@example.com')}
               {renderInputField('Password', 'password', 'password', '••••••••', true)}
@@ -239,9 +243,9 @@ export default function Login() {
             </Link>
           </p>
 
-          {verificationEmail && (
+          {activeVerificationEmail && (
             <div className="mt-4 text-center text-xs text-gray-400">
-              Need a new OTP for {verificationEmail}?{' '}
+              Need a new OTP for {activeVerificationEmail}?{' '}
               <button
                 type="button"
                 onClick={handleResend}

@@ -244,6 +244,7 @@ export const googleLogin = async (req, res) => {
     let user =
       (await User.findOne({ email })) ||
       (await User.findOne({ googleId }));
+    let isNewUser = false;
 
     if (!user) {
       const baseUsername = email
@@ -259,18 +260,43 @@ export const googleLogin = async (req, res) => {
         email,
         googleId,
         avatar: picture,
-        isEmailVerified: true,
+        isEmailVerified: false,
         role: "user",
       });
+      isNewUser = true;
     } else {
       // Link Google to existing email account if needed
       if (!user.googleId) user.googleId = googleId;
       if (picture && !user.avatar) user.avatar = picture;
       if (name && !user.name) user.name = name;
-      user.isEmailVerified = true;
-      user.emailVerificationOtp = undefined;
-      user.emailVerificationOtpExpires = undefined;
       await user.save();
+    }
+
+    if (!user.isEmailVerified) {
+      const { otp, hashedOtp, expiresAt } = createEmailVerificationFields();
+      user.emailVerificationOtp = hashedOtp;
+      user.emailVerificationOtpExpires = expiresAt;
+      await user.save();
+
+      try {
+        await sendVerificationEmail({
+          to: user.email,
+          name: user.name,
+          otp,
+        });
+      } catch (mailError) {
+        if (isNewUser) {
+          await User.deleteOne({ _id: user._id });
+        }
+        throw mailError;
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: "Enter the 6-digit OTP sent to your email to finish Google sign-in.",
+        requiresEmailVerification: true,
+        email: user.email,
+      });
     }
 
     return sendToken(user, 200, res);

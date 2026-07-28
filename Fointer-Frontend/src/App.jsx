@@ -4,6 +4,7 @@ import { Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import SignUp from './components/SignUp';
 import Login from './components/Login';
+import VerifyEmail from './components/VerifyEmail';
 import HeroSection from './pages/homePage/HeroSection';
 import AboutHero from './pages/aboutPage/AboutHero';
 import Footer from './components/Footer';
@@ -40,17 +41,19 @@ const App = () => {
   const isAdminRoute = location.pathname.startsWith('/admin');
   const isLoginRoute = location.pathname.startsWith('/login');
   const isSignupRoute = location.pathname.startsWith('/signup');
+  const isVerifyRoute = location.pathname.startsWith('/verify-email');
 
   return (
     <>
       <ScrollToTop />
 
-      {!isDashboardRoute && !isAdminRoute && !isLoginRoute && !isSignupRoute && <Navbar />}
+      {!isDashboardRoute && !isAdminRoute && !isLoginRoute && !isSignupRoute && !isVerifyRoute && <Navbar />}
 
       <Routes>
         <Route path="/" element={<HeroSection />} />
         <Route path="/signup" element={<SignUp />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
 
         <Route path="/about" element={<AboutHero />} />
         <Route path="/services" element={<ServiceHero />} />
@@ -105,7 +108,7 @@ const App = () => {
         />
       </Routes>
 
-      {!isDashboardRoute && !isAdminRoute && !isLoginRoute && !isSignupRoute && <Footer />}
+      {!isDashboardRoute && !isAdminRoute && !isLoginRoute && !isSignupRoute && !isVerifyRoute && <Footer />}
     </>
   );
 };

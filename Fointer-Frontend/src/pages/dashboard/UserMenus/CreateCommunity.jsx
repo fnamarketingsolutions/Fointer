@@ -154,7 +154,7 @@ export default function CreateCommunity({ onCreated }) {
           Establish Your <span className="text-[#D4AF37]">Legacy</span>
         </h1>
         <p className="text-xs sm:text-sm text-[#A69B8D] mt-1 font-light">
-          Define the parameters of your exclusive circle within the Project-X network.
+          Define the parameters of your exclusive circle within the Fointer.
         </p>
       </div>
 

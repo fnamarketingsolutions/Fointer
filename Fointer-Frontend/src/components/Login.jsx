@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { FiEye, FiEyeOff } from 'react-icons/fi';
 import { Link, useNavigate } from 'react-router-dom';
-import { loginUser } from '../api/auth';
+import { loginUser, resendVerificationEmail } from '../api/auth';
 import { useAuth } from '../context/AuthContext';
 import { useSocialAuth } from '../hooks/useSocialAuth';
 import SocialAuthButtons from './SocialAuthButtons';
@@ -21,6 +21,8 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [emailLoading, setEmailLoading] = useState(false);
   const [emailError, setEmailError] = useState('');
+  const [verificationEmail, setVerificationEmail] = useState('');
+  const [resendLoading, setResendLoading] = useState(false);
 
   const errorMessage = emailError || socialError;
 
@@ -32,6 +34,7 @@ export default function Login() {
     e.preventDefault();
     setEmailLoading(true);
     setEmailError('');
+    setVerificationEmail('');
     setSocialError('');
 
     try {
@@ -43,9 +46,30 @@ export default function Login() {
         setEmailError(response?.message || 'Invalid email or password.');
       }
     } catch (error) {
+      if (error?.response?.data?.requiresEmailVerification) {
+        setVerificationEmail(error?.response?.data?.email || formData.email);
+      }
       setEmailError(error?.response?.data?.message || 'Login failed. Please try again.');
     } finally {
       setEmailLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    if (!verificationEmail) return;
+
+    setResendLoading(true);
+    setEmailError('');
+
+    try {
+      const response = await resendVerificationEmail(verificationEmail);
+      setEmailError(response?.message || 'Verification email sent.');
+    } catch (error) {
+      setEmailError(
+        error?.response?.data?.message || 'Could not resend verification email.'
+      );
+    } finally {
+      setResendLoading(false);
     }
   };
 
@@ -94,7 +118,7 @@ export default function Login() {
       >
         <div>
           <p className="text-xs uppercase tracking-[0.25em] text-[#F8A201] font-bold">
-            PROJECT-X NETWORK
+            Fointer
           </p>
           <h1 className="text-4xl md:text-6xl font-serif text-amber-50/90 leading-tight mt-6">
             Connect. Engage.<br />
@@ -162,10 +186,24 @@ export default function Login() {
               Sign up
             </Link>
           </p>
+
+          {verificationEmail && (
+            <div className="mt-4 text-center text-xs text-gray-400">
+              Need a new link for {verificationEmail}?{' '}
+              <button
+                type="button"
+                onClick={handleResend}
+                disabled={resendLoading}
+                className="text-[#F8A201] hover:underline font-medium disabled:opacity-50"
+              >
+                {resendLoading ? 'Sending...' : 'Resend verification email'}
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col sm:flex-row items-center justify-between pt-6 border-t border-white/5 text-[11px] text-gray-500 gap-2">
-          <span>© 2026 Project-X Networks.</span>
+          <span>© 2026 Fointer</span>
           <div className="flex space-x-4">
             <Link to="/terms-and-conditions" className="hover:text-gray-300 transition-colors">Terms</Link>
             <Link to="/privacy-policy" className="hover:text-gray-300 transition-colors">Privacy</Link>

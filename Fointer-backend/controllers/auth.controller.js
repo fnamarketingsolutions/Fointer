@@ -1,9 +1,29 @@
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import { OAuth2Client } from "google-auth-library";
 import User from "../models/user.js";
 import sendToken from "../utils/sendToken.js";
+import sendVerificationEmail from "../utils/sendVerificationEmail.js";
 
 const getGoogleClient = () => new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+const createEmailVerificationFields = () => {
+  const rawToken = crypto.randomBytes(32).toString("hex");
+  const hashedToken = crypto.createHash("sha256").update(rawToken).digest("hex");
+
+  return {
+    rawToken,
+    hashedToken,
+    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+  };
+};
+
+const buildVerificationUrl = (token, email) => {
+  const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+  const query = new URLSearchParams({ token });
+  if (email) query.set("email", email);
+  return `${frontendUrl.replace(/\/$/, "")}/verify-email?${query.toString()}`;
+};
 
 export const signup = async (req, res) => {
   try {
@@ -59,6 +79,7 @@ export const signup = async (req, res) => {
 
     // Hash Password
     const hashedPassword = await bcrypt.hash(password, 10);
+    const { rawToken, hashedToken, expiresAt } = createEmailVerificationFields();
 
     // Create User
     const user = await User.create({
@@ -66,10 +87,29 @@ export const signup = async (req, res) => {
       name,
       email,
       password: hashedPassword,
+      isEmailVerified: false,
+      emailVerificationToken: hashedToken,
+      emailVerificationExpires: expiresAt,
       role: "user",
     });
 
-    return sendToken(user, 201, res);
+    try {
+      await sendVerificationEmail({
+        to: user.email,
+        name: user.name,
+        verificationUrl: buildVerificationUrl(rawToken, user.email),
+      });
+    } catch (mailError) {
+      await User.deleteOne({ _id: user._id });
+      throw mailError;
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: "Account created. Please verify your email before logging in.",
+      requiresEmailVerification: true,
+      email: user.email,
+    });
 
   } catch (error) {
     return res.status(500).json({
@@ -99,6 +139,16 @@ export const login = async (req, res) => {
       return res.status(401).json({
         success: false,
         message: "Invalid email or password.",
+      });
+    }
+
+    if (!user.isEmailVerified) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "Please verify your email before logging in. Check your inbox for the verification link.",
+        requiresEmailVerification: true,
+        email: user.email,
       });
     }
 
@@ -216,6 +266,7 @@ export const googleLogin = async (req, res) => {
         email,
         googleId,
         avatar: picture,
+        isEmailVerified: true,
         role: "user",
       });
     } else {
@@ -223,6 +274,9 @@ export const googleLogin = async (req, res) => {
       if (!user.googleId) user.googleId = googleId;
       if (picture && !user.avatar) user.avatar = picture;
       if (name && !user.name) user.name = name;
+      user.isEmailVerified = true;
+      user.emailVerificationToken = undefined;
+      user.emailVerificationExpires = undefined;
       await user.save();
     }
 
@@ -285,6 +339,7 @@ export const facebookLogin = async (req, res) => {
         email: userEmail,
         facebookId,
         avatar,
+        isEmailVerified: true,
         role: "user",
       });
       console.log("✅ NEW USER SAVED TO MONGO DB:", user);
@@ -293,6 +348,9 @@ export const facebookLogin = async (req, res) => {
       // Link facebookId if user already registered via regular email form
       user.facebookId = facebookId;
       if (!user.avatar) user.avatar = avatar;
+      user.isEmailVerified = true;
+      user.emailVerificationToken = undefined;
+      user.emailVerificationExpires = undefined;
       await user.save();
     }
 
@@ -325,6 +383,97 @@ export const logout = (req, res) => {
     message: "Logged out successfully.",
   });
 
+};
+
+export const verifyEmail = async (req, res) => {
+  try {
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        message: "Verification token is required.",
+      });
+    }
+
+    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+    const user = await User.findOne({
+      emailVerificationToken: hashedToken,
+      emailVerificationExpires: { $gt: new Date() },
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: "This verification link is invalid or has expired.",
+      });
+    }
+
+    user.isEmailVerified = true;
+    user.emailVerificationToken = undefined;
+    user.emailVerificationExpires = undefined;
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Email verified successfully. You can now log in.",
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+export const resendVerificationEmail = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: "Email is required.",
+      });
+    }
+
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "No account found with that email.",
+      });
+    }
+
+    if (user.isEmailVerified) {
+      return res.status(400).json({
+        success: false,
+        message: "This email is already verified.",
+      });
+    }
+
+    const { rawToken, hashedToken, expiresAt } = createEmailVerificationFields();
+    user.emailVerificationToken = hashedToken;
+    user.emailVerificationExpires = expiresAt;
+    await user.save();
+
+    await sendVerificationEmail({
+      to: user.email,
+      name: user.name,
+      verificationUrl: buildVerificationUrl(rawToken, user.email),
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "A new verification email has been sent.",
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
 };
 
 // ==============================

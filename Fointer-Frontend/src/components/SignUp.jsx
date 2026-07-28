@@ -1,15 +1,12 @@
 import React, { useState } from 'react';
 import { FiEye, FiEyeOff } from 'react-icons/fi';
 import { ArrowLeft } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
-import { sigupUser } from '../api/auth';
-import { useAuth } from '../context/AuthContext';
+import { Link } from 'react-router-dom';
+import { resendVerificationEmail, sigupUser } from '../api/auth';
 import { useSocialAuth } from '../hooks/useSocialAuth';
 import SocialAuthButtons from './SocialAuthButtons';
 
 export default function SignUp() {
-  const navigate = useNavigate();
-  const { loginSuccess } = useAuth();
   const {
     loading: socialLoading,
     error: socialError,
@@ -29,6 +26,9 @@ export default function SignUp() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [emailLoading, setEmailLoading] = useState(false);
   const [emailError, setEmailError] = useState('');
+  const [signupSuccess, setSignupSuccess] = useState('');
+  const [verificationEmail, setVerificationEmail] = useState('');
+  const [resendLoading, setResendLoading] = useState(false);
 
   const errorMessage = emailError || socialError;
 
@@ -40,13 +40,16 @@ export default function SignUp() {
     e.preventDefault();
     setEmailLoading(true);
     setEmailError('');
+    setSignupSuccess('');
     setSocialError('');
 
     try {
       const response = await sigupUser(formData);
-      if (response?.success && response.user) {
-        loginSuccess(response.user);
-        navigate(response.user.role === 'admin' ? '/admin' : '/dashboard');
+      if (response?.success) {
+        setVerificationEmail(response?.email || formData.email);
+        setSignupSuccess(
+          response?.message || 'Account created. Please verify your email before logging in.'
+        );
       } else {
         setEmailError(response?.message || 'Sign up failed.');
       }
@@ -54,6 +57,24 @@ export default function SignUp() {
       setEmailError(error?.response?.data?.message || 'Sign up failed. Please try again.');
     } finally {
       setEmailLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    if (!verificationEmail) return;
+
+    setResendLoading(true);
+    setEmailError('');
+
+    try {
+      const response = await resendVerificationEmail(verificationEmail);
+      setSignupSuccess(response?.message || 'Verification email sent again.');
+    } catch (error) {
+      setEmailError(
+        error?.response?.data?.message || 'Could not resend verification email.'
+      );
+    } finally {
+      setResendLoading(false);
     }
   };
 
@@ -116,6 +137,13 @@ export default function SignUp() {
     Enter your details to register and get started.
   </p>
 </div>
+
+          {signupSuccess && (
+            <div className="mb-5 p-3 rounded-lg bg-emerald-950/60 border border-emerald-500/40 text-emerald-200 text-xs text-center leading-relaxed">
+              {signupSuccess}
+              {verificationEmail ? ` (${verificationEmail})` : ''}
+            </div>
+          )}
 
           {errorMessage && (
             <div className="mb-5 p-3 rounded-lg bg-red-950/60 border border-red-500/40 text-red-200 text-xs text-center leading-relaxed">
@@ -240,10 +268,24 @@ export default function SignUp() {
               Log in
             </Link>
           </p>
+
+          {verificationEmail && (
+            <div className="mt-4 text-center text-xs text-gray-400">
+              Didn&apos;t get the email?{' '}
+              <button
+                type="button"
+                onClick={handleResend}
+                disabled={resendLoading}
+                className="text-[#F8A201] hover:underline font-medium disabled:opacity-50"
+              >
+                {resendLoading ? 'Sending...' : 'Resend verification email'}
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col sm:flex-row items-center justify-between pt-6 border-t border-white/5 text-[11px] text-gray-500 gap-2">
-          <span>© 2026 Project-X Networks.</span>
+          <span>© 2026 Fointer</span>
           <div className="flex space-x-4">
             <a href="#" className="hover:text-gray-300 transition-colors">Privacy</a>
             <a href="#" className="hover:text-gray-300 transition-colors">Terms</a>

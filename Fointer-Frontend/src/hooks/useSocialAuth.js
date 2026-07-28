@@ -7,15 +7,18 @@ import { useAuth } from '../context/AuthContext';
 
 export function useSocialAuth() {
   const navigate = useNavigate();
-  const { loginSuccess, refreshUser } = useAuth();
+  const { loginSuccess } = useAuth();
   const [loading, setLoading] = useState({ google: false, facebook: false });
   const [error, setError] = useState('');
+  const [pendingVerification, setPendingVerification] = useState(null);
 
   const clearError = () => setError('');
+  const clearPendingVerification = () => setPendingVerification(null);
 
   const completeAuth = async (provider, token, authApiCall) => {
     setLoading((prev) => ({ ...prev, [provider]: true }));
     setError('');
+    setPendingVerification(null);
 
     try {
       const response = await authApiCall(token);
@@ -24,8 +27,17 @@ export function useSocialAuth() {
         navigate(response.user.role === 'admin' ? '/admin' : '/dashboard');
         return;
       }
+      if (response?.requiresEmailVerification && response?.email) {
+        setPendingVerification({ email: response.email, provider });
+      }
       setError(response?.message || `${provider} authentication failed.`);
     } catch (err) {
+      if (err?.response?.data?.requiresEmailVerification && err?.response?.data?.email) {
+        setPendingVerification({
+          email: err.response.data.email,
+          provider,
+        });
+      }
       setError(err?.response?.data?.message || `${provider} authentication failed.`);
     } finally {
       setLoading((prev) => ({ ...prev, [provider]: false }));
@@ -72,6 +84,8 @@ export function useSocialAuth() {
     error,
     setError,
     clearError,
+    pendingVerification,
+    clearPendingVerification,
     handleGoogleAuth,
     handleFacebookAuth,
   };

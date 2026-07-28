@@ -23,7 +23,7 @@ const createTransporter = () => {
   });
 };
 
-const sendVerificationEmail = async ({ to, name, verificationUrl }) => {
+const sendVerificationEmail = async ({ to, name, otp }) => {
   const from = process.env.EMAIL_FROM || process.env.SMTP_USER;
   const transporter = createTransporter();
 
@@ -35,18 +35,16 @@ const sendVerificationEmail = async ({ to, name, verificationUrl }) => {
       <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1f2937;">
         <h2 style="margin-bottom: 16px;">Verify your email</h2>
         <p>Hi ${name || "there"},</p>
-        <p>Thanks for signing up for Fointer. Please confirm your email address to activate your account.</p>
-        <p style="margin: 24px 0;">
-          <a
-            href="${verificationUrl}"
-            style="background:#f8a201;color:#130d08;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:700;display:inline-block;"
-          >
-            Verify Email
-          </a>
-        </p>
-        <p>If the button does not work, open this link:</p>
-        <p><a href="${verificationUrl}">${verificationUrl}</a></p>
-        <p>This link expires in 24 hours.</p>
+        <p>Thanks for signing up for Fointer. Please use this 6-digit OTP to verify your account.</p>
+        <div style="margin:24px 0; padding:16px; background:#fff7e6; border:1px solid #f8a201; border-radius:12px; text-align:center;">
+          <div style="font-size:12px; letter-spacing:0.24em; text-transform:uppercase; color:#8a5a00; margin-bottom:8px;">
+            Your Verification Code
+          </div>
+          <div style="font-size:32px; font-weight:700; letter-spacing:0.35em; color:#130d08;">
+            ${otp}
+          </div>
+        </div>
+        <p>This OTP expires in 10 minutes.</p>
       </div>
     `,
   });

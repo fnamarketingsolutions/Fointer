@@ -43,11 +43,11 @@ const userSchema = new mongoose.Schema(
       default: false,
     },
 
-    emailVerificationToken: {
+    emailVerificationOtp: {
       type: String,
     },
 
-    emailVerificationExpires: {
+    emailVerificationOtpExpires: {
       type: Date,
     },
 

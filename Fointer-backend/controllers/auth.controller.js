@@ -8,21 +8,14 @@ import sendVerificationEmail from "../utils/sendVerificationEmail.js";
 const getGoogleClient = () => new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 const createEmailVerificationFields = () => {
-  const rawToken = crypto.randomBytes(32).toString("hex");
-  const hashedToken = crypto.createHash("sha256").update(rawToken).digest("hex");
+  const otp = `${Math.floor(100000 + Math.random() * 900000)}`;
+  const hashedOtp = crypto.createHash("sha256").update(otp).digest("hex");
 
   return {
-    rawToken,
-    hashedToken,
-    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    otp,
+    hashedOtp,
+    expiresAt: new Date(Date.now() + 10 * 60 * 1000),
   };
-};
-
-const buildVerificationUrl = (token, email) => {
-  const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
-  const query = new URLSearchParams({ token });
-  if (email) query.set("email", email);
-  return `${frontendUrl.replace(/\/$/, "")}/verify-email?${query.toString()}`;
 };
 
 export const signup = async (req, res) => {
@@ -79,7 +72,7 @@ export const signup = async (req, res) => {
 
     // Hash Password
     const hashedPassword = await bcrypt.hash(password, 10);
-    const { rawToken, hashedToken, expiresAt } = createEmailVerificationFields();
+    const { otp, hashedOtp, expiresAt } = createEmailVerificationFields();
 
     // Create User
     const user = await User.create({
@@ -88,8 +81,8 @@ export const signup = async (req, res) => {
       email,
       password: hashedPassword,
       isEmailVerified: false,
-      emailVerificationToken: hashedToken,
-      emailVerificationExpires: expiresAt,
+      emailVerificationOtp: hashedOtp,
+      emailVerificationOtpExpires: expiresAt,
       role: "user",
     });
 
@@ -97,7 +90,7 @@ export const signup = async (req, res) => {
       await sendVerificationEmail({
         to: user.email,
         name: user.name,
-        verificationUrl: buildVerificationUrl(rawToken, user.email),
+        otp,
       });
     } catch (mailError) {
       await User.deleteOne({ _id: user._id });
@@ -106,7 +99,7 @@ export const signup = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: "Account created. Please verify your email before logging in.",
+      message: "Account created. Enter the 6-digit OTP sent to your email.",
       requiresEmailVerification: true,
       email: user.email,
     });
@@ -146,7 +139,7 @@ export const login = async (req, res) => {
       return res.status(403).json({
         success: false,
         message:
-          "Please verify your email before logging in. Check your inbox for the verification link.",
+          "Please verify your email with the 6-digit OTP sent to your inbox.",
         requiresEmailVerification: true,
         email: user.email,
       });
@@ -275,8 +268,8 @@ export const googleLogin = async (req, res) => {
       if (picture && !user.avatar) user.avatar = picture;
       if (name && !user.name) user.name = name;
       user.isEmailVerified = true;
-      user.emailVerificationToken = undefined;
-      user.emailVerificationExpires = undefined;
+      user.emailVerificationOtp = undefined;
+      user.emailVerificationOtpExpires = undefined;
       await user.save();
     }
 
@@ -349,8 +342,8 @@ export const facebookLogin = async (req, res) => {
       user.facebookId = facebookId;
       if (!user.avatar) user.avatar = avatar;
       user.isEmailVerified = true;
-      user.emailVerificationToken = undefined;
-      user.emailVerificationExpires = undefined;
+      user.emailVerificationOtp = undefined;
+      user.emailVerificationOtpExpires = undefined;
       await user.save();
     }
 
@@ -385,39 +378,37 @@ export const logout = (req, res) => {
 
 };
 
-export const verifyEmail = async (req, res) => {
+export const verifyEmailOtp = async (req, res) => {
   try {
-    const { token } = req.body;
+    const { email, otp } = req.body;
 
-    if (!token) {
+    if (!email || !otp) {
       return res.status(400).json({
         success: false,
-        message: "Verification token is required.",
+        message: "Email and OTP are required.",
       });
     }
 
-    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+    const hashedOtp = crypto.createHash("sha256").update(otp).digest("hex");
     const user = await User.findOne({
-      emailVerificationToken: hashedToken,
-      emailVerificationExpires: { $gt: new Date() },
+      email,
+      emailVerificationOtp: hashedOtp,
+      emailVerificationOtpExpires: { $gt: new Date() },
     });
 
     if (!user) {
       return res.status(400).json({
         success: false,
-        message: "This verification link is invalid or has expired.",
+        message: "Invalid or expired OTP.",
       });
     }
 
     user.isEmailVerified = true;
-    user.emailVerificationToken = undefined;
-    user.emailVerificationExpires = undefined;
+    user.emailVerificationOtp = undefined;
+    user.emailVerificationOtpExpires = undefined;
     await user.save();
 
-    return res.status(200).json({
-      success: true,
-      message: "Email verified successfully. You can now log in.",
-    });
+    return sendToken(user, 200, res);
   } catch (error) {
     return res.status(500).json({
       success: false,
@@ -453,20 +444,20 @@ export const resendVerificationEmail = async (req, res) => {
       });
     }
 
-    const { rawToken, hashedToken, expiresAt } = createEmailVerificationFields();
-    user.emailVerificationToken = hashedToken;
-    user.emailVerificationExpires = expiresAt;
+    const { otp, hashedOtp, expiresAt } = createEmailVerificationFields();
+    user.emailVerificationOtp = hashedOtp;
+    user.emailVerificationOtpExpires = expiresAt;
     await user.save();
 
     await sendVerificationEmail({
       to: user.email,
       name: user.name,
-      verificationUrl: buildVerificationUrl(rawToken, user.email),
+      otp,
     });
 
     return res.status(200).json({
       success: true,
-      message: "A new verification email has been sent.",
+      message: "A new OTP has been sent to your email.",
     });
   } catch (error) {
     return res.status(500).json({

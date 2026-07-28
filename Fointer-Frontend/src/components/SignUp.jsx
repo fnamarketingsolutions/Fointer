@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
 import { FiEye, FiEyeOff } from 'react-icons/fi';
 import { ArrowLeft } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { resendVerificationEmail, sigupUser } from '../api/auth';
+import { Link, useNavigate } from 'react-router-dom';
+import { resendVerificationEmail, sigupUser, verifyEmailOtp } from '../api/auth';
+import { useAuth } from '../context/AuthContext';
 import { useSocialAuth } from '../hooks/useSocialAuth';
 import SocialAuthButtons from './SocialAuthButtons';
 
 export default function SignUp() {
+  const navigate = useNavigate();
+  const { loginSuccess } = useAuth();
   const {
     loading: socialLoading,
     error: socialError,
@@ -28,6 +31,8 @@ export default function SignUp() {
   const [emailError, setEmailError] = useState('');
   const [signupSuccess, setSignupSuccess] = useState('');
   const [verificationEmail, setVerificationEmail] = useState('');
+  const [otp, setOtp] = useState('');
+  const [verifyLoading, setVerifyLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
 
   const errorMessage = emailError || socialError;
@@ -47,8 +52,9 @@ export default function SignUp() {
       const response = await sigupUser(formData);
       if (response?.success) {
         setVerificationEmail(response?.email || formData.email);
+        setOtp('');
         setSignupSuccess(
-          response?.message || 'Account created. Please verify your email before logging in.'
+          response?.message || 'Account created. Enter the OTP sent to your email.'
         );
       } else {
         setEmailError(response?.message || 'Sign up failed.');
@@ -68,13 +74,33 @@ export default function SignUp() {
 
     try {
       const response = await resendVerificationEmail(verificationEmail);
-      setSignupSuccess(response?.message || 'Verification email sent again.');
+      setSignupSuccess(response?.message || 'OTP sent again.');
     } catch (error) {
       setEmailError(
-        error?.response?.data?.message || 'Could not resend verification email.'
+        error?.response?.data?.message || 'Could not resend OTP.'
       );
     } finally {
       setResendLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e) => {
+    e.preventDefault();
+    if (!verificationEmail || otp.length !== 6) return;
+
+    setVerifyLoading(true);
+    setEmailError('');
+
+    try {
+      const response = await verifyEmailOtp(verificationEmail, otp);
+      if (response?.success && response.user) {
+        loginSuccess(response.user);
+        navigate(response.user.role === 'admin' ? '/admin' : '/dashboard');
+      }
+    } catch (error) {
+      setEmailError(error?.response?.data?.message || 'OTP verification failed.');
+    } finally {
+      setVerifyLoading(false);
     }
   };
 
@@ -91,7 +117,7 @@ export default function SignUp() {
       >
         <div>
           <p className="text-xs uppercase tracking-[0.25em] text-[#F8A201] font-bold">
-            PROJECT-X NETWORK
+            Fointer
           </p>
           <h1 className="text-4xl md:text-6xl font-serif text-amber-50/90 leading-tight mt-6">
             Connect. Engage.<br />
@@ -151,6 +177,7 @@ export default function SignUp() {
             </div>
           )}
 
+          {!verificationEmail ? (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-medium text-gray-300 uppercase tracking-wider mb-1.5">
@@ -261,6 +288,34 @@ export default function SignUp() {
               facebookLoading={socialLoading.facebook}
             />
           </form>
+          ) : (
+          <form onSubmit={handleVerifyOtp} className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-300 uppercase tracking-wider mb-1.5">
+                6-Digit OTP
+              </label>
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="\d{6}"
+                maxLength={6}
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="123456"
+                required
+                className={`${inputClass} text-center tracking-[0.35em] text-lg`}
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={verifyLoading || otp.length !== 6}
+              className="w-full py-3 px-4 bg-[#F8A201] text-[#130D08] font-bold text-sm rounded-lg hover:bg-[#e09200] transition-colors shadow-md shadow-[#F8A201]/10 active:scale-[0.98] disabled:opacity-50"
+            >
+              {verifyLoading ? 'Verifying...' : 'Verify & Login'}
+            </button>
+          </form>
+          )}
 
           <p className="text-center text-xs text-gray-400 mt-6">
             Already have an account?{' '}
@@ -271,14 +326,14 @@ export default function SignUp() {
 
           {verificationEmail && (
             <div className="mt-4 text-center text-xs text-gray-400">
-              Didn&apos;t get the email?{' '}
+              Didn&apos;t get the OTP?{' '}
               <button
                 type="button"
                 onClick={handleResend}
                 disabled={resendLoading}
                 className="text-[#F8A201] hover:underline font-medium disabled:opacity-50"
               >
-                {resendLoading ? 'Sending...' : 'Resend verification email'}
+                {resendLoading ? 'Sending...' : 'Resend OTP'}
               </button>
             </div>
           )}

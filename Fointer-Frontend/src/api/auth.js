@@ -5,8 +5,8 @@ export const sigupUser = async (data) => {
   return response.data;
 };
 
-export const verifyEmail = async (token) => {
-  const response = await api.post(`/auth/verify-email`, { token });
+export const verifyEmailOtp = async (email, otp) => {
+  const response = await api.post(`/auth/verify-email-otp`, { email, otp });
   return response.data;
 };
 

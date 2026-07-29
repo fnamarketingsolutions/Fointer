@@ -28,6 +28,10 @@ const communitySchema = new mongoose.Schema(
       default: "",
       trim: true,
     },
+    galleryImages: {
+      type: [String],
+      default: [],
+    },
     type: {
       type: String,
       enum: COMMUNITY_TYPES,

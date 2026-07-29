@@ -129,6 +129,7 @@ export const login = async (req, res) => {
     const user = await User.findOne({ email });
 
     if (!user) {
+      console.log('DEBUG: User not found for email:', email);
       return res.status(401).json({
         success: false,
         message: "Invalid email or password.",
@@ -169,6 +170,15 @@ export const login = async (req, res) => {
         message: "Invalid email or password.",
       });
     }
+
+    if (user.status === "suspended" || user.status === "banned") {
+      return res.status(403).json({
+        success: false,
+        message: `Your account is ${user.status}. Contact support.`,
+      });
+    }
+
+    if (user.role) user.role = String(user.role).toLowerCase().trim();
 
     // Generate JWT & Store in Cookie
     return sendToken(user, 200, res);
@@ -242,7 +252,7 @@ export const googleLogin = async (req, res) => {
 
     // Find user by email or googleId
     let user =
-      (await User.findOne({ email })) ||
+      (await User.findOne({ email: email.toLowerCase() })) ||
       (await User.findOne({ googleId }));
     let isNewUser = false;
 
@@ -257,7 +267,7 @@ export const googleLogin = async (req, res) => {
       user = await User.create({
         username,
         name: name || baseUsername,
-        email,
+        email: email.toLowerCase(),
         googleId,
         avatar: picture,
         isEmailVerified: false,
@@ -265,10 +275,12 @@ export const googleLogin = async (req, res) => {
       });
       isNewUser = true;
     } else {
-      // Link Google to existing email account if needed
+      // Link Google and always refresh Google profile details
       if (!user.googleId) user.googleId = googleId;
-      if (picture && !user.avatar) user.avatar = picture;
-      if (name && !user.name) user.name = name;
+      if (picture) user.avatar = picture;
+      if (name) user.name = name;
+      // Normalize role casing so admin promotion in Mongo always works
+      if (user.role) user.role = String(user.role).toLowerCase().trim();
       await user.save();
     }
 
@@ -296,6 +308,13 @@ export const googleLogin = async (req, res) => {
         message: "Enter the 6-digit OTP sent to your email to finish Google sign-in.",
         requiresEmailVerification: true,
         email: user.email,
+      });
+    }
+
+    if (user.status === "suspended" || user.status === "banned") {
+      return res.status(403).json({
+        success: false,
+        message: `Your account is ${user.status}. Contact support.`,
       });
     }
 
@@ -342,20 +361,18 @@ export const facebookLogin = async (req, res) => {
 
     // 2. Query MongoDB by email or facebookId
     let user = await User.findOne({
-      $or: [{ email: userEmail }, { facebookId }],
+      $or: [{ email: userEmail.toLowerCase() }, { facebookId }],
     });
 
     if (!user) {
-      // Generate a unique fallback username
       const baseUsername = (name || "fb_user").toLowerCase().replace(/\s+/g, "");
       const randomNum = Math.floor(1000 + Math.random() * 9000);
       const username = `${baseUsername}_${randomNum}`;
 
-      // Create new user in database (no password required)
       user = await User.create({
         username,
         name: name || "Facebook User",
-        email: userEmail,
+        email: userEmail.toLowerCase(),
         facebookId,
         avatar,
         isEmailVerified: true,
@@ -373,7 +390,13 @@ export const facebookLogin = async (req, res) => {
       await user.save();
     }
 
-    // 3. Issue JWT Token inside HTTP-Only cookie
+    if (user.status === "suspended" || user.status === "banned") {
+      return res.status(403).json({
+        success: false,
+        message: `Your account is ${user.status}. Contact support.`,
+      });
+    }
+
     return sendToken(user, 200, res);
 
   } catch (error) {
@@ -389,11 +412,14 @@ export const facebookLogin = async (req, res) => {
 // Logout
 // ==============================
 export const logout = (req, res) => {
+  const isProduction = process.env.NODE_ENV === "production";
+  const useCrossSiteCookies =
+    process.env.COOKIE_SAME_SITE === "none" || isProduction;
 
   res.cookie("token", "", {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    secure: useCrossSiteCookies,
+    sameSite: useCrossSiteCookies ? "none" : "lax",
     expires: new Date(0),
   });
 
@@ -401,7 +427,6 @@ export const logout = (req, res) => {
     success: true,
     message: "Logged out successfully.",
   });
-
 };
 
 export const verifyEmailOtp = async (req, res) => {
@@ -514,8 +539,11 @@ export const getMe = async (req, res) => {
         username: user.username,
         name: user.name,
         email: user.email,
-        role: user.role,
+        role: String(user.role || "user").toLowerCase().trim(),
         avatar: user.avatar,
+        status: user.status || "active",
+        bio: user.bio || "",
+        interests: user.interests || [],
       },
     });
   } catch (error) {

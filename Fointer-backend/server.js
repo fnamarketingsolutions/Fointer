@@ -9,11 +9,15 @@ import connectDB from "./config/db.js";
 import authRoute from "./routes/authRoute.js";
 import dashboardRoute from "./routes/dashboardRoute.js";
 import communityRoute from "./routes/communityRoute.js";
+import postRoute from "./routes/postRoute.js";
+import uploadRoute from "./routes/uploadRoute.js";
+import profileRoute from "./routes/profileRoute.js";
 
 const app = express();
 const PORT = process.env.PORT;
 app.set('trust proxy', 1);
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ limit: "10mb", extended: true }));
 app.use(cookieParser());
 
 const allowedOrigins = [
@@ -21,7 +25,6 @@ const allowedOrigins = [
   "http://localhost:5174",
   "https://fointer.vercel.app",
   "https://punctual-droop-viper.ngrok-free.dev",
-  
 ];
 
 app.use(
@@ -34,6 +37,9 @@ app.use(
 app.use("/api/auth", authRoute);
 app.use("/api", dashboardRoute);
 app.use("/api/communities", communityRoute);
+app.use("/api/posts", postRoute);
+app.use("/api/uploads", uploadRoute);
+app.use("/api/profile", profileRoute);
 
 connectDB();
 

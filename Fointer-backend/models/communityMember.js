@@ -14,13 +14,26 @@ const communityMemberSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ["owner", "member"],
+      enum: ["owner", "moderator", "member"],
       default: "member",
+    },
+    moderatorExpiresAt: {
+      type: Date,
+      default: null,
     },
     status: {
       type: String,
-      enum: ["active"],
+      enum: ["active", "banned"],
       default: "active",
+    },
+    bannedAt: {
+      type: Date,
+      default: null,
+    },
+    bannedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
     },
   },
   {
@@ -29,6 +42,19 @@ const communityMemberSchema = new mongoose.Schema(
 );
 
 communityMemberSchema.index({ community: 1, user: 1 }, { unique: true });
+
+/** Effective role after temp-moderator expiry */
+communityMemberSchema.methods.getEffectiveRole = function () {
+  if (this.status !== "active") return null;
+  if (
+    this.role === "moderator" &&
+    this.moderatorExpiresAt &&
+    new Date(this.moderatorExpiresAt) < new Date()
+  ) {
+    return "member";
+  }
+  return this.role;
+};
 
 const CommunityMember = mongoose.model(
   "CommunityMember",

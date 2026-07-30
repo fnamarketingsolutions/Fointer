@@ -4,31 +4,26 @@ import {
   Search,
   Loader2,
   Ban,
-  ShieldOff,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
   RefreshCw,
-  Trash2,
   Users,
   Building2,
   ExternalLink,
 } from 'lucide-react';
 import {
-  deleteUser,
   fetchAdminUserDetail,
   fetchUsers,
-  updateUser,
+  updateUserStatus,
 } from '../../../../api/dashboard';
 import { useAuth } from '../../../../context/AuthContext';
-import ConfirmDeleteModal from '../../../../shared/components/modals/ConfirmDeleteModal';
 import { COMMUNITY_TYPE_LABELS } from '../../../../shared/constants/community';
 
 const FILTERS = [
   { id: 'all', label: 'All' },
   { id: 'active', label: 'Active' },
   { id: 'banned', label: 'Banned' },
-  { id: 'suspended', label: 'Suspended' },
   { id: 'users', label: 'Users' },
   { id: 'moderators', label: 'Moderators' },
 ];
@@ -54,8 +49,6 @@ const UserManagement = () => {
   const [detailByUserId, setDetailByUserId] = useState({});
   const [detailLoadingId, setDetailLoadingId] = useState(null);
   const [expandedCommunityId, setExpandedCommunityId] = useState(null);
-  const [userToDelete, setUserToDelete] = useState(null);
-  const [deleting, setDeleting] = useState(false);
 
   const loadUsers = useCallback(async (opts = {}) => {
     const nextFilter = opts.filter ?? filter;
@@ -65,7 +58,7 @@ const UserManagement = () => {
     try {
       const params = {};
       if (nextSearch.trim()) params.q = nextSearch.trim();
-      if (nextFilter === 'active' || nextFilter === 'banned' || nextFilter === 'suspended') {
+      if (nextFilter === 'active' || nextFilter === 'banned') {
         params.status = nextFilter;
       } else if (nextFilter === 'users') {
         params.role = 'user';
@@ -88,13 +81,13 @@ const UserManagement = () => {
 
   const setStatus = async (u, status) => {
     if (String(u.id) === String(currentUser?.id || currentUser?._id) && status !== 'active') {
-      setError('You cannot suspend or ban your own account.');
+      setError('You cannot ban your own account.');
       return;
     }
     setBusyId(u.id);
     setError('');
     try {
-      await updateUser(u.id, { status });
+      await updateUserStatus(u.id, status);
       await loadUsers();
     } catch (err) {
       setError(err?.response?.data?.message || 'Failed to update status.');
@@ -131,28 +124,6 @@ const UserManagement = () => {
     setExpandedCommunityId((prev) => (prev === communityId ? null : communityId));
   };
 
-  const handleConfirmDelete = async () => {
-    if (!userToDelete) return;
-
-    setDeleting(true);
-    setError('');
-    try {
-      await deleteUser(userToDelete.id);
-      setUserToDelete(null);
-      setExpandedUserId((prev) => (prev === userToDelete.id ? null : prev));
-      setDetailByUserId((prev) => {
-        const next = { ...prev };
-        delete next[userToDelete.id];
-        return next;
-      });
-      await loadUsers();
-    } catch (err) {
-      setError(err?.response?.data?.message || 'Failed to delete user.');
-    } finally {
-      setDeleting(false);
-    }
-  };
-
   const handleSearch = (e) => {
     e.preventDefault();
     loadUsers({ search });
@@ -166,7 +137,7 @@ const UserManagement = () => {
             User Management
           </h1>
           <p className="text-xs text-stone-400 mt-1">
-            Ban, suspend, or activate users.
+            Ban or activate users.
           </p>
         </div>
         <button
@@ -299,24 +270,6 @@ const UserManagement = () => {
                         Ban
                       </button>
                     )}
-                    {u.status !== 'suspended' && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setStatus(u, 'suspended');
-                        }}
-                        disabled={busy || isSelf}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-500/20 bg-amber-500/10 text-amber-400 text-[11px] font-semibold disabled:opacity-50"
-                      >
-                        {busy ? (
-                          <Loader2 size={12} className="animate-spin" />
-                        ) : (
-                          <ShieldOff size={12} />
-                        )}
-                        Suspend
-                      </button>
-                    )}
                     {u.status !== 'active' && (
                       <button
                         type="button"
@@ -335,19 +288,6 @@ const UserManagement = () => {
                         Activate
                       </button>
                     )}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setUserToDelete(u);
-                      }}
-                      disabled={isSelf || deleting}
-                      className="p-2 rounded-lg border border-red-500/20 bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors disabled:opacity-50"
-                      aria-label={`Delete ${u.username}`}
-                      title={isSelf ? 'You cannot delete your own account.' : 'Delete user'}
-                    >
-                      <Trash2 size={14} />
-                    </button>
                   </div>
                 </div>
 
@@ -509,23 +449,6 @@ const UserManagement = () => {
           })}
         </div>
       )}
-
-      <ConfirmDeleteModal
-        open={Boolean(userToDelete)}
-        title="Delete User"
-        variant="admin"
-        loading={deleting}
-        onConfirm={handleConfirmDelete}
-        onClose={() => setUserToDelete(null)}
-      >
-        <p>
-          Are you sure you want to delete{' '}
-          <strong className="text-stone-100 font-bold">
-            {userToDelete?.name || userToDelete?.username}
-          </strong>
-          ? This action cannot be undone.
-        </p>
-      </ConfirmDeleteModal>
     </div>
   );
 };

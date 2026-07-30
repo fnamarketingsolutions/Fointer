@@ -47,13 +47,8 @@ export default function AllCommunities() {
         <div className="absolute top-0 right-0 w-[400px] h-[300px] bg-[#D4AF37]/8 rounded-full blur-[100px] pointer-events-none" />
 
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
-          <Link
-            to="/"
-            className="inline-flex items-center gap-1.5 text-xs text-[#A69B8D] hover:text-[#D4AF37] mb-6"
-          >
-            <ArrowLeft size={14} />
-            Back to home
-          </Link>
+        
+        
 
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-serif text-[#D4AF37] leading-tight">
             All Communities

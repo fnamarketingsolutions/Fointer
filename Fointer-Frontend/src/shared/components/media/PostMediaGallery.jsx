@@ -1,6 +1,9 @@
 import React, { useRef, useState } from "react";
 
-export default function PostMediaGallery({ media = [] }) {
+export default function PostMediaGallery({
+  media = [],
+  counterOverlay = false,
+}) {
   const scrollRef = useRef(null);
   const [activeIndex, setActiveIndex] = useState(0);
 
@@ -38,6 +41,11 @@ export default function PostMediaGallery({ media = [] }) {
 
   return (
     <div className="relative">
+      {counterOverlay && (
+        <div className="absolute top-3 right-3 z-10 rounded-full border border-[#2A241E] bg-black/70 px-2.5 py-1 text-[10px] font-mono text-[#E5E0D8] backdrop-blur-sm">
+          {activeIndex + 1} / {media.length}
+        </div>
+      )}
       <div
         ref={scrollRef}
         onScroll={handleScroll}
@@ -85,9 +93,11 @@ export default function PostMediaGallery({ media = [] }) {
             }`}
           />
         ))}
-        <span className="ml-2 text-[10px] text-[#8C8070] font-mono">
-          {activeIndex + 1} / {media.length}
-        </span>
+        {!counterOverlay && (
+          <span className="ml-2 text-[10px] text-[#8C8070] font-mono">
+            {activeIndex + 1} / {media.length}
+          </span>
+        )}
       </div>
     </div>
   );

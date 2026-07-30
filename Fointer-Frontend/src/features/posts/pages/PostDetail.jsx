@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   Pencil,
@@ -10,9 +11,11 @@ import {
   Reply,
   ChevronDown,
   ChevronUp,
+
 } from "lucide-react";
 import {
   fetchPost,
+  fetchPosts,
   updatePost,
   deletePost,
   fetchComments,
@@ -31,15 +34,19 @@ export default function PostDetail({
   postId,
   onBack,
   onDeleted,
-  backLabel = "Back to posts",
   embedded = false,
 }) {
+  const navigate = useNavigate();
+
   // Post & Main Comments States
   const [post, setPost] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [comments, setComments] = useState([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
+  const [commentsExpanded, setCommentsExpanded] = useState(false);
+  const [recentPosts, setRecentPosts] = useState([]);
+  const [recentPostsLoading, setRecentPostsLoading] = useState(false);
 
   // Active reply box target ID (null = main post input, ID = target comment ID)
   const [replyTargetId, setReplyTargetId] = useState(null);
@@ -88,12 +95,48 @@ export default function PostDetail({
   useEffect(() => {
     loadPost();
     loadComments();
+    setCommentsExpanded(false);
   }, [loadPost, loadComments]);
+
+  useEffect(() => {
+    const communityId = post?.community?.id || post?.community;
+    if (!communityId) {
+      setRecentPosts([]);
+      return;
+    }
+
+    let cancelled = false;
+    setRecentPostsLoading(true);
+
+    fetchPosts({ communityId })
+      .then((data) => {
+        if (cancelled) return;
+        const sorted = [...(data?.posts || [])]
+          .filter((p) => String(p.id) !== String(postId))
+          .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        setRecentPosts(sorted.slice(0, 4));
+      })
+      .catch(() => {
+        if (!cancelled) setRecentPosts([]);
+      })
+      .finally(() => {
+        if (!cancelled) setRecentPostsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [post?.community?.id, post?.community, postId]);
 
   // Derived Top-Level Comments
   const topLevel = useMemo(
     () => comments.filter((c) => !c.parent),
     [comments]
+  );
+
+  const visibleTopLevel = useMemo(
+    () => (commentsExpanded ? topLevel : topLevel.slice(0, 3)),
+    [topLevel, commentsExpanded]
   );
 
   const getReplies = (parentId) =>
@@ -316,10 +359,16 @@ export default function PostDetail({
     }
   };
 
-  const showPostActions =
-    post?.isAuthor || post?.canEdit || post?.canDelete;
-  const showPostEdit = post?.isAuthor || post?.canEdit;
-  const showPostDelete = post?.isAuthor || post?.canDelete;
+  // Edit: author within window, or locked author (popup). Never for mods on others.
+  // Delete: author within window, locked author (popup), or community moderator.
+  const canShowEdit = (item) =>
+    Boolean(item?.canEdit || (item?.isAuthor && item?.isLocked));
+  const canShowDelete = (item) =>
+    Boolean(item?.canDelete || (item?.isAuthor && item?.isLocked));
+
+  const showPostEdit = canShowEdit(post);
+  const showPostDelete = canShowDelete(post);
+  const showPostActions = showPostEdit || showPostDelete;
 
   const renderAvatar = (author, size = "md") => {
     const name = author?.name || author?.username || "Member";
@@ -368,15 +417,6 @@ export default function PostDetail({
   if (!post) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4 py-6">
-        {!embedded && onBack && (
-          <button
-            type="button"
-            onClick={onBack}
-            className="inline-flex items-center gap-1.5 text-xs text-[#A69B8D] hover:text-[#D4AF37] transition-colors"
-          >
-            <ArrowLeft size={14} /> {backLabel}
-          </button>
-        )}
         <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg p-4">
           {error || "Post not found."}
         </div>
@@ -384,167 +424,207 @@ export default function PostDetail({
     );
   }
 
-  return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-      {/* Navigation Header */}
-      {embedded ? (
-        onBack && (
-          <button
-            type="button"
-            onClick={onBack}
-            className="inline-flex items-center gap-1.5 text-xs text-[#A69B8D] hover:text-[#D4AF37] transition-colors"
-          >
-            <X size={14} /> Collapse
-          </button>
-        )
-      ) : (
-        onBack && (
-          <button
-            type="button"
-            onClick={onBack}
-            className="inline-flex items-center gap-1.5 text-xs text-[#A69B8D] hover:text-[#D4AF37] transition-colors"
-          >
-            <ArrowLeft size={14} /> {backLabel}
-          </button>
-        )
-      )}
+  const communityId = post.community?.id || post.community;
 
+  const sidebarCard = (
+    <div className="bg-[#14100D] rounded-xl p-5 space-y-4 shadow-xl">
+      <h3 className="text-sm font-serif font-semibold text-[#E5E0D8] border-b border-[#2A241E] pb-3">
+        Recent Posts
+      </h3>
+      {recentPostsLoading ? (
+        <div className="flex items-center gap-2 text-xs text-[#8C8070] py-2">
+          <Loader2 size={14} className="animate-spin text-[#D4AF37]" />
+          Loading...
+        </div>
+      ) : recentPosts.length === 0 ? (
+        <p className="text-xs text-[#8C8070]">
+          No other posts for this community.
+        </p>
+      ) : (
+        <div className="space-y-3">
+          {recentPosts.map((recentPost) => {
+            const authorName =
+              recentPost.author?.name ||
+              recentPost.author?.username ||
+              "Member";
+            const coverImage = recentPost.media?.find((m) => m.type === "image");
+
+            return (
+              <div
+                key={recentPost.id}
+                className="rounded-lg border border-[#2A241E] bg-[#0E0C0A] p-3 space-y-2"
+              >
+                <div className="flex items-start gap-3">
+                  {renderAvatar(recentPost.author, "sm")}
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-semibold text-[#E5E0D8] truncate">
+                      {authorName}
+                    </div>
+                    {recentPost.author?.username && (
+                      <div className="text-[10px] text-[#A69B8D] truncate">
+                        @{recentPost.author.username}
+                      </div>
+                    )}
+                    <div className="text-[10px] text-[#8C8070] mt-0.5">
+                      {timeAgo(recentPost.createdAt)}
+                    </div>
+                  </div>
+                  {coverImage && (
+                    <div className="w-16 h-16 shrink-0 rounded-md overflow-hidden bg-[#14100D] border border-[#2A241E]">
+                      <img
+                        src={coverImage.url}
+                        alt=""
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  )}
+                </div>
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      navigate(`/communities/${communityId}/posts/${recentPost.id}`)
+                    }
+                    className="text-[10px] font-medium text-[#D4AF37] hover:text-[#c3a030] transition-colors"
+                  >
+                    Details →
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+
+  const mainContent = (
+    <>
       {error && !showEdit && !showDelete && !deleteCommentId && !lockModal && (
         <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3">
           {error}
         </div>
       )}
 
-      {/* Main Post Section */}
-    <div className="w-full max-w-full">
-  <article className="bg-[#14100D] border border-[#2A241E] rounded-xl overflow-hidden w-full shadow-xl">
-    <div className="p-5 sm:p-8 space-y-6">
-      {/* Header Info */}
-      <div className="flex items-start justify-between gap-4">
-        <div className="space-y-2 min-w-0">
-          <p className="text-[10px] uppercase tracking-widest text-[#D4AF37] font-mono">
-            {post.community?.name || "Community"}
-          </p>
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-serif font-bold text-[#E5E0D8] leading-tight">
-            {post.title || "Untitled"}
-          </h1>
-        </div>
+      <div className="w-full max-w-full">
+        <article className="bg-[#14100D] rounded-xl overflow-hidden w-full shadow-xl">
+          <div className="p-5 sm:p-8 space-y-6">
+         
+            <div className="flex items-start justify-between gap-4">
+              
+              <div className="space-y-2 min-w-0">
+                <p className="text-[10px] uppercase tracking-widest text-[#D4AF37] font-mono">
+                  {post.community?.name || "Community"}
+                </p>
+                <h1 className="text-2xl sm:text-3xl lg:text-4xl font-serif font-bold text-[#E5E0D8] leading-tight">
+                  {post.title || "Untitled"}
+                </h1>
+              </div>
 
-        {showPostActions && (
-          <div className="shrink-0 flex items-center gap-2 rounded-lg border border-[#2A241E] bg-[#0E0C0A] p-1.5">
-            {showPostEdit && (
-              <button
-                type="button"
-                onClick={openEdit}
-                title="Edit Post"
-                className="p-2 rounded-md text-[#A69B8D] hover:text-[#D4AF37] hover:bg-[#2A241E]/50 transition-all"
-              >
-                <Pencil size={16} />
-              </button>
-            )}
-            {showPostDelete && (
-              <button
-                type="button"
-                onClick={openDeletePost}
-                title="Delete Post"
-                className="p-2 rounded-md text-red-400 hover:text-red-300 hover:bg-red-500/20 transition-all"
-              >
-                <Trash2 size={16} />
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Author Section */}
-      <div className="flex items-center gap-3 py-2 border-y border-[#2A241E]/40">
-        {renderAvatar(post.author, "md")}
-        <div>
-          <div className="text-sm font-semibold text-[#E5E0D8]">
-            {post.author?.name || post.author?.username || "Member"}
-          </div>
-          {post.author?.username && (
-            <div className="text-[11px] text-[#A69B8D]">
-              @{post.author.username}
+              {showPostActions && (
+                <div className="shrink-0 flex items-center gap-2 rounded-lg border border-[#2A241E] bg-[#0E0C0A] p-1.5">
+                  {showPostEdit && (
+                    <button
+                      type="button"
+                      onClick={openEdit}
+                      title="Edit Post"
+                      className="p-2 rounded-md text-[#A69B8D] hover:text-[#D4AF37] hover:bg-[#2A241E]/50 transition-all"
+                    >
+                      <Pencil size={16} />
+                    </button>
+                  )}
+                  {showPostDelete && (
+                    <button
+                      type="button"
+                      onClick={openDeletePost}
+                      title="Delete Post"
+                      className="p-2 rounded-md text-red-400 hover:text-red-300 hover:bg-red-500/20 transition-all"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
-          )}
-          <div className="text-[11px] text-[#8C8070]">
-            {post.createdAt
-              ? new Date(post.createdAt).toLocaleString(undefined, {
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                  hour: "numeric",
-                  minute: "2-digit",
-                })
-              : ""}
+
+            <div className="flex items-center gap-3 py-2 border-y border-[#2A241E]/40">
+              {renderAvatar(post.author, "md")}
+              <div>
+                <div className="text-sm font-semibold text-[#E5E0D8]">
+                  {post.author?.name || post.author?.username || "Member"}
+                </div>
+                {post.author?.username && (
+                  <div className="text-[11px] text-[#A69B8D]">
+                    @{post.author.username}
+                  </div>
+                )}
+                <div className="text-[11px] text-[#8C8070]">
+                  {post.createdAt
+                    ? new Date(post.createdAt).toLocaleString(undefined, {
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                        hour: "numeric",
+                        minute: "2-digit",
+                      })
+                    : ""}
+                </div>
+              </div>
+            </div>
+
+            {post.media && post.media.length > 0 && (
+              <div className="relative w-full bg-[#0A0806] flex items-center justify-center min-h-[250px] max-h-[70vh] rounded-lg overflow-hidden group">
+                <div className="w-full h-full flex items-center justify-center p-2">
+                  <PostMediaGallery media={post.media} counterOverlay />
+                </div>
+              </div>
+            )}
+
+            {post.text && (
+              <p className="text-sm sm:text-base text-[#C9C0B4] whitespace-pre-wrap leading-relaxed font-serif first-letter:float-left first-letter:mr-3 first-letter:mt-1 first-letter:font-serif first-letter:text-5xl sm:first-letter:text-6xl first-letter:leading-[0.8] first-letter:text-[#D4AF37]">
+                {post.text}
+              </p>
+            )}
+
+            <div className="flex items-center gap-6 pt-4 border-t border-[#2A241E]/60">
+              <button
+                type="button"
+                onClick={handleLikePost}
+                className={`inline-flex items-center gap-2 text-xs font-medium transition-colors ${
+                  post.likedByMe
+                    ? "text-[#D4AF37]"
+                    : "text-[#A69B8D] hover:text-[#E5E0D8]"
+                }`}
+              >
+                <Heart
+                  size={16}
+                  className={post.likedByMe ? "fill-current" : ""}
+                />
+                <span>{post.likeCount || 0} Likes</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowMainCommentInput((prev) => !prev);
+                  setReplyTargetId(null);
+                  setCommentText("");
+                }}
+                className={`inline-flex items-center gap-2 text-xs font-medium transition-colors ${
+                  showMainCommentInput
+                    ? "text-[#D4AF37]"
+                    : "text-[#A69B8D] hover:text-[#E5E0D8]"
+                }`}
+              >
+                <MessageCircle size={16} />
+                <span>{post.commentCount || comments.length || 0} Comments</span>
+              </button>
+            </div>
           </div>
-        </div>
+        </article>
       </div>
 
-      {/* Media Gallery Block */}
-      {post.media && post.media.length > 0 && (
-        <div className="relative w-full bg-[#0A0806] flex items-center justify-center min-h-[250px] max-h-[70vh] border border-[#2A241E] rounded-lg overflow-hidden group">
-          {/* Media Container */}
-          <div className="w-full h-full flex items-center justify-center p-2">
-            <PostMediaGallery
-              media={post.media}
-              className="max-h-[68vh] w-full object-contain"
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Post Text */}
-      {post.text && (
-        <p className="text-sm sm:text-base text-[#C9C0B4] whitespace-pre-wrap leading-relaxed font-serif">
-          {post.text}
-        </p>
-      )}
-
-      {/* Interaction Buttons */}
-      <div className="flex items-center gap-6 pt-4 border-t border-[#2A241E]/60">
-        <button
-          type="button"
-          onClick={handleLikePost}
-          className={`inline-flex items-center gap-2 text-xs font-medium transition-colors ${
-            post.likedByMe
-              ? "text-[#D4AF37]"
-              : "text-[#A69B8D] hover:text-[#E5E0D8]"
-          }`}
-        >
-          <Heart
-            size={16}
-            className={post.likedByMe ? "fill-current" : ""}
-          />
-          <span>{post.likeCount || 0} Likes</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => {
-            setShowMainCommentInput((prev) => !prev);
-            setReplyTargetId(null);
-            setCommentText("");
-          }}
-          className={`inline-flex items-center gap-2 text-xs font-medium transition-colors ${
-            showMainCommentInput
-              ? "text-[#D4AF37]"
-              : "text-[#A69B8D] hover:text-[#E5E0D8]"
-          }`}
-        >
-          <MessageCircle size={16} />
-          <span>
-            {post.commentCount || comments.length || 0} Comments
-          </span>
-        </button>
-      </div>
-    </div>
-  </article>
-</div>
-
-      {/* Discussion & Comments Section */}
-      <section className="bg-[#14100D] border border-[#2A241E] rounded-xl p-5 sm:p-8 space-y-6 shadow-xl">
+      <section className="bg-[#14100D] rounded-xl p-5 sm:p-8 space-y-6 shadow-xl">
         <div className="flex items-center justify-between gap-3 border-b border-[#2A241E] pb-4">
           <h2 className="text-lg sm:text-xl font-serif font-semibold text-[#E5E0D8]">
             Discussion{" "}
@@ -552,6 +632,17 @@ export default function PostDetail({
               ({post.commentCount || comments.length || 0})
             </span>
           </h2>
+          {!commentsLoading &&
+            topLevel.length > 3 &&
+            !commentsExpanded && (
+              <button
+                type="button"
+                onClick={() => setCommentsExpanded(true)}
+                className="text-xs text-[#D4AF37] hover:text-[#c3a030] transition-colors shrink-0"
+              >
+                View all comments
+              </button>
+            )}
         </div>
 
         {/* Main Comment Input Box (Slow Reveal Transition) */}
@@ -602,7 +693,7 @@ export default function PostDetail({
           <p className="text-xs text-[#8C8070] py-4">No comments yet.</p>
         ) : (
           <div className="space-y-6">
-            {topLevel.map((comment) => {
+            {visibleTopLevel.map((comment) => {
               const replies = getReplies(comment.id);
               const isExpanded = !!expandedReplies[comment.id];
               const isReplyingHere = replyTargetId === comment.id;
@@ -663,11 +754,10 @@ export default function PostDetail({
                               )}
                             </div>
 
-                            {(comment.isAuthor ||
-                              comment.canEdit ||
-                              comment.canDelete) && (
+                            {(canShowEdit(comment) ||
+                              canShowDelete(comment)) && (
                               <div className="flex items-center gap-2">
-                                {(comment.isAuthor || comment.canEdit) && (
+                                {canShowEdit(comment) && (
                                   <button
                                     type="button"
                                     onClick={() => openEditComment(comment)}
@@ -677,7 +767,7 @@ export default function PostDetail({
                                     <Pencil size={12} />
                                   </button>
                                 )}
-                                {(comment.isAuthor || comment.canDelete) && (
+                                {canShowDelete(comment) && (
                                   <button
                                     type="button"
                                     onClick={() => openDeleteComment(comment)}
@@ -868,11 +958,10 @@ export default function PostDetail({
                                     )}
                                   </div>
 
-                                  {(reply.isAuthor ||
-                                    reply.canEdit ||
-                                    reply.canDelete) && (
+                                  {(canShowEdit(reply) ||
+                                    canShowDelete(reply)) && (
                                     <div className="flex items-center gap-2">
-                                      {(reply.isAuthor || reply.canEdit) && (
+                                      {canShowEdit(reply) && (
                                         <button
                                           type="button"
                                           onClick={() => openEditComment(reply)}
@@ -882,7 +971,7 @@ export default function PostDetail({
                                           <Pencil size={12} />
                                         </button>
                                       )}
-                                      {(reply.isAuthor || reply.canDelete) && (
+                                      {canShowDelete(reply) && (
                                         <button
                                           type="button"
                                           onClick={() =>
@@ -993,6 +1082,22 @@ export default function PostDetail({
           </div>
         )}
       </section>
+      {!embedded && <div className="lg:hidden">{sidebarCard}</div>}
+    </>
+  );
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      {embedded ? (
+        <div className="space-y-6">{mainContent}</div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-[7fr_3fr] gap-6 items-start">
+          <div className="min-w-0 space-y-6">{mainContent}</div>
+          <aside className="hidden lg:block lg:sticky lg:top-6">
+            {sidebarCard}
+          </aside>
+        </div>
+      )}
 
       {/* Edit Modal */}
       {showEdit && (

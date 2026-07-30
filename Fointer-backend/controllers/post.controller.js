@@ -11,7 +11,7 @@ import {
   getEditWindowMinutes,
   getEffectiveMemberRole,
 } from "../utils/communityPermissions.js";
-import { logActivity } from "../utils/logActivity.js";
+// import { logActivity } from "../utils/logActivity.js";
 
 const formatUser = (user) => {
   if (!user || typeof user !== "object" || !user._id) {
@@ -22,6 +22,7 @@ const formatUser = (user) => {
     username: user.username,
     name: user.name,
     avatar: user.avatar || "",
+    role: user.role || "user",
   };
 };
 
@@ -220,7 +221,7 @@ export const listPosts = async (req, res) => {
     }
 
     const posts = await Post.find(filter)
-      .populate("author", "username name avatar")
+      .populate("author", "username name avatar role")
       .populate("community", "name coverImage")
       .sort({ createdAt: -1 })
       .lean();
@@ -272,7 +273,7 @@ export const listPosts = async (req, res) => {
 export const getPost = async (req, res) => {
   try {
     const post = await Post.findById(req.params.id)
-      .populate("author", "username name avatar")
+      .populate("author", "username name avatar role")
       .populate("community", "name coverImage")
       .lean();
 
@@ -368,16 +369,16 @@ export const createPost = async (req, res) => {
       })),
     });
 
-    await post.populate("author", "username name avatar");
+    await post.populate("author", "username name avatar role");
     await post.populate("community", "name coverImage");
 
-    await logActivity({
-      actor: req.user._id,
-      action: "post.create",
-      targetType: "post",
-      targetId: post._id,
-      meta: { communityId },
-    });
+    // await logActivity({
+    //   actor: req.user._id,
+    //   action: "post.create",
+    //   targetType: "post",
+    //   targetId: post._id,
+    //   meta: { communityId },
+    // });
 
     return res.status(201).json({
       success: true,
@@ -408,7 +409,9 @@ export const updatePost = async (req, res) => {
     if (!(await userCanEditOwn(post, req.user))) {
       return res.status(403).json({
         success: false,
-        message: "Edit window expired. This post is locked.",
+        message: isDocAuthor(post, req.user)
+          ? "Edit window expired. This post is locked."
+          : "You do not have permission to edit this post.",
       });
     }
 
@@ -433,7 +436,7 @@ export const updatePost = async (req, res) => {
     }
 
     await post.save();
-    await post.populate("author", "username name avatar");
+    await post.populate("author", "username name avatar role");
     await post.populate("community", "name coverImage");
 
     const { counts, liked } = await getLikeMeta(
@@ -471,7 +474,9 @@ export const deletePost = async (req, res) => {
     if (!canDelete) {
       return res.status(403).json({
         success: false,
-        message: "Edit window expired. This post is locked.",
+        message: isDocAuthor(post, req.user)
+          ? "Edit window expired. This post is locked."
+          : "You do not have permission to delete this post.",
       });
     }
 
@@ -487,12 +492,12 @@ export const deletePost = async (req, res) => {
     await Comment.deleteMany({ post: post._id });
     await Post.findByIdAndDelete(post._id);
 
-    await logActivity({
-      actor: req.user._id,
-      action: "post.delete",
-      targetType: "post",
-      targetId: post._id,
-    });
+    // await logActivity({
+    //   actor: req.user._id,
+    //   action: "post.delete",
+    //   targetType: "post",
+    //   targetId: post._id,
+    // });
 
     return res.status(200).json({
       success: true,
@@ -521,7 +526,7 @@ export const listComments = async (req, res) => {
     }
 
     const comments = await Comment.find({ post: post._id })
-      .populate("author", "username name avatar")
+      .populate("author", "username name avatar role")
       .sort({ createdAt: 1 })
       .lean();
 
@@ -603,7 +608,7 @@ export const createComment = async (req, res) => {
       text,
     });
 
-    await comment.populate("author", "username name avatar");
+    await comment.populate("author", "username name avatar role");
 
     return res.status(201).json({
       success: true,
@@ -635,7 +640,9 @@ export const updateComment = async (req, res) => {
     if (!(await userCanEditOwn(comment, req.user))) {
       return res.status(403).json({
         success: false,
-        message: "Edit window expired. This comment is locked.",
+        message: isDocAuthor(comment, req.user)
+          ? "Edit window expired. This comment is locked."
+          : "You do not have permission to edit this comment.",
       });
     }
 
@@ -649,7 +656,7 @@ export const updateComment = async (req, res) => {
 
     comment.text = text;
     await comment.save();
-    await comment.populate("author", "username name avatar");
+    await comment.populate("author", "username name avatar role");
 
     const { counts, liked } = await getLikeMeta(
       "comment",
@@ -686,7 +693,9 @@ export const deleteComment = async (req, res) => {
     if (!canDelete) {
       return res.status(403).json({
         success: false,
-        message: "Edit window expired. This comment is locked.",
+        message: isDocAuthor(comment, req.user)
+          ? "Edit window expired. This comment is locked."
+          : "You do not have permission to delete this comment.",
       });
     }
 

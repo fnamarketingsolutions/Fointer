@@ -59,7 +59,7 @@ export default function DiscoverCommunities() {
             Elite Circles
           </span>
           <h2 className="text-2xl sm:text-3xl md:text-4xl font-serif text-[#E5E0D8] leading-tight">
-            Discover Private Communities
+            Discover Communities
           </h2>
           <p className="mt-3 text-sm sm:text-base text-[#A69B8D] leading-relaxed">
             Browse all public and request-access communities. Join instantly or

@@ -12,6 +12,7 @@ export default function Navbar() {
     { name: 'Home', href: '/' },
     { name: 'About', href: '/about' },
     { name: 'Contact', href: '/contact-us' },
+    { name: 'Communities', href: '/communities' },
   ];
 
   // Prevent parent body scroll & dynamic mobile zooming when drawer is active

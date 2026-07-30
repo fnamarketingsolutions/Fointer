@@ -7,7 +7,7 @@ import {
 const getOrCreateGlobalSettings = async () => {
   let settings = await SystemSetting.findOne({ key: "global" });
   if (!settings) {
-    const minutes = Number(process.env.POST_EDIT_WINDOW_MINUTES) || 60;
+    const minutes = Number(process.env.POST_EDIT_WINDOW_MINUTES) || 10;
     settings = await SystemSetting.create({
       key: "global",
       postEditWindowMinutes: minutes,

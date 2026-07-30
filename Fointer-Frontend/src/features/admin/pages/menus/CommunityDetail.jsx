@@ -104,9 +104,9 @@ export default function CommunityDetail() {
 
   const sortedPosts = useMemo(() => {
     const list = [...posts];
-    if (feedFilter === 'trending') {
-      return list.sort((a, b) => (b.likeCount || 0) - (a.likeCount || 0));
-    }
+    // if (feedFilter === 'trending') {
+    //   return list.sort((a, b) => (b.likeCount || 0) - (a.likeCount || 0));
+    // }
     return list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   }, [feedFilter, posts]);
 
@@ -424,7 +424,7 @@ export default function CommunityDetail() {
               <div className="flex flex-wrap gap-2">
                 {[
                   { id: 'latest', label: 'Latest' },
-                  { id: 'trending', label: 'Trending' },
+                  // { id: 'trending', label: 'Trending' },
                 ].map((filter) => (
                   <button
                     key={filter.id}

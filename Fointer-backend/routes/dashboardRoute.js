@@ -2,10 +2,7 @@ import express from "express";
 import {
   getOverview,
   listUsers,
-  updateUser,
-  deleteUser,
-  resetUserPassword,
-  listUserActivity,
+  updateUserStatus,
   getAdminUserDetail,
   getAdminCommunityDetail,
 } from "../controllers/dashboard.controller.js";
@@ -41,24 +38,10 @@ router.get(
 );
 
 router.patch(
-  "/admin/users/:id",
+  "/admin/users/:id/status",
   isAuthenticated,
   authorize("admin"),
-  updateUser
-);
-
-router.post(
-  "/admin/users/:id/reset-password",
-  isAuthenticated,
-  authorize("admin"),
-  resetUserPassword
-);
-
-router.get(
-  "/admin/users/:id/activity",
-  isAuthenticated,
-  authorize("admin"),
-  listUserActivity
+  updateUserStatus
 );
 
 router.get(
@@ -73,13 +56,6 @@ router.get(
   isAuthenticated,
   authorize("admin"),
   getAdminCommunityDetail
-);
-
-router.delete(
-  "/admin/users/:id",
-  isAuthenticated,
-  authorize("admin"),
-  deleteUser
 );
 
 export default router;

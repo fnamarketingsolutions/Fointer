@@ -519,11 +519,9 @@ export default function CreateCommunity({ onCreated }) {
               <div className="bg-gradient-to-r from-[#D4AF37] to-[#E5C158] h-full w-2/3 rounded-full" />
             </div>
             <p className="text-[11px] text-[#8C8070]">
-              You have <span className="text-[#E5E0D8]">2 of 3</span> community slots remaining.{" "}
-              <a href="#upgrade" className="text-[#D4AF37] underline hover:text-[#E5C158]">
-                Upgrade to VIP
-              </a>{" "}
-              for unlimited circles.
+              You have <span className="text-[#E5E0D8]">2 of 3</span> community slots remaining.
+              
+              
             </p>
           </div>
 

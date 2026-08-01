@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   Pencil,
@@ -17,9 +18,9 @@ import {
   ChevronDown,
 } from "lucide-react";
 import {
-  approveJoinRequest,
-  denyJoinRequest,
   inviteToCommunity,
+  lookupInviteUser,
+  inviteUserToCommunity,
   fetchCommunityMembers,
   assignModerator,
   revokeModerator,
@@ -29,7 +30,7 @@ import {
 } from "../../../../api/communities";
 import { fetchPosts, createPost, togglePostLike } from "../../../../api/posts";
 import MediaPicker from "../../../../shared/components/media/MediaPicker";
-import PostDetail from "../../../posts/pages/PostDetail";
+import PostMediaGallery from "../../../../shared/components/media/PostMediaGallery";
 import { formatCommunityType } from "../../../../shared/utils/community";
 import { timeAgo } from "../../../../shared/utils/date";
 import { formatCount } from "../../../../shared/utils/format";
@@ -53,32 +54,40 @@ export default function CommunityDetail({
   onDelete,
   onRefresh,
 }) {
-  const [actionRequestId, setActionRequestId] = useState(null);
+  const navigate = useNavigate();
   const [heroPreview, setHeroPreview] = useState(null);
   const [posts, setPosts] = useState([]);
   const [postsLoading, setPostsLoading] = useState(false);
   const [feedFilter, setFeedFilter] = useState("trending");
   const [inviteIdentifier, setInviteIdentifier] = useState("");
+  const [inviteNote, setInviteNote] = useState("");
   const [inviteBusy, setInviteBusy] = useState(false);
   const [inviteMessage, setInviteMessage] = useState("");
-  const [selectedPostId, setSelectedPostId] = useState(null);
+  const [inviteError, setInviteError] = useState("");
+  const [inviteToast, setInviteToast] = useState("");
+  const [inviteLookupUsers, setInviteLookupUsers] = useState([]);
+  const [inviteLookupLoading, setInviteLookupLoading] = useState(false);
+  const [inviteLookupError, setInviteLookupError] = useState("");
+  const [selectedInviteUser, setSelectedInviteUser] = useState(null);
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [postForm, setPostForm] = useState({ title: "", text: "", media: [] });
   const [postSaving, setPostSaving] = useState(false);
   const [members, setMembers] = useState([]);
   const [membersLoading, setMembersLoading] = useState(false);
-  const [memberStatusFilter, setMemberStatusFilter] = useState("active");
+  const [memberStatusFilter, setMemberStatusFilter] = useState("all");
+  const [membersListOpen, setMembersListOpen] = useState(true);
   const [savingMemberId, setSavingMemberId] = useState(null);
+  const inviteLookupSeq = useRef(0);
+  const memberFilterMounted = useRef(false);
+  const [expandedFilter, setExpandedFilter] = useState("all");
 
   const community = manageData?.community;
   const metrics = manageData?.metrics || {};
-  const pendingRequests = manageData?.pendingRequests || [];
   const viewerRole = manageData?.viewerRole || "member";
   const isOwner = viewerRole === "owner" || viewerRole === "admin";
   const isModerator = viewerRole === "moderator";
   const canModerate = isOwner || isModerator;
   const galleryImages = community?.galleryImages || [];
-  const [isExpanded, setIsExpanded] = useState(true);
   const heroImage =
     heroPreview || community?.coverImage || galleryImages[0] || "";
 
@@ -117,8 +126,84 @@ export default function CommunityDetail({
     loadMembers();
   }, [loadMembers]);
 
+  useEffect(() => {
+    if (!memberFilterMounted.current) {
+      memberFilterMounted.current = true;
+      return undefined;
+    }
+    setMembersListOpen(false);
+    const timer = setTimeout(() => setMembersListOpen(true), 180);
+    return () => clearTimeout(timer);
+  }, [memberStatusFilter]);
+
+  useEffect(() => {
+    if (!inviteToast) return undefined;
+    const timer = setTimeout(() => setInviteToast(""), 3000);
+    return () => clearTimeout(timer);
+  }, [inviteToast]);
+
+  useEffect(() => {
+    if (!selectedId || !isOwner) {
+      setInviteLookupUsers([]);
+      setInviteLookupError("");
+      setSelectedInviteUser(null);
+      return undefined;
+    }
+
+    const query = inviteIdentifier.trim();
+    if (!query) {
+      setInviteLookupUsers([]);
+      setInviteLookupError("");
+      setSelectedInviteUser(null);
+      setInviteLookupLoading(false);
+      return undefined;
+    }
+
+    // Avoid spamming lookup until the user has typed enough to be useful
+    if (query.length < 3) {
+      setInviteLookupUsers([]);
+      setInviteLookupError("");
+      setSelectedInviteUser(null);
+      setInviteLookupLoading(false);
+      return undefined;
+    }
+
+    const seq = ++inviteLookupSeq.current;
+    setInviteLookupLoading(true);
+    setInviteLookupError("");
+    const timer = setTimeout(async () => {
+      try {
+        const data = await lookupInviteUser(selectedId, query);
+        if (inviteLookupSeq.current !== seq) return;
+        const matched = Array.isArray(data?.users) ? data.users : [];
+        setInviteLookupUsers(matched);
+        setInviteLookupError("");
+        setSelectedInviteUser((prev) =>
+          prev && matched.some((u) => String(u.id) === String(prev.id))
+            ? prev
+            : null
+        );
+      } catch (err) {
+        if (inviteLookupSeq.current !== seq) return;
+        setInviteLookupUsers([]);
+        setSelectedInviteUser(null);
+        setInviteLookupError(
+          err?.response?.data?.message || "Failed to look up users."
+        );
+      } finally {
+        if (inviteLookupSeq.current === seq) {
+          setInviteLookupLoading(false);
+        }
+      }
+    }, 450);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [inviteIdentifier, selectedId, isOwner]);
+
   const refreshAll = async () => {
-    await onRefresh?.(selectedId);
+    await onRefresh?.(selectedId, { silent: true });
     await loadMembers();
     await loadPosts();
   };
@@ -130,7 +215,7 @@ export default function CommunityDetail({
     try {
       await action();
       await loadMembers();
-      await onRefresh?.(selectedId);
+      await onRefresh?.(selectedId, { silent: true });
     } catch (err) {
       setError(err?.response?.data?.message || "Member action failed.");
     } finally {
@@ -168,34 +253,38 @@ export default function CommunityDetail({
     return false;
   };
 
-  const handleApprove = async (requestId) => {
-    if (!selectedId) return;
-    setActionRequestId(requestId);
-    setError("");
-    try {
-      await approveJoinRequest(selectedId, requestId);
-      await onRefresh(selectedId);
-    } catch (err) {
-      setError(err?.response?.data?.message || "Failed to approve request.");
-    } finally {
-      setActionRequestId(null);
-    }
-  };
-
   const handleInvite = async (e) => {
     e.preventDefault();
     if (!selectedId || !inviteIdentifier.trim()) return;
+    if (isOwner && !selectedInviteUser) {
+      setInviteError("Select the user tile below to send an invite.");
+      return;
+    }
     setInviteBusy(true);
-    setError("");
+    setInviteError("");
     setInviteMessage("");
     try {
-      await inviteToCommunity(selectedId, {
-        identifier: inviteIdentifier.trim(),
-      });
+      if (selectedInviteUser) {
+        await inviteUserToCommunity(selectedId, {
+          userId: selectedInviteUser.id,
+          username: selectedInviteUser.username,
+          message: inviteNote.trim(),
+        });
+      } else {
+        await inviteToCommunity(selectedId, {
+          identifier: inviteIdentifier.trim(),
+          message: inviteNote.trim(),
+        });
+      }
       setInviteIdentifier("");
+      setInviteNote("");
+      setInviteLookupUsers([]);
+      setInviteLookupError("");
+      setSelectedInviteUser(null);
       setInviteMessage("Invite sent successfully.");
+      setInviteToast("Invite sent successfully.");
     } catch (err) {
-      setError(err?.response?.data?.message || "Failed to send invite.");
+      setInviteError(err?.response?.data?.message || "Failed to send invite.");
     } finally {
       setInviteBusy(false);
     }
@@ -256,26 +345,17 @@ export default function CommunityDetail({
     }
   };
 
-  const handleDeny = async (requestId) => {
-    if (!selectedId) return;
-    setActionRequestId(requestId);
-    setError("");
-    try {
-      await denyJoinRequest(selectedId, requestId);
-      await onRefresh(selectedId);
-    } catch (err) {
-      setError(err?.response?.data?.message || "Failed to deny request.");
-    } finally {
-      setActionRequestId(null);
-    }
-  };
-
   const sortedPosts = [...posts].sort((a, b) => {
     if (feedFilter === "trending") {
       return (b.likeCount || 0) - (a.likeCount || 0);
     }
     return new Date(b.createdAt) - new Date(a.createdAt);
   });
+
+  const openPost = (postId) => {
+    if (!selectedId || !postId) return;
+    navigate(`/dashboard/manage/${selectedId}/posts/${postId}`);
+  };
 
   const statItems = [
     {
@@ -292,24 +372,13 @@ export default function CommunityDetail({
     },
   ];
 
-  if (selectedPostId) {
-    return (
-      <PostDetail
-        postId={selectedPostId}
-        onBack={() => {
-          setSelectedPostId(null);
-          loadPosts();
-        }}
-        onDeleted={() => {
-          setSelectedPostId(null);
-          loadPosts();
-        }}
-      />
-    );
-  }
-
   return (
     <div className="space-y-5 sm:space-y-6 max-w-full">
+      {inviteToast && (
+        <div className="fixed top-4 right-4 z-50 max-w-xs rounded-lg border border-emerald-500/30 bg-emerald-500/15 px-4 py-2.5 text-sm text-emerald-300 shadow-lg">
+          {inviteToast}
+        </div>
+      )}
       {/* Back + actions */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <button
@@ -529,7 +598,6 @@ export default function CommunityDetail({
 
             <div className="flex flex-wrap gap-2 mb-4">
               {[
-                { id: "trending", label: "Trending" },
                 { id: "latest", label: "Latest" },
               ].map((filter) => (
                 <button
@@ -557,88 +625,101 @@ export default function CommunityDetail({
                 No posts in this community yet. Be the first to post.
               </div>
             ) : (
-              <div className="space-y-3 sm:space-y-4">
-                {sortedPosts.map((post) => {
-                  const authorName =
-                    post.author?.name || post.author?.username || "Member";
-                  const initial = authorName.charAt(0).toUpperCase();
-                  return (
-                    <article
-                      key={post.id}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => setSelectedPostId(post.id)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") setSelectedPostId(post.id);
-                      }}
-                      className="bg-[#14100D] border border-[#2A241E] rounded-xl p-4 sm:p-5 cursor-pointer hover:border-[#D4AF37]/40 transition-colors"
-                    >
-                      <div className="flex items-start gap-3 mb-3">
-                        {post.author?.avatar ? (
-                          <img
-                            src={post.author.avatar}
-                            alt=""
-                            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover border border-[#2A241E] shrink-0"
-                          />
-                        ) : (
-                          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#D4AF37]/15 border border-[#D4AF37]/30 flex items-center justify-center text-[#D4AF37] text-sm font-semibold shrink-0">
-                            {initial}
-                          </div>
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <div className="text-sm font-medium text-[#E5E0D8]">
-                            {authorName}
-                          </div>
-                          <div className="text-[11px] text-[#8C8070]">
-                            {timeAgo(post.createdAt)}
-                            {community?.tags?.[0]
-                              ? ` in #${community.tags[0]}`
-                              : ""}
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
+                  {sortedPosts.map((post) => {
+                    const authorUsername =
+                      post.author?.username || post.author?.name || "Member";
+                    const initial = authorUsername.charAt(0).toUpperCase();
+                    const hasMedia = post.media?.length > 0;
+                    return (
+                      <article
+                        key={post.id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => openPost(post.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") openPost(post.id);
+                        }}
+                        className="bg-[#14100D] border border-[#2A241E] rounded-xl p-3 sm:p-4 cursor-pointer hover:border-[#D4AF37]/40 transition-colors overflow-hidden h-full flex flex-col"
+                      >
+                        <div className="flex items-start gap-2.5 mb-3">
+                          {post.author?.avatar ? (
+                            <img
+                              src={post.author.avatar}
+                              alt=""
+                              className="w-8 h-8 sm:w-9 sm:h-9 rounded-full object-cover border border-[#2A241E] shrink-0"
+                            />
+                          ) : (
+                            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#D4AF37]/15 border border-[#D4AF37]/30 flex items-center justify-center text-[#D4AF37] text-xs font-semibold shrink-0">
+                              {initial}
+                            </div>
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <div className="text-xs sm:text-sm font-medium text-[#E5E0D8] truncate">
+                              {authorUsername}
+                            </div>
+                            <div className="text-[10px] sm:text-[11px] text-[#8C8070]">
+                              {timeAgo(post.createdAt)}
+                            </div>
+                            
                           </div>
                         </div>
-                      </div>
 
-                      {post.title && (
-                        <h3 className="text-sm sm:text-base font-serif font-semibold text-[#E5E0D8] mb-1.5">
-                          {post.title}
-                        </h3>
-                      )}
-                      {post.text && (
-                        <p className="text-xs sm:text-sm text-[#A69B8D] leading-relaxed line-clamp-3">
-                          {post.text}
-                        </p>
-                      )}
+                        {hasMedia && (
+  <div
+    className="-mx-3 sm:-mx-4 mb-3 h-64 overflow-hidden"
+    onClick={(e) => e.stopPropagation()}
+  >
+    <PostMediaGallery
+      media={post.media}
+      counterOverlay
+    />
+  </div>
+)}
 
-                      <div className="flex items-center gap-4 mt-4 pt-3 border-t border-[#2A241E]/60 text-[11px] text-[#8C8070]">
-                        <button
-                          type="button"
-                          onClick={(e) => handleToggleLike(post, e)}
-                          className={`inline-flex items-center gap-1 ${
-                            post.likedByMe ? "text-[#D4AF37]" : ""
-                          }`}
-                        >
-                          <Heart
-                            size={13}
-                            className={
-                              post.likedByMe
-                                ? "fill-current text-[#D4AF37]"
-                                : "text-[#D4AF37]/70"
-                            }
-                          />
-                          {formatCount(post.likeCount)}
-                        </button>
-                        <span className="inline-flex items-center gap-1">
-                          <MessageCircle
-                            size={13}
-                            className="text-[#D4AF37]/70"
-                          />
-                          {formatCount(post.commentCount)}
-                        </span>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
+                        <div className="flex-1 min-w-0">
+                          {post.title && (
+                            <h3 className="text-xs sm:text-sm font-serif font-semibold text-[#E5E0D8] mb-1.5 line-clamp-2">
+                              {post.title}
+                            </h3>
+                          )}
+                          {post.text && (
+                            <p className="text-[11px] sm:text-xs text-[#A69B8D] leading-relaxed line-clamp-3">
+                              {post.text}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-4 mt-auto pt-3 border-t border-[#2A241E]/60 text-[11px] text-[#8C8070]">
+                          <button
+                            type="button"
+                            onClick={(e) => handleToggleLike(post, e)}
+                            className={`inline-flex items-center gap-1 ${
+                              post.likedByMe ? "text-[#D4AF37]" : ""
+                            }`}
+                          >
+                            <Heart
+                              size={13}
+                              className={
+                                post.likedByMe
+                                  ? "fill-current text-[#D4AF37]"
+                                  : "text-[#D4AF37]/70"
+                              }
+                            />
+                            {formatCount(post.likeCount)}
+                          </button>
+                          <span className="inline-flex items-center gap-1">
+                            <MessageCircle
+                              size={13}
+                              className="text-[#D4AF37]/70"
+                            />
+                            {formatCount(post.commentCount)}
+                          </span>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
             )}
           </section>
 
@@ -702,69 +783,69 @@ export default function CommunityDetail({
           )}
 
          {/* Members */}
-  {canModerate && (
-    <section className="bg-[#14100D] border border-[#2A241E] rounded-xl p-4 sm:p-5">
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
-        <div className="flex items-start gap-3">
-          <div className="w-9 h-9 rounded-lg bg-[#D4AF37]/10 border border-[#D4AF37]/30 flex items-center justify-center text-[#D4AF37] shrink-0">
-            <Users size={16} />
-          </div>
-          <div>
-            <h2 className="text-base sm:text-lg font-semibold text-[#E5E0D8]">
-              Members
-            </h2>
-            <p className="text-[11px] sm:text-xs text-[#A69B8D] mt-0.5">
-              {isOwner
-                ? "Assign or remove moderators, remove members, or ban users."
-                : "Remove or ban regular members. Moderator roles are owner-only."}
-            </p>
-          </div>
+         {canModerate && (
+  <section className="bg-[#14100D] border border-[#2A241E] rounded-xl p-4 sm:p-5">
+    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
+      <div className="flex items-start gap-3">
+        <div className="w-9 h-9 rounded-lg bg-[#D4AF37]/10 border border-[#D4AF37]/30 flex items-center justify-center text-[#D4AF37] shrink-0">
+          <Users size={16} />
         </div>
+        <div>
+          <h2 className="text-base sm:text-lg font-semibold text-[#E5E0D8]">
+            Members
+          </h2>
+          <p className="text-[11px] sm:text-xs text-[#A69B8D] mt-0.5">
+            {isOwner
+              ? "Assign or remove moderators, remove members, or ban users."
+              : "Remove or ban regular members. Moderator roles are owner-only."}
+          </p>
+        </div>
+      </div>
 
-        {/* Action Controls */}
-        <div className="flex items-center gap-2 self-start">
-          {/* All Toggle Button */}
-          <button
-            type="button"
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] border border-[#2A241E] text-[#E5E0D8] bg-[#0E0C0A] hover:border-[#D4AF37]/40 transition-colors"
-          >
-            <span>All</span>
-            <ChevronDown
-              size={12}
-              className={`transition-transform duration-300 ${
-                isExpanded ? "rotate-180" : "rotate-0"
-              }`}
-            />
-          </button>
-
-          {/* Status Filters */}
-          {["active", "banned"].map((status) => (
+      <div className="flex items-center gap-2 self-start flex-wrap">
+        {["all", "active", "banned"].map((status) => {
+          const isExpanded = expandedFilter === status;
+          return (
             <button
               key={status}
               type="button"
               onClick={() => {
-                setMemberStatusFilter(status);
-                setIsExpanded(true); // Automatically expand when switching filters
+                // If clicking the currently active & expanded filter, collapse it
+                if (memberStatusFilter === status && expandedFilter === status) {
+                  setExpandedFilter(null);
+                } else {
+                  // Switch to new status filter and expand it (collapsing any previous)
+                  setMemberStatusFilter(status);
+                  setExpandedFilter(status);
+                }
               }}
-              className={`px-2.5 py-1 rounded-lg text-[11px] border capitalize transition-colors ${
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] border capitalize transition-all ${
                 memberStatusFilter === status
                   ? "bg-[#D4AF37] text-black border-[#D4AF37]"
                   : "border-[#2A241E] text-[#A69B8D] hover:border-[#D4AF37]/40"
               }`}
             >
-              {status}
+              <span>{status}</span>
+              <ChevronDown
+                size={12}
+                className={`transition-transform duration-200 ${
+                  isExpanded ? "rotate-180" : "rotate-0"
+                }`}
+              />
             </button>
-          ))}
-        </div>
+          );
+        })}
       </div>
+    </div>
 
-      {/* Smooth Collapsible Section */}
-      <div
-        className={`transition-all duration-300 ease-in-out overflow-hidden ${
-          isExpanded ? "max-h-[2000px] opacity-100" : "max-h-0 opacity-0"
-        }`}
-      >
+    <div
+      className={`grid transition-[grid-template-rows,opacity] duration-300 ease-in-out ${
+        expandedFilter === memberStatusFilter
+          ? "grid-rows-[1fr] opacity-100"
+          : "grid-rows-[0fr] opacity-0"
+      }`}
+    >
+      <div className="overflow-hidden min-h-0">
         {membersLoading ? (
           <div className="flex items-center justify-center py-10 text-[#A69B8D] text-xs gap-2">
             <Loader2 size={14} className="animate-spin" />
@@ -772,7 +853,9 @@ export default function CommunityDetail({
           </div>
         ) : members.length === 0 ? (
           <div className="border border-dashed border-[#2A241E] rounded-lg py-10 text-center text-[#8C8070] text-xs px-4">
-            No {memberStatusFilter} members found.
+            {memberStatusFilter === "all"
+              ? "No members found."
+              : `No ${memberStatusFilter} members found.`}
           </div>
         ) : (
           <div className="space-y-2 pt-1">
@@ -869,141 +952,144 @@ export default function CommunityDetail({
           </div>
         )}
       </div>
-    </section>
-  )}
+    </div>
+  </section>
+)}
 
-          {/* Invite Members */}
-          {["private_request", "private_invite"].includes(community?.type) && (
-            <section className="bg-[#14100D] border border-[#2A241E] rounded-xl p-4 sm:p-5">
-              <div className="flex items-start gap-3 mb-4">
-                <div className="w-9 h-9 rounded-lg bg-[#D4AF37]/10 border border-[#D4AF37]/30 flex items-center justify-center text-[#D4AF37] shrink-0">
-                  <UserPlus size={16} />
-                </div>
-                <div>
-                  <h2 className="text-base sm:text-lg font-semibold text-[#E5E0D8]">
-                    Invite Members
-                  </h2>
-                  <p className="text-[11px] sm:text-xs text-[#A69B8D] mt-0.5">
-                    Send an invite by username or email. They can accept or
-                    decline from Join Requests.
-                  </p>
-                </div>
-              </div>
+         {/* Invite Members */}
+{["private_request", "private_invite"].includes(community?.type) && (
+  <section className="bg-[#14100D] border border-[#2A241E] rounded-xl p-4 sm:p-5">
+    <div className="flex items-start gap-3 mb-4">
+      <div className="w-9 h-9 rounded-lg bg-[#D4AF37]/10 border border-[#D4AF37]/30 flex items-center justify-center text-[#D4AF37] shrink-0">
+        <UserPlus size={16} />
+      </div>
+      <div>
+        <h2 className="text-base sm:text-lg font-semibold text-[#E5E0D8]">
+          Invite Members
+        </h2>
+        <p className="text-[11px] sm:text-xs text-[#A69B8D] mt-0.5">
+          Search by username or email. Type at least 3 characters,
+          then select a user from the results to invite.
+        </p>
+      </div>
+    </div>
 
-              <form
-                onSubmit={handleInvite}
-                className="flex flex-col sm:flex-row gap-2"
-              >
-                <input
-                  type="text"
-                  value={inviteIdentifier}
-                  onChange={(e) => setInviteIdentifier(e.target.value)}
-                  placeholder="Username or email"
-                  className="flex-1 bg-[#0E0C0A] border border-[#2A241E] rounded-lg px-3 py-2 text-sm text-[#E5E0D8] placeholder:text-[#8C8070] focus:outline-none focus:border-[#D4AF37]/50"
-                />
-                <button
-                  type="submit"
-                  disabled={inviteBusy || !inviteIdentifier.trim()}
-                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-[#D4AF37] text-black text-xs font-semibold disabled:opacity-60"
-                >
-                  {inviteBusy && <Loader2 size={12} className="animate-spin" />}
-                  Send Invite
-                </button>
-              </form>
-              {inviteMessage && (
-                <p className="text-xs text-emerald-400 mt-2">{inviteMessage}</p>
-              )}
-            </section>
-          )}
+    <form onSubmit={handleInvite} className="space-y-2">
+      <div className="flex flex-col sm:flex-row gap-2">
+        <input
+          type="text"
+          value={inviteIdentifier}
+          onChange={(e) => {
+            setInviteIdentifier(e.target.value);
+            setSelectedInviteUser(null);
+            setInviteError("");
+            setInviteMessage("");
+            setInviteLookupError("");
+          }}
+          placeholder="Username or email"
+          className="flex-1 bg-[#0E0C0A] border border-[#2A241E] rounded-lg px-3 py-2 text-sm text-[#E5E0D8] placeholder:text-[#8C8070] focus:outline-none focus:border-[#D4AF37]/50"
+        />
+        <button
+          type="submit"
+          disabled={
+            inviteBusy ||
+            !inviteIdentifier.trim() ||
+            (isOwner && !selectedInviteUser)
+          }
+          className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-[#D4AF37] text-black text-xs font-semibold disabled:opacity-60"
+        >
+          {inviteBusy && <Loader2 size={12} className="animate-spin" />}
+          Send Invite
+        </button>
+      </div>
 
-          {/* Pending Join Requests */}
-          <section className="bg-[#14100D] border border-[#2A241E] rounded-xl p-4 sm:p-5">
-            <div className="flex items-start justify-between gap-3 mb-4">
-              <div>
-                <h2 className="text-base sm:text-lg font-semibold text-[#E5E0D8]">
-                  Pending Requests
-                </h2>
-                <p className="text-[11px] sm:text-xs text-[#A69B8D] mt-0.5">
-                  Review and approve new member applications.
-                </p>
-              </div>
-              <span className="text-[11px] text-[#D4AF37] shrink-0">
-                {pendingRequests.length} pending
-              </span>
+      {isOwner && inviteIdentifier.trim() && (
+        <div className="space-y-1.5">
+          {inviteIdentifier.trim().length < 3 ? (
+            <p className="text-[11px] text-[#8C8070] px-1">
+              Type at least 3 characters to look up a user.
+            </p>
+          ) : inviteLookupLoading ? (
+            <div className="flex items-center gap-2 text-[11px] text-[#A69B8D] px-1 py-1">
+              <Loader2 size={12} className="animate-spin" />
+              Looking up users...
             </div>
-
-            {community?.type !== "private_request" ? (
-              <div className="border border-dashed border-[#2A241E] rounded-lg py-10 text-center text-[#8C8070] text-xs px-4">
-                Join requests only apply to Private-Request communities. Use
-                invites above for invite-only circles.
-              </div>
-            ) : pendingRequests.length === 0 ? (
-              <div className="border border-dashed border-[#2A241E] rounded-lg py-10 text-center text-[#8C8070] text-xs px-4">
-                No pending requests right now.
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {pendingRequests.map((request) => {
-                  const name =
-                    request.user?.name || request.user?.username || "Member";
-                  const initial = name.charAt(0).toUpperCase();
-                  const busy = actionRequestId === request.id;
-                  return (
-                    <div
-                      key={request.id}
-                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-lg bg-[#0E0C0A] border border-[#2A241E]"
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        {request.user?.avatar ? (
-                          <img
-                            src={request.user.avatar}
-                            alt=""
-                            className="w-10 h-10 rounded-full object-cover border border-[#2A241E] shrink-0"
-                          />
-                        ) : (
-                          <div className="w-10 h-10 rounded-full bg-[#D4AF37]/15 border border-[#D4AF37]/30 flex items-center justify-center text-[#D4AF37] text-sm font-semibold shrink-0">
-                            {initial}
-                          </div>
-                        )}
-                        <div className="min-w-0">
-                          <div className="text-sm font-medium text-[#E5E0D8] truncate">
-                            {name}
-                          </div>
-                          <div className="text-[11px] text-[#A69B8D] truncate">
-                            {request.user?.email ||
-                              request.user?.username ||
-                              "Applicant"}
-                          </div>
-                        </div>
+          ) : inviteLookupError ? (
+            <p className="text-[11px] text-red-400 px-1">{inviteLookupError}</p>
+          ) : inviteLookupUsers.length > 0 ? (
+            <div className="max-h-48 overflow-y-auto space-y-1.5">
+              {inviteLookupUsers.map((user) => {
+                const isSelected =
+                  selectedInviteUser &&
+                  String(selectedInviteUser.id) === String(user.id);
+                return (
+                  <button
+                    key={user.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedInviteUser(user);
+                      setInviteIdentifier(user.username || user.email || "");
+                    }}
+                    className={`w-full flex items-center gap-3 rounded-lg border px-3 py-2 text-left transition-colors ${
+                      isSelected
+                        ? "border-[#D4AF37] bg-[#D4AF37]/10"
+                        : "border-[#2A241E] bg-[#0E0C0A] hover:border-[#D4AF37]/40"
+                    }`}
+                  >
+                    {user.avatar ? (
+                      <img
+                        src={user.avatar}
+                        alt=""
+                        className="w-9 h-9 rounded-full object-cover shrink-0 border border-[#2A241E]"
+                      />
+                    ) : (
+                      <div className="w-9 h-9 rounded-full bg-[#1C1612] border border-[#2A241E] flex items-center justify-center text-[#D4AF37] text-xs font-semibold shrink-0">
+                        {(user.username || "?").charAt(0).toUpperCase()}
                       </div>
-
-                      <div className="flex items-center gap-2 self-end sm:self-auto">
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => handleDeny(request.id)}
-                          className="px-3 py-1.5 rounded-lg border border-[#2A241E] text-xs text-[#A69B8D] hover:text-[#E5E0D8] disabled:opacity-60"
-                        >
-                          Deny
-                        </button>
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => handleApprove(request.id)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#D4AF37] text-black text-xs font-semibold disabled:opacity-60"
-                        >
-                          {busy && (
-                            <Loader2 size={12} className="animate-spin" />
-                          )}
-                          Approve
-                        </button>
-                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-[#E5E0D8] truncate">
+                        @{user.username}
+                      </p>
+                      <p className="text-[11px] text-[#A69B8D] truncate">
+                        {user.name ? `${user.name} · ` : ""}
+                        {user.email || ""}
+                      </p>
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </section>
+                    {isSelected && (
+                      <span className="ml-auto text-[10px] uppercase tracking-wide text-[#D4AF37] shrink-0">
+                        Selected
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-[11px] text-red-400 px-1">
+              No matching user found.
+            </p>
+          )}
+        </div>
+      )}
+
+      <textarea
+        value={inviteNote}
+        onChange={(e) => setInviteNote(e.target.value)}
+        placeholder="Optional message…"
+        rows={2}
+        className="w-full bg-[#0E0C0A] border border-[#2A241E] rounded-lg px-3 py-2 text-sm text-[#E5E0D8] placeholder:text-[#8C8070] focus:outline-none focus:border-[#D4AF37]/50 resize-y min-h-[64px]"
+      />
+    </form>
+
+    {inviteError && (
+      <p className="text-xs text-red-400 mt-2">{inviteError}</p>
+    )}
+    {inviteMessage && (
+      <p className="text-xs text-emerald-400 mt-2">{inviteMessage}</p>
+    )}
+  </section>
+)}
 
           {/* Rules + tags */}
           {(community?.rules || community?.tags?.length > 0) && (

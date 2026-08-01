@@ -23,6 +23,7 @@ import UserManagement from './menus/UserManagement';
 import CommunityManagement from './menus/CommunityManagement';
 import UserDetail from './menus/UserDetail';
 import CommunityDetail from './menus/CommunityDetail';
+import AdminCommunityPostPage from './menus/AdminCommunityPostPage';
 import Profile from '../../profile/pages/Profile';
 
 const DEFAULT_AVATAR =
@@ -247,6 +248,10 @@ const AdminDashboard = () => {
               <Route path="users" element={<UserManagement />} />
               <Route path="users/:id" element={<UserDetail />} />
               <Route path="communities" element={<CommunityManagement />} />
+              <Route
+                path="communities/:id/posts/:postId"
+                element={<AdminCommunityPostPage />}
+              />
               <Route path="communities/:id" element={<CommunityDetail />} />
               <Route path="profile" element={<Profile />} />
               {navigationItems

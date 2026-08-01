@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   Loader2,
   ChevronRight,
@@ -24,6 +25,10 @@ import { getErrorMessage } from "../../../../shared/utils/errors";
 const formatType = formatCommunityType;
 
 export default function ManageCommunities() {
+  const { communityId } = useParams();
+  const navigate = useNavigate();
+  const selectedId = communityId || null;
+
   const [communities, setCommunities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
@@ -31,7 +36,6 @@ export default function ManageCommunities() {
   const [editingCommunity, setEditingCommunity] = useState(null);
   const [deletingCommunity, setDeletingCommunity] = useState(null);
 
-  const [selectedId, setSelectedId] = useState(null);
   const [manageData, setManageData] = useState(null);
   const [manageLoading, setManageLoading] = useState(false);
   const [search, setSearch] = useState("");
@@ -43,31 +47,44 @@ export default function ManageCommunities() {
       )
     : communities;
 
-  const loadCommunities = useCallback(async () => {
-    setLoading(true);
+  const loadCommunities = useCallback(async (opts = {}) => {
+    const keepExisting = Boolean(opts.keepExisting);
+    if (!keepExisting) {
+      setLoading(true);
+    }
     setError("");
     try {
       const data = await fetchMyCommunities({ manage: true });
       setCommunities(data?.communities || []);
     } catch (err) {
       setError(getErrorMessage(err, "Failed to load communities."));
+      if (!keepExisting) {
+        setCommunities([]);
+      }
     } finally {
       setLoading(false);
     }
   }, []);
 
-  const loadManage = useCallback(async (id) => {
+  const loadManage = useCallback(async (id, opts = {}) => {
     if (!id) return;
-    setManageLoading(true);
+    const silent = Boolean(opts.silent);
+    if (!silent) {
+      setManageLoading(true);
+    }
     setError("");
     try {
       const data = await fetchCommunityManage(id);
       setManageData(data);
     } catch (err) {
       setError(getErrorMessage(err, "Failed to load community."));
-      setManageData(null);
+      if (!silent) {
+        setManageData(null);
+      }
     } finally {
-      setManageLoading(false);
+      if (!silent) {
+        setManageLoading(false);
+      }
     }
   }, []);
 
@@ -84,15 +101,15 @@ export default function ManageCommunities() {
   }, [selectedId, loadManage]);
 
   const openCommunity = (community) => {
-    setSelectedId(community.id);
     setError("");
+    navigate(`/dashboard/manage/${community.id}`);
   };
 
   const backToList = () => {
-    setSelectedId(null);
     setManageData(null);
     setError("");
-    loadCommunities();
+    navigate("/dashboard/manage");
+    loadCommunities({ keepExisting: true });
   };
 
   const openEdit = (community) => {
@@ -213,7 +230,7 @@ export default function ManageCommunities() {
         </div>
       )}
 
-      {loading ? (
+      {loading && communities.length === 0 ? (
         <div className="flex items-center justify-center py-16 text-[#A69B8D] text-xs sm:text-sm gap-2">
           <Loader2 size={16} className="animate-spin" />
           Loading communities...

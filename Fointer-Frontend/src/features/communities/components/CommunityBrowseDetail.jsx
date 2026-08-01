@@ -117,6 +117,10 @@ export default function CommunityBrowseDetail({
   variant = "modal",
   onClose,
   onJoined,
+  pendingInviteId = null,
+  onAcceptInvite,
+  onDeclineInvite,
+  inviteActionBusy = false,
 }) {
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
@@ -574,6 +578,33 @@ export default function CommunityBrowseDetail({
           >
             Sign In to Continue
           </Link>
+        </div>
+      ) : pendingInviteId && !community.isMember ? (
+        <div className="space-y-3">
+          <p className="text-xs sm:text-sm text-[#A69B8D] text-center">
+            You have a pending invite to this community.
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={inviteActionBusy}
+              onClick={() => onDeclineInvite?.(pendingInviteId)}
+              className="flex-1 px-4 py-2.5 rounded-lg border border-[#2A241E] text-sm text-[#A69B8D] hover:text-[#E5E0D8] disabled:opacity-60"
+            >
+              Decline
+            </button>
+            <button
+              type="button"
+              disabled={inviteActionBusy}
+              onClick={() => onAcceptInvite?.(pendingInviteId)}
+              className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[#D4AF37] text-black text-sm font-semibold disabled:opacity-60 hover:bg-[#e0c04a]"
+            >
+              {inviteActionBusy && (
+                <Loader2 size={14} className="animate-spin" />
+              )}
+              Accept
+            </button>
+          </div>
         </div>
       ) : community.isMember ? (
         <p className="text-center text-sm text-emerald-400 font-medium">

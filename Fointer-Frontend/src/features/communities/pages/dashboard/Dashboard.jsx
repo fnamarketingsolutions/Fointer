@@ -27,6 +27,8 @@ import {
 
 import CreateCommunity from "./CreateCommunity";
 import ManageCommunities from "./ManageCommunities";
+import ManagePostPage from "./ManagePostPage";
+import DashboardPostPage from "./DashboardPostPage";
 import PostManagement from "../../../posts/pages/PostManagement";
 import JoinedCommunities from "./JoinedCommunities";
 import JoinRequests from "./JoinRequests";
@@ -362,9 +364,14 @@ const Dashboard = () => {
             />
             <Route path="manage" element={<ManageCommunities />} />
             <Route
+              path="manage/:communityId/posts/:postId"
+              element={<ManagePostPage />}
+            />
+            <Route
               path="manage/:communityId"
               element={<ManageCommunities />}
             />
+            <Route path="posts/:postId" element={<DashboardPostPage />} />
             <Route path="posts" element={<PostManagement />} />
             <Route path="communities" element={<JoinedCommunities />} />
             <Route path="requests" element={<JoinRequests />} />

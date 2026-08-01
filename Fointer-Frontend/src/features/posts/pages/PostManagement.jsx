@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Search,
   Plus,
@@ -15,7 +16,6 @@ import {
 } from "../../../api/posts";
 import { fetchJoinedCommunities } from "../../../api/communities";
 import MediaPicker from "../../../shared/components/media/MediaPicker";
-import PostDetail from "./PostDetail";
 
 const emptyForm = {
   communityId: "",
@@ -25,6 +25,7 @@ const emptyForm = {
 };
 
 export default function PostManagement() {
+  const navigate = useNavigate();
   const [posts, setPosts] = useState([]);
   const [communities, setCommunities] = useState([]);
   const [search, setSearch] = useState("");
@@ -34,7 +35,6 @@ export default function PostManagement() {
   const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(emptyForm);
-  const [selectedPostId, setSelectedPostId] = useState(null);
 
   const loadPosts = useCallback(async (q = query) => {
     setLoading(true);
@@ -116,22 +116,6 @@ export default function PostManagement() {
     }
   };
 
-  if (selectedPostId) {
-    return (
-      <PostDetail
-        postId={selectedPostId}
-        onBack={() => {
-          setSelectedPostId(null);
-          loadPosts();
-        }}
-        onDeleted={() => {
-          setSelectedPostId(null);
-          loadPosts();
-        }}
-      />
-    );
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4">
@@ -203,7 +187,7 @@ export default function PostManagement() {
               <button
                 key={post.id}
                 type="button"
-                onClick={() => setSelectedPostId(post.id)}
+                onClick={() => navigate(`/dashboard/posts/${post.id}`)}
                 className="text-left bg-[#14100D] border border-[#2A241E] rounded-xl overflow-hidden hover:border-[#D4AF37]/40 transition-all flex flex-col"
               >
                 <div className="h-40 bg-[#0E0C0A] overflow-hidden">

@@ -35,6 +35,8 @@ export default function PostDetail({
   onBack,
   onDeleted,
   embedded = false,
+  // backLabel = "Back",
+  postPathBuilder,
 }) {
   const navigate = useNavigate();
 
@@ -482,9 +484,12 @@ export default function PostDetail({
                 <div className="flex justify-end">
                   <button
                     type="button"
-                    onClick={() =>
-                      navigate(`/communities/${communityId}/posts/${recentPost.id}`)
-                    }
+                    onClick={() => {
+                      const path = postPathBuilder
+                        ? postPathBuilder(recentPost.id)
+                        : `/communities/${communityId}/posts/${recentPost.id}`;
+                      navigate(path);
+                    }}
                     className="text-[10px] font-medium text-[#D4AF37] hover:text-[#c3a030] transition-colors"
                   >
                     Details →
@@ -500,6 +505,17 @@ export default function PostDetail({
 
   const mainContent = (
     <>
+      {/* {onBack && (
+        <button
+          type="button"
+          onClick={onBack}
+          className="inline-flex items-center gap-1.5 text-xs text-[#A69B8D] hover:text-[#D4AF37] transition-colors"
+        >
+          <ArrowLeft size={14} />
+          {backLabel}
+        </button>
+      )} */}
+
       {error && !showEdit && !showDelete && !deleteCommentId && !lockModal && (
         <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3">
           {error}

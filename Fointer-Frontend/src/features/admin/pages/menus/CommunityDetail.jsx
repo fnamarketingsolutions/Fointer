@@ -20,7 +20,6 @@ import { fetchPosts } from '../../../../api/posts';
 import PostMediaGallery from '../../../../shared/components/media/PostMediaGallery';
 import ConfirmDeleteModal from '../../../../shared/components/modals/ConfirmDeleteModal';
 import EditCommunityModal from '../../../../shared/components/modals/EditCommunityModal';
-import PostDetail from '../../../posts/pages/PostDetail';
 import { formatCommunityType } from '../../../../shared/utils/community';
 import { timeAgo } from '../../../../shared/utils/date';
 import { formatCount } from '../../../../shared/utils/format';
@@ -39,7 +38,6 @@ export default function CommunityDetail() {
   const [posts, setPosts] = useState([]);
   const [postsLoading, setPostsLoading] = useState(false);
   const [feedFilter, setFeedFilter] = useState('latest');
-  const [selectedPostId, setSelectedPostId] = useState(null);
   const [editingCommunity, setEditingCommunity] = useState(null);
   const [communityToDelete, setCommunityToDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
@@ -125,23 +123,10 @@ export default function CommunityDetail() {
     }
   };
 
-  if (selectedPostId) {
-    return (
-      <PostDetail
-        postId={selectedPostId}
-        embedded
-        backLabel="Back to community"
-        onBack={() => {
-          setSelectedPostId(null);
-          loadPosts();
-        }}
-        onDeleted={() => {
-          setSelectedPostId(null);
-          loadPosts();
-        }}
-      />
-    );
-  }
+  const openPost = (postId) => {
+    if (!id || !postId) return;
+    navigate(`/admin/communities/${id}/posts/${postId}`);
+  };
 
   return (
     <div className="space-y-5 sm:space-y-6 max-w-full">
@@ -461,9 +446,9 @@ export default function CommunityDetail() {
                       key={post.id}
                       role="button"
                       tabIndex={0}
-                      onClick={() => setSelectedPostId(post.id)}
+                      onClick={() => openPost(post.id)}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') setSelectedPostId(post.id);
+                        if (e.key === 'Enter') openPost(post.id);
                       }}
                       className="cursor-pointer flex flex-col justify-between rounded-xl border border-stone-800/60 bg-[#141210] p-3.5 transition-all hover:border-amber-500/40 hover:bg-[#181512]"
                     >

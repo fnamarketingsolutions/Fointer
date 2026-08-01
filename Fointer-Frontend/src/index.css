@@ -1,1 +1,24 @@
 @import "tailwindcss";
+
+.fointer-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(212, 175, 55, 0.55) #1a1714;
+}
+
+.fointer-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.fointer-scrollbar::-webkit-scrollbar-track {
+  background: #1a1714;
+  border-radius: 8px;
+}
+
+.fointer-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(212, 175, 55, 0.55);
+  border-radius: 8px;
+}
+
+.fointer-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(212, 175, 55, 0.75);
+}

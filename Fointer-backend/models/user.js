@@ -38,6 +38,17 @@ const userSchema = new mongoose.Schema(
       type: String,
     },
 
+    bio: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: 500,
+    },
+
+    interests: {
+      type: [String],
+      default: [],
+    },
     isEmailVerified: {
       type: Boolean,
       default: false,
@@ -55,6 +66,13 @@ const userSchema = new mongoose.Schema(
       type: String,
       enum: ["admin", "user"],
       default: "user",
+      set: (v) => String(v || "user").toLowerCase().trim(),
+    },
+
+    status: {
+      type: String,
+      enum: ["active", "suspended", "banned"],
+      default: "active",
     },
   },
   {

@@ -23,12 +23,12 @@ const seedAdmin = async () => {
       process.exit(0);
     }
 
-    const hashedPassword = await bcrypt.hash("Admin@123", 10);
+    const hashedPassword = await bcrypt.hash(process.env.ADMIN_PASSWORD, 10);
 
     const user = await User.create({
       username: "admin",
       name: "System Admin",
-      email: "admin@gmail.com",
+      email: process.env.ADMIN_EMAIL,
       password: hashedPassword,
       role: "admin",
     });

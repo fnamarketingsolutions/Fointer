@@ -74,10 +74,7 @@ export default function PostManagement() {
   }, [query, loadPosts]);
 
   const openCreate = () => {
-    setForm({
-      ...emptyForm,
-      communityId: communities[0]?.id || "",
-    });
+    setForm(emptyForm);
     setShowForm(true);
     setError("");
   };
@@ -101,12 +98,15 @@ export default function PostManagement() {
     setSaving(true);
     setError("");
     try {
-      await createPost({
-        communityId: form.communityId,
+      const payload = {
         title: form.title.trim(),
         text: form.text.trim(),
         media: form.media,
-      });
+      };
+      if (form.communityId) {
+        payload.communityId = form.communityId;
+      }
+      await createPost(payload);
       closeForm();
       await loadPosts();
     } catch (err) {
@@ -125,7 +125,7 @@ export default function PostManagement() {
               Post Management
             </h1>
             <p className="text-xs text-[#A69B8D] mt-1">
-              Create and manage your posts in communities you have joined.
+              Create and manage your posts. Community is optional.
             </p>
           </div>
           <button
@@ -174,7 +174,7 @@ export default function PostManagement() {
         </div>
       ) : posts.length === 0 ? (
         <div className="border border-dashed border-[#2A241E] rounded-xl py-16 text-center text-[#8C8070] text-sm">
-          No posts yet. Create one for a community you joined.
+          No posts yet. Create your first post.
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -212,9 +212,11 @@ export default function PostManagement() {
                   )}
                 </div>
                 <div className="p-4 space-y-2 flex-1 flex flex-col">
-                  <p className="text-[10px] uppercase tracking-wider text-[#D4AF37] font-mono truncate">
-                    {post.community?.name || "Community"}
-                  </p>
+                  {post.community?.name && (
+                    <p className="text-[10px] uppercase tracking-wider text-[#D4AF37] font-mono truncate">
+                      {post.community.name}
+                    </p>
+                  )}
                   <h3 className="font-serif font-bold text-base text-[#E5E0D8] line-clamp-2">
                     {post.title || "Untitled"}
                   </h3>
@@ -265,17 +267,16 @@ export default function PostManagement() {
 
             <div>
               <label className="block text-[10px] uppercase tracking-wider text-[#8C8070] mb-1">
-                Community
+                Community (optional)
               </label>
               <select
                 value={form.communityId}
                 onChange={(e) =>
                   setForm((p) => ({ ...p, communityId: e.target.value }))
                 }
-                required
                 className="w-full bg-[#0E0C0A] border border-[#2A241E] rounded-lg px-3 py-2 text-xs text-[#E5E0D8] focus:outline-none focus:border-[#D4AF37]/60"
               >
-                <option value="">Select community</option>
+                <option value="">No community</option>
                 {communities.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}

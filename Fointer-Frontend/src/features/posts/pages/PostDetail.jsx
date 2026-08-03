@@ -427,8 +427,9 @@ export default function PostDetail({
   }
 
   const communityId = post.community?.id || post.community;
+  const hasCommunity = Boolean(communityId);
 
-  const sidebarCard = (
+  const sidebarCard = hasCommunity ? (
     <div className="bg-[#14100D] rounded-xl p-5 space-y-4 shadow-xl">
       <h3 className="text-sm font-serif font-semibold text-[#E5E0D8] border-b border-[#2A241E] pb-3">
         Recent Posts
@@ -501,7 +502,7 @@ export default function PostDetail({
         </div>
       )}
     </div>
-  );
+  ) : null;
 
   const mainContent = (
     <>
@@ -529,9 +530,11 @@ export default function PostDetail({
             <div className="flex items-start justify-between gap-4">
               
               <div className="space-y-2 min-w-0">
-                <p className="text-[10px] uppercase tracking-widest text-[#D4AF37] font-mono">
-                  {post.community?.name || "Community"}
-                </p>
+                {post.community?.name && (
+                  <p className="text-[10px] uppercase tracking-widest text-[#D4AF37] font-mono">
+                    {post.community.name}
+                  </p>
+                )}
                 <h1 className="text-2xl sm:text-3xl lg:text-4xl font-serif font-bold text-[#E5E0D8] leading-tight">
                   {post.title || "Untitled"}
                 </h1>
@@ -1098,13 +1101,13 @@ export default function PostDetail({
           </div>
         )}
       </section>
-      {!embedded && <div className="lg:hidden">{sidebarCard}</div>}
+      {!embedded && sidebarCard && <div className="lg:hidden">{sidebarCard}</div>}
     </>
   );
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-      {embedded ? (
+      {embedded || !sidebarCard ? (
         <div className="space-y-6">{mainContent}</div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-[7fr_3fr] gap-6 items-start">

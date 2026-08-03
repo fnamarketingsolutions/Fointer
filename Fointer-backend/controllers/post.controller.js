@@ -59,19 +59,23 @@ const getLikeMeta = async (targetType, targetIds, userId) => {
 
 const formatPost = (post, extras = {}) => {
   const community = post.community;
+  let communityPayload = null;
+  if (community && typeof community === "object" && community._id) {
+    communityPayload = {
+      id: community._id,
+      name: community.name,
+      coverImage: community.coverImage || "",
+    };
+  } else if (community) {
+    communityPayload = { id: community };
+  }
+
   return {
     id: post._id,
     title: post.title || "",
     text: post.text || "",
     media: formatMedia(post.media),
-    community:
-      community && typeof community === "object" && community._id
-        ? {
-            id: community._id,
-            name: community.name,
-            coverImage: community.coverImage || "",
-          }
-        : { id: post.community },
+    community: communityPayload,
     author: formatUser(post.author),
     likeCount: extras.likeCount ?? 0,
     likedByMe: extras.likedByMe ?? false,
@@ -84,6 +88,24 @@ const formatPost = (post, extras = {}) => {
     createdAt: post.createdAt,
     updatedAt: post.updatedAt,
   };
+};
+
+/** Authenticated users may engage when post has no community. */
+const canAccessPost = async (post, user) => {
+  if (user.role === "admin") return true;
+  const communityId = post.community?._id || post.community;
+  if (!communityId) return true;
+  return (
+    (await canEngageInCommunity(communityId, user)) ||
+    (await canCreatePost(communityId, user))
+  );
+};
+
+const canEngageWithPost = async (post, user) => {
+  if (user.role === "admin") return true;
+  const communityId = post.community?._id || post.community;
+  if (!communityId) return true;
+  return canEngageInCommunity(communityId, user);
 };
 
 const formatComment = (comment, extras = {}) => ({
@@ -133,7 +155,9 @@ const userCanDeletePost = async (post, user) => {
   const isAdmin = user.role === "admin";
   if (isAdmin) return true;
   if (isAuthor && (await isWithinEditWindow(post.createdAt))) return true;
-  return canManagePostsInCommunity(post.community?._id || post.community, user);
+  const communityId = post.community?._id || post.community;
+  if (!communityId) return false;
+  return canManagePostsInCommunity(communityId, user);
 };
 
 const userCanDeleteComment = async (comment, user) => {
@@ -142,7 +166,7 @@ const userCanDeleteComment = async (comment, user) => {
   if (isAdmin) return true;
   if (isAuthor && (await isWithinEditWindow(comment.createdAt))) return true;
   const post = await Post.findById(comment.post).select("community").lean();
-  if (!post) return false;
+  if (!post?.community) return false;
   return canManagePostsInCommunity(post.community, user);
 };
 
@@ -281,12 +305,7 @@ export const getPost = async (req, res) => {
       return res.status(404).json({ success: false, message: "Post not found." });
     }
 
-    const allowed =
-      req.user.role === "admin" ||
-      (await canEngageInCommunity(post.community?._id || post.community, req.user)) ||
-      (await canCreatePost(post.community?._id || post.community, req.user));
-
-    if (!allowed) {
+    if (!(await canAccessPost(post, req.user))) {
       return res.status(403).json({
         success: false,
         message: "You cannot view this post.",
@@ -316,27 +335,23 @@ export const getPost = async (req, res) => {
 export const createPost = async (req, res) => {
   try {
     const { communityId, title, text, media } = req.body;
+    const hasCommunity = Boolean(communityId);
 
-    if (!communityId) {
-      return res.status(400).json({
-        success: false,
-        message: "communityId is required.",
-      });
-    }
+    if (hasCommunity) {
+      const community = await Community.findById(communityId);
+      if (!community) {
+        return res.status(404).json({
+          success: false,
+          message: "Community not found.",
+        });
+      }
 
-    const community = await Community.findById(communityId);
-    if (!community) {
-      return res.status(404).json({
-        success: false,
-        message: "Community not found.",
-      });
-    }
-
-    if (!(await canCreatePost(communityId, req.user))) {
-      return res.status(403).json({
-        success: false,
-        message: "You must be an active member to create posts.",
-      });
+      if (!(await canCreatePost(communityId, req.user))) {
+        return res.status(403).json({
+          success: false,
+          message: "You must be an active member to create posts.",
+        });
+      }
     }
 
     const cleanTitle = String(title || "").trim();
@@ -357,8 +372,7 @@ export const createPost = async (req, res) => {
       });
     }
 
-    const post = await Post.create({
-      community: communityId,
+    const postData = {
       author: req.user._id,
       title: cleanTitle,
       text: cleanText,
@@ -367,10 +381,17 @@ export const createPost = async (req, res) => {
         publicId: m.publicId || "",
         type: m.type === "video" ? "video" : "image",
       })),
-    });
+    };
+    if (hasCommunity) {
+      postData.community = communityId;
+    }
+
+    const post = await Post.create(postData);
 
     await post.populate("author", "username name avatar role");
-    await post.populate("community", "name coverImage");
+    if (hasCommunity) {
+      await post.populate("community", "name coverImage");
+    }
 
     // await logActivity({
     //   actor: req.user._id,
@@ -515,14 +536,11 @@ export const listComments = async (req, res) => {
       return res.status(404).json({ success: false, message: "Post not found." });
     }
 
-    if (!(await canEngageInCommunity(post.community, req.user)) && req.user.role !== "admin") {
-      // Allow owners/mods who manage even if engage check fails oddly
-      if (!(await canCreatePost(post.community, req.user))) {
-        return res.status(403).json({
-          success: false,
-          message: "You cannot view comments in this community.",
-        });
-      }
+    if (!(await canAccessPost(post, req.user))) {
+      return res.status(403).json({
+        success: false,
+        message: "You cannot view comments in this community.",
+      });
     }
 
     const comments = await Comment.find({ post: post._id })
@@ -572,7 +590,7 @@ export const createComment = async (req, res) => {
       return res.status(404).json({ success: false, message: "Post not found." });
     }
 
-    if (!(await canEngageInCommunity(post.community, req.user))) {
+    if (!(await canEngageWithPost(post, req.user))) {
       return res.status(403).json({
         success: false,
         message: "Only community members can comment.",
@@ -743,7 +761,7 @@ export const togglePostLike = async (req, res) => {
       return res.status(404).json({ success: false, message: "Post not found." });
     }
 
-    if (!(await canEngageInCommunity(post.community, req.user))) {
+    if (!(await canEngageWithPost(post, req.user))) {
       return res.status(403).json({
         success: false,
         message: "Only community members can like posts.",
@@ -772,7 +790,7 @@ export const toggleCommentLike = async (req, res) => {
       return res.status(404).json({ success: false, message: "Post not found." });
     }
 
-    if (!(await canEngageInCommunity(post.community, req.user))) {
+    if (!(await canEngageWithPost(post, req.user))) {
       return res.status(403).json({
         success: false,
         message: "Only community members can like comments.",

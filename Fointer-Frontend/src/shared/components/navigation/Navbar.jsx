@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { Search } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
 import logo from "../../../assets/fointer-logo.png";
 
@@ -37,6 +38,16 @@ export default function Navbar() {
     navigate('/login');
   };
 
+  const handleSearchClick = () => {
+    setIsOpen(false);
+    if (loading) return;
+    if (user) {
+      navigate('/communities', { state: { focusSearch: true } });
+    } else {
+      navigate('/login');
+    }
+  };
+
   return (
     <nav className="w-full bg-[#130D08] text-white sticky top-0 z-40 shadow-lg border-b border-[#F8A201]/10 font-sans">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
@@ -63,6 +74,14 @@ export default function Navbar() {
 
         {/* Desktop Buttons */}
         <div className="hidden md:flex items-center space-x-4">
+          <button
+            type="button"
+            onClick={handleSearchClick}
+            aria-label="Search communities"
+            className="p-2 text-[#F8A201] rounded-lg transition-colors duration-200 hover:bg-[#F8A201]/10 active:scale-95 focus:outline-none focus:ring-2 focus:ring-[#F8A201]"
+          >
+            <Search size={20} />
+          </button>
           {!loading && user ? (
             <>
               <Link
@@ -97,36 +116,46 @@ export default function Navbar() {
           )}
         </div>
 
-        {/* Mobile Hamburger Toggle Button */}
-        <button
-          onClick={() => setIsOpen(!isOpen)}
-          className="md:hidden text-[#F8A201] p-2 focus:outline-none focus:ring-2 focus:ring-[#F8A201] rounded-lg transition-transform active:scale-95 z-50"
-          aria-label="Toggle navigation menu"
-        >
-          <svg
-            className="w-7 h-7"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-            xmlns="http://www.w3.org/2000/svg"
+        {/* Mobile Search + Hamburger */}
+        <div className="md:hidden flex items-center gap-1 z-50">
+          <button
+            type="button"
+            onClick={handleSearchClick}
+            aria-label="Search communities"
+            className="p-2 text-[#F8A201] rounded-lg transition-colors duration-200 hover:bg-[#F8A201]/10 active:scale-95 focus:outline-none focus:ring-2 focus:ring-[#F8A201]"
           >
-            {isOpen ? (
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2.5"
-                d="M6 18L18 6M6 6l12 12"
-              />
-            ) : (
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2.5"
-                d="M4 6h16M4 12h16M4 18h16"
-              />
-            )}
-          </svg>
-        </button>
+            <Search size={20} />
+          </button>
+          <button
+            onClick={() => setIsOpen(!isOpen)}
+            className="text-[#F8A201] p-2 focus:outline-none focus:ring-2 focus:ring-[#F8A201] rounded-lg transition-transform active:scale-95"
+            aria-label="Toggle navigation menu"
+          >
+            <svg
+              className="w-7 h-7"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              {isOpen ? (
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2.5"
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              ) : (
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2.5"
+                  d="M4 6h16M4 12h16M4 18h16"
+                />
+              )}
+            </svg>
+          </button>
+        </div>
       </div>
 
       {/* Mobile Drawer (Uses strict z-index stack and locks body viewport) */}

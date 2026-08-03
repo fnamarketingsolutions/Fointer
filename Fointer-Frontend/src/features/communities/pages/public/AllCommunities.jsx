@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Loader2, Search, ArrowLeft } from "lucide-react";
 import { fetchBrowsableCommunities } from "../../../../api/communities";
 import CommunityCard from "../../components/CommunityCard";
@@ -7,7 +7,9 @@ import { useAuth } from "../../../../context/AuthContext";
 
 export default function AllCommunities() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { isAuthenticated } = useAuth();
+  const searchInputRef = useRef(null);
   const [communities, setCommunities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -34,6 +36,12 @@ export default function AllCommunities() {
   useEffect(() => {
     load(query);
   }, [load, query]);
+
+  useEffect(() => {
+    if (!location.state?.focusSearch) return;
+    searchInputRef.current?.focus();
+    navigate(".", { replace: true, state: {} });
+  }, [location.state, navigate]);
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -68,6 +76,7 @@ export default function AllCommunities() {
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8C8070]"
               />
               <input
+                ref={searchInputRef}
                 type="search"
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}

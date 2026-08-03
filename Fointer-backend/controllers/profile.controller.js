@@ -179,6 +179,32 @@ export const updateMyProfile = async (req, res) => {
       user.name = name;
     }
 
+    if (req.body.username !== undefined) {
+      const username = String(req.body.username || "")
+        .trim()
+        .replace(/^@+/, "")
+        .trim();
+      if (!username) {
+        return res.status(400).json({
+          success: false,
+          message: "Username cannot be empty.",
+        });
+      }
+      if (username !== user.username) {
+        const usernameExists = await User.findOne({
+          username,
+          _id: { $ne: user._id },
+        });
+        if (usernameExists) {
+          return res.status(400).json({
+            success: false,
+            message: "Username already exists.",
+          });
+        }
+        user.username = username;
+      }
+    }
+
     if (req.body.bio !== undefined) {
       user.bio = String(req.body.bio || "").trim().slice(0, 500);
     }
@@ -199,6 +225,12 @@ export const updateMyProfile = async (req, res) => {
       user: formatProfileUser(user),
     });
   } catch (error) {
+    if (error?.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        message: "Username already exists.",
+      });
+    }
     return res.status(500).json({
       success: false,
       message: error.message,

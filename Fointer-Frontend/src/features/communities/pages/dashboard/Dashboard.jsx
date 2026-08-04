@@ -11,12 +11,12 @@ import { useAuth } from "../../../../context/AuthContext";
 import {
   Home,
   Rss,
+  Newspaper,
   Users,
   Video,
   Clock,
   History,
   LogOut,
-  HelpCircle,
   Crown,
   X,
   FolderPlus,
@@ -29,6 +29,7 @@ import CreateCommunity from "./CreateCommunity";
 import ManageCommunities from "./ManageCommunities";
 import ManagePostPage from "./ManagePostPage";
 import DashboardPostPage from "./DashboardPostPage";
+import DashboardFeed from "./DashboardFeed";
 import PostManagement from "../../../posts/pages/PostManagement";
 import JoinedCommunities from "./JoinedCommunities";
 import JoinRequests from "./JoinRequests";
@@ -38,6 +39,7 @@ import Profile from "../../../profile/pages/Profile";
 
 const VALID_TABS = [
   "create",
+  "postfeed",
   "manage",
   "posts",
   "feed",
@@ -112,8 +114,9 @@ const Dashboard = () => {
 
   const navItems = [
     { id: "create", label: "Create Community", icon: FolderPlus },
+    { id: "postfeed", label: "Feed", icon: Newspaper },
     { id: "manage", label: "Manage Communities", icon: Folders },
-    { id: "posts", label: "Post Management", icon: FileText },
+    { id: "posts", label: "Post Management", icon: FileText },  
     { id: "feed", label: "Personalized Feed", icon: Rss },
     { id: "communities", label: "Joined Communities", icon: Users },
     { id: "events", label: "Live Events & Watch Groups", icon: Video },
@@ -373,6 +376,7 @@ const Dashboard = () => {
             />
             <Route path="posts/:postId" element={<DashboardPostPage />} />
             <Route path="posts" element={<PostManagement />} />
+            <Route path="postfeed" element={<DashboardFeed />} />
             <Route path="communities" element={<JoinedCommunities />} />
             <Route path="requests" element={<JoinRequests />} />
             <Route path="profile" element={<Profile />} />

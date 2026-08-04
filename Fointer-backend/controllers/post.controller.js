@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import Post from "../models/post.js";
 import Comment from "../models/comment.js";
 import Reaction from "../models/reaction.js";
@@ -11,7 +12,17 @@ import {
   getEditWindowMinutes,
   getEffectiveMemberRole,
 } from "../utils/communityPermissions.js";
+import {
+  parsePagination,
+  resolveSort,
+  buildPaginationMeta,
+} from "../utils/pagination.js";
 // import { logActivity } from "../utils/logActivity.js";
+
+const POST_SORT_MAP = {
+  newest: { createdAt: -1 },
+  oldest: { createdAt: 1 },
+};
 
 const formatUser = (user) => {
   if (!user || typeof user !== "object" || !user._id) {
@@ -206,6 +217,11 @@ export const listManageableCommunityIds = async (user) => {
 export const listPosts = async (req, res) => {
   try {
     const { communityId, q, mine } = req.query;
+    const sortBy = String(req.query.sortBy || "newest").trim().toLowerCase();
+    const { enabled, page, limit, skip } = parsePagination(req.query, {
+      defaultLimit: 10,
+      maxLimit: 100,
+    });
     const joinedIds = await listJoinedCommunityIds(req.user);
     const manageableIds = await listManageableCommunityIds(req.user);
 
@@ -227,11 +243,17 @@ export const listPosts = async (req, res) => {
           message: "You cannot view posts in this community.",
         });
       }
-      filter.community = communityId;
+      filter.community = mongoose.Types.ObjectId.isValid(communityId)
+        ? new mongoose.Types.ObjectId(communityId)
+        : communityId;
     } else {
       // Default: posts in communities the user has joined
       if (!joinedIds.length) {
-        return res.status(200).json({ success: true, posts: [] });
+        const empty = { success: true, posts: [] };
+        if (enabled) {
+          empty.pagination = buildPaginationMeta({ page, limit, total: 0 });
+        }
+        return res.status(200).json(empty);
       }
       filter.community = { $in: joinedIds };
     }
@@ -244,11 +266,99 @@ export const listPosts = async (req, res) => {
       ];
     }
 
-    const posts = await Post.find(filter)
-      .populate("author", "username name avatar role")
-      .populate("community", "name coverImage")
-      .sort({ createdAt: -1 })
-      .lean();
+    let posts = [];
+    let total = null;
+    const needsCountSort = sortBy === "likes" || sortBy === "comments";
+
+    if (needsCountSort) {
+      if (enabled) {
+        total = await Post.countDocuments(filter);
+      }
+
+      const countField = sortBy === "likes" ? "likeCount" : "commentCount";
+      const pipeline = [{ $match: filter }];
+
+      if (sortBy === "likes") {
+        pipeline.push(
+          {
+            $lookup: {
+              from: Reaction.collection.name,
+              let: { postId: "$_id" },
+              pipeline: [
+                {
+                  $match: {
+                    $expr: {
+                      $and: [
+                        { $eq: ["$targetId", "$$postId"] },
+                        { $eq: ["$targetType", "post"] },
+                      ],
+                    },
+                  },
+                },
+              ],
+              as: "_reactions",
+            },
+          },
+          {
+            $addFields: {
+              likeCount: { $size: "$_reactions" },
+            },
+          },
+          { $project: { _reactions: 0 } }
+        );
+      } else {
+        pipeline.push(
+          {
+            $lookup: {
+              from: Comment.collection.name,
+              let: { postId: "$_id" },
+              pipeline: [
+                {
+                  $match: {
+                    $expr: { $eq: ["$post", "$$postId"] },
+                  },
+                },
+              ],
+              as: "_comments",
+            },
+          },
+          {
+            $addFields: {
+              commentCount: { $size: "$_comments" },
+            },
+          },
+          { $project: { _comments: 0 } }
+        );
+      }
+
+      pipeline.push({
+        $sort: { [countField]: -1, createdAt: -1 },
+      });
+
+      if (enabled) {
+        pipeline.push({ $skip: skip }, { $limit: limit });
+      }
+
+      const aggregated = await Post.aggregate(pipeline);
+      posts = await Post.populate(aggregated, [
+        { path: "author", select: "username name avatar role" },
+        { path: "community", select: "name coverImage" },
+      ]);
+    } else {
+      const sort = resolveSort(sortBy, POST_SORT_MAP, { createdAt: -1 });
+      let query = Post.find(filter)
+        .populate("author", "username name avatar role")
+        .populate("community", "name coverImage")
+        .sort(sort)
+        .lean();
+
+      if (enabled) {
+        total = await Post.countDocuments(filter);
+        query = query.skip(skip).limit(limit);
+      }
+
+      posts = await query;
+    }
 
     const postIds = posts.map((p) => p._id);
     const { counts, liked } = await getLikeMeta("post", postIds, req.user._id);
@@ -273,7 +383,7 @@ export const listPosts = async (req, res) => {
       })
     );
 
-    return res.status(200).json({
+    const payload = {
       success: true,
       posts: postsWithPermission.map(
         ({ post: p, canDelete, isAuthor, canEdit, isLocked }) =>
@@ -288,7 +398,13 @@ export const listPosts = async (req, res) => {
             editWindowMinutes,
           })
       ),
-    });
+    };
+
+    if (enabled) {
+      payload.pagination = buildPaginationMeta({ page, limit, total });
+    }
+
+    return res.status(200).json(payload);
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
@@ -314,6 +430,228 @@ export const getPost = async (req, res) => {
 
     const { counts, liked } = await getLikeMeta("post", [post._id], req.user._id);
     const commentCount = await Comment.countDocuments({ post: post._id });
+
+    const canDelete = await userCanDeletePost(post, req.user);
+    const flags = await buildOwnContentFlags(post, req.user);
+    return res.status(200).json({
+      success: true,
+      post: formatPost(post, {
+        likeCount: counts[String(post._id)] || 0,
+        likedByMe: liked[String(post._id)] || false,
+        commentCount,
+        canDelete,
+        ...flags,
+      }),
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+const PUBLIC_POST_FILTER = {
+  $or: [{ community: null }, { community: { $exists: false } }],
+};
+
+/** List community-less posts (public browse; optional auth for likedByMe). */
+export const listPublicPosts = async (req, res) => {
+  try {
+    const { q } = req.query;
+    const sortBy = String(req.query.sortBy || "newest").trim().toLowerCase();
+    const { enabled, page, limit, skip } = parsePagination(req.query, {
+      defaultLimit: 10,
+      maxLimit: 100,
+    });
+
+    const filter = { ...PUBLIC_POST_FILTER };
+
+    if (q && String(q).trim()) {
+      const term = String(q).trim();
+      filter.$and = [
+        { $or: PUBLIC_POST_FILTER.$or },
+        {
+          $or: [
+            { title: { $regex: term, $options: "i" } },
+            { text: { $regex: term, $options: "i" } },
+          ],
+        },
+      ];
+      delete filter.$or;
+    }
+
+    let posts = [];
+    let total = null;
+    const needsCountSort = sortBy === "likes" || sortBy === "comments";
+
+    if (needsCountSort) {
+      if (enabled) {
+        total = await Post.countDocuments(filter);
+      }
+
+      const countField = sortBy === "likes" ? "likeCount" : "commentCount";
+      const pipeline = [{ $match: filter }];
+
+      if (sortBy === "likes") {
+        pipeline.push(
+          {
+            $lookup: {
+              from: Reaction.collection.name,
+              let: { postId: "$_id" },
+              pipeline: [
+                {
+                  $match: {
+                    $expr: {
+                      $and: [
+                        { $eq: ["$targetId", "$$postId"] },
+                        { $eq: ["$targetType", "post"] },
+                      ],
+                    },
+                  },
+                },
+              ],
+              as: "_reactions",
+            },
+          },
+          {
+            $addFields: {
+              likeCount: { $size: "$_reactions" },
+            },
+          },
+          { $project: { _reactions: 0 } }
+        );
+      } else {
+        pipeline.push(
+          {
+            $lookup: {
+              from: Comment.collection.name,
+              let: { postId: "$_id" },
+              pipeline: [
+                {
+                  $match: {
+                    $expr: { $eq: ["$post", "$$postId"] },
+                  },
+                },
+              ],
+              as: "_comments",
+            },
+          },
+          {
+            $addFields: {
+              commentCount: { $size: "$_comments" },
+            },
+          },
+          { $project: { _comments: 0 } }
+        );
+      }
+
+      pipeline.push({
+        $sort: { [countField]: -1, createdAt: -1 },
+      });
+
+      if (enabled) {
+        pipeline.push({ $skip: skip }, { $limit: limit });
+      }
+
+      const aggregated = await Post.aggregate(pipeline);
+      posts = await Post.populate(aggregated, [
+        { path: "author", select: "username name avatar role" },
+      ]);
+    } else {
+      const sort = resolveSort(sortBy, POST_SORT_MAP, { createdAt: -1 });
+      let query = Post.find(filter)
+        .populate("author", "username name avatar role")
+        .sort(sort)
+        .lean();
+
+      if (enabled) {
+        total = await Post.countDocuments(filter);
+        query = query.skip(skip).limit(limit);
+      }
+
+      posts = await query;
+    }
+
+    const postIds = posts.map((p) => p._id);
+    const userId = req.user?._id;
+    const { counts, liked } = await getLikeMeta("post", postIds, userId);
+
+    const commentCounts = await Comment.aggregate([
+      { $match: { post: { $in: postIds } } },
+      { $group: { _id: "$post", count: { $sum: 1 } } },
+    ]);
+    const commentMap = Object.fromEntries(
+      commentCounts.map((c) => [String(c._id), c.count])
+    );
+
+    const editWindowMinutes = req.user ? await getEditWindowMinutes() : null;
+    const postsFormatted = await Promise.all(
+      posts.map(async (p) => {
+        if (!req.user) {
+          return formatPost(p, {
+            likeCount: counts[String(p._id)] || 0,
+            likedByMe: false,
+            commentCount: commentMap[String(p._id)] || 0,
+          });
+        }
+        const flags = await buildOwnContentFlags(p, req.user);
+        return formatPost(p, {
+          likeCount: counts[String(p._id)] || 0,
+          likedByMe: liked[String(p._id)] || false,
+          commentCount: commentMap[String(p._id)] || 0,
+          canDelete: await userCanDeletePost(p, req.user),
+          ...flags,
+          editWindowMinutes,
+        });
+      })
+    );
+
+    const payload = {
+      success: true,
+      posts: postsFormatted,
+    };
+
+    if (enabled) {
+      payload.pagination = buildPaginationMeta({ page, limit, total });
+    }
+
+    return res.status(200).json(payload);
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/** Get a single community-less post (public browse; optional auth). */
+export const getPublicPost = async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id)
+      .populate("author", "username name avatar role")
+      .lean();
+
+    if (!post) {
+      return res.status(404).json({ success: false, message: "Post not found." });
+    }
+
+    const communityId = post.community?._id || post.community;
+    if (communityId) {
+      return res.status(404).json({
+        success: false,
+        message: "This post is not publicly available.",
+      });
+    }
+
+    const userId = req.user?._id;
+    const { counts, liked } = await getLikeMeta("post", [post._id], userId);
+    const commentCount = await Comment.countDocuments({ post: post._id });
+
+    if (!req.user) {
+      return res.status(200).json({
+        success: true,
+        post: formatPost(post, {
+          likeCount: counts[String(post._id)] || 0,
+          likedByMe: false,
+          commentCount,
+        }),
+      });
+    }
 
     const canDelete = await userCanDeletePost(post, req.user);
     const flags = await buildOwnContentFlags(post, req.user);

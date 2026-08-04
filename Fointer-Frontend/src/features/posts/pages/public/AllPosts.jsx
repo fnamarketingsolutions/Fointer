@@ -1,35 +1,36 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Loader2, Search } from "lucide-react";
-import { fetchBrowsableCommunities } from "../../../../api/communities";
-import CommunityCard from "../../components/CommunityCard";
+import { fetchPublicPosts } from "../../../../api/posts";
+import PostCard from "../../components/PostCard";
 import { useAuth } from "../../../../context/AuthContext";
 
 const PAGE_SIZE = 10;
 
-// const SORT_OPTIONS = [
-//   { value: "newest", label: "Newest" },
-//   { value: "oldest", label: "Oldest" },
-//   { value: "name", label: "Name" },
-//   { value: "members", label: "Members" },
-// ];
+const SORT_OPTIONS = [
+  { value: "newest", label: "Newest" },
+  { value: "oldest", label: "Oldest" },
+  { value: "likes", label: "Likes" },
+  { value: "comments", label: "Comments" },
+];
 
-export default function AllCommunities() {
+export default function AllPosts() {
   const navigate = useNavigate();
   const location = useLocation();
   const { isAuthenticated } = useAuth();
   const searchInputRef = useRef(null);
-  const [communities, setCommunities] = useState([]);
+  const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [searchInput, setSearchInput] = useState("");
+  const [sortBy, setSortBy] = useState("newest");
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
 
   const load = useCallback(
-    async ({ q = "", pageNum = 1, append = false } = {}) => {
+    async ({ q = "", sort = "newest", pageNum = 1, append = false } = {}) => {
       if (append) {
         setLoadingMore(true);
       } else {
@@ -38,21 +39,21 @@ export default function AllCommunities() {
       setError("");
       try {
         const params = {
-          includeJoined: "1",
           page: pageNum,
           limit: PAGE_SIZE,
+          sortBy: sort,
         };
         if (q.trim()) params.q = q.trim();
-        const data = await fetchBrowsableCommunities(params);
-        const next = data?.communities || [];
-        setCommunities((prev) => (append ? [...prev, ...next] : next));
+        const data = await fetchPublicPosts(params);
+        const next = data?.posts || [];
+        setPosts((prev) => (append ? [...prev, ...next] : next));
         setHasMore(Boolean(data?.pagination?.hasMore));
         setPage(pageNum);
       } catch (err) {
         setError(
-          err?.response?.data?.message || "Unable to load communities right now."
+          err?.response?.data?.message || "Unable to load posts right now."
         );
-        if (!append) setCommunities([]);
+        if (!append) setPosts([]);
         setHasMore(false);
       } finally {
         setLoading(false);
@@ -63,8 +64,8 @@ export default function AllCommunities() {
   );
 
   useEffect(() => {
-    load({ q: query, pageNum: 1, append: false });
-  }, [load, query]);
+    load({ q: query, sort: sortBy, pageNum: 1, append: false });
+  }, [load, query, sortBy]);
 
   useEffect(() => {
     if (!location.state?.focusSearch) return;
@@ -79,7 +80,7 @@ export default function AllCommunities() {
 
   const handleLoadMore = () => {
     if (loadingMore || !hasMore) return;
-    load({ q: query, pageNum: page + 1, append: true });
+    load({ q: query, sort: sortBy, pageNum: page + 1, append: true });
   };
 
   return (
@@ -90,11 +91,11 @@ export default function AllCommunities() {
 
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-serif text-[#D4AF37] leading-tight">
-            All Communities
+            All Posts
           </h1>
           <p className="mt-2 text-sm sm:text-base text-[#A69B8D] max-w-xl">
-            Search by name or tags. Request access to private circles, or join
-            public ones instantly.
+            Search public posts shared without a community. Sort by newest,
+            likes, or comments.
           </p>
           <form
             onSubmit={handleSearch}
@@ -110,12 +111,23 @@ export default function AllCommunities() {
                 type="search"
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
-                placeholder="Search by name or tag..."
+                placeholder="Search posts by title or text..."
                 className="w-full pl-9 pr-3 py-3 rounded-lg bg-[#14100D] border border-[#2A241E] text-[#E5E0D8] text-sm placeholder:text-[#8C8070] focus:outline-none focus:border-[#D4AF37]/50"
               />
             </div>
             <div className="flex gap-2 shrink-0">
-          
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                aria-label="Sort posts"
+                className="px-3 py-3 rounded-lg bg-[#14100D] border border-[#2A241E] text-[#E5E0D8] text-sm focus:outline-none focus:border-[#D4AF37]/50"
+              >
+                {SORT_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
               <button
                 type="submit"
                 className="px-4 sm:px-6 py-3 rounded-lg bg-[#D4AF37] text-black text-sm font-semibold hover:bg-[#e0c04a] whitespace-nowrap"
@@ -137,22 +149,20 @@ export default function AllCommunities() {
         {loading ? (
           <div className="flex items-center justify-center py-16 text-[#A69B8D] text-sm gap-2">
             <Loader2 size={18} className="animate-spin" />
-            Loading communities...
+            Loading posts...
           </div>
-        ) : communities.length === 0 ? (
+        ) : posts.length === 0 ? (
           <div className="border border-dashed border-[#2A241E] rounded-2xl py-16 text-center text-[#8C8070] text-sm px-4 max-w-xl mx-auto">
-            {query
-              ? `No communities match “${query}”.`
-              : "No communities to show yet."}
+            {query ? `No posts match “${query}”.` : "No public posts to show yet."}
           </div>
         ) : (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-              {communities.map((community) => (
-                <CommunityCard
-                  key={community.id}
-                  community={community}
-                  onClick={() => navigate(`/communities/${community.id}`)}
+              {posts.map((post) => (
+                <PostCard
+                  key={post.id}
+                  post={post}
+                  onClick={() => navigate(`/posts/${post.id}`)}
                 />
               ))}
             </div>
@@ -180,7 +190,7 @@ export default function AllCommunities() {
             <Link to="/login" className="text-[#D4AF37] hover:underline">
               Sign in
             </Link>{" "}
-            to join or request access to communities.
+            to like or comment on posts.
           </p>
         )}
       </div>

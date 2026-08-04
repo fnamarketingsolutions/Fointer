@@ -6,6 +6,10 @@ import {
   getBannedMembership,
   canManageCommunity,
 } from "../utils/communityPermissions.js";
+import {
+  getRequestsActionUrl,
+  sendCommunityInviteEmail,
+} from "../utils/sendVerificationEmail.js";
 
 const escapeRegex = (value) =>
   String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -212,6 +216,29 @@ export const inviteUserToCommunity = async (req, res) => {
     await invite.populate("inviter", "username name email avatar");
     await invite.populate("invitee", "username name email avatar");
     invite.community = community;
+
+    const inviterName =
+      req.user.name || req.user.username || invite.inviter?.username || "A community owner";
+    const inviteeName =
+      invitee.name || invitee.username || "there";
+
+    try {
+      await sendCommunityInviteEmail({
+        to: invitee.email,
+        inviteeName,
+        inviterName,
+        communityName: community.name,
+        actionUrl: getRequestsActionUrl(),
+      });
+    } catch (emailError) {
+      await CommunityInvite.deleteOne({ _id: invite._id });
+      return res.status(500).json({
+        success: false,
+        message:
+          emailError.message ||
+          "Failed to send invite email. Please try again.",
+      });
+    }
 
     return res.status(201).json({
       success: true,

@@ -8,6 +8,11 @@ import {
   getActorCommunityRole,
   getEffectiveMemberRole,
 } from "../utils/communityPermissions.js";
+import {
+  getRequestsActionUrl,
+  sendJoinRequestApprovedEmail,
+  sendJoinRequestDeniedEmail,
+} from "../utils/sendVerificationEmail.js";
 
 const formatJoinRequest = (request) => {
   const user = request.user;
@@ -478,6 +483,11 @@ export const approveJoinRequest = async (req, res) => {
       });
     }
 
+    const priorMembership = await CommunityMember.findOne({
+      community: community._id,
+      user: userId,
+    }).lean();
+
     joinRequest.status = "approved";
     await joinRequest.save();
 
@@ -494,6 +504,52 @@ export const approveJoinRequest = async (req, res) => {
       },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
+
+    const requester = joinRequest.user;
+    const requesterEmail =
+      requester && typeof requester === "object" ? requester.email : null;
+    const actionUrl = getRequestsActionUrl();
+    const userName =
+      (requester && typeof requester === "object" &&
+        (requester.name || requester.username)) ||
+      "there";
+
+    try {
+      await sendJoinRequestApprovedEmail({
+        to: requesterEmail,
+        userName,
+        communityName: community.name,
+        actionUrl,
+      });
+    } catch (emailError) {
+      joinRequest.status = "pending";
+      await joinRequest.save();
+
+      if (!priorMembership) {
+        await CommunityMember.deleteOne({
+          community: community._id,
+          user: userId,
+        });
+      } else {
+        await CommunityMember.findOneAndUpdate(
+          { community: community._id, user: userId },
+          {
+            role: priorMembership.role,
+            status: priorMembership.status,
+            bannedAt: priorMembership.bannedAt ?? null,
+            bannedBy: priorMembership.bannedBy ?? null,
+            moderatorExpiresAt: priorMembership.moderatorExpiresAt ?? null,
+          }
+        );
+      }
+
+      return res.status(500).json({
+        success: false,
+        message:
+          emailError.message ||
+          "Failed to send approval email. Please try again.",
+      });
+    }
 
     return res.status(200).json({
       success: true,
@@ -541,6 +597,35 @@ export const denyJoinRequest = async (req, res) => {
 
     joinRequest.status = "denied";
     await joinRequest.save();
+
+    const requester = joinRequest.user;
+    const requesterEmail =
+      requester && typeof requester === "object" ? requester.email : null;
+    const actionUrl = getRequestsActionUrl();
+    const userName =
+      (requester &&
+        typeof requester === "object" &&
+        (requester.name || requester.username)) ||
+      "there";
+
+    try {
+      await sendJoinRequestDeniedEmail({
+        to: requesterEmail,
+        userName,
+        communityName: community.name,
+        actionUrl,
+      });
+    } catch (emailError) {
+      joinRequest.status = "pending";
+      await joinRequest.save();
+
+      return res.status(500).json({
+        success: false,
+        message:
+          emailError.message ||
+          "Failed to send rejection email. Please try again.",
+      });
+    }
 
     return res.status(200).json({
       success: true,

@@ -23,7 +23,7 @@ const userSchema = new mongoose.Schema(
       type: String,
       minlength: 8,
       required: function () {
-        return !this.googleId && !this.facebookId;
+      return !this.googleId && !this.facebookId;
       },
     },
 

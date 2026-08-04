@@ -21,6 +21,8 @@ import CodeOfConduct from '../../features/public/pages/policies/CodeofConduct';
 import AllCommunities from '../../features/communities/pages/public/AllCommunities';
 import CommunityBrowsePage from '../../features/communities/pages/public/CommunityBrowsePage';
 import CommunityPostPage from '../../features/communities/pages/public/CommunityPostPage';
+import AllPosts from '../../features/posts/pages/public/AllPosts';
+import PublicPostPage from '../../features/posts/pages/public/PublicPostPage';
 
 export default function AppRoutes() {
   return (
@@ -35,7 +37,8 @@ export default function AppRoutes() {
       <Route path="/communities" element={<AllCommunities />} />
       <Route path="/communities/:communityId/posts/:postId" element={<CommunityPostPage />} />
       <Route path="/communities/:id" element={<CommunityBrowsePage />} />
-
+      <Route path="/posts" element={<AllPosts />} />
+      <Route path="/posts/:postId" element={<PublicPostPage />} />
       <Route path="/privacy-policy" element={<PrivacyPolicy />} />
       <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
       <Route path="/how-to-use" element={<HowToUse />} />

@@ -13,6 +13,24 @@ import {
   getActorCommunityRole,
   formatMember,
 } from "../utils/communityPermissions.js";
+import {
+  parsePagination,
+  resolveSort,
+  buildPaginationMeta,
+} from "../utils/pagination.js";
+import {
+  getRequestsActionUrl,
+  sendJoinRequestReceivedEmail,
+  sendCommunityInviteEmail,
+  sendCommunityInviteAcceptedEmail,
+  sendCommunityInviteDeclinedEmail,
+} from "../utils/sendVerificationEmail.js";
+
+const COMMUNITY_SORT_MAP = {
+  newest: { createdAt: -1 },
+  oldest: { createdAt: 1 },
+  name: { name: 1 },
+};
 
 const MAX_GALLERY_IMAGES = 5;
 
@@ -318,6 +336,7 @@ export const listAllCommunities = async (req, res) => {
         })
       ),
     });
+
   } catch (error) {
     return res.status(500).json({
       success: false,
@@ -652,6 +671,13 @@ export const listBrowsableCommunities = async (req, res) => {
     const filter = { type: { $in: ["public", "private_request"] } };
     const q = String(req.query.q || req.query.search || "").trim();
     const tag = String(req.query.tag || "").trim().toLowerCase();
+    const sortBy = String(req.query.sortBy || "newest").trim().toLowerCase();
+    const pageProvided =
+      req.query.page !== undefined && req.query.page !== "";
+    const { enabled, page, limit, skip } = parsePagination(req.query, {
+      defaultLimit: pageProvided ? 10 : 48,
+      maxLimit: 100,
+    });
 
     if (q) {
       const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -688,15 +714,95 @@ export const listBrowsableCommunities = async (req, res) => {
       pendingSet = new Set(pending.map((p) => String(p.community)));
     }
 
-    const communities = await Community.find(filter)
-      .populate("owner", "username name email avatar")
-      .sort({ createdAt: -1 })
-      .limit(req.query.limit ? Math.min(Number(req.query.limit) || 48, 100) : 48);
+    let communities = [];
+    let total = null;
 
-    const countMap = await getMemberCounts(communities.map((c) => c._id));
+    if (sortBy === "members") {
+      if (enabled) {
+        total = await Community.countDocuments(filter);
+      }
+
+      const pipeline = [
+        { $match: filter },
+        {
+          $lookup: {
+            from: CommunityMember.collection.name,
+            let: { communityId: "$_id" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ["$community", "$$communityId"] },
+                      { $eq: ["$status", "active"] },
+                    ],
+                  },
+                },
+              },
+            ],
+            as: "_activeMembers",
+          },
+        },
+        {
+          $addFields: {
+            memberCount: { $size: "$_activeMembers" },
+          },
+        },
+        { $project: { _activeMembers: 0 } },
+        { $sort: { memberCount: -1, createdAt: -1 } },
+      ];
+
+      if (enabled) {
+        pipeline.push({ $skip: skip }, { $limit: limit });
+      } else {
+        pipeline.push({ $limit: limit });
+      }
+
+      pipeline.push(
+        {
+          $lookup: {
+            from: User.collection.name,
+            localField: "owner",
+            foreignField: "_id",
+            as: "_owner",
+          },
+        },
+        {
+          $addFields: {
+            owner: { $arrayElemAt: ["$_owner", 0] },
+          },
+        },
+        { $project: { _owner: 0 } }
+      );
+
+      communities = await Community.aggregate(pipeline);
+    } else {
+      const sort = resolveSort(sortBy, COMMUNITY_SORT_MAP, { createdAt: -1 });
+
+      if (enabled) {
+        total = await Community.countDocuments(filter);
+        communities = await Community.find(filter)
+          .populate("owner", "username name email avatar")
+          .sort(sort)
+          .skip(skip)
+          .limit(limit);
+      } else {
+        communities = await Community.find(filter)
+          .populate("owner", "username name email avatar")
+          .sort(sort)
+          .limit(limit);
+      }
+    }
+
+    const countMap =
+      sortBy === "members"
+        ? Object.fromEntries(
+            communities.map((c) => [String(c._id), c.memberCount || 0])
+          )
+        : await getMemberCounts(communities.map((c) => c._id));
     const memberIdSet = new Set(memberIds.map((id) => String(id)));
 
-    return res.status(200).json({
+    const payload = {
       success: true,
       communities: communities.map((community) =>
         formatCommunity(community, {
@@ -709,7 +815,13 @@ export const listBrowsableCommunities = async (req, res) => {
             : false,
         })
       ),
-    });
+    };
+
+    if (enabled) {
+      payload.pagination = buildPaginationMeta({ page, limit, total });
+    }
+
+    return res.status(200).json(payload);
   } catch (error) {
     return res.status(500).json({
       success: false,
@@ -914,6 +1026,34 @@ export const createJoinRequest = async (req, res) => {
     });
 
     await joinRequest.populate("user", "username name email avatar");
+
+    const owner = community.owner;
+    const ownerEmail =
+      owner && typeof owner === "object" ? owner.email : null;
+    const actionUrl = getRequestsActionUrl();
+    const requesterName =
+      req.user.name || req.user.username || joinRequest.user?.username || "A user";
+    const ownerName =
+      (owner && typeof owner === "object" && (owner.name || owner.username)) ||
+      "there";
+
+    try {
+      await sendJoinRequestReceivedEmail({
+        to: ownerEmail,
+        ownerName,
+        requesterName,
+        communityName: community.name,
+        actionUrl,
+      });
+    } catch (emailError) {
+      await CommunityJoinRequest.deleteOne({ _id: joinRequest._id });
+      return res.status(500).json({
+        success: false,
+        message:
+          emailError.message ||
+          "Failed to send join request email. Please try again.",
+      });
+    }
 
     return res.status(201).json({
       success: true,
@@ -1149,6 +1289,28 @@ export const createCommunityInvite = async (req, res) => {
     await invite.populate("invitee", "username name email avatar");
     invite.community = community;
 
+    const inviterName =
+      req.user.name || req.user.username || invite.inviter?.username || "A community owner";
+    const inviteeName = invitee.name || invitee.username || "there";
+
+    try {
+      await sendCommunityInviteEmail({
+        to: invitee.email,
+        inviteeName,
+        inviterName,
+        communityName: community.name,
+        actionUrl: getRequestsActionUrl(),
+      });
+    } catch (emailError) {
+      await CommunityInvite.deleteOne({ _id: invite._id });
+      return res.status(500).json({
+        success: false,
+        message:
+          emailError.message ||
+          "Failed to send invite email. Please try again.",
+      });
+    }
+
     return res.status(201).json({
       success: true,
       message: "Invite sent.",
@@ -1270,6 +1432,11 @@ export const acceptCommunityInvite = async (req, res) => {
       });
     }
 
+    const priorMembership = await CommunityMember.findOne({
+      community: communityId,
+      user: req.user._id,
+    }).lean();
+
     invite.status = "accepted";
     await invite.save();
 
@@ -1289,6 +1456,69 @@ export const acceptCommunityInvite = async (req, res) => {
       },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
+
+    const inviter = invite.inviter;
+    const owner =
+      invite.community &&
+      typeof invite.community === "object" &&
+      invite.community.owner;
+    const recipientEmail =
+      (inviter && typeof inviter === "object" && inviter.email) ||
+      (owner && typeof owner === "object" && owner.email) ||
+      null;
+    const recipientName =
+      (inviter && typeof inviter === "object" && (inviter.name || inviter.username)) ||
+      (owner && typeof owner === "object" && (owner.name || owner.username)) ||
+      "there";
+    const inviteeName =
+      req.user.name ||
+      req.user.username ||
+      (invite.invitee && typeof invite.invitee === "object"
+        ? invite.invitee.name || invite.invitee.username
+        : null) ||
+      "A user";
+    const communityName =
+      invite.community && typeof invite.community === "object"
+        ? invite.community.name
+        : "your community";
+
+    try {
+      await sendCommunityInviteAcceptedEmail({
+        to: recipientEmail,
+        recipientName,
+        inviteeName,
+        communityName,
+        actionUrl: getRequestsActionUrl(),
+      });
+    } catch (emailError) {
+      invite.status = "pending";
+      await invite.save();
+
+      if (!priorMembership) {
+        await CommunityMember.deleteOne({
+          community: communityId,
+          user: req.user._id,
+        });
+      } else {
+        await CommunityMember.findOneAndUpdate(
+          { community: communityId, user: req.user._id },
+          {
+            role: priorMembership.role,
+            status: priorMembership.status,
+            bannedAt: priorMembership.bannedAt ?? null,
+            bannedBy: priorMembership.bannedBy ?? null,
+            moderatorExpiresAt: priorMembership.moderatorExpiresAt ?? null,
+          }
+        );
+      }
+
+      return res.status(500).json({
+        success: false,
+        message:
+          emailError.message ||
+          "Failed to send invite acceptance email. Please try again.",
+      });
+    }
 
     return res.status(200).json({
       success: true,
@@ -1336,6 +1566,51 @@ export const declineCommunityInvite = async (req, res) => {
 
     invite.status = "declined";
     await invite.save();
+
+    const inviter = invite.inviter;
+    const owner =
+      invite.community &&
+      typeof invite.community === "object" &&
+      invite.community.owner;
+    const recipientEmail =
+      (inviter && typeof inviter === "object" && inviter.email) ||
+      (owner && typeof owner === "object" && owner.email) ||
+      null;
+    const recipientName =
+      (inviter && typeof inviter === "object" && (inviter.name || inviter.username)) ||
+      (owner && typeof owner === "object" && (owner.name || owner.username)) ||
+      "there";
+    const inviteeName =
+      req.user.name ||
+      req.user.username ||
+      (invite.invitee && typeof invite.invitee === "object"
+        ? invite.invitee.name || invite.invitee.username
+        : null) ||
+      "A user";
+    const communityName =
+      invite.community && typeof invite.community === "object"
+        ? invite.community.name
+        : "your community";
+
+    try {
+      await sendCommunityInviteDeclinedEmail({
+        to: recipientEmail,
+        recipientName,
+        inviteeName,
+        communityName,
+        actionUrl: getRequestsActionUrl(),
+      });
+    } catch (emailError) {
+      invite.status = "pending";
+      await invite.save();
+
+      return res.status(500).json({
+        success: false,
+        message:
+          emailError.message ||
+          "Failed to send invite decline email. Please try again.",
+      });
+    }
 
     return res.status(200).json({
       success: true,

@@ -29,6 +29,7 @@ import MediaPicker from "../../../shared/components/media/MediaPicker";
 import PostMediaGallery from "../../../shared/components/media/PostMediaGallery";
 import ConfirmDeleteModal from "../../../shared/components/modals/ConfirmDeleteModal";
 import EditWindowExpiredModal from "../../../shared/components/modals/EditWindowExpiredModal";
+import { useAuth } from "../../../context/AuthContext";
 
 export default function PostDetail({
   postId,
@@ -37,8 +38,10 @@ export default function PostDetail({
   embedded = false,
   // backLabel = "Back",
   postPathBuilder,
+  fetchPostFn = fetchPost,
 }) {
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
 
   // Post & Main Comments States
   const [post, setPost] = useState(null);
@@ -72,7 +75,7 @@ export default function PostDetail({
     setLoading(true);
     setError("");
     try {
-      const data = await fetchPost(postId);
+      const data = await fetchPostFn(postId);
       setPost(data?.post || null);
     } catch (err) {
       setError(err?.response?.data?.message || "Failed to load post.");
@@ -80,7 +83,7 @@ export default function PostDetail({
     } finally {
       setLoading(false);
     }
-  }, [postId]);
+  }, [postId, fetchPostFn]);
 
   const loadComments = useCallback(async () => {
     setCommentsLoading(true);
@@ -88,7 +91,13 @@ export default function PostDetail({
       const data = await fetchComments(postId);
       setComments(data?.comments || []);
     } catch (err) {
-      setError(err?.response?.data?.message || "Failed to load comments.");
+      const status = err?.response?.status;
+      // Guests can view public posts but comments require auth
+      if (status === 401 || status === 403) {
+        setComments([]);
+      } else {
+        setError(err?.response?.data?.message || "Failed to load comments.");
+      }
     } finally {
       setCommentsLoading(false);
     }
@@ -96,9 +105,13 @@ export default function PostDetail({
 
   useEffect(() => {
     loadPost();
-    loadComments();
     setCommentsExpanded(false);
-  }, [loadPost, loadComments]);
+    if (isAuthenticated) {
+      loadComments();
+    } else {
+      setComments([]);
+    }
+  }, [loadPost, loadComments, isAuthenticated]);
 
   useEffect(() => {
     const communityId = post?.community?.id || post?.community;
@@ -253,6 +266,10 @@ export default function PostDetail({
 
   const handleLikePost = async () => {
     if (!post) return;
+    if (!isAuthenticated) {
+      navigate("/login");
+      return;
+    }
     const prev = { ...post };
     setPost({
       ...post,
@@ -276,6 +293,10 @@ export default function PostDetail({
   const submitComment = async (parentId = null) => {
     const text = commentText.trim();
     if (!text) return;
+    if (!isAuthenticated) {
+      navigate("/login");
+      return;
+    }
     try {
       const data = await createComment(postId, {
         text,

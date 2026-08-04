@@ -10,6 +10,16 @@ export const fetchPost = async (id) => {
   return response.data;
 };
 
+export const fetchPublicPosts = async (params = {}) => {
+  const response = await api.get('/posts/public', { params });
+  return response.data;
+};
+
+export const fetchPublicPost = async (id) => {
+  const response = await api.get(`/posts/public/${id}`);
+  return response.data;
+};
+
 export const createPost = async (payload) => {
   const response = await api.post('/posts', payload);
   return response.data;

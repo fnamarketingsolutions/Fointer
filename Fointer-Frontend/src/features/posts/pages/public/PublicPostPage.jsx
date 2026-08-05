@@ -2,9 +2,12 @@ import React from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import PostDetail from "../PostDetail";
 import { fetchPublicPost } from "../../../../api/posts";
+import { postSegment } from "../../../../shared/services/entityLinks";
+import useEntityId from "../../../../shared/hooks/useEntityId";
 
 export default function PublicPostPage() {
-  const { postId } = useParams();
+  const { postId: postParam } = useParams();
+  const { id: postId } = useEntityId("post", postParam);
   const navigate = useNavigate();
   const backTo = "/posts";
 
@@ -15,7 +18,7 @@ export default function PublicPostPage() {
           postId={postId}
           onBack={() => navigate(backTo)}
           onDeleted={() => navigate(backTo)}
-          postPathBuilder={(id) => `/posts/${id}`}
+          postPathBuilder={(post) => `${backTo}/${postSegment(post)}`}
           fetchPostFn={fetchPublicPost}
         />
       </div>

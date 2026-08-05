@@ -9,6 +9,8 @@ import {
   Calendar,
   Image as ImageIcon,
   Search,
+  Plus,
+  HelpCircle,
 } from "lucide-react";
 import {
   fetchMyCommunities,
@@ -18,23 +20,33 @@ import {
 import CommunityDetail from "./CommunityDetail";
 import ConfirmDeleteModal from "../../../../shared/components/modals/ConfirmDeleteModal";
 import EditCommunityModal from "../../../../shared/components/modals/EditCommunityModal";
+import CreateCommunityModal from "../../../../shared/components/modals/CreateCommunityModal";
+import HelpSupportModal from "../../../../shared/components/modals/HelpSupportModal";
 import { formatCommunityType } from "../../../../shared/utils/community";
 import { formatDate } from "../../../../shared/utils/date";
 import { getErrorMessage } from "../../../../shared/utils/errors";
+import { communitySegment } from "../../../../shared/services/entityLinks";
+import useEntityId from "../../../../shared/hooks/useEntityId";
+import { useToast } from "../../../../shared/components/feedback/ToastContext";
 
 const formatType = formatCommunityType;
 
 export default function ManageCommunities() {
   const { communityId } = useParams();
   const navigate = useNavigate();
-  const selectedId = communityId || null;
+  const { showToast } = useToast();
+  const { id: selectedId, notFound: communityNotFound } = useEntityId(
+    "community",
+    communityId
+  );
 
   const [communities, setCommunities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
-  const [error, setError] = useState("");
   const [editingCommunity, setEditingCommunity] = useState(null);
   const [deletingCommunity, setDeletingCommunity] = useState(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   const [manageData, setManageData] = useState(null);
   const [manageLoading, setManageLoading] = useState(false);
@@ -52,12 +64,11 @@ export default function ManageCommunities() {
     if (!keepExisting) {
       setLoading(true);
     }
-    setError("");
     try {
       const data = await fetchMyCommunities({ manage: true });
       setCommunities(data?.communities || []);
     } catch (err) {
-      setError(getErrorMessage(err, "Failed to load communities."));
+      showToast(getErrorMessage(err, "Failed to load communities."));
       if (!keepExisting) {
         setCommunities([]);
       }
@@ -72,12 +83,11 @@ export default function ManageCommunities() {
     if (!silent) {
       setManageLoading(true);
     }
-    setError("");
     try {
       const data = await fetchCommunityManage(id);
       setManageData(data);
     } catch (err) {
-      setError(getErrorMessage(err, "Failed to load community."));
+      showToast(getErrorMessage(err, "Failed to load community."));
       if (!silent) {
         setManageData(null);
       }
@@ -101,36 +111,51 @@ export default function ManageCommunities() {
   }, [selectedId, loadManage]);
 
   const openCommunity = (community) => {
-    setError("");
-    navigate(`/dashboard/manage/${community.id}`);
+    navigate(`/dashboard/manage/${communitySegment(community)}`);
   };
 
   const backToList = () => {
     setManageData(null);
-    setError("");
     navigate("/dashboard/manage");
     loadCommunities({ keepExisting: true });
   };
 
   const openEdit = (community) => {
     setEditingCommunity(community);
-    setError("");
   };
 
   const closeEdit = () => {
     setEditingCommunity(null);
   };
 
-  const handleEditSuccess = async () => {
-    await loadCommunities();
+  const handleEditSuccess = async (updatedCommunity) => {
+    if (updatedCommunity?.id) {
+      setCommunities((prev) =>
+        prev.map((c) =>
+          String(c.id) === String(updatedCommunity.id)
+            ? { ...c, ...updatedCommunity }
+            : c
+        )
+      );
+      setManageData((prev) =>
+        prev?.community &&
+        String(prev.community.id) === String(updatedCommunity.id)
+          ? {
+              ...prev,
+              community: { ...prev.community, ...updatedCommunity },
+            }
+          : prev
+      );
+    }
+    setEditingCommunity(null);
+    await loadCommunities({ keepExisting: true });
     if (selectedId) {
-      await loadManage(selectedId);
+      await loadManage(selectedId, { silent: true });
     }
   };
 
   const openDelete = (community) => {
     setDeletingCommunity(community);
-    setError("");
   };
 
   const closeDelete = () => {
@@ -141,7 +166,6 @@ export default function ManageCommunities() {
     if (!deletingCommunity) return;
 
     setDeleting(true);
-    setError("");
     try {
       await deleteCommunity(deletingCommunity.id);
       closeDelete();
@@ -151,11 +175,20 @@ export default function ManageCommunities() {
         await loadCommunities();
       }
     } catch (err) {
-      setError(getErrorMessage(err, "Failed to delete community."));
+      showToast(getErrorMessage(err, "Failed to delete community."));
     } finally {
       setDeleting(false);
     }
   };
+
+  if (communityId && !selectedId && !communityNotFound) {
+    return (
+      <div className="flex items-center justify-center gap-2 py-20 text-[#A69B8D] text-sm">
+        <Loader2 className="w-4 h-4 animate-spin" />
+        Loading community...
+      </div>
+    );
+  }
 
   if (selectedId) {
     return (
@@ -164,8 +197,6 @@ export default function ManageCommunities() {
           manageData={manageData}
           manageLoading={manageLoading}
           selectedId={selectedId}
-          error={error}
-          setError={setError}
           onBack={backToList}
           onEdit={openEdit}
           onDelete={openDelete}
@@ -183,7 +214,6 @@ export default function ManageCommunities() {
             open
             title="Delete Community"
             variant="dashboard"
-            error={error}
             loading={deleting}
             onConfirm={handleDeleteConfirm}
             onClose={closeDelete}
@@ -203,14 +233,34 @@ export default function ManageCommunities() {
 
   return (
     <div className="space-y-6 max-w-full">
-      <div>
-        <h1 className="text-xl sm:text-2xl md:text-3xl font-serif font-semibold text-[#E5E0D8]">
-          Manage Communities
-        </h1>
-        <p className="text-xs sm:text-sm text-[#A69B8D] mt-1">
-          Open a community you own or moderate to review members, join
-          requests, and settings.
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+        <div>
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-serif font-semibold text-[#E5E0D8]">
+            Manage Communities
+          </h1>
+          <p className="text-xs sm:text-sm text-[#A69B8D] mt-1">
+            Open a community you own or moderate to review members, join
+            requests, and settings.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => setHelpOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#2A241E] text-xs font-semibold text-[#A69B8D] hover:text-[#D4AF37] hover:border-[#D4AF37]/40 transition-colors"
+          >
+            <HelpCircle size={14} />
+            Help
+          </button>
+          <button
+            type="button"
+            onClick={() => setCreateOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-full bg-gradient-to-r from-[#D4AF37] to-[#AA820A] text-xs font-bold text-black"
+          >
+            <Plus size={14} />
+            Create Community
+          </button>
+        </div>
       </div>
 
       <div className="relative">
@@ -223,12 +273,6 @@ export default function ManageCommunities() {
           className="w-full bg-[#0D0A08] border border-[#2A241E] rounded-lg pl-9 pr-4 py-2 text-xs sm:text-sm text-[#E5E0D8] focus:outline-none focus:border-[#D4AF37]/60 placeholder:text-[#8C8070]"
         />
       </div>
-
-      {error && !editingCommunity && !deletingCommunity && (
-        <div className="text-xs sm:text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 sm:px-4 py-2.5 sm:py-3">
-          {error}
-        </div>
-      )}
 
       {loading && communities.length === 0 ? (
         <div className="flex items-center justify-center py-16 text-[#A69B8D] text-xs sm:text-sm gap-2">
@@ -387,6 +431,17 @@ export default function ManageCommunities() {
           })}
         </div>
       )}
+
+      <CreateCommunityModal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onSuccess={() => loadCommunities({ keepExisting: true })}
+      />
+
+      <HelpSupportModal
+        open={helpOpen}
+        onClose={() => setHelpOpen(false)}
+      />
     </div>
   );
 }

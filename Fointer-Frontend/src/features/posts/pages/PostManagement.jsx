@@ -16,6 +16,8 @@ import {
 } from "../../../api/posts";
 import { fetchJoinedCommunities } from "../../../api/communities";
 import MediaPicker from "../../../shared/components/media/MediaPicker";
+import { useToast } from "../../../shared/components/feedback/ToastContext";
+import { postSegment } from "../../../shared/services/entityLinks";
 
 const PAGE_SIZE = 10;
 
@@ -35,6 +37,7 @@ const emptyForm = {
 
 export default function PostManagement() {
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [posts, setPosts] = useState([]);
   const [communities, setCommunities] = useState([]);
   const [search, setSearch] = useState("");
@@ -45,7 +48,6 @@ export default function PostManagement() {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(emptyForm);
 
@@ -61,7 +63,6 @@ export default function PostManagement() {
       } else {
         setLoading(true);
       }
-      setError("");
       try {
         const params = {
           mine: "1",
@@ -76,7 +77,7 @@ export default function PostManagement() {
         setHasMore(Boolean(data?.pagination?.hasMore));
         setPage(pageNum);
       } catch (err) {
-        setError(err?.response?.data?.message || "Failed to load posts.");
+        showToast(err?.response?.data?.message || "Failed to load posts.");
         if (!append) setPosts([]);
         setHasMore(false);
       } finally {
@@ -84,7 +85,7 @@ export default function PostManagement() {
         setLoadingMore(false);
       }
     },
-    []
+    [showToast]
   );
 
   const loadCommunities = useCallback(async () => {
@@ -114,7 +115,6 @@ export default function PostManagement() {
   const openCreate = () => {
     setForm(emptyForm);
     setShowForm(true);
-    setError("");
   };
 
   const closeForm = () => {
@@ -135,11 +135,10 @@ export default function PostManagement() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.title.trim()) {
-      setError("Title is required.");
+      showToast("Title is required.");
       return;
     }
     setSaving(true);
-    setError("");
     try {
       const payload = {
         title: form.title.trim(),
@@ -153,7 +152,7 @@ export default function PostManagement() {
       closeForm();
       await loadPosts({ q: query, sort: sortBy, pageNum: 1, append: false });
     } catch (err) {
-      setError(err?.response?.data?.message || "Failed to create post.");
+      showToast(err?.response?.data?.message || "Failed to create post.");
     } finally {
       setSaving(false);
     }
@@ -216,12 +215,6 @@ export default function PostManagement() {
         </div>
       </div>
 
-      {error && !showForm && (
-        <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3">
-          {error}
-        </div>
-      )}
-
       {loading ? (
         <div className="flex items-center justify-center gap-2 py-16 text-[#A69B8D] text-sm">
           <Loader2 className="w-4 h-4 animate-spin" />
@@ -243,7 +236,9 @@ export default function PostManagement() {
                 <button
                   key={post.id}
                   type="button"
-                  onClick={() => navigate(`/dashboard/posts/${post.id}`)}
+                  onClick={() =>
+                    navigate(`/dashboard/posts/${postSegment(post)}`)
+                  }
                   className="text-left bg-[#14100D] border border-[#2A241E] rounded-xl overflow-hidden hover:border-[#D4AF37]/40 transition-all flex flex-col"
                 >
                   <div className="h-40 bg-[#0E0C0A] overflow-hidden">
@@ -332,12 +327,6 @@ export default function PostManagement() {
               </button>
             </div>
 
-            {error && (
-              <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-                {error}
-              </div>
-            )}
-
             <div>
               <label className="block text-[10px] uppercase tracking-wider text-[#8C8070] mb-1">
                 Community (optional)
@@ -391,7 +380,7 @@ export default function PostManagement() {
             <MediaPicker
               media={form.media}
               onChange={(media) => setForm((p) => ({ ...p, media }))}
-              onError={setError}
+              onError={showToast}
             />
 
             <button

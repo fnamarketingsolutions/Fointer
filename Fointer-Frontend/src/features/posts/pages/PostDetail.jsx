@@ -29,6 +29,7 @@ import MediaPicker from "../../../shared/components/media/MediaPicker";
 import PostMediaGallery from "../../../shared/components/media/PostMediaGallery";
 import ConfirmDeleteModal from "../../../shared/components/modals/ConfirmDeleteModal";
 import EditWindowExpiredModal from "../../../shared/components/modals/EditWindowExpiredModal";
+import { useToast } from "../../../shared/components/feedback/ToastContext";
 import { useAuth } from "../../../context/AuthContext";
 
 export default function PostDetail({
@@ -36,20 +37,23 @@ export default function PostDetail({
   onBack,
   onDeleted,
   embedded = false,
+  compact = false,
   // backLabel = "Back",
   postPathBuilder,
   fetchPostFn = fetchPost,
 }) {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
+  const { showToast } = useToast();
 
   // Post & Main Comments States
   const [post, setPost] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const [comments, setComments] = useState([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentsExpanded, setCommentsExpanded] = useState(false);
+  // In compact mode the discussion stays collapsed until the comment count is tapped
+  const [commentsOpen, setCommentsOpen] = useState(!compact);
   const [recentPosts, setRecentPosts] = useState([]);
   const [recentPostsLoading, setRecentPostsLoading] = useState(false);
 
@@ -73,17 +77,16 @@ export default function PostDetail({
   // Data Fetching
   const loadPost = useCallback(async () => {
     setLoading(true);
-    setError("");
     try {
       const data = await fetchPostFn(postId);
       setPost(data?.post || null);
     } catch (err) {
-      setError(err?.response?.data?.message || "Failed to load post.");
+      showToast(err?.response?.data?.message || "Failed to load post.");
       setPost(null);
     } finally {
       setLoading(false);
     }
-  }, [postId, fetchPostFn]);
+  }, [postId, fetchPostFn, showToast]);
 
   const loadComments = useCallback(async () => {
     setCommentsLoading(true);
@@ -96,22 +99,23 @@ export default function PostDetail({
       if (status === 401 || status === 403) {
         setComments([]);
       } else {
-        setError(err?.response?.data?.message || "Failed to load comments.");
+        showToast(err?.response?.data?.message || "Failed to load comments.");
       }
     } finally {
       setCommentsLoading(false);
     }
-  }, [postId]);
+  }, [postId, showToast]);
 
   useEffect(() => {
     loadPost();
     setCommentsExpanded(false);
+    setCommentsOpen(!compact);
     if (isAuthenticated) {
       loadComments();
     } else {
       setComments([]);
     }
-  }, [loadPost, loadComments, isAuthenticated]);
+  }, [loadPost, loadComments, isAuthenticated, compact]);
 
   useEffect(() => {
     const communityId = post?.community?.id || post?.community;
@@ -187,7 +191,6 @@ export default function PostDetail({
       media: post.media || [],
     });
     setShowEdit(true);
-    setError("");
   };
 
   const openDeletePost = () => {
@@ -229,11 +232,10 @@ export default function PostDetail({
   const handleSaveEdit = async (e) => {
     e.preventDefault();
     if (!form.title.trim()) {
-      setError("Title is required.");
+      showToast("Title is required.");
       return;
     }
     setSaving(true);
-    setError("");
     try {
       const data = await updatePost(postId, {
         title: form.title.trim(),
@@ -243,7 +245,7 @@ export default function PostDetail({
       setPost(data.post);
       setShowEdit(false);
     } catch (err) {
-      setError(err?.response?.data?.message || "Failed to update post.");
+      showToast(err?.response?.data?.message || "Failed to update post.");
     } finally {
       setSaving(false);
     }
@@ -251,14 +253,13 @@ export default function PostDetail({
 
   const handleDelete = async () => {
     setSaving(true);
-    setError("");
     try {
       await deletePost(postId);
       setShowDelete(false);
       if (onDeleted) onDeleted();
       else if (onBack) onBack();
     } catch (err) {
-      setError(err?.response?.data?.message || "Failed to delete post.");
+      showToast(err?.response?.data?.message || "Failed to delete post.");
     } finally {
       setSaving(false);
     }
@@ -316,7 +317,7 @@ export default function PostDetail({
         p ? { ...p, commentCount: (p.commentCount || 0) + 1 } : p
       );
     } catch (err) {
-      setError(err?.response?.data?.message || "Failed to comment.");
+      showToast(err?.response?.data?.message || "Failed to comment.");
     }
   };
 
@@ -360,7 +361,7 @@ export default function PostDetail({
       );
       setEditingComment(null);
     } catch (err) {
-      setError(err?.response?.data?.message || "Failed to edit comment.");
+      showToast(err?.response?.data?.message || "Failed to edit comment.");
     }
   };
 
@@ -378,7 +379,7 @@ export default function PostDetail({
       await loadPost();
     } catch (err) {
       setComments(prev);
-      setError(err?.response?.data?.message || "Failed to delete comment.");
+      showToast(err?.response?.data?.message || "Failed to delete comment.");
     }
   };
 
@@ -440,8 +441,8 @@ export default function PostDetail({
   if (!post) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4 py-6">
-        <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg p-4">
-          {error || "Post not found."}
+        <div className="border border-dashed border-[#2A241E] rounded-xl py-12 text-center text-[#8C8070] text-sm">
+          Post not found.
         </div>
       </div>
     );
@@ -525,6 +526,86 @@ export default function PostDetail({
     </div>
   ) : null;
 
+  const postActions = showPostActions ? (
+    <div className="shrink-0 flex items-center gap-2 rounded-lg border border-[#2A241E] bg-[#0E0C0A] p-1.5">
+      {showPostEdit && (
+        <button
+          type="button"
+          onClick={openEdit}
+          title="Edit Post"
+          className="p-2 rounded-md text-[#A69B8D] hover:text-[#D4AF37] hover:bg-[#2A241E]/50 transition-all"
+        >
+          <Pencil size={16} />
+        </button>
+      )}
+      {showPostDelete && (
+        <button
+          type="button"
+          onClick={openDeletePost}
+          title="Delete Post"
+          className="p-2 rounded-md text-red-400 hover:text-red-300 hover:bg-red-500/20 transition-all"
+        >
+          <Trash2 size={16} />
+        </button>
+      )}
+    </div>
+  ) : null;
+
+  const authorBlock = (
+    <div
+      className={`flex items-center gap-3 ${
+        compact ? "min-w-0" : "py-2 border-y border-[#2A241E]/40"
+      }`}
+    >
+      {renderAvatar(post.author, compact ? "sm" : "md")}
+      <div className="min-w-0">
+        <div className="text-sm font-semibold text-[#E5E0D8] truncate">
+          {post.author?.name || post.author?.username || "Member"}
+        </div>
+        {post.author?.username && (
+          <div className="text-[11px] text-[#A69B8D] truncate">
+            @{post.author.username}
+          </div>
+        )}
+        <div className="text-[11px] text-[#8C8070]">
+          {compact
+            ? timeAgo(post.createdAt)
+            : post.createdAt
+            ? new Date(post.createdAt).toLocaleString(undefined, {
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+                hour: "numeric",
+                minute: "2-digit",
+              })
+            : ""}
+        </div>
+      </div>
+    </div>
+  );
+
+  const titleBlock = (
+    <div className={compact ? "space-y-1 min-w-0" : "space-y-2 min-w-0"}>
+      {post.community?.name && (
+        <p className="text-[10px] uppercase tracking-widest text-[#D4AF37] font-mono">
+          {post.community.name}
+        </p>
+      )}
+      <h1
+        className={`font-serif font-bold text-[#E5E0D8] leading-tight ${
+          compact
+            ? "text-base sm:text-lg"
+            : "text-2xl sm:text-3xl lg:text-4xl"
+        }`}
+      >
+        {post.title || "Untitled"}
+      </h1>
+    </div>
+  );
+
+  const commentsVisible = !compact || commentsOpen;
+  const mainInputVisible = compact ? commentsOpen : showMainCommentInput;
+
   const mainContent = (
     <>
       {/* {onBack && (
@@ -538,95 +619,68 @@ export default function PostDetail({
         </button>
       )} */}
 
-      {error && !showEdit && !showDelete && !deleteCommentId && !lockModal && (
-        <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3">
-          {error}
-        </div>
-      )}
-
       <div className="w-full max-w-full">
-        <article className="bg-[#14100D] rounded-xl overflow-hidden w-full shadow-xl">
-          <div className="p-5 sm:p-8 space-y-6">
-         
-            <div className="flex items-start justify-between gap-4">
-              
-              <div className="space-y-2 min-w-0">
-                {post.community?.name && (
-                  <p className="text-[10px] uppercase tracking-widest text-[#D4AF37] font-mono">
-                    {post.community.name}
-                  </p>
-                )}
-                <h1 className="text-2xl sm:text-3xl lg:text-4xl font-serif font-bold text-[#E5E0D8] leading-tight">
-                  {post.title || "Untitled"}
-                </h1>
-              </div>
-
-              {showPostActions && (
-                <div className="shrink-0 flex items-center gap-2 rounded-lg border border-[#2A241E] bg-[#0E0C0A] p-1.5">
-                  {showPostEdit && (
-                    <button
-                      type="button"
-                      onClick={openEdit}
-                      title="Edit Post"
-                      className="p-2 rounded-md text-[#A69B8D] hover:text-[#D4AF37] hover:bg-[#2A241E]/50 transition-all"
-                    >
-                      <Pencil size={16} />
-                    </button>
-                  )}
-                  {showPostDelete && (
-                    <button
-                      type="button"
-                      onClick={openDeletePost}
-                      title="Delete Post"
-                      className="p-2 rounded-md text-red-400 hover:text-red-300 hover:bg-red-500/20 transition-all"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  )}
+        <article
+          className={`bg-[#14100D] overflow-hidden w-full shadow-xl ${
+            compact ? "rounded-lg" : "rounded-xl"
+          }`}
+        >
+          <div className={compact ? "p-4 space-y-3" : "p-5 sm:p-8 space-y-6"}>
+            {compact ? (
+              <>
+                <div className="flex items-start justify-between gap-3">
+                  {authorBlock}
+                  {postActions}
                 </div>
-              )}
-            </div>
-
-            <div className="flex items-center gap-3 py-2 border-y border-[#2A241E]/40">
-              {renderAvatar(post.author, "md")}
-              <div>
-                <div className="text-sm font-semibold text-[#E5E0D8]">
-                  {post.author?.name || post.author?.username || "Member"}
+                {titleBlock}
+              </>
+            ) : (
+              <>
+                <div className="flex items-start justify-between gap-4">
+                  {titleBlock}
+                  {postActions}
                 </div>
-                {post.author?.username && (
-                  <div className="text-[11px] text-[#A69B8D]">
-                    @{post.author.username}
-                  </div>
-                )}
-                <div className="text-[11px] text-[#8C8070]">
-                  {post.createdAt
-                    ? new Date(post.createdAt).toLocaleString(undefined, {
-                        year: "numeric",
-                        month: "long",
-                        day: "numeric",
-                        hour: "numeric",
-                        minute: "2-digit",
-                      })
-                    : ""}
-                </div>
-              </div>
-            </div>
+                {authorBlock}
+              </>
+            )}
 
             {post.media && post.media.length > 0 && (
-              <div className="relative w-full bg-[#0A0806] flex items-center justify-center min-h-[250px] max-h-[70vh] rounded-lg overflow-hidden group">
-                <div className="w-full h-full flex items-center justify-center p-2">
-                  <PostMediaGallery media={post.media} counterOverlay />
+              <div
+                className={`relative w-full bg-[#0A0806] flex items-center justify-center rounded-lg overflow-hidden group ${
+                  compact ? "max-h-[40vh]" : "min-h-[250px] max-h-[70vh]"
+                }`}
+              >
+                <div
+                  className={`w-full h-full flex items-center justify-center ${
+                    compact ? "" : "p-2"
+                  }`}
+                >
+                  <PostMediaGallery
+                    media={post.media}
+                    counterOverlay
+                    heightClass={compact ? "max-h-[36vh]" : "max-h-96"}
+                  />
                 </div>
               </div>
             )}
 
             {post.text && (
-              <p className="text-sm sm:text-base text-[#C9C0B4] whitespace-pre-wrap leading-relaxed font-serif first-letter:float-left first-letter:mr-3 first-letter:mt-1 first-letter:font-serif first-letter:text-5xl sm:first-letter:text-6xl first-letter:leading-[0.8] first-letter:text-[#D4AF37]">
+              <p
+                className={
+                  compact
+                    ? "text-sm text-[#C9C0B4] whitespace-pre-wrap leading-relaxed"
+                    : "text-sm sm:text-base text-[#C9C0B4] whitespace-pre-wrap leading-relaxed font-serif first-letter:float-left first-letter:mr-3 first-letter:mt-1 first-letter:font-serif first-letter:text-5xl sm:first-letter:text-6xl first-letter:leading-[0.8] first-letter:text-[#D4AF37]"
+                }
+              >
                 {post.text}
               </p>
             )}
 
-            <div className="flex items-center gap-6 pt-4 border-t border-[#2A241E]/60">
+            <div
+              className={`flex items-center gap-6 border-t border-[#2A241E]/60 ${
+                compact ? "pt-3" : "pt-4"
+              }`}
+            >
               <button
                 type="button"
                 onClick={handleLikePost}
@@ -646,12 +700,17 @@ export default function PostDetail({
               <button
                 type="button"
                 onClick={() => {
-                  setShowMainCommentInput((prev) => !prev);
                   setReplyTargetId(null);
                   setCommentText("");
+                  if (compact) {
+                    setCommentsOpen((prev) => !prev);
+                  } else {
+                    setShowMainCommentInput((prev) => !prev);
+                  }
                 }}
+                aria-expanded={compact ? commentsOpen : showMainCommentInput}
                 className={`inline-flex items-center gap-2 text-xs font-medium transition-colors ${
-                  showMainCommentInput
+                  (compact ? commentsOpen : showMainCommentInput)
                     ? "text-[#D4AF37]"
                     : "text-[#A69B8D] hover:text-[#E5E0D8]"
                 }`}
@@ -664,9 +723,24 @@ export default function PostDetail({
         </article>
       </div>
 
-      <section className="bg-[#14100D] rounded-xl p-5 sm:p-8 space-y-6 shadow-xl">
-        <div className="flex items-center justify-between gap-3 border-b border-[#2A241E] pb-4">
-          <h2 className="text-lg sm:text-xl font-serif font-semibold text-[#E5E0D8]">
+      {commentsVisible && (
+      <section
+        className={`bg-[#14100D] shadow-xl ${
+          compact
+            ? "rounded-lg p-4 space-y-4"
+            : "rounded-xl p-5 sm:p-8 space-y-6"
+        }`}
+      >
+        <div
+          className={`flex items-center justify-between gap-3 border-b border-[#2A241E] ${
+            compact ? "pb-3" : "pb-4"
+          }`}
+        >
+          <h2
+            className={`font-serif font-semibold text-[#E5E0D8] ${
+              compact ? "text-base" : "text-lg sm:text-xl"
+            }`}
+          >
             Discussion{" "}
             <span className="text-[#A69B8D] font-sans text-xs sm:text-sm">
               ({post.commentCount || comments.length || 0})
@@ -688,8 +762,8 @@ export default function PostDetail({
         {/* Main Comment Input Box (Slow Reveal Transition) */}
         <div
           className={`overflow-hidden transition-all duration-300 ease-in-out ${
-            showMainCommentInput
-              ? "max-h-60 opacity-100 mb-6"
+            mainInputVisible
+              ? `max-h-60 opacity-100 ${compact ? "mb-4" : "mb-6"}`
               : "max-h-0 opacity-0 pointer-events-none"
           }`}
         >
@@ -706,6 +780,7 @@ export default function PostDetail({
                 type="button"
                 onClick={() => {
                   setShowMainCommentInput(false);
+                  if (compact) setCommentsOpen(false);
                   setCommentText("");
                 }}
                 className="px-3.5 py-2 rounded-lg text-xs text-[#A69B8D] hover:text-[#E5E0D8] transition-colors"
@@ -1121,15 +1196,22 @@ export default function PostDetail({
             })}
           </div>
         )}
-      </section>
+        </section>
+      )}
       {!embedded && sidebarCard && <div className="lg:hidden">{sidebarCard}</div>}
     </>
   );
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <div
+      className={
+        compact
+          ? "w-full p-3 sm:p-4"
+          : "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6"
+      }
+    >
       {embedded || !sidebarCard ? (
-        <div className="space-y-6">{mainContent}</div>
+        <div className={compact ? "space-y-3" : "space-y-6"}>{mainContent}</div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-[7fr_3fr] gap-6 items-start">
           <div className="min-w-0 space-y-6">{mainContent}</div>
@@ -1158,11 +1240,6 @@ export default function PostDetail({
                 <X size={18} className="text-[#A69B8D] hover:text-[#E5E0D8]" />
               </button>
             </div>
-            {error && (
-              <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-                {error}
-              </div>
-            )}
             <div className="space-y-1">
               <label className="block text-[10px] uppercase tracking-wider text-[#8C8070]">
                 Title
@@ -1193,7 +1270,7 @@ export default function PostDetail({
               <MediaPicker
                 media={form.media}
                 onChange={(media) => setForm((p) => ({ ...p, media }))}
-                onError={setError}
+                onError={showToast}
                 label="Media"
               />
             </div>

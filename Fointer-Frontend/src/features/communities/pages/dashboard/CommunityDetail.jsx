@@ -20,6 +20,8 @@ import {
   Image as ImageIcon,
   Lock,
   Globe,
+  Layers,
+  Grid,
 } from "lucide-react";
 import {
   inviteToCommunity,
@@ -38,6 +40,11 @@ import PostMediaGallery from "../../../../shared/components/media/PostMediaGalle
 import { COMMUNITY_TYPE_LABELS } from "../../../../shared/constants/community";
 import { formatLongDate, timeAgo } from "../../../../shared/utils/date";
 import { formatCount } from "../../../../shared/utils/format";
+import {
+  communitySegment,
+  postSegment,
+} from "../../../../shared/services/entityLinks";
+import { useToast } from "../../../../shared/components/feedback/ToastContext";
 
 const TYPE_META = {
   public: { label: COMMUNITY_TYPE_LABELS.public, icon: Globe },
@@ -104,29 +111,25 @@ export default function CommunityDetail({
   manageData,
   manageLoading,
   selectedId,
-  error,
-  setError,
   onBack,
   onEdit,
   onDelete,
   onRefresh,
 }) {
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [heroPreview, setHeroPreview] = useState(null);
   const [aboutExpanded, setAboutExpanded] = useState(false);
   const [rulesExpanded, setRulesExpanded] = useState(false);
+  const [subchannelsExpanded, setSubchannelsExpanded] = useState(false);
   const [posts, setPosts] = useState([]);
   const [postsLoading, setPostsLoading] = useState(false);
   const [feedFilter, setFeedFilter] = useState("trending");
   const [inviteIdentifier, setInviteIdentifier] = useState("");
   const [inviteNote, setInviteNote] = useState("");
   const [inviteBusy, setInviteBusy] = useState(false);
-  const [inviteMessage, setInviteMessage] = useState("");
-  const [inviteError, setInviteError] = useState("");
-  const [inviteToast, setInviteToast] = useState("");
   const [inviteLookupUsers, setInviteLookupUsers] = useState([]);
   const [inviteLookupLoading, setInviteLookupLoading] = useState(false);
-  const [inviteLookupError, setInviteLookupError] = useState("");
   const [selectedInviteUser, setSelectedInviteUser] = useState(null);
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [postForm, setPostForm] = useState({ title: "", text: "", media: [] });
@@ -134,7 +137,6 @@ export default function CommunityDetail({
   const [members, setMembers] = useState([]);
   const [membersLoading, setMembersLoading] = useState(false);
   const [memberStatusFilter, setMemberStatusFilter] = useState("all");
-  const [membersListOpen, setMembersListOpen] = useState(true);
   const [savingMemberId, setSavingMemberId] = useState(null);
   const inviteLookupSeq = useRef(0);
   const memberFilterMounted = useRef(false);
@@ -157,6 +159,26 @@ export default function CommunityDetail({
   const TypeIcon = meta.icon;
   const ownerName =
     community?.owner?.name || community?.owner?.username || "Owner";
+
+  // Channel & Subchannels Normalization
+  const channelName =
+    typeof community?.channel === "object"
+      ? community?.channel?.name
+      : community?.channel || "";
+
+  const rawSubchannels = Array.isArray(community?.subchannels)
+    ? community.subchannels
+    : [];
+  
+  // Format subchannel items cleanly as display strings
+  const subchannelList = rawSubchannels.map((sub) =>
+    typeof sub === "object" ? sub.name || sub.title || sub.id : String(sub)
+  );
+  
+  // Split subchannels: initial 2 shown, rest moved to collapsible View More list
+  const primarySubchannels = subchannelList.slice(0, 2);
+  const extraSubchannels = subchannelList.slice(2);
+
   const ruleLines = (community?.rules || "")
     .split("\n")
     .map((r) => r.trim())
@@ -197,6 +219,7 @@ export default function CommunityDetail({
     setHeroPreview(null);
     setAboutExpanded(false);
     setRulesExpanded(false);
+    setSubchannelsExpanded(false);
     loadPosts();
   }, [selectedId, loadPosts]);
 
@@ -209,38 +232,18 @@ export default function CommunityDetail({
       memberFilterMounted.current = true;
       return undefined;
     }
-    setMembersListOpen(false);
-    const timer = setTimeout(() => setMembersListOpen(true), 180);
-    return () => clearTimeout(timer);
   }, [memberStatusFilter]);
-
-  useEffect(() => {
-    if (!inviteToast) return undefined;
-    const timer = setTimeout(() => setInviteToast(""), 3000);
-    return () => clearTimeout(timer);
-  }, [inviteToast]);
 
   useEffect(() => {
     if (!selectedId || !isOwner) {
       setInviteLookupUsers([]);
-      setInviteLookupError("");
       setSelectedInviteUser(null);
       return undefined;
     }
 
     const query = inviteIdentifier.trim();
-    if (!query) {
+    if (!query || query.length < 3) {
       setInviteLookupUsers([]);
-      setInviteLookupError("");
-      setSelectedInviteUser(null);
-      setInviteLookupLoading(false);
-      return undefined;
-    }
-
-    // Avoid spamming lookup until the user has typed enough to be useful
-    if (query.length < 3) {
-      setInviteLookupUsers([]);
-      setInviteLookupError("");
       setSelectedInviteUser(null);
       setInviteLookupLoading(false);
       return undefined;
@@ -248,14 +251,12 @@ export default function CommunityDetail({
 
     const seq = ++inviteLookupSeq.current;
     setInviteLookupLoading(true);
-    setInviteLookupError("");
     const timer = setTimeout(async () => {
       try {
         const data = await lookupInviteUser(selectedId, query);
         if (inviteLookupSeq.current !== seq) return;
         const matched = Array.isArray(data?.users) ? data.users : [];
         setInviteLookupUsers(matched);
-        setInviteLookupError("");
         setSelectedInviteUser((prev) =>
           prev && matched.some((u) => String(u.id) === String(prev.id))
             ? prev
@@ -265,7 +266,7 @@ export default function CommunityDetail({
         if (inviteLookupSeq.current !== seq) return;
         setInviteLookupUsers([]);
         setSelectedInviteUser(null);
-        setInviteLookupError(
+        showToast(
           err?.response?.data?.message || "Failed to look up users."
         );
       } finally {
@@ -278,7 +279,7 @@ export default function CommunityDetail({
     return () => {
       clearTimeout(timer);
     };
-  }, [inviteIdentifier, selectedId, isOwner]);
+  }, [inviteIdentifier, selectedId, isOwner, showToast]);
 
   const refreshAll = async () => {
     await onRefresh?.(selectedId, { silent: true });
@@ -289,13 +290,12 @@ export default function CommunityDetail({
   const runMemberAction = async (memberId, action) => {
     if (!selectedId) return;
     setSavingMemberId(memberId);
-    setError("");
     try {
       await action();
       await loadMembers();
       await onRefresh?.(selectedId, { silent: true });
     } catch (err) {
-      setError(err?.response?.data?.message || "Member action failed.");
+      showToast(err?.response?.data?.message || "Member action failed.");
     } finally {
       setSavingMemberId(null);
     }
@@ -335,12 +335,10 @@ export default function CommunityDetail({
     e.preventDefault();
     if (!selectedId || !inviteIdentifier.trim()) return;
     if (isOwner && !selectedInviteUser) {
-      setInviteError("Select the user tile below to send an invite.");
+      showToast("Select the user tile below to send an invite.");
       return;
     }
     setInviteBusy(true);
-    setInviteError("");
-    setInviteMessage("");
     try {
       if (selectedInviteUser) {
         await inviteUserToCommunity(selectedId, {
@@ -357,12 +355,10 @@ export default function CommunityDetail({
       setInviteIdentifier("");
       setInviteNote("");
       setInviteLookupUsers([]);
-      setInviteLookupError("");
       setSelectedInviteUser(null);
-      setInviteMessage("Invite sent successfully.");
-      setInviteToast("Invite sent successfully.");
+      showToast("Invite sent successfully.");
     } catch (err) {
-      setInviteError(err?.response?.data?.message || "Failed to send invite.");
+      showToast(err?.response?.data?.message || "Failed to send invite.");
     } finally {
       setInviteBusy(false);
     }
@@ -371,11 +367,10 @@ export default function CommunityDetail({
   const handleCreatePost = async (e) => {
     e.preventDefault();
     if (!selectedId || !postForm.title.trim()) {
-      setError("Post title is required.");
+      showToast("Post title is required.");
       return;
     }
     setPostSaving(true);
-    setError("");
     try {
       await createPost({
         communityId: selectedId,
@@ -387,7 +382,7 @@ export default function CommunityDetail({
       setPostForm({ title: "", text: "", media: [] });
       await loadPosts();
     } catch (err) {
-      setError(err?.response?.data?.message || "Failed to create post.");
+      showToast(err?.response?.data?.message || "Failed to create post.");
     } finally {
       setPostSaving(false);
     }
@@ -430,19 +425,14 @@ export default function CommunityDetail({
     return new Date(b.createdAt) - new Date(a.createdAt);
   });
 
-  const openPost = (postId) => {
-    if (!selectedId || !postId) return;
-    navigate(`/dashboard/manage/${selectedId}/posts/${postId}`);
+  const openPost = (post) => {
+    if (!selectedId || !post?.id) return;
+    const segment = communitySegment(community) || selectedId;
+    navigate(`/dashboard/manage/${segment}/posts/${postSegment(post)}`);
   };
 
   return (
     <div className="space-y-5 sm:space-y-6 max-w-full">
-      {inviteToast && (
-        <div className="fixed top-4 right-4 z-50 max-w-xs rounded-lg border border-emerald-500/30 bg-emerald-500/15 px-4 py-2.5 text-sm text-emerald-300 shadow-lg">
-          {inviteToast}
-        </div>
-      )}
-      {/* Back + actions */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <button
           type="button"
@@ -487,12 +477,6 @@ export default function CommunityDetail({
         )}
       </div>
 
-      {error && (
-        <div className="text-xs sm:text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 sm:px-4 py-2.5 sm:py-3">
-          {error}
-        </div>
-      )}
-
       {manageLoading || !manageData ? (
         <div className="flex items-center justify-center py-16 text-[#A69B8D] text-xs sm:text-sm gap-2">
           <Loader2 size={16} className="animate-spin" />
@@ -500,7 +484,6 @@ export default function CommunityDetail({
         </div>
       ) : (
         <>
-          {/* Community detail — browse-style header + two-column layout */}
           <div className="space-y-4 sm:space-y-5">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -512,7 +495,6 @@ export default function CommunityDetail({
                   {meta.label}
                 </span>
               </div>
-             
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-[40%_1fr] gap-4 lg:gap-5">
@@ -591,6 +573,71 @@ export default function CommunityDetail({
                     </div>
                   </div>
                 </div>
+
+                {/* Primary Channel and Dynamic Subchannel List */}
+                {(channelName || subchannelList.length > 0) && (
+                  <div className="py-4 space-y-3">
+                    {channelName && (
+                      <div>
+                        <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-[#8C8070] mb-1.5 font-bold">
+                          <Layers size={12} className="text-[#D4AF37]" />
+                          Channel
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-[#D4AF37]/15 border border-[#D4AF37]/30 text-[#D4AF37] text-xs font-semibold">
+                            {channelName}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {subchannelList.length > 0 && (
+                      <div>
+                        <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-[#8C8070] mb-1.5 font-bold">
+                          <Grid size={12} className="text-[#D4AF37]" />
+                          Subchannels ({subchannelList.length})
+                        </div>
+                        
+                        {/* Always display initial 2 subchannels */}
+                        <div className="flex flex-wrap gap-1.5">
+                          {primarySubchannels.map((sub, idx) => (
+                            <span
+                              key={`${idx}-${sub}`}
+                              className="px-2 py-0.5 rounded-md bg-[#1C1612] border border-[#2A241E] text-[#E5E0D8] text-[11px] font-medium"
+                            >
+                              {sub}
+                            </span>
+                          ))}
+                        </div>
+
+                        {/* Collapsible area for remaining subchannels (> 2) */}
+                        {extraSubchannels.length > 0 && (
+                          <>
+                            <Collapsible open={subchannelsExpanded}>
+                              <div className="flex flex-wrap gap-1.5 pt-1.5">
+                                {extraSubchannels.map((sub, idx) => (
+                                  <span
+                                    key={`${idx + 2}-${sub}`}
+                                    className="px-2 py-0.5 rounded-md bg-[#1C1612] border border-[#2A241E] text-[#E5E0D8] text-[11px] font-medium"
+                                  >
+                                    {sub}
+                                  </span>
+                                ))}
+                              </div>
+                            </Collapsible>
+                            <button
+                              type="button"
+                              onClick={() => setSubchannelsExpanded((v) => !v)}
+                              className="mt-2 text-[11px] font-medium text-[#D4AF37] hover:text-[#e0c04a] transition-colors"
+                            >
+                              {subchannelsExpanded
+                                ? "View less"
+                                : `View more (${extraSubchannels.length})`}
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {community?.description && (
                   <div className="py-4">
@@ -711,10 +758,7 @@ export default function CommunityDetail({
               </h2>
               <button
                 type="button"
-                onClick={() => {
-                  setShowCreatePost(true);
-                  setError("");
-                }}
+                onClick={() => setShowCreatePost(true)}
                 className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-[#D4AF37] text-black text-xs font-semibold self-start sm:self-auto"
               >
                 <Plus size={14} />
@@ -751,101 +795,100 @@ export default function CommunityDetail({
                 No posts in this community yet. Be the first to post.
               </div>
             ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
-                  {sortedPosts.map((post) => {
-                    const authorUsername =
-                      post.author?.username || post.author?.name || "Member";
-                    const initial = authorUsername.charAt(0).toUpperCase();
-                    const hasMedia = post.media?.length > 0;
-                    return (
-                      <article
-                        key={post.id}
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => openPost(post.id)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") openPost(post.id);
-                        }}
-                        className="bg-[#14100D] border border-[#2A241E] rounded-xl p-3 sm:p-4 cursor-pointer hover:border-[#D4AF37]/40 transition-colors overflow-hidden h-full flex flex-col"
-                      >
-                        <div className="flex items-start gap-2.5 mb-3">
-                          {post.author?.avatar ? (
-                            <img
-                              src={post.author.avatar}
-                              alt=""
-                              className="w-8 h-8 sm:w-9 sm:h-9 rounded-full object-cover border border-[#2A241E] shrink-0"
-                            />
-                          ) : (
-                            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#D4AF37]/15 border border-[#D4AF37]/30 flex items-center justify-center text-[#D4AF37] text-xs font-semibold shrink-0">
-                              {initial}
-                            </div>
-                          )}
-                          <div className="min-w-0 flex-1">
-                            <div className="text-xs sm:text-sm font-medium text-[#E5E0D8] truncate">
-                              {authorUsername}
-                            </div>
-                            <div className="text-[10px] sm:text-[11px] text-[#8C8070]">
-                              {timeAgo(post.createdAt)}
-                            </div>
-                            
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
+                {sortedPosts.map((post) => {
+                  const authorUsername =
+                    post.author?.username || post.author?.name || "Member";
+                  const initial = authorUsername.charAt(0).toUpperCase();
+                  const hasMedia = post.media?.length > 0;
+                  return (
+                    <article
+                      key={post.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => openPost(post)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") openPost(post);
+                      }}
+                      className="bg-[#14100D] border border-[#2A241E] rounded-xl p-3 sm:p-4 cursor-pointer hover:border-[#D4AF37]/40 transition-colors overflow-hidden h-full flex flex-col"
+                    >
+                      <div className="flex items-start gap-2.5 mb-3">
+                        {post.author?.avatar ? (
+                          <img
+                            src={post.author.avatar}
+                            alt=""
+                            className="w-8 h-8 sm:w-9 sm:h-9 rounded-full object-cover border border-[#2A241E] shrink-0"
+                          />
+                        ) : (
+                          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#D4AF37]/15 border border-[#D4AF37]/30 flex items-center justify-center text-[#D4AF37] text-xs font-semibold shrink-0">
+                            {initial}
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs sm:text-sm font-medium text-[#E5E0D8] truncate">
+                            {authorUsername}
+                          </div>
+                          <div className="text-[10px] sm:text-[11px] text-[#8C8070]">
+                            {timeAgo(post.createdAt)}
                           </div>
                         </div>
+                      </div>
 
-                        {hasMedia && (
-  <div
-    className="-mx-3 sm:-mx-4 mb-3 h-64 overflow-hidden"
-    onClick={(e) => e.stopPropagation()}
-  >
-    <PostMediaGallery
-      media={post.media}
-      counterOverlay
-    />
-  </div>
-)}
-
-                        <div className="flex-1 min-w-0">
-                          {post.title && (
-                            <h3 className="text-xs sm:text-sm font-serif font-semibold text-[#E5E0D8] mb-1.5 line-clamp-2">
-                              {post.title}
-                            </h3>
-                          )}
-                          {post.text && (
-                            <p className="text-[11px] sm:text-xs text-[#A69B8D] leading-relaxed line-clamp-3">
-                              {post.text}
-                            </p>
-                          )}
+                      {hasMedia && (
+                        <div
+                          className="-mx-3 sm:-mx-4 mb-3 h-64 overflow-hidden"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <PostMediaGallery
+                            media={post.media}
+                            counterOverlay
+                          />
                         </div>
+                      )}
 
-                        <div className="flex items-center gap-4 mt-auto pt-3 border-t border-[#2A241E]/60 text-[11px] text-[#8C8070]">
-                          <button
-                            type="button"
-                            onClick={(e) => handleToggleLike(post, e)}
-                            className={`inline-flex items-center gap-1 ${
-                              post.likedByMe ? "text-[#D4AF37]" : ""
-                            }`}
-                          >
-                            <Heart
-                              size={13}
-                              className={
-                                post.likedByMe
-                                  ? "fill-current text-[#D4AF37]"
-                                  : "text-[#D4AF37]/70"
-                              }
-                            />
-                            {formatCount(post.likeCount)}
-                          </button>
-                          <span className="inline-flex items-center gap-1">
-                            <MessageCircle
-                              size={13}
-                              className="text-[#D4AF37]/70"
-                            />
-                            {formatCount(post.commentCount)}
-                          </span>
-                        </div>
-                      </article>
-                    );
-                  })}
-                </div>
+                      <div className="flex-1 min-w-0">
+                        {post.title && (
+                          <h3 className="text-xs sm:text-sm font-serif font-semibold text-[#E5E0D8] mb-1.5 line-clamp-2">
+                            {post.title}
+                          </h3>
+                        )}
+                        {post.text && (
+                          <p className="text-[11px] sm:text-xs text-[#A69B8D] leading-relaxed line-clamp-3">
+                            {post.text}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-4 mt-auto pt-3 border-t border-[#2A241E]/60 text-[11px] text-[#8C8070]">
+                        <button
+                          type="button"
+                          onClick={(e) => handleToggleLike(post, e)}
+                          className={`inline-flex items-center gap-1 ${
+                            post.likedByMe ? "text-[#D4AF37]" : ""
+                          }`}
+                        >
+                          <Heart
+                            size={13}
+                            className={
+                              post.likedByMe
+                                ? "fill-current text-[#D4AF37]"
+                                : "text-[#D4AF37]/70"
+                            }
+                          />
+                          {formatCount(post.likeCount)}
+                        </button>
+                        <span className="inline-flex items-center gap-1">
+                          <MessageCircle
+                            size={13}
+                            className="text-[#D4AF37]/70"
+                          />
+                          {formatCount(post.commentCount)}
+                        </span>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
             )}
           </section>
 
@@ -892,7 +935,7 @@ export default function CommunityDetail({
                 <MediaPicker
                   media={postForm.media}
                   onChange={(media) => setPostForm((p) => ({ ...p, media }))}
-                  onError={setError}
+                  onError={showToast}
                 />
                 <button
                   type="submit"
@@ -908,314 +951,300 @@ export default function CommunityDetail({
             </div>
           )}
 
-         {/* Members */}
-         {canModerate && (
-  <section className="bg-[#14100D] border border-[#2A241E] rounded-xl p-4 sm:p-5">
-    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
-      <div className="flex items-start gap-3">
-        <div className="w-9 h-9 rounded-lg bg-[#D4AF37]/10 border border-[#D4AF37]/30 flex items-center justify-center text-[#D4AF37] shrink-0">
-          <Users size={16} />
-        </div>
-        <div>
-          <h2 className="text-base sm:text-lg font-semibold text-[#E5E0D8]">
-            Members
-          </h2>
-          <p className="text-[11px] sm:text-xs text-[#A69B8D] mt-0.5">
-            {isOwner
-              ? "Assign or remove moderators, remove members, or ban users."
-              : "Remove or ban regular members. Moderator roles are owner-only."}
-          </p>
-        </div>
-      </div>
-
-      <div className="flex items-center gap-2 self-start flex-wrap">
-        {["all", "active", "banned"].map((status) => {
-          const isExpanded = expandedFilter === status;
-          return (
-            <button
-              key={status}
-              type="button"
-              onClick={() => {
-                // If clicking the currently active & expanded filter, collapse it
-                if (memberStatusFilter === status && expandedFilter === status) {
-                  setExpandedFilter(null);
-                } else {
-                  // Switch to new status filter and expand it (collapsing any previous)
-                  setMemberStatusFilter(status);
-                  setExpandedFilter(status);
-                }
-              }}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] border capitalize transition-all ${
-                memberStatusFilter === status
-                  ? "bg-[#D4AF37] text-black border-[#D4AF37]"
-                  : "border-[#2A241E] text-[#A69B8D] hover:border-[#D4AF37]/40"
-              }`}
-            >
-              <span>{status}</span>
-              <ChevronDown
-                size={12}
-                className={`transition-transform duration-200 ${
-                  isExpanded ? "rotate-180" : "rotate-0"
-                }`}
-              />
-            </button>
-          );
-        })}
-      </div>
-    </div>
-
-    <div
-      className={`grid transition-[grid-template-rows,opacity] duration-300 ease-in-out ${
-        expandedFilter === memberStatusFilter
-          ? "grid-rows-[1fr] opacity-100"
-          : "grid-rows-[0fr] opacity-0"
-      }`}
-    >
-      <div className="overflow-hidden min-h-0">
-        {membersLoading ? (
-          <div className="flex items-center justify-center py-10 text-[#A69B8D] text-xs gap-2">
-            <Loader2 size={14} className="animate-spin" />
-            Loading members...
-          </div>
-        ) : members.length === 0 ? (
-          <div className="border border-dashed border-[#2A241E] rounded-lg py-10 text-center text-[#8C8070] text-xs px-4">
-            {memberStatusFilter === "all"
-              ? "No members found."
-              : `No ${memberStatusFilter} members found.`}
-          </div>
-        ) : (
-          <div className="space-y-2 pt-1">
-            {members.map((member) => {
-              const name =
-                member.user?.name || member.user?.username || "Member";
-              const busy = savingMemberId === member.id;
-              const banned = member.status === "banned";
-              return (
-                <div
-                  key={member.id}
-                  className="flex flex-col gap-3 rounded-lg border border-[#2A241E] bg-[#0E0C0A] p-3 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="truncate text-sm font-medium text-[#E5E0D8]">
-                        {name}
-                      </p>
-                      <span
-                        className={`inline-flex px-2 py-0.5 rounded border text-[10px] uppercase tracking-wide ${roleBadgeClass(
-                          member.role
-                        )}`}
-                      >
-                        {member.role}
-                      </span>
-                    </div>
-                    <p className="truncate text-[11px] text-[#A69B8D] mt-0.5">
-                      @{member.user?.username || "user"}
-                      {banned ? " · banned" : ""}
+          {/* Members section */}
+          {canModerate && (
+            <section className="bg-[#14100D] border border-[#2A241E] rounded-xl p-4 sm:p-5">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-[#D4AF37]/10 border border-[#D4AF37]/30 flex items-center justify-center text-[#D4AF37] shrink-0">
+                    <Users size={16} />
+                  </div>
+                  <div>
+                    <h2 className="text-base sm:text-lg font-semibold text-[#E5E0D8]">
+                      Members
+                    </h2>
+                    <p className="text-[11px] sm:text-xs text-[#A69B8D] mt-0.5">
+                      {isOwner
+                        ? "Assign or remove moderators, remove members, or ban users."
+                        : "Remove or ban regular members. Moderator roles are owner-only."}
                     </p>
                   </div>
+                </div>
 
-                  <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
-                    {banned ? (
-                      canActOnMember({ ...member, role: "member" }) && (
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => handleUnbanMember(member)}
-                          className="rounded-lg border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-3 py-1.5 text-[11px] text-[#D4AF37] disabled:opacity-60"
-                        >
-                          {busy ? "Saving..." : "Unban"}
-                        </button>
-                      )
+                <div className="flex items-center gap-2 self-start flex-wrap">
+                  {["all", "active", "banned"].map((status) => {
+                    const isExpanded = expandedFilter === status;
+                    return (
+                      <button
+                        key={status}
+                        type="button"
+                        onClick={() => {
+                          if (memberStatusFilter === status && expandedFilter === status) {
+                            setExpandedFilter(null);
+                          } else {
+                            setMemberStatusFilter(status);
+                            setExpandedFilter(status);
+                          }
+                        }}
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] border capitalize transition-all ${
+                          memberStatusFilter === status
+                            ? "bg-[#D4AF37] text-black border-[#D4AF37]"
+                            : "border-[#2A241E] text-[#A69B8D] hover:border-[#D4AF37]/40"
+                        }`}
+                      >
+                        <span>{status}</span>
+                        <ChevronDown
+                          size={12}
+                          className={`transition-transform duration-200 ${
+                            isExpanded ? "rotate-180" : "rotate-0"
+                          }`}
+                        />
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div
+                className={`grid transition-[grid-template-rows,opacity] duration-300 ease-in-out ${
+                  expandedFilter === memberStatusFilter
+                    ? "grid-rows-[1fr] opacity-100"
+                    : "grid-rows-[0fr] opacity-0"
+                }`}
+              >
+                <div className="overflow-hidden min-h-0">
+                  {membersLoading ? (
+                    <div className="flex items-center justify-center py-10 text-[#A69B8D] text-xs gap-2">
+                      <Loader2 size={14} className="animate-spin" />
+                      Loading members...
+                    </div>
+                  ) : members.length === 0 ? (
+                    <div className="border border-dashed border-[#2A241E] rounded-lg py-10 text-center text-[#8C8070] text-xs px-4">
+                      {memberStatusFilter === "all"
+                        ? "No members found."
+                        : `No ${memberStatusFilter} members found.`}
+                    </div>
+                  ) : (
+                    <div className="space-y-2 pt-1">
+                      {members.map((member) => {
+                        const name =
+                          member.user?.name || member.user?.username || "Member";
+                        const busy = savingMemberId === member.id;
+                        const banned = member.status === "banned";
+                        return (
+                          <div
+                            key={member.id}
+                            className="flex flex-col gap-3 rounded-lg border border-[#2A241E] bg-[#0E0C0A] p-3 sm:flex-row sm:items-center sm:justify-between"
+                          >
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="truncate text-sm font-medium text-[#E5E0D8]">
+                                  {name}
+                                </p>
+                                <span
+                                  className={`inline-flex px-2 py-0.5 rounded border text-[10px] uppercase tracking-wide ${roleBadgeClass(
+                                    member.role
+                                  )}`}
+                                >
+                                  {member.role}
+                                </span>
+                              </div>
+                              <p className="truncate text-[11px] text-[#A69B8D] mt-0.5">
+                                @{member.user?.username || "user"}
+                                {banned ? " · banned" : ""}
+                              </p>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                              {banned ? (
+                                canActOnMember({ ...member, role: "member" }) && (
+                                  <button
+                                    type="button"
+                                    disabled={busy}
+                                    onClick={() => handleUnbanMember(member)}
+                                    className="rounded-lg border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-3 py-1.5 text-[11px] text-[#D4AF37] disabled:opacity-60"
+                                  >
+                                    {busy ? "Saving..." : "Unban"}
+                                  </button>
+                                )
+                              ) : (
+                                <>
+                                  {isOwner && member.role === "member" && (
+                                    <button
+                                      type="button"
+                                      disabled={busy}
+                                      onClick={() => handleAssignModerator(member)}
+                                      className="rounded-lg border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-3 py-1.5 text-[11px] text-[#D4AF37] disabled:opacity-60"
+                                    >
+                                      {busy ? "Saving..." : "Assign Moderator"}
+                                    </button>
+                                  )}
+                                  {isOwner && member.role === "moderator" && (
+                                    <button
+                                      type="button"
+                                      disabled={busy}
+                                      onClick={() => handleRevokeModerator(member)}
+                                      className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-1.5 text-[11px] text-amber-200 disabled:opacity-60"
+                                    >
+                                      {busy ? "Saving..." : "Remove Moderator"}
+                                    </button>
+                                  )}
+                                  {canActOnMember(member) && (
+                                    <>
+                                      <button
+                                        type="button"
+                                        disabled={busy}
+                                        onClick={() => handleRemoveMember(member)}
+                                        className="rounded-lg border border-[#2A241E] px-3 py-1.5 text-[11px] text-[#A69B8D] hover:text-[#D4AF37] hover:border-[#D4AF37]/40 disabled:opacity-60"
+                                      >
+                                        {busy ? "Saving..." : "Remove"}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={busy}
+                                        onClick={() => handleBanMember(member)}
+                                        className="inline-flex items-center gap-1 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1.5 text-[11px] text-red-400 disabled:opacity-60"
+                                      >
+                                        <Ban size={12} />
+                                        {busy ? "Saving..." : "Ban"}
+                                      </button>
+                                    </>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* Invite Members */}
+          {["private_request", "private_invite"].includes(community?.type) && (
+            <section className="bg-[#14100D] border border-[#2A241E] rounded-xl p-4 sm:p-5">
+              <div className="flex items-start gap-3 mb-4">
+                <div className="w-9 h-9 rounded-lg bg-[#D4AF37]/10 border border-[#D4AF37]/30 flex items-center justify-center text-[#D4AF37] shrink-0">
+                  <UserPlus size={16} />
+                </div>
+                <div>
+                  <h2 className="text-base sm:text-lg font-semibold text-[#E5E0D8]">
+                    Invite Members
+                  </h2>
+                  <p className="text-[11px] sm:text-xs text-[#A69B8D] mt-0.5">
+                    Search by username or email. Type at least 3 characters,
+                    then select a user from the results to invite.
+                  </p>
+                </div>
+              </div>
+
+              <form onSubmit={handleInvite} className="space-y-2">
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="text"
+                    value={inviteIdentifier}
+                    onChange={(e) => {
+                      setInviteIdentifier(e.target.value);
+                      setSelectedInviteUser(null);
+                    }}
+                    placeholder="Username or email"
+                    className="flex-1 bg-[#0E0C0A] border border-[#2A241E] rounded-lg px-3 py-2 text-sm text-[#E5E0D8] placeholder:text-[#8C8070] focus:outline-none focus:border-[#D4AF37]/50"
+                  />
+                  <button
+                    type="submit"
+                    disabled={
+                      inviteBusy ||
+                      !inviteIdentifier.trim() ||
+                      (isOwner && !selectedInviteUser)
+                    }
+                    className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-[#D4AF37] text-black text-xs font-semibold disabled:opacity-60"
+                  >
+                    {inviteBusy && <Loader2 size={12} className="animate-spin" />}
+                    Send Invite
+                  </button>
+                </div>
+
+                {isOwner && inviteIdentifier.trim() && (
+                  <div className="space-y-1.5">
+                    {inviteIdentifier.trim().length < 3 ? (
+                      <p className="text-[11px] text-[#8C8070] px-1">
+                        Type at least 3 characters to look up a user.
+                      </p>
+                    ) : inviteLookupLoading ? (
+                      <div className="flex items-center gap-2 text-[11px] text-[#A69B8D] px-1 py-1">
+                        <Loader2 size={12} className="animate-spin" />
+                        Looking up users...
+                      </div>
+                    ) : inviteLookupUsers.length > 0 ? (
+                      <div className="max-h-48 overflow-y-auto space-y-1.5">
+                        {inviteLookupUsers.map((user) => {
+                          const isSelected =
+                            selectedInviteUser &&
+                            String(selectedInviteUser.id) === String(user.id);
+                          return (
+                            <button
+                              key={user.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedInviteUser(user);
+                                setInviteIdentifier(user.username || user.email || "");
+                              }}
+                              className={`w-full flex items-center gap-3 rounded-lg border px-3 py-2 text-left transition-colors ${
+                                isSelected
+                                  ? "border-[#D4AF37] bg-[#D4AF37]/10"
+                                  : "border-[#2A241E] bg-[#0E0C0A] hover:border-[#D4AF37]/40"
+                              }`}
+                            >
+                              {user.avatar ? (
+                                <img
+                                  src={user.avatar}
+                                  alt=""
+                                  className="w-9 h-9 rounded-full object-cover shrink-0 border border-[#2A241E]"
+                                />
+                              ) : (
+                                <div className="w-9 h-9 rounded-full bg-[#1C1612] border border-[#2A241E] flex items-center justify-center text-[#D4AF37] text-xs font-semibold shrink-0">
+                                  {(user.username || "?").charAt(0).toUpperCase()}
+                                </div>
+                              )}
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-[#E5E0D8] truncate">
+                                  @{user.username}
+                                </p>
+                                <p className="text-[11px] text-[#A69B8D] truncate">
+                                  {user.name ? `${user.name} · ` : ""}
+                                  {user.email || ""}
+                                </p>
+                              </div>
+                              {isSelected && (
+                                <span className="ml-auto text-[10px] uppercase tracking-wide text-[#D4AF37] shrink-0">
+                                  Selected
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
                     ) : (
-                      <>
-                        {isOwner && member.role === "member" && (
-                          <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() => handleAssignModerator(member)}
-                            className="rounded-lg border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-3 py-1.5 text-[11px] text-[#D4AF37] disabled:opacity-60"
-                          >
-                            {busy ? "Saving..." : "Assign Moderator"}
-                          </button>
-                        )}
-                        {isOwner && member.role === "moderator" && (
-                          <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() => handleRevokeModerator(member)}
-                            className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-1.5 text-[11px] text-amber-200 disabled:opacity-60"
-                          >
-                            {busy ? "Saving..." : "Remove Moderator"}
-                          </button>
-                        )}
-                        {canActOnMember(member) && (
-                          <>
-                            <button
-                              type="button"
-                              disabled={busy}
-                              onClick={() => handleRemoveMember(member)}
-                              className="rounded-lg border border-[#2A241E] px-3 py-1.5 text-[11px] text-[#A69B8D] hover:text-[#D4AF37] hover:border-[#D4AF37]/40 disabled:opacity-60"
-                            >
-                              {busy ? "Saving..." : "Remove"}
-                            </button>
-                            <button
-                              type="button"
-                              disabled={busy}
-                              onClick={() => handleBanMember(member)}
-                              className="inline-flex items-center gap-1 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1.5 text-[11px] text-red-400 disabled:opacity-60"
-                            >
-                              <Ban size={12} />
-                              {busy ? "Saving..." : "Ban"}
-                            </button>
-                          </>
-                        )}
-                      </>
+                      <p className="text-[11px] text-red-400 px-1">
+                        No matching user found.
+                      </p>
                     )}
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </div>
-  </section>
-)}
+                )}
 
-         {/* Invite Members */}
-{["private_request", "private_invite"].includes(community?.type) && (
-  <section className="bg-[#14100D] border border-[#2A241E] rounded-xl p-4 sm:p-5">
-    <div className="flex items-start gap-3 mb-4">
-      <div className="w-9 h-9 rounded-lg bg-[#D4AF37]/10 border border-[#D4AF37]/30 flex items-center justify-center text-[#D4AF37] shrink-0">
-        <UserPlus size={16} />
-      </div>
-      <div>
-        <h2 className="text-base sm:text-lg font-semibold text-[#E5E0D8]">
-          Invite Members
-        </h2>
-        <p className="text-[11px] sm:text-xs text-[#A69B8D] mt-0.5">
-          Search by username or email. Type at least 3 characters,
-          then select a user from the results to invite.
-        </p>
-      </div>
-    </div>
-
-    <form onSubmit={handleInvite} className="space-y-2">
-      <div className="flex flex-col sm:flex-row gap-2">
-        <input
-          type="text"
-          value={inviteIdentifier}
-          onChange={(e) => {
-            setInviteIdentifier(e.target.value);
-            setSelectedInviteUser(null);
-            setInviteError("");
-            setInviteMessage("");
-            setInviteLookupError("");
-          }}
-          placeholder="Username or email"
-          className="flex-1 bg-[#0E0C0A] border border-[#2A241E] rounded-lg px-3 py-2 text-sm text-[#E5E0D8] placeholder:text-[#8C8070] focus:outline-none focus:border-[#D4AF37]/50"
-        />
-        <button
-          type="submit"
-          disabled={
-            inviteBusy ||
-            !inviteIdentifier.trim() ||
-            (isOwner && !selectedInviteUser)
-          }
-          className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-[#D4AF37] text-black text-xs font-semibold disabled:opacity-60"
-        >
-          {inviteBusy && <Loader2 size={12} className="animate-spin" />}
-          Send Invite
-        </button>
-      </div>
-
-      {isOwner && inviteIdentifier.trim() && (
-        <div className="space-y-1.5">
-          {inviteIdentifier.trim().length < 3 ? (
-            <p className="text-[11px] text-[#8C8070] px-1">
-              Type at least 3 characters to look up a user.
-            </p>
-          ) : inviteLookupLoading ? (
-            <div className="flex items-center gap-2 text-[11px] text-[#A69B8D] px-1 py-1">
-              <Loader2 size={12} className="animate-spin" />
-              Looking up users...
-            </div>
-          ) : inviteLookupError ? (
-            <p className="text-[11px] text-red-400 px-1">{inviteLookupError}</p>
-          ) : inviteLookupUsers.length > 0 ? (
-            <div className="max-h-48 overflow-y-auto space-y-1.5">
-              {inviteLookupUsers.map((user) => {
-                const isSelected =
-                  selectedInviteUser &&
-                  String(selectedInviteUser.id) === String(user.id);
-                return (
-                  <button
-                    key={user.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedInviteUser(user);
-                      setInviteIdentifier(user.username || user.email || "");
-                    }}
-                    className={`w-full flex items-center gap-3 rounded-lg border px-3 py-2 text-left transition-colors ${
-                      isSelected
-                        ? "border-[#D4AF37] bg-[#D4AF37]/10"
-                        : "border-[#2A241E] bg-[#0E0C0A] hover:border-[#D4AF37]/40"
-                    }`}
-                  >
-                    {user.avatar ? (
-                      <img
-                        src={user.avatar}
-                        alt=""
-                        className="w-9 h-9 rounded-full object-cover shrink-0 border border-[#2A241E]"
-                      />
-                    ) : (
-                      <div className="w-9 h-9 rounded-full bg-[#1C1612] border border-[#2A241E] flex items-center justify-center text-[#D4AF37] text-xs font-semibold shrink-0">
-                        {(user.username || "?").charAt(0).toUpperCase()}
-                      </div>
-                    )}
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-[#E5E0D8] truncate">
-                        @{user.username}
-                      </p>
-                      <p className="text-[11px] text-[#A69B8D] truncate">
-                        {user.name ? `${user.name} · ` : ""}
-                        {user.email || ""}
-                      </p>
-                    </div>
-                    {isSelected && (
-                      <span className="ml-auto text-[10px] uppercase tracking-wide text-[#D4AF37] shrink-0">
-                        Selected
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="text-[11px] text-red-400 px-1">
-              No matching user found.
-            </p>
+                <textarea
+                  value={inviteNote}
+                  onChange={(e) => setInviteNote(e.target.value)}
+                  placeholder="Optional message…"
+                  rows={2}
+                  className="w-full bg-[#0E0C0A] border border-[#2A241E] rounded-lg px-3 py-2 text-sm text-[#E5E0D8] placeholder:text-[#8C8070] focus:outline-none focus:border-[#D4AF37]/50 resize-y min-h-[64px]"
+                />
+              </form>
+            </section>
           )}
-        </div>
-      )}
-
-      <textarea
-        value={inviteNote}
-        onChange={(e) => setInviteNote(e.target.value)}
-        placeholder="Optional message…"
-        rows={2}
-        className="w-full bg-[#0E0C0A] border border-[#2A241E] rounded-lg px-3 py-2 text-sm text-[#E5E0D8] placeholder:text-[#8C8070] focus:outline-none focus:border-[#D4AF37]/50 resize-y min-h-[64px]"
-      />
-    </form>
-
-    {inviteError && (
-      <p className="text-xs text-red-400 mt-2">{inviteError}</p>
-    )}
-    {inviteMessage && (
-      <p className="text-xs text-emerald-400 mt-2">{inviteMessage}</p>
-    )}
-  </section>
-)}
         </>
       )}
     </div>

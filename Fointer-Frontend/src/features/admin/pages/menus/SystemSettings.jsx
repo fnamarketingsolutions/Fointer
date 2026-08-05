@@ -4,8 +4,10 @@ import {
   fetchSystemSettings,
   updateSystemSettings,
 } from "../../services/adminService";
+import { useToast } from "../../../../shared/components/feedback/ToastContext";
 
 export default function SystemSettings() {
+  const { showToast } = useToast();
   const [editLimit, setEditLimit] = useState(60);
   const [watchLimit, setWatchLimit] = useState(50);
   const [s3Limit, setS3Limit] = useState(25);
@@ -14,14 +16,11 @@ export default function SystemSettings() {
   );
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
 
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
       setLoading(true);
-      setError("");
       try {
         const data = await fetchSystemSettings();
         if (!cancelled && data?.settings?.postEditWindowMinutes != null) {
@@ -29,7 +28,7 @@ export default function SystemSettings() {
         }
       } catch (err) {
         if (!cancelled) {
-          setError(
+          showToast(
             err?.response?.data?.message || "Failed to load system settings."
           );
         }
@@ -41,27 +40,24 @@ export default function SystemSettings() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [showToast]);
 
   const handleSave = async () => {
     const minutes = Number(editLimit);
     if (!Number.isFinite(minutes) || minutes < 1 || minutes > 10080) {
-      setError("Self-deletion limit must be between 1 and 10080 minutes.");
-      setSuccess("");
+      showToast("Self-deletion limit must be between 1 and 10080 minutes.");
       return;
     }
 
     setSaving(true);
-    setError("");
-    setSuccess("");
     try {
       const data = await updateSystemSettings({
         postEditWindowMinutes: Math.floor(minutes),
       });
       setEditLimit(data?.settings?.postEditWindowMinutes ?? Math.floor(minutes));
-      setSuccess("Settings saved.");
+      showToast("Settings saved.");
     } catch (err) {
-      setError(err?.response?.data?.message || "Failed to save settings.");
+      showToast(err?.response?.data?.message || "Failed to save settings.");
     } finally {
       setSaving(false);
     }
@@ -92,17 +88,6 @@ export default function SystemSettings() {
           Save Changes
         </button>
       </div>
-
-      {error && (
-        <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3">
-          {error}
-        </div>
-      )}
-      {success && (
-        <div className="text-xs text-amber-200 bg-amber-500/10 border border-amber-500/20 rounded-lg px-4 py-3">
-          {success}
-        </div>
-      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <div className="bg-[#141210] border border-stone-800/60 p-5 rounded-xl space-y-3">

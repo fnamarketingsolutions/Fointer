@@ -9,6 +9,7 @@ import connectDB from "./config/db.js";
 import authRoute from "./routes/authRoute.js";
 import dashboardRoute from "./routes/dashboardRoute.js";
 import communityRoute from "./routes/communityRoute.js";
+import channelRoute from "./routes/channelRoute.js";
 import postRoute from "./routes/postRoute.js";
 import uploadRoute from "./routes/uploadRoute.js";
 import profileRoute from "./routes/profileRoute.js";
@@ -36,6 +37,7 @@ app.use(
 
 app.use("/api/auth", authRoute);
 app.use("/api", dashboardRoute);
+app.use("/api", channelRoute);
 app.use("/api/communities", communityRoute);
 app.use("/api/posts", postRoute);
 app.use("/api/uploads", uploadRoute);

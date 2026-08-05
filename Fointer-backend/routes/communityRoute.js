@@ -21,6 +21,7 @@ import {
   listCommunityInvites,
   acceptCommunityInvite,
   declineCommunityInvite,
+  resolveCommunityCode,
 } from "../controllers/community.controller.js";
 import {
   listCommunityMembers,
@@ -41,6 +42,9 @@ import {
 import inviteRoute from "./inviteRoute.js";
 
 const router = express.Router();
+
+// Short-code lookup — must stay ahead of the /:id routes
+router.get("/resolve/:code", optionalAuthenticate, resolveCommunityCode);
 
 router.get("/browse", optionalAuthenticate, listBrowsableCommunities);
 router.get("/browse/:id/members", isAuthenticated, listBrowsableCommunityMembers);

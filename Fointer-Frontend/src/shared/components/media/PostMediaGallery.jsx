@@ -3,6 +3,7 @@ import React, { useRef, useState } from "react";
 export default function PostMediaGallery({
   media = [],
   counterOverlay = false,
+  heightClass = "max-h-96",
 }) {
   const scrollRef = useRef(null);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -19,14 +20,10 @@ export default function PostMediaGallery({
       <video
         src={item.url}
         controls
-        className="w-full max-h-96 bg-black object-contain"
+        className={`w-full ${heightClass} bg-black object-contain`}
       />
     ) : (
-      <img
-        src={item.url}
-        alt=""
-        className="w-full max-h-96 object-cover"
-      />
+      <img src={item.url} alt="" className={`w-full ${heightClass} object-cover`} />
     );
   }
 
@@ -61,13 +58,13 @@ export default function PostMediaGallery({
               <video
                 src={m.url}
                 controls
-                className="w-full max-h-96 bg-black object-contain"
+                className={`w-full ${heightClass} bg-black object-contain`}
               />
             ) : (
               <img
                 src={m.url}
                 alt=""
-                className="w-full max-h-96 object-cover"
+                className={`w-full ${heightClass} object-cover`}
               />
             )}
           </div>

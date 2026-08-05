@@ -14,6 +14,8 @@ import {
   Heart,
   MessageCircle,
   Plus,
+  Layers,
+  Grid,
 } from "lucide-react";
 import {
   fetchBrowsableCommunity,
@@ -27,10 +29,15 @@ import {
   togglePostLike,
 } from "../../../api/posts";
 import MediaPicker from "../../../shared/components/media/MediaPicker";
+import { useToast } from "../../../shared/components/feedback/ToastContext";
 import { useAuth } from "../../../context/AuthContext";
 import { COMMUNITY_TYPE_LABELS } from "../../../shared/constants/community";
 import { formatLongDate, timeAgo } from "../../../shared/utils/date";
 import { formatCount } from "../../../shared/utils/format";
+import {
+  communitySegment,
+  postSegment,
+} from "../../../shared/services/entityLinks";
 
 const TYPE_META = {
   public: { label: COMMUNITY_TYPE_LABELS.public, icon: Globe },
@@ -124,11 +131,11 @@ export default function CommunityBrowseDetail({
 }) {
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const isPage = variant === "page";
 
   const [community, setCommunity] = useState(initialCommunity);
   const [loading, setLoading] = useState(!initialCommunity);
-  const [error, setError] = useState("");
   const [joining, setJoining] = useState(false);
   const [message, setMessage] = useState("");
   const [heroPreview, setHeroPreview] = useState(null);
@@ -142,21 +149,21 @@ export default function CommunityBrowseDetail({
   const [membersExpanded, setMembersExpanded] = useState(false);
   const [aboutExpanded, setAboutExpanded] = useState(false);
   const [rulesExpanded, setRulesExpanded] = useState(false);
+  const [subchannelsExpanded, setSubchannelsExpanded] = useState(false);
 
   const load = useCallback(async () => {
     if (!communityId) return;
     setLoading(true);
-    setError("");
     try {
       const data = await fetchBrowsableCommunity(communityId);
       setCommunity(data?.community || null);
     } catch (err) {
-      setError(err?.response?.data?.message || "Failed to load community.");
+      showToast(err?.response?.data?.message || "Failed to load community.");
       setCommunity(null);
     } finally {
       setLoading(false);
     }
-  }, [communityId]);
+  }, [communityId, showToast]);
 
   const loadMembers = useCallback(async () => {
     if (!communityId) return;
@@ -189,6 +196,7 @@ export default function CommunityBrowseDetail({
     setAboutExpanded(false);
     setRulesExpanded(false);
     setMembersExpanded(false);
+    setSubchannelsExpanded(false);
     if (communityId) {
       load();
     }
@@ -207,7 +215,6 @@ export default function CommunityBrowseDetail({
   const handleJoin = async () => {
     if (!community) return;
     setJoining(true);
-    setError("");
     try {
       if (community.type === "public") {
         await joinPublicCommunity(community.id);
@@ -217,7 +224,7 @@ export default function CommunityBrowseDetail({
       await load();
       onJoined?.();
     } catch (err) {
-      setError(err?.response?.data?.message || "Failed to submit request.");
+      showToast(err?.response?.data?.message || "Failed to submit request.");
     } finally {
       setJoining(false);
     }
@@ -226,11 +233,10 @@ export default function CommunityBrowseDetail({
   const handleCreatePost = async (e) => {
     e.preventDefault();
     if (!communityId || !postForm.title.trim()) {
-      setError("Post title is required.");
+      showToast("Post title is required.");
       return;
     }
     setPostSaving(true);
-    setError("");
     try {
       await createPost({
         communityId,
@@ -242,7 +248,7 @@ export default function CommunityBrowseDetail({
       setPostForm({ title: "", text: "", media: [] });
       await loadPosts();
     } catch (err) {
-      setError(err?.response?.data?.message || "Failed to create post.");
+      showToast(err?.response?.data?.message || "Failed to create post.");
     } finally {
       setPostSaving(false);
     }
@@ -278,14 +284,15 @@ export default function CommunityBrowseDetail({
     }
   };
 
-  const handlePostClick = (postId) => {
-    if (!communityId || !postId) return;
-    navigate(`/communities/${communityId}/posts/${postId}`);
+  const handlePostClick = (post) => {
+    if (!communityId || !post?.id) return;
+    const segment = communitySegment(community) || communityId;
+    navigate(`/communities/${segment}/posts/${postSegment(post)}`);
   };
 
-  const handleCommentClick = (postId, e) => {
+  const handleCommentClick = (post, e) => {
     e?.stopPropagation?.();
-    handlePostClick(postId);
+    handlePostClick(post);
   };
 
   const meta = TYPE_META[community?.type] || TYPE_META.public;
@@ -300,6 +307,22 @@ export default function CommunityBrowseDetail({
       [community?.coverImage, ...galleryImages].filter(Boolean)
     ),
   ];
+
+  // Channel & Subchannels Normalization
+  const channelName =
+    typeof community?.channel === "object"
+      ? community?.channel?.name
+      : community?.channel || "";
+
+  const rawSubchannels = Array.isArray(community?.subchannels)
+    ? community.subchannels
+    : [];
+  const subchannelList = rawSubchannels.map((sub) =>
+    typeof sub === "object" ? sub.name || sub.id : sub
+  );
+  const primarySubchannels = subchannelList.slice(0, 2);
+  const extraSubchannels = subchannelList.slice(2);
+
   const ruleLines = (community?.rules || "")
     .split("\n")
     .map((r) => r.trim())
@@ -351,18 +374,19 @@ export default function CommunityBrowseDetail({
   const heroBlock = community && (
     <div className="relative rounded-xl overflow-hidden border border-[#2A241E]">
       <div
-  className={`relative flex items-center justify-center ${
-    isPage ? "h-150 sm:h-100 lg:h-170" : "h-40 sm:h-52"
-  }`}
->
+        className={`relative flex items-center justify-center ${
+          isPage ? "h-150 sm:h-100 lg:h-170" : "h-40 sm:h-52"
+        }`}
+      >
         {heroImage ? (
           <img
-          src={heroImage}
-          alt=""
-          className="w-150 h-150 object-contain"
-        />
+            src={heroImage}
+            alt=""
+            className="w-150 h-150 object-contain"
+          />
         ) : (
-<div className="w-200 h-200 bg-gradient-to-br from-[#1C1612] to-[#0E0C0A] flex items-center justify-center rounded-lg" />        )}
+          <div className="w-200 h-200 bg-gradient-to-br from-[#1C1612] to-[#0E0C0A] flex items-center justify-center rounded-lg" />
+        )}
         {!isPage && (
           <>
             <div className="absolute inset-0 bg-gradient-to-t from-[#0E0C0A] via-[#0E0C0A]/50 to-transparent" />
@@ -393,9 +417,7 @@ export default function CommunityBrowseDetail({
         <ImageIcon size={12} />
         Gallery
       </h4>
-      <div
-        className="grid grid-cols-5 gap-1"
-      >
+      <div className="grid grid-cols-5 gap-1">
         {thumbs.map((url) => (
           <button
             key={url}
@@ -462,6 +484,71 @@ export default function CommunityBrowseDetail({
         </div>
       </div>
     </div>
+  );
+
+  // Channel & Subchannels Section (Positioned Above "About")
+  const channelsBlock = (channelName || subchannelList.length > 0) && (
+    <section className={panelClass}>
+      <div className="space-y-3">
+        {channelName && (
+          <div>
+            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-[#8C8070] mb-1.5 font-bold">
+              <Layers size={12} className="text-[#D4AF37]" />
+              Channel
+              <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-[#D4AF37]/15 border border-[#D4AF37]/30 text-[#D4AF37] text-xs font-semibold">
+              {channelName}
+            </span>
+            </div>
+            
+          </div>
+        )}
+
+        {subchannelList.length > 0 && (
+          <div>
+            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-[#8C8070] mb-1.5 font-bold">
+              <Grid size={12} className="text-[#D4AF37]" />
+              Subchannels ({subchannelList.length})
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {primarySubchannels.map((sub, idx) => (
+                <span
+                  key={`${idx}-${sub}`}
+                  className="px-2 py-0.5 rounded-md bg-[#1C1612] border border-[#2A241E] text-[#E5E0D8] text-[11px] font-medium"
+                >
+                  {sub}
+                </span>
+              ))}
+            </div>
+
+            {extraSubchannels.length > 0 && (
+              <>
+                <Collapsible open={subchannelsExpanded}>
+                  <div className="flex flex-wrap gap-1.5 pt-1.5">
+                    {extraSubchannels.map((sub, idx) => (
+                      <span
+                        key={`${idx + 2}-${sub}`}
+                        className="px-2 py-0.5 rounded-md bg-[#1C1612] border border-[#2A241E] text-[#E5E0D8] text-[11px] font-medium"
+                      >
+                        {sub}
+                      </span>
+                    ))}
+                  </div>
+                </Collapsible>
+                <button
+                  type="button"
+                  onClick={() => setSubchannelsExpanded((v) => !v)}
+                  className="mt-2 text-[11px] font-medium text-[#D4AF37] hover:text-[#e0c04a] transition-colors"
+                >
+                  {subchannelsExpanded
+                    ? "View less"
+                    : `View more (${extraSubchannels.length})`}
+                </button>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    </section>
   );
 
   const aboutBlock = community?.description && (
@@ -757,10 +844,7 @@ export default function CommunityBrowseDetail({
         </h4>
         <button
           type="button"
-          onClick={() => {
-            setShowCreatePost(true);
-            setError("");
-          }}
+          onClick={() => setShowCreatePost(true)}
           className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#D4AF37] text-black text-xs font-semibold self-start sm:self-auto hover:bg-[#c3a030] transition-colors"
         >
           <Plus size={14} />
@@ -788,9 +872,9 @@ export default function CommunityBrowseDetail({
                 <article
                   role="button"
                   tabIndex={0}
-                  onClick={() => handlePostClick(post.id)}
+                  onClick={() => handlePostClick(post)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") handlePostClick(post.id);
+                    if (e.key === "Enter") handlePostClick(post);
                   }}
                   className="bg-[#14100D] border border-[#2A241E] rounded-xl overflow-hidden cursor-pointer transition-all flex flex-col justify-between h-full hover:border-[#D4AF37]/40 shadow-lg hover:shadow-2xl"
                 >
@@ -862,7 +946,7 @@ export default function CommunityBrowseDetail({
                       </button>
                       <button
                         type="button"
-                        onClick={(e) => handleCommentClick(post.id, e)}
+                        onClick={(e) => handleCommentClick(post, e)}
                         className="inline-flex items-center gap-1 transition-colors hover:text-[#E5E0D8]"
                       >
                         <MessageCircle
@@ -925,7 +1009,7 @@ export default function CommunityBrowseDetail({
         <MediaPicker
           media={postForm.media}
           onChange={(media) => setPostForm((p) => ({ ...p, media }))}
-          onError={setError}
+          onError={showToast}
         />
         <button
           type="submit"
@@ -944,6 +1028,7 @@ export default function CommunityBrowseDetail({
   const sidebarBlocks = [
     ["gallery", galleryStrip],
     ["stats", statsBlock],
+    ["channels", channelsBlock],
     ["about", aboutBlock],
     ["rules", rulesBlock],
     ["members", membersBlock],
@@ -972,6 +1057,7 @@ export default function CommunityBrowseDetail({
           {heroBlock}
           {galleryStrip}
           {statsBlock}
+          {channelsBlock}
           {aboutBlock}
           {rulesBlock}
           {tagsBlock}
@@ -987,12 +1073,6 @@ export default function CommunityBrowseDetail({
 
   const content = (
     <div className="space-y-4 sm:space-y-5">
-      {error && (
-        <div className="text-xs sm:text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-          {error}
-        </div>
-      )}
-
       {loading ? (
         <div className="flex items-center justify-center py-16 text-[#A69B8D] text-sm gap-2">
           <Loader2 size={16} className="animate-spin" />

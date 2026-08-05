@@ -4,6 +4,8 @@ import { Loader2, Search } from "lucide-react";
 import { fetchPublicPosts } from "../../../../api/posts";
 import PostCard from "../../components/PostCard";
 import { useAuth } from "../../../../context/AuthContext";
+import { useToast } from "../../../../shared/components/feedback/ToastContext";
+import { postSegment } from "../../../../shared/services/entityLinks";
 
 const PAGE_SIZE = 10;
 
@@ -18,11 +20,11 @@ export default function AllPosts() {
   const navigate = useNavigate();
   const location = useLocation();
   const { isAuthenticated } = useAuth();
+  const { showToast } = useToast();
   const searchInputRef = useRef(null);
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [sortBy, setSortBy] = useState("newest");
@@ -36,7 +38,6 @@ export default function AllPosts() {
       } else {
         setLoading(true);
       }
-      setError("");
       try {
         const params = {
           page: pageNum,
@@ -50,7 +51,7 @@ export default function AllPosts() {
         setHasMore(Boolean(data?.pagination?.hasMore));
         setPage(pageNum);
       } catch (err) {
-        setError(
+        showToast(
           err?.response?.data?.message || "Unable to load posts right now."
         );
         if (!append) setPosts([]);
@@ -60,7 +61,7 @@ export default function AllPosts() {
         setLoadingMore(false);
       }
     },
-    []
+    [showToast]
   );
 
   useEffect(() => {
@@ -140,12 +141,6 @@ export default function AllPosts() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-12">
-        {error && (
-          <div className="mb-6 text-xs sm:text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3 text-center">
-            {error}
-          </div>
-        )}
-
         {loading ? (
           <div className="flex items-center justify-center py-16 text-[#A69B8D] text-sm gap-2">
             <Loader2 size={18} className="animate-spin" />
@@ -162,7 +157,7 @@ export default function AllPosts() {
                 <PostCard
                   key={post.id}
                   post={post}
-                  onClick={() => navigate(`/posts/${post.id}`)}
+                  onClick={() => navigate(`/posts/${postSegment(post)}`)}
                 />
               ))}
             </div>

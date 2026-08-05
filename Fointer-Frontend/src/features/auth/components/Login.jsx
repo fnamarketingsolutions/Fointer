@@ -1,14 +1,16 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { FiEye, FiEyeOff, FiHome } from 'react-icons/fi';
 import { Link, useNavigate } from 'react-router-dom';
 import { loginUser, resendVerificationEmail, verifyEmailOtp } from '../services/authService';
 import { useAuth } from '../../../context/AuthContext';
 import { useSocialAuth } from '../hooks/useSocialAuth';
+import { useToast } from '../../../shared/components/feedback/ToastContext';
 import SocialAuthButtons from './SocialAuthButtons';
 
 export default function Login() {
   const navigate = useNavigate();
   const { loginSuccess } = useAuth();
+  const { showToast } = useToast();
   const {
     loading: socialLoading,
     error: socialError,
@@ -22,14 +24,16 @@ export default function Login() {
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [emailLoading, setEmailLoading] = useState(false);
-  const [emailError, setEmailError] = useState('');
   const [verificationEmail, setVerificationEmail] = useState('');
   const [otp, setOtp] = useState('');
   const [verifyLoading, setVerifyLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
 
   const activeVerificationEmail = verificationEmail || pendingVerification?.email || '';
-  const errorMessage = emailError || socialError;
+
+  useEffect(() => {
+    if (socialError) showToast(socialError);
+  }, [socialError, showToast]);
 
   const handleChange = (e) => {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -38,7 +42,6 @@ export default function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setEmailLoading(true);
-    setEmailError('');
     setVerificationEmail('');
     setSocialError('');
     clearPendingVerification();
@@ -49,14 +52,14 @@ export default function Login() {
         loginSuccess(response.user);
         navigate(response.user.role === 'admin' ? '/admin' : '/dashboard');
       } else {
-        setEmailError(response?.message || 'Invalid email or password.');
+        showToast(response?.message || 'Invalid email or password.');
       }
     } catch (error) {
       if (error?.response?.data?.requiresEmailVerification) {
         setVerificationEmail(error?.response?.data?.email || formData.email);
         setOtp('');
       }
-      setEmailError(error?.response?.data?.message || 'Login failed. Please try again.');
+      showToast(error?.response?.data?.message || 'Login failed. Please try again.');
     } finally {
       setEmailLoading(false);
     }
@@ -66,15 +69,12 @@ export default function Login() {
     if (!activeVerificationEmail) return;
 
     setResendLoading(true);
-    setEmailError('');
 
     try {
       const response = await resendVerificationEmail(activeVerificationEmail);
-      setEmailError(response?.message || 'OTP sent.');
+      showToast(response?.message || 'OTP sent.');
     } catch (error) {
-      setEmailError(
-        error?.response?.data?.message || 'Could not resend OTP.'
-      );
+      showToast(error?.response?.data?.message || 'Could not resend OTP.');
     } finally {
       setResendLoading(false);
     }
@@ -85,7 +85,6 @@ export default function Login() {
     if (!activeVerificationEmail || otp.length !== 6) return;
 
     setVerifyLoading(true);
-    setEmailError('');
 
     try {
       const response = await verifyEmailOtp(activeVerificationEmail, otp);
@@ -94,7 +93,7 @@ export default function Login() {
         navigate(response.user.role === 'admin' ? '/admin' : '/dashboard');
       }
     } catch (error) {
-      setEmailError(error?.response?.data?.message || 'OTP verification failed.');
+      showToast(error?.response?.data?.message || 'OTP verification failed.');
     } finally {
       setVerifyLoading(false);
     }
@@ -183,12 +182,6 @@ export default function Login() {
               Please enter your credentials to access your account.
             </p>
           </div>
-
-          {errorMessage && (
-            <div className="mb-5 p-3 rounded-lg bg-red-950/60 border border-red-500/40 text-red-200 text-xs text-center leading-relaxed">
-              {errorMessage}
-            </div>
-          )}
 
           {!activeVerificationEmail ? (
             <form onSubmit={handleSubmit} className="space-y-5">

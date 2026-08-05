@@ -35,8 +35,31 @@ const formatAdminUser = (u) => ({
   updatedAt: u.updatedAt,
 });
 
+const formatChannelRef = (channel) => {
+  if (!channel) return null;
+  if (typeof channel === "object" && (channel._id || channel.name)) {
+    return {
+      id: channel._id || channel.id || undefined,
+      name: channel.name || String(channel._id || ""),
+    };
+  }
+  return { name: String(channel) };
+};
+
+const formatSubchannelRefs = (subchannels = []) =>
+  (subchannels || []).map((item) => {
+    if (item && typeof item === "object" && (item._id || item.name)) {
+      return {
+        id: item._id || item.id || undefined,
+        name: item.name || String(item._id || ""),
+      };
+    }
+    return { name: String(item) };
+  });
+
 const formatCommunity = (community, memberCount = 0) => ({
   id: community._id,
+  shortCode: community.shortCode || "",
   name: community.name,
   description: community.description || "",
   rules: community.rules || "",
@@ -44,6 +67,8 @@ const formatCommunity = (community, memberCount = 0) => ({
   coverImage: community.coverImage || "",
   galleryImages: community.galleryImages || [],
   type: community.type,
+  channel: formatChannelRef(community.channel),
+  subchannels: formatSubchannelRefs(community.subchannels),
   owner: community.owner
     ? {
         id: community.owner._id || community.owner,
@@ -272,7 +297,6 @@ export const getAdminCommunityDetail = async (req, res) => {
       "owner",
       "username name email avatar"
     );
-
     if (!community) {
       return res.status(404).json({
         success: false,

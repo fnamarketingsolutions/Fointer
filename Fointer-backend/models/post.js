@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { shortCodeField, withShortCode } from "../utils/shortCode.js";
 
 const mediaSchema = new mongoose.Schema(
   {
@@ -15,6 +16,7 @@ const mediaSchema = new mongoose.Schema(
 
 const postSchema = new mongoose.Schema(
   {
+    shortCode: shortCodeField,
     community: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Community",
@@ -49,6 +51,8 @@ const postSchema = new mongoose.Schema(
 );
 
 postSchema.index({ title: "text", text: "text" });
+
+withShortCode(postSchema);
 
 const Post = mongoose.model("Post", postSchema);
 

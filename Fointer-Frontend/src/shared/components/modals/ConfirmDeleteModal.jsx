@@ -1,8 +1,14 @@
+import { useEffect } from 'react';
 import { Loader2, X } from 'lucide-react';
+import { useToast } from '../feedback/ToastContext';
 
 /**
  * Reusable destructive-action confirmation modal.
  * Supports admin, dashboard, and post variants to preserve existing UI behavior.
+ *
+ * The `error` prop is kept for backward compatibility with parents that still
+ * pass it; instead of rendering an inline banner, it is surfaced via the
+ * shared toast. New callers should toast their own errors directly.
  */
 export default function ConfirmDeleteModal({
   open,
@@ -20,6 +26,12 @@ export default function ConfirmDeleteModal({
   showCloseButton = true,
   confirmDisabled = false,
 }) {
+  const { showToast } = useToast();
+
+  useEffect(() => {
+    if (error) showToast(error);
+  }, [error, showToast]);
+
   if (!open) return null;
 
   const canClose = !disableCloseWhileLoading || !loading;
@@ -45,12 +57,6 @@ export default function ConfirmDeleteModal({
               </button>
             )}
           </div>
-
-          {error && (
-            <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3">
-              {error}
-            </div>
-          )}
 
           <div className="text-sm text-stone-400 leading-relaxed">{children}</div>
 
@@ -100,12 +106,6 @@ export default function ConfirmDeleteModal({
             )}
           </div>
 
-          {error && (
-            <div className="mb-3 text-xs sm:text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-              {error}
-            </div>
-          )}
-
           <div className="text-xs sm:text-sm text-[#A69B8D] mb-4">{children}</div>
 
           <div className="flex gap-2.5">
@@ -141,12 +141,6 @@ export default function ConfirmDeleteModal({
       />
       <div className="relative w-full max-w-sm bg-[#14100D] border border-[#2A241E] rounded-xl p-6 space-y-4 shadow-2xl">
         <h3 className="text-base font-semibold text-[#E5E0D8]">{title}</h3>
-
-        {error && (
-          <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-            {error}
-          </div>
-        )}
 
         <div className="text-xs text-[#A69B8D] leading-relaxed">{children}</div>
 

@@ -4,31 +4,28 @@ import {
   Search,
   Loader2,
   Ban,
-  ShieldOff,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
   RefreshCw,
-  Trash2,
   Users,
   Building2,
   ExternalLink,
 } from 'lucide-react';
 import {
-  deleteUser,
   fetchAdminUserDetail,
   fetchUsers,
-  updateUser,
+  updateUserStatus,
 } from '../../../../api/dashboard';
 import { useAuth } from '../../../../context/AuthContext';
-import ConfirmDeleteModal from '../../../../shared/components/modals/ConfirmDeleteModal';
+import { useToast } from '../../../../shared/components/feedback/ToastContext';
 import { COMMUNITY_TYPE_LABELS } from '../../../../shared/constants/community';
+import { communitySegment } from '../../../../shared/services/entityLinks';
 
 const FILTERS = [
   { id: 'all', label: 'All' },
   { id: 'active', label: 'Active' },
   { id: 'banned', label: 'Banned' },
-  { id: 'suspended', label: 'Suspended' },
   { id: 'users', label: 'Users' },
   { id: 'moderators', label: 'Moderators' },
 ];
@@ -44,28 +41,25 @@ const TYPE_LABELS = COMMUNITY_TYPE_LABELS;
 const UserManagement = () => {
   const { user: currentUser } = useAuth();
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [users, setUsers] = useState([]);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [busyId, setBusyId] = useState(null);
   const [expandedUserId, setExpandedUserId] = useState(null);
   const [detailByUserId, setDetailByUserId] = useState({});
   const [detailLoadingId, setDetailLoadingId] = useState(null);
   const [expandedCommunityId, setExpandedCommunityId] = useState(null);
-  const [userToDelete, setUserToDelete] = useState(null);
-  const [deleting, setDeleting] = useState(false);
 
   const loadUsers = useCallback(async (opts = {}) => {
     const nextFilter = opts.filter ?? filter;
     const nextSearch = opts.search ?? search;
     setLoading(true);
-    setError('');
     try {
       const params = {};
       if (nextSearch.trim()) params.q = nextSearch.trim();
-      if (nextFilter === 'active' || nextFilter === 'banned' || nextFilter === 'suspended') {
+      if (nextFilter === 'active' || nextFilter === 'banned') {
         params.status = nextFilter;
       } else if (nextFilter === 'users') {
         params.role = 'user';
@@ -75,7 +69,7 @@ const UserManagement = () => {
       const data = await fetchUsers(params);
       setUsers(data?.users || []);
     } catch (err) {
-      setError(err?.response?.data?.message || 'Failed to load users.');
+      showToast(err?.response?.data?.message || 'Failed to load users.');
     } finally {
       setLoading(false);
     }
@@ -88,16 +82,15 @@ const UserManagement = () => {
 
   const setStatus = async (u, status) => {
     if (String(u.id) === String(currentUser?.id || currentUser?._id) && status !== 'active') {
-      setError('You cannot suspend or ban your own account.');
+      showToast('You cannot ban your own account.');
       return;
     }
     setBusyId(u.id);
-    setError('');
     try {
-      await updateUser(u.id, { status });
+      await updateUserStatus(u.id, status);
       await loadUsers();
     } catch (err) {
-      setError(err?.response?.data?.message || 'Failed to update status.');
+      showToast(err?.response?.data?.message || 'Failed to update status.');
     } finally {
       setBusyId(null);
     }
@@ -116,12 +109,11 @@ const UserManagement = () => {
     if (detailByUserId[u.id]) return;
 
     setDetailLoadingId(u.id);
-    setError('');
     try {
       const data = await fetchAdminUserDetail(u.id);
       setDetailByUserId((prev) => ({ ...prev, [u.id]: data }));
     } catch (err) {
-      setError(err?.response?.data?.message || 'Failed to load user detail.');
+      showToast(err?.response?.data?.message || 'Failed to load user detail.');
     } finally {
       setDetailLoadingId(null);
     }
@@ -129,28 +121,6 @@ const UserManagement = () => {
 
   const toggleCommunityMembers = (communityId) => {
     setExpandedCommunityId((prev) => (prev === communityId ? null : communityId));
-  };
-
-  const handleConfirmDelete = async () => {
-    if (!userToDelete) return;
-
-    setDeleting(true);
-    setError('');
-    try {
-      await deleteUser(userToDelete.id);
-      setUserToDelete(null);
-      setExpandedUserId((prev) => (prev === userToDelete.id ? null : prev));
-      setDetailByUserId((prev) => {
-        const next = { ...prev };
-        delete next[userToDelete.id];
-        return next;
-      });
-      await loadUsers();
-    } catch (err) {
-      setError(err?.response?.data?.message || 'Failed to delete user.');
-    } finally {
-      setDeleting(false);
-    }
   };
 
   const handleSearch = (e) => {
@@ -166,7 +136,7 @@ const UserManagement = () => {
             User Management
           </h1>
           <p className="text-xs text-stone-400 mt-1">
-            Ban, suspend, or activate users.
+            Ban or activate users.
           </p>
         </div>
         <button
@@ -207,12 +177,6 @@ const UserManagement = () => {
           </button>
         ))}
       </div>
-
-      {error && (
-        <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3">
-          {error}
-        </div>
-      )}
 
       {loading ? (
         <div className="flex items-center justify-center gap-2 py-16 text-stone-400 text-sm">
@@ -299,24 +263,6 @@ const UserManagement = () => {
                         Ban
                       </button>
                     )}
-                    {u.status !== 'suspended' && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setStatus(u, 'suspended');
-                        }}
-                        disabled={busy || isSelf}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-500/20 bg-amber-500/10 text-amber-400 text-[11px] font-semibold disabled:opacity-50"
-                      >
-                        {busy ? (
-                          <Loader2 size={12} className="animate-spin" />
-                        ) : (
-                          <ShieldOff size={12} />
-                        )}
-                        Suspend
-                      </button>
-                    )}
                     {u.status !== 'active' && (
                       <button
                         type="button"
@@ -335,19 +281,6 @@ const UserManagement = () => {
                         Activate
                       </button>
                     )}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setUserToDelete(u);
-                      }}
-                      disabled={isSelf || deleting}
-                      className="p-2 rounded-lg border border-red-500/20 bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors disabled:opacity-50"
-                      aria-label={`Delete ${u.username}`}
-                      title={isSelf ? 'You cannot delete your own account.' : 'Delete user'}
-                    >
-                      <Trash2 size={14} />
-                    </button>
                   </div>
                 </div>
 
@@ -433,7 +366,9 @@ const UserManagement = () => {
                                           type="button"
                                           onClick={(e) => {
                                             e.stopPropagation();
-                                            navigate(`/admin/communities/${community.id}`);
+                                            navigate(
+                                              `/admin/communities/${communitySegment(community)}`
+                                            );
                                           }}
                                           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-500/20 bg-amber-500/10 text-amber-300 text-[11px] font-semibold hover:bg-amber-500/20 transition-colors hover:cursor-pointer"
                                         >
@@ -509,23 +444,6 @@ const UserManagement = () => {
           })}
         </div>
       )}
-
-      <ConfirmDeleteModal
-        open={Boolean(userToDelete)}
-        title="Delete User"
-        variant="admin"
-        loading={deleting}
-        onConfirm={handleConfirmDelete}
-        onClose={() => setUserToDelete(null)}
-      >
-        <p>
-          Are you sure you want to delete{' '}
-          <strong className="text-stone-100 font-bold">
-            {userToDelete?.name || userToDelete?.username}
-          </strong>
-          ? This action cannot be undone.
-        </p>
-      </ConfirmDeleteModal>
     </div>
   );
 };

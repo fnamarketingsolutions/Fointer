@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Search,
   Plus,
@@ -15,7 +16,17 @@ import {
 } from "../../../api/posts";
 import { fetchJoinedCommunities } from "../../../api/communities";
 import MediaPicker from "../../../shared/components/media/MediaPicker";
-import PostDetail from "./PostDetail";
+import { useToast } from "../../../shared/components/feedback/ToastContext";
+import { postSegment } from "../../../shared/services/entityLinks";
+
+const PAGE_SIZE = 10;
+
+const SORT_OPTIONS = [
+  { value: "newest", label: "Newest" },
+  { value: "oldest", label: "Oldest" },
+  { value: "likes", label: "Likes" },
+  { value: "comments", label: "Comments" },
+];
 
 const emptyForm = {
   communityId: "",
@@ -25,31 +36,57 @@ const emptyForm = {
 };
 
 export default function PostManagement() {
+  const navigate = useNavigate();
+  const { showToast } = useToast();
   const [posts, setPosts] = useState([]);
   const [communities, setCommunities] = useState([]);
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
+  const [sortBy, setSortBy] = useState("newest");
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(emptyForm);
-  const [selectedPostId, setSelectedPostId] = useState(null);
 
-  const loadPosts = useCallback(async (q = query) => {
-    setLoading(true);
-    setError("");
-    try {
-      const data = await fetchPosts(
-        q ? { q, mine: "1" } : { mine: "1" }
-      );
-      setPosts(data?.posts || []);
-    } catch (err) {
-      setError(err?.response?.data?.message || "Failed to load posts.");
-    } finally {
-      setLoading(false);
-    }
-  }, [query]);
+  const loadPosts = useCallback(
+    async ({
+      q = "",
+      sort = "newest",
+      pageNum = 1,
+      append = false,
+    } = {}) => {
+      if (append) {
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
+      }
+      try {
+        const params = {
+          mine: "1",
+          page: pageNum,
+          limit: PAGE_SIZE,
+          sortBy: sort,
+        };
+        if (q) params.q = q;
+        const data = await fetchPosts(params);
+        const next = data?.posts || [];
+        setPosts((prev) => (append ? [...prev, ...next] : next));
+        setHasMore(Boolean(data?.pagination?.hasMore));
+        setPage(pageNum);
+      } catch (err) {
+        showToast(err?.response?.data?.message || "Failed to load posts.");
+        if (!append) setPosts([]);
+        setHasMore(false);
+      } finally {
+        setLoading(false);
+        setLoadingMore(false);
+      }
+    },
+    [showToast]
+  );
 
   const loadCommunities = useCallback(async () => {
     try {
@@ -61,25 +98,23 @@ export default function PostManagement() {
   }, []);
 
   const refreshAll = useCallback(async () => {
-    await Promise.all([loadPosts(), loadCommunities()]);
-  }, [loadPosts, loadCommunities]);
+    await Promise.all([
+      loadPosts({ q: query, sort: sortBy, pageNum: 1, append: false }),
+      loadCommunities(),
+    ]);
+  }, [loadPosts, loadCommunities, query, sortBy]);
 
   useEffect(() => {
-    loadPosts();
     loadCommunities();
-  }, [loadPosts, loadCommunities]);
+  }, [loadCommunities]);
 
   useEffect(() => {
-    loadPosts(query);
-  }, [query, loadPosts]);
+    loadPosts({ q: query, sort: sortBy, pageNum: 1, append: false });
+  }, [query, sortBy, loadPosts]);
 
   const openCreate = () => {
-    setForm({
-      ...emptyForm,
-      communityId: communities[0]?.id || "",
-    });
+    setForm(emptyForm);
     setShowForm(true);
-    setError("");
   };
 
   const closeForm = () => {
@@ -92,45 +127,36 @@ export default function PostManagement() {
     setQuery(search.trim());
   };
 
+  const handleLoadMore = () => {
+    if (loadingMore || !hasMore) return;
+    loadPosts({ q: query, sort: sortBy, pageNum: page + 1, append: true });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.title.trim()) {
-      setError("Title is required.");
+      showToast("Title is required.");
       return;
     }
     setSaving(true);
-    setError("");
     try {
-      await createPost({
-        communityId: form.communityId,
+      const payload = {
         title: form.title.trim(),
         text: form.text.trim(),
         media: form.media,
-      });
+      };
+      if (form.communityId) {
+        payload.communityId = form.communityId;
+      }
+      await createPost(payload);
       closeForm();
-      await loadPosts();
+      await loadPosts({ q: query, sort: sortBy, pageNum: 1, append: false });
     } catch (err) {
-      setError(err?.response?.data?.message || "Failed to create post.");
+      showToast(err?.response?.data?.message || "Failed to create post.");
     } finally {
       setSaving(false);
     }
   };
-
-  if (selectedPostId) {
-    return (
-      <PostDetail
-        postId={selectedPostId}
-        onBack={() => {
-          setSelectedPostId(null);
-          loadPosts();
-        }}
-        onDeleted={() => {
-          setSelectedPostId(null);
-          loadPosts();
-        }}
-      />
-    );
-  }
 
   return (
     <div className="space-y-6">
@@ -141,7 +167,7 @@ export default function PostManagement() {
               Post Management
             </h1>
             <p className="text-xs text-[#A69B8D] mt-1">
-              Create and manage your posts in communities you have joined.
+              Create and manage your posts. Community is optional.
             </p>
           </div>
           <button
@@ -166,6 +192,18 @@ export default function PostManagement() {
               className="w-full bg-[#14100D] border border-[#2A241E] rounded-lg pl-9 pr-4 py-2 text-xs text-[#E5E0D8] focus:outline-none focus:border-[#D4AF37]/60 placeholder-[#8C8070]"
             />
           </form>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            aria-label="Sort posts"
+            className="bg-[#14100D] border border-[#2A241E] rounded-lg px-3 py-2 text-xs text-[#E5E0D8] focus:outline-none focus:border-[#D4AF37]/60 shrink-0"
+          >
+            {SORT_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
           <button
             type="button"
             onClick={openCreate}
@@ -177,12 +215,6 @@ export default function PostManagement() {
         </div>
       </div>
 
-      {error && !showForm && (
-        <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3">
-          {error}
-        </div>
-      )}
-
       {loading ? (
         <div className="flex items-center justify-center gap-2 py-16 text-[#A69B8D] text-sm">
           <Loader2 className="w-4 h-4 animate-spin" />
@@ -190,66 +222,88 @@ export default function PostManagement() {
         </div>
       ) : posts.length === 0 ? (
         <div className="border border-dashed border-[#2A241E] rounded-xl py-16 text-center text-[#8C8070] text-sm">
-          No posts yet. Create one for a community you joined.
+          No posts yet. Create your first post.
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-          {posts.map((post) => {
-            const cover =
-              post.media?.find((m) => m.type === "image") ||
-              post.media?.[0] ||
-              null;
-            return (
-              <button
-                key={post.id}
-                type="button"
-                onClick={() => setSelectedPostId(post.id)}
-                className="text-left bg-[#14100D] border border-[#2A241E] rounded-xl overflow-hidden hover:border-[#D4AF37]/40 transition-all flex flex-col"
-              >
-                <div className="h-40 bg-[#0E0C0A] overflow-hidden">
-                  {cover ? (
-                    cover.type === "video" ? (
-                      <video
-                        src={cover.url}
-                        className="w-full h-full object-cover"
-                        muted
-                      />
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+            {posts.map((post) => {
+              const cover =
+                post.media?.find((m) => m.type === "image") ||
+                post.media?.[0] ||
+                null;
+              return (
+                <button
+                  key={post.id}
+                  type="button"
+                  onClick={() =>
+                    navigate(`/dashboard/posts/${postSegment(post)}`)
+                  }
+                  className="text-left bg-[#14100D] border border-[#2A241E] rounded-xl overflow-hidden hover:border-[#D4AF37]/40 transition-all flex flex-col"
+                >
+                  <div className="h-40 bg-[#0E0C0A] overflow-hidden">
+                    {cover ? (
+                      cover.type === "video" ? (
+                        <video
+                          src={cover.url}
+                          className="w-full h-full object-cover"
+                          muted
+                        />
+                      ) : (
+                        <img
+                          src={cover.url}
+                          alt=""
+                          className="w-full h-full object-cover"
+                        />
+                      )
                     ) : (
-                      <img
-                        src={cover.url}
-                        alt=""
-                        className="w-full h-full object-cover"
-                      />
-                    )
-                  ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-[#251E17] to-[#0E0C0A] flex items-center justify-center text-[#5A5046]">
-                      <ImageIcon size={28} />
-                    </div>
-                  )}
-                </div>
-                <div className="p-4 space-y-2 flex-1 flex flex-col">
-                  <p className="text-[10px] uppercase tracking-wider text-[#D4AF37] font-mono truncate">
-                    {post.community?.name || "Community"}
-                  </p>
-                  <h3 className="font-serif font-bold text-base text-[#E5E0D8] line-clamp-2">
-                    {post.title || "Untitled"}
-                  </h3>
-                  <p className="text-xs text-[#A69B8D] line-clamp-3 flex-1">
-                    {post.text || "No description"}
-                  </p>
-                  <div className="flex items-center gap-3 pt-2 border-t border-[#2A241E]/40 text-[11px] text-[#8C8070]">
-                    <span className="inline-flex items-center gap-1">
-                      <Heart size={11} /> {post.likeCount || 0}
-                    </span>
-                    <span className="inline-flex items-center gap-1">
-                      <MessageCircle size={11} /> {post.commentCount || 0}
-                    </span>
+                      <div className="w-full h-full bg-gradient-to-br from-[#251E17] to-[#0E0C0A] flex items-center justify-center text-[#5A5046]">
+                        <ImageIcon size={28} />
+                      </div>
+                    )}
                   </div>
-                </div>
+                  <div className="p-4 space-y-2 flex-1 flex flex-col">
+                    {post.community?.name && (
+                      <p className="text-[10px] uppercase tracking-wider text-[#D4AF37] font-mono truncate">
+                        {post.community.name}
+                      </p>
+                    )}
+                    <h3 className="font-serif font-bold text-base text-[#E5E0D8] line-clamp-2">
+                      {post.title || "Untitled"}
+                    </h3>
+                    <p className="text-xs text-[#A69B8D] line-clamp-3 flex-1">
+                      {post.text || "No description"}
+                    </p>
+                    <div className="flex items-center gap-3 pt-2 border-t border-[#2A241E]/40 text-[11px] text-[#8C8070]">
+                      <span className="inline-flex items-center gap-1">
+                        <Heart size={11} /> {post.likeCount || 0}
+                      </span>
+                      <span className="inline-flex items-center gap-1">
+                        <MessageCircle size={11} /> {post.commentCount || 0}
+                      </span>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {hasMore && (
+            <div className="flex justify-center pt-2">
+              <button
+                type="button"
+                onClick={handleLoadMore}
+                disabled={loadingMore}
+                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg border border-[#2A241E] text-xs text-[#E5E0D8] hover:border-[#D4AF37]/50 hover:text-[#D4AF37] disabled:opacity-60 transition-colors"
+              >
+                {loadingMore && (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                )}
+                Load more
               </button>
-            );
-          })}
-        </div>
+            </div>
+          )}
+        </>
       )}
 
       {showForm && (
@@ -273,25 +327,18 @@ export default function PostManagement() {
               </button>
             </div>
 
-            {error && (
-              <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-                {error}
-              </div>
-            )}
-
             <div>
               <label className="block text-[10px] uppercase tracking-wider text-[#8C8070] mb-1">
-                Community
+                Community (optional)
               </label>
               <select
                 value={form.communityId}
                 onChange={(e) =>
                   setForm((p) => ({ ...p, communityId: e.target.value }))
                 }
-                required
                 className="w-full bg-[#0E0C0A] border border-[#2A241E] rounded-lg px-3 py-2 text-xs text-[#E5E0D8] focus:outline-none focus:border-[#D4AF37]/60"
               >
-                <option value="">Select community</option>
+                <option value="">No community</option>
                 {communities.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
@@ -333,7 +380,7 @@ export default function PostManagement() {
             <MediaPicker
               media={form.media}
               onChange={(media) => setForm((p) => ({ ...p, media }))}
-              onError={setError}
+              onError={showToast}
             />
 
             <button

@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
   CalendarDays,
   ChevronDown,
   ChevronUp,
+  Grid,
   Heart,
+  Layers,
   Loader2,
   MessageCircle,
   Pencil,
@@ -20,43 +22,85 @@ import { fetchPosts } from '../../../../api/posts';
 import PostMediaGallery from '../../../../shared/components/media/PostMediaGallery';
 import ConfirmDeleteModal from '../../../../shared/components/modals/ConfirmDeleteModal';
 import EditCommunityModal from '../../../../shared/components/modals/EditCommunityModal';
-import PostDetail from '../../../posts/pages/PostDetail';
 import { formatCommunityType } from '../../../../shared/utils/community';
 import { timeAgo } from '../../../../shared/utils/date';
 import { formatCount } from '../../../../shared/utils/format';
 import { getErrorMessage } from '../../../../shared/utils/errors';
+import {
+  communitySegment,
+  postSegment,
+} from '../../../../shared/services/entityLinks';
+import useEntityId from '../../../../shared/hooks/useEntityId';
+import { useToast } from '../../../../shared/components/feedback/ToastContext';
 
 const formatType = formatCommunityType;
 
+function Collapsible({ open, collapsedHeight = 0, children }) {
+  const innerRef = useRef(null);
+  const [maxHeight, setMaxHeight] = useState(
+    open ? 'none' : `${collapsedHeight}px`
+  );
+
+  useEffect(() => {
+    const el = innerRef.current;
+    if (!el) return;
+    setMaxHeight(`${el.scrollHeight}px`);
+    if (open) return;
+    const id = requestAnimationFrame(() =>
+      setMaxHeight(`${collapsedHeight}px`)
+    );
+    return () => cancelAnimationFrame(id);
+  }, [open, collapsedHeight, children]);
+
+  return (
+    <div
+      style={{ maxHeight }}
+      onTransitionEnd={(e) => {
+        if (
+          open &&
+          e.target === e.currentTarget &&
+          e.propertyName === 'max-height'
+        ) {
+          setMaxHeight('none');
+        }
+      }}
+      className="overflow-hidden transition-[max-height] duration-300 ease-in-out"
+    >
+      <div ref={innerRef}>{children}</div>
+    </div>
+  );
+}
+
 export default function CommunityDetail() {
-  const { id } = useParams();
+  const { id: communityParam } = useParams();
+  const { id, notFound } = useEntityId('community', communityParam);
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [membersOpen, setMembersOpen] = useState(false);
   const [heroPreview, setHeroPreview] = useState(null);
   const [posts, setPosts] = useState([]);
   const [postsLoading, setPostsLoading] = useState(false);
   const [feedFilter, setFeedFilter] = useState('latest');
-  const [selectedPostId, setSelectedPostId] = useState(null);
   const [editingCommunity, setEditingCommunity] = useState(null);
   const [communityToDelete, setCommunityToDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [subchannelsExpanded, setSubchannelsExpanded] = useState(false);
+  const [rulesExpanded, setRulesExpanded] = useState(false);
 
   const loadDetail = useCallback(async () => {
     if (!id) return;
     setLoading(true);
-    setError('');
     try {
       const data = await fetchAdminCommunityDetail(id);
       setDetail(data);
     } catch (err) {
-      setError(err?.response?.data?.message || 'Failed to load community detail.');
+      showToast(err?.response?.data?.message || 'Failed to load community detail.');
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, showToast]);
 
   const loadPosts = useCallback(async () => {
     if (!id) return;
@@ -66,23 +110,43 @@ export default function CommunityDetail() {
       setPosts(data?.posts || []);
     } catch (err) {
       setPosts([]);
-      setError((prev) => prev || err?.response?.data?.message || 'Failed to load posts.');
+      showToast(err?.response?.data?.message || 'Failed to load posts.');
     } finally {
       setPostsLoading(false);
     }
-  }, [id]);
+  }, [id, showToast]);
 
   const handleRefresh = useCallback(async () => {
     if (!id) return;
-    setError('');
     try {
       const data = await fetchAdminCommunityDetail(id);
       setDetail(data);
       await loadPosts();
     } catch (err) {
-      setError(err?.response?.data?.message || 'Failed to refresh community.');
+      showToast(err?.response?.data?.message || 'Failed to refresh community.');
     }
-  }, [id, loadPosts]);
+  }, [id, loadPosts, showToast]);
+
+  const handleEditSuccess = useCallback(
+    async (updatedCommunity) => {
+      if (updatedCommunity?.id) {
+        setDetail((prev) =>
+          prev
+            ? {
+                ...prev,
+                community: {
+                  ...(prev.community || {}),
+                  ...updatedCommunity,
+                },
+              }
+            : prev
+        );
+      }
+      setEditingCommunity(null);
+      await handleRefresh();
+    },
+    [handleRefresh]
+  );
 
   useEffect(() => {
     loadDetail();
@@ -90,6 +154,7 @@ export default function CommunityDetail() {
 
   useEffect(() => {
     setHeroPreview(null);
+    setSubchannelsExpanded(false);
     loadPosts();
   }, [loadPosts]);
 
@@ -102,49 +167,68 @@ export default function CommunityDetail() {
   const galleryImages = community?.galleryImages || [];
   const heroImage = heroPreview || community?.coverImage || galleryImages[0] || '';
 
+  const channelName =
+    typeof community?.channel === 'object'
+      ? community?.channel?.name
+      : community?.channel || '';
+  const channelId =
+    typeof community?.channel === 'object'
+      ? community?.channel?.id
+      : community?.channel || null;
+
+  const rawSubchannels = Array.isArray(community?.subchannels)
+    ? community.subchannels
+    : [];
+  const subchannelList = rawSubchannels.map((sub) =>
+    typeof sub === 'object'
+      ? { id: sub.id, name: sub.name || sub.id }
+      : { id: sub, name: sub }
+  );
+  const primarySubchannels = subchannelList.slice(0, 2);
+  const extraSubchannels = subchannelList.slice(2);
+
   const sortedPosts = useMemo(() => {
     const list = [...posts];
-    if (feedFilter === 'trending') {
-      return list.sort((a, b) => (b.likeCount || 0) - (a.likeCount || 0));
-    }
     return list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-  }, [feedFilter, posts]);
+  }, [posts]);
+
+  const openChannelManagement = () => {
+    const params = new URLSearchParams();
+    if (channelName) params.set('q', channelName);
+    navigate(`/admin/channels${params.toString() ? `?${params}` : ''}`);
+  };
+
+  const openSubchannelManagement = (subName) => {
+    const params = new URLSearchParams();
+    if (subName) params.set('q', subName);
+    else if (channelName) params.set('q', channelName);
+    if (channelId) params.set('channelId', channelId);
+    navigate(`/admin/subchannels${params.toString() ? `?${params}` : ''}`);
+  };
 
   const handleConfirmDelete = async () => {
     if (!communityToDelete) return;
     setDeleting(true);
-    setError('');
     try {
       await deleteCommunity(communityToDelete.id);
       setCommunityToDelete(null);
       navigate('/admin/communities');
     } catch (err) {
-      setError(getErrorMessage(err, 'Failed to delete community.'));
+      showToast(getErrorMessage(err, 'Failed to delete community.'));
     } finally {
       setDeleting(false);
     }
   };
 
-  if (selectedPostId) {
-    return (
-      <PostDetail
-        postId={selectedPostId}
-        embedded
-        backLabel="Back to community"
-        onBack={() => {
-          setSelectedPostId(null);
-          loadPosts();
-        }}
-        onDeleted={() => {
-          setSelectedPostId(null);
-          loadPosts();
-        }}
-      />
-    );
-  }
+  const openPost = (post) => {
+    if (!id || !post?.id) return;
+    const segment = community ? communitySegment(community) : communityParam;
+    navigate(`/admin/communities/${segment}/posts/${postSegment(post)}`);
+  };
 
   return (
     <div className="space-y-5 sm:space-y-6 max-w-full">
+      {/* Top Header Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <button
           type="button"
@@ -184,13 +268,7 @@ export default function CommunityDetail() {
         )}
       </div>
 
-      {error && (
-        <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3">
-          {error}
-        </div>
-      )}
-
-      {loading ? (
+      {loading && !notFound ? (
         <div className="flex items-center justify-center gap-2 py-20 text-stone-400 text-sm">
           <Loader2 className="w-4 h-4 animate-spin" />
           Loading community detail...
@@ -201,210 +279,300 @@ export default function CommunityDetail() {
         </div>
       ) : (
         <>
-          <section className="relative rounded-xl overflow-hidden border border-stone-800/60">
-            <div className="relative h-48 sm:h-64 lg:h-80">
-              {heroImage ? (
-                <img src={heroImage} alt="" className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full bg-gradient-to-br from-stone-900 to-[#0E0C0A]" />
-              )}
-              <div className="absolute inset-0 bg-gradient-to-t from-[#0E0C0A] via-[#0E0C0A]/65 to-transparent" />
-              <div className="absolute inset-0 flex flex-col justify-end p-4 sm:p-6 lg:p-8">
-                <div className="flex flex-wrap items-center gap-2 mb-2">
-                  <span className="inline-flex items-center gap-1 rounded bg-amber-400 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-black">
-                    <Shield size={10} />
-                    Admin View
+          {/* Main Content Layout: Left 40% | Right 60% */}
+          <div className="grid grid-cols-1 lg:grid-cols-[40%_1fr] gap-4 lg:gap-6">
+            
+            {/* LEFT COLUMN (40%): Hero Cover + Description + Members */}
+            <div className="space-y-4">
+              {/* Cover Image Block (No Text Overlay) */}
+              <div className="relative rounded-xl overflow-hidden border border-[#2A241E] bg-[#0E0C0A]">
+                <div className="relative h-64 sm:h-80 lg:h-[380px]">
+                  {heroImage ? (
+                    <img src={heroImage} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-stone-900 to-[#0E0C0A]" />
+                  )}
+                </div>
+              </div>
+
+              {/* Description Section (Below Cover Image) */}
+              <section className="rounded-xl border border-[#2A241E] bg-[#141210] p-4 sm:p-5">
+                <h3 className="text-xs uppercase tracking-wider text-[#A69B8D] mb-2 font-semibold">
+                  Description
+                </h3>
+                <p className="whitespace-pre-wrap text-xs sm:text-sm leading-relaxed text-[#E5E0D8]">
+                  {community?.description || 'No description available.'}
+                </p>
+              </section>
+
+              {/* Members Section (Below Description) */}
+              <section className="rounded-xl border border-[#2A241E] bg-[#141210] p-4 sm:p-5">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2 text-[#D4AF37]">
+                    <Users size={16} />
+                    <h3 className="font-semibold text-xs sm:text-sm uppercase tracking-wider">
+                      Members ({community?.memberCount || detail.members?.length || 0})
+                    </h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setMembersOpen((prev) => !prev)}
+                    className="inline-flex items-center gap-1 text-xs text-[#A69B8D] hover:text-[#D4AF37] transition-colors"
+                  >
+                    {membersOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    {membersOpen ? 'Hide' : 'Show'}
+                  </button>
+                </div>
+
+                {membersOpen && (
+                  <div className="mt-3 space-y-2 max-h-60 overflow-y-auto pr-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-[#2A241E]">
+                    {detail.members?.map((member) => (
+                      <div
+                        key={member.id}
+                        className="flex items-center justify-between rounded-lg border border-[#2A241E] bg-[#0E0C0A] p-2.5"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-xs sm:text-sm font-medium text-[#E5E0D8]">
+                            {member.user?.name || member.user?.username}
+                          </p>
+                          <p className="truncate text-[10px] sm:text-[11px] text-[#8C8070]">
+                            @{member.user?.username} · {member.role}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {moderators.length > 0 && (
+                  <p className="mt-3 text-[11px] text-[#8C8070] border-t border-[#2A241E] pt-2">
+                    Active moderators:{' '}
+                    <span className="text-[#E5E0D8]">
+                      {moderators.map((m) => m.user?.username).filter(Boolean).join(', ')}
+                    </span>
+                  </p>
+                )}
+              </section>
+            </div>
+
+            {/* RIGHT COLUMN (60%): Gallery + Overview + Owner + Channel/Subchannels + Rules + Tags */}
+            <div className="space-y-4">
+              
+              {/* Header Title + Badges */}
+              <div className="flex flex-col gap-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-1 rounded bg-[#D4AF37] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-black">
+                    <Shield size={10} /> Admin View
                   </span>
-                  <span className="text-[10px] sm:text-xs uppercase tracking-wider text-amber-300/80">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-[#D4AF37]">
                     {formatType(community?.type)}
                   </span>
                 </div>
-                <h1 className="font-serif text-2xl sm:text-3xl lg:text-4xl font-semibold text-amber-50 leading-tight">
+                <h1 className="font-serif text-2xl sm:text-3xl font-semibold text-[#D4AF37] leading-tight mt-1">
                   {community?.name}
                 </h1>
-                {community?.description && (
-                  <p className="mt-1.5 max-w-3xl text-xs sm:text-sm text-stone-200/85 line-clamp-3 sm:line-clamp-none">
-                    {community.description}
-                  </p>
-                )}
-                <div className="mt-3 flex flex-wrap items-center gap-3 text-[10px] sm:text-xs text-stone-300">
-                  <span className="inline-flex items-center gap-1">
-                    <Users size={12} className="text-amber-300" />
-                    {(community?.memberCount ?? 0).toLocaleString()} members
-                  </span>
-                  {community?.owner && (
-                    <span>
-                      Owner: {community.owner.name || community.owner.username || 'Unknown'}
-                    </span>
-                  )}
-                  {community?.createdAt && (
-                    <span className="inline-flex items-center gap-1">
-                      <CalendarDays size={12} className="text-amber-300" />
-                      {new Date(community.createdAt).toLocaleDateString()}
-                    </span>
-                  )}
-                </div>
               </div>
-            </div>
-          </section>
 
-          {(community?.coverImage || galleryImages.length > 0) && (
-            <section>
-              <h2 className="mb-2 text-[10px] sm:text-xs uppercase tracking-wider text-stone-500">
-                Community Images
-              </h2>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 sm:gap-3">
-                {community?.coverImage && (
-                  <button
-                    type="button"
-                    onClick={() => setHeroPreview(community.coverImage)}
-                    className={`relative aspect-[4/3] overflow-hidden rounded-lg border transition-all ${
-                      heroImage === community.coverImage
-                        ? 'border-amber-400 ring-1 ring-amber-400/50'
-                        : 'border-stone-800/60 hover:border-amber-500/40'
-                    }`}
-                  >
-                    <img src={community.coverImage} alt="" className="w-full h-full object-cover" />
-                    <span className="absolute bottom-1 left-1 rounded bg-black/70 px-1 py-0.5 text-[8px] text-amber-300">
-                      Cover
-                    </span>
-                  </button>
-                )}
-                {galleryImages.map((img) => (
-                  <button
-                    key={img}
-                    type="button"
-                    onClick={() => setHeroPreview(img)}
-                    className={`aspect-[4/3] overflow-hidden rounded-lg border transition-all ${
-                      heroImage === img
-                        ? 'border-amber-400 ring-1 ring-amber-400/50'
-                        : 'border-stone-800/60 hover:border-amber-500/40'
-                    }`}
-                  >
-                    <img src={img} alt="" className="w-full h-full object-cover" />
-                  </button>
-                ))}
-              </div>
-            </section>
-          )}
-
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)] xl:gap-6">
-            <section className="rounded-xl border border-stone-800/60 bg-[#141210] p-4 sm:p-5">
-              <div className="mb-4 flex items-center gap-2 text-amber-200">
-                <Users size={16} />
-                <h2 className="font-semibold text-sm sm:text-base">
-                  Members ({community?.memberCount || detail.members?.length || 0})
-                </h2>
-              </div>
-              <button
-                type="button"
-                onClick={() => setMembersOpen((prev) => !prev)}
-                className="inline-flex items-center gap-1 text-xs text-stone-300 hover:text-amber-300"
-              >
-                {membersOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                {membersOpen ? 'Hide members' : 'Show members'}
-              </button>
-
-              {membersOpen && (
-                <div className="mt-4 space-y-2">
-                  {detail.members?.map((member) => (
-                    <div
-                      key={member.id}
-                      className="flex flex-col gap-3 rounded-lg border border-stone-800/60 bg-[#0E0C0A] p-3 sm:flex-row sm:items-center sm:justify-between"
-                    >
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-amber-50">
-                          {member.user?.name || member.user?.username}
-                        </p>
-                        <p className="truncate text-[11px] text-stone-500">
-                          @{member.user?.username} · {member.role}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
+              {/* Gallery Thumbnails */}
+              {(community?.coverImage || galleryImages.length > 0) && (
+                <div className="rounded-xl border border-[#2A241E] bg-[#141210] p-3.5">
+                  <h3 className="text-[10px] uppercase tracking-wider text-[#A69B8D] mb-2 font-semibold">
+                    Gallery Images
+                  </h3>
+                  <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
+                    {community?.coverImage && (
+                      <button
+                        type="button"
+                        onClick={() => setHeroPreview(community.coverImage)}
+                        className={`relative aspect-square overflow-hidden rounded-lg border transition-all ${
+                          heroImage === community.coverImage
+                            ? 'border-[#D4AF37] ring-1 ring-[#D4AF37]/50'
+                            : 'border-[#2A241E] hover:border-[#D4AF37]/40'
+                        }`}
+                      >
+                        <img src={community.coverImage} alt="" className="w-full h-full object-cover" />
+                      </button>
+                    )}
+                    {galleryImages.map((img) => (
+                      <button
+                        key={img}
+                        type="button"
+                        onClick={() => setHeroPreview(img)}
+                        className={`aspect-square overflow-hidden rounded-lg border transition-all ${
+                          heroImage === img
+                            ? 'border-[#D4AF37] ring-1 ring-[#D4AF37]/50'
+                            : 'border-[#2A241E] hover:border-[#D4AF37]/40'
+                        }`}
+                      >
+                        <img src={img} alt="" className="w-full h-full object-cover" />
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
 
-              {moderators.length > 0 && (
-                <p className="mt-3 text-xs text-stone-500">
-                  Active moderators:{' '}
-                  {moderators.map((m) => m.user?.username).filter(Boolean).join(', ')}
-                </p>
-              )}
-            </section>
-
-            <section className="rounded-xl border border-stone-800/60 bg-[#141210] p-4 sm:p-5">
-              <div className="mb-3 flex items-center gap-2">
-                <Shield size={16} className="text-amber-300" />
-                <h2 className="font-serif text-lg font-semibold text-amber-50">
-                  Community Overview
-                </h2>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                <div className="rounded-lg border border-stone-800/60 bg-[#0E0C0A] p-3">
-                  <p className="text-[10px] uppercase tracking-wider text-stone-500">Type</p>
-                  <p className="mt-1 text-sm font-semibold text-amber-50">
-                    {formatType(community?.type)}
-                  </p>
+              {/* Community Overview Cards */}
+              <section className="rounded-xl border border-[#2A241E] bg-[#141210] p-4 sm:p-5 space-y-4">
+                <div className="flex items-center gap-2">
+                  <Shield size={16} className="text-[#D4AF37]" />
+                  <h2 className="font-serif text-base sm:text-lg font-semibold text-[#E5E0D8]">
+                    Community Overview
+                  </h2>
                 </div>
-                <div className="rounded-lg border border-stone-800/60 bg-[#0E0C0A] p-3">
-                  <p className="text-[10px] uppercase tracking-wider text-stone-500">Members</p>
-                  <p className="mt-1 text-sm font-semibold text-amber-50">
-                    {(community?.memberCount ?? 0).toLocaleString()}
-                  </p>
-                </div>
-                <div className="rounded-lg border border-stone-800/60 bg-[#0E0C0A] p-3 col-span-2 sm:col-span-1">
-                  <p className="text-[10px] uppercase tracking-wider text-stone-500">Posts</p>
-                  <p className="mt-1 text-sm font-semibold text-amber-50">
-                    {postsLoading ? '...' : posts.length}
-                  </p>
-                </div>
-              </div>
 
-              <div className="mt-4 space-y-4 border-t border-stone-800/60 pt-4">
-                <div>
-                  <div className="mb-1 text-[10px] uppercase tracking-wider text-stone-500">
+                <div className="grid grid-cols-3 gap-2.5">
+                  <div className="rounded-lg border border-[#2A241E] bg-[#0E0C0A] p-3 text-center">
+                    <p className="text-[10px] uppercase tracking-wider text-[#8C8070]">Type</p>
+                    <p className="mt-1 text-xs sm:text-sm font-semibold text-[#D4AF37] truncate">
+                      {formatType(community?.type)}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-[#2A241E] bg-[#0E0C0A] p-3 text-center">
+                    <p className="text-[10px] uppercase tracking-wider text-[#8C8070]">Members</p>
+                    <p className="mt-1 text-xs sm:text-sm font-semibold text-[#E5E0D8]">
+                      {(community?.memberCount ?? 0).toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-[#2A241E] bg-[#0E0C0A] p-3 text-center">
+                    <p className="text-[10px] uppercase tracking-wider text-[#8C8070]">Posts</p>
+                    <p className="mt-1 text-xs sm:text-sm font-semibold text-[#E5E0D8]">
+                      {postsLoading ? '...' : posts.length}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Owner Info Block */}
+                <div className="pt-2 border-t border-[#2A241E]">
+                  <div className="text-[10px] uppercase tracking-wider text-[#8C8070] mb-1 font-semibold">
                     Owner
                   </div>
-                  <p className="text-sm text-stone-200">
-                    {community?.owner?.name || community?.owner?.username || 'Unknown owner'}
-                  </p>
-                  {community?.owner?.username && (
-                    <p className="mt-0.5 text-xs text-stone-500">
-                      @{community.owner.username}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <div className="mb-1 text-[10px] uppercase tracking-wider text-stone-500">
-                    Description
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#0E0C0A] border border-[#2A241E] text-xs sm:text-sm text-[#E5E0D8]">
+                    <span className="font-medium">
+                      {community?.owner?.name || community?.owner?.username || 'Unknown owner'}
+                    </span>
+                    {community?.owner?.username && (
+                      <span className="text-[#8C8070]">
+                        (@{community.owner.username})
+                      </span>
+                    )}
                   </div>
-                  <p className="whitespace-pre-wrap text-sm leading-relaxed text-stone-300">
-                    {community?.description || 'No description available.'}
-                  </p>
                 </div>
 
-                <div>
-                  <div className="mb-1 text-[10px] uppercase tracking-wider text-stone-500">
-                    Rules
+                {/* Channel & Subchannels Section */}
+                {(channelName || subchannelList.length > 0) && (
+                  <div className="space-y-3 pt-2 border-t border-[#2A241E]">
+                    {channelName && (
+                      <div>
+                        <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-[#8C8070] mb-1 font-bold">
+                          <Layers size={12} className="text-[#D4AF37]" />
+                          Channel
+                          <button
+                          type="button"
+                          onClick={openChannelManagement}
+                          className="inline-flex items-center px-2.5 py-1 rounded-md bg-[#D4AF37]/15 border border-[#D4AF37]/30 text-[#D4AF37] text-xs font-semibold hover:bg-[#D4AF37]/25 transition-colors"
+                        >
+                          {channelName}
+                        </button>
+                        </div>
+                      
+                      </div>
+                    )}
+
+                    {subchannelList.length > 0 && (
+                      <div>
+                        <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-[#8C8070] mb-1.5 font-bold">
+                          <Grid size={12} className="text-[#D4AF37]" />
+                          Subchannels ({subchannelList.length})
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {primarySubchannels.map((sub) => (
+                            <button
+                              key={sub.id || sub.name}
+                              type="button"
+                              onClick={() => openSubchannelManagement(sub.name)}
+                              className="px-2 py-0.5 rounded-md bg-[#1C1612] border border-[#2A241E] text-[#E5E0D8] text-[11px] font-medium hover:border-[#D4AF37]/40 hover:text-[#D4AF37] transition-colors"
+                            >
+                              {sub.name}
+                            </button>
+                          ))}
+                        </div>
+
+                        {extraSubchannels.length > 0 && (
+                          <>
+                            <Collapsible open={subchannelsExpanded}>
+                              <div className="flex flex-wrap gap-1.5 pt-1.5">
+                                {extraSubchannels.map((sub) => (
+                                  <button
+                                    key={sub.id || sub.name}
+                                    type="button"
+                                    onClick={() => openSubchannelManagement(sub.name)}
+                                    className="px-2 py-0.5 rounded-md bg-[#1C1612] border border-[#2A241E] text-[#E5E0D8] text-sm font-medium hover:border-[#D4AF37]/40 hover:text-[#D4AF37] transition-colors"
+                                  >
+                                    {sub.name}
+                                  </button>
+                                ))}
+                              </div>
+                            </Collapsible>
+                            <button
+                              type="button"
+                              onClick={() => setSubchannelsExpanded((v) => !v)}
+                              className="mt-2 text-[13px] font-medium text-[#D4AF37] hover:text-[#e0c04a] transition-colors"
+                            >
+                              {subchannelsExpanded
+                                ? 'View less'
+                                : `View more (${extraSubchannels.length})`}
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <p className="whitespace-pre-wrap text-sm leading-relaxed text-stone-300">
-                    {community?.rules || 'No rules added yet.'}
-                  </p>
-                </div>
+                )}
 
+                {/* Rules Section (Below Subchannels) */}
+             {/* Rules Section */}
+{community?.rules && (
+  <div className="pt-2 border-t border-[#2A241E]">
+    <div className="mb-1.5 text-[10px] uppercase text-[#8C8070] font-semibold">Rules</div>
+    {(() => {
+      const lines = community.rules.split('\n').map((r) => r.trim()).filter(Boolean);
+      const main = lines.slice(0, 3);
+      const extra = lines.slice(3);
+
+      return (
+        <>
+          <ol className="space-y-1 text-sm text-[#E5E0D8]">
+            {main.map((r, i) => <li key={i}><span className="text-[#D4AF37] font-bold">{i + 1}.</span> {r}</li>)}
+          </ol>
+          {extra.length > 0 && (
+            <>
+              <Collapsible open={rulesExpanded}>
+                <ol className="space-y-1 pt-1 text-sm text-[#E5E0D8]">
+                  {extra.map((r, i) => <li key={i + 3}><span className="text-[#D4AF37] font-bold">{i + 4}.</span> {r}</li>)}
+                </ol>
+              </Collapsible>
+              <button type="button" onClick={() => setRulesExpanded(!rulesExpanded)} className="mt-1 text-[13px] text-[#D4AF37]">
+                {rulesExpanded ? 'View less' : `View more (${extra.length})`}
+              </button>
+            </>
+          )}
+        </>
+      );
+    })()}
+  </div>
+)}
+
+                {/* Tags Section (Below Rules) */}
                 {community?.tags?.length > 0 && (
-                  <div>
-                    <div className="mb-2 text-[10px] uppercase tracking-wider text-stone-500">
+                  <div className="pt-2 border-t border-[#2A241E]">
+                    <div className="mb-1.5 text-[10px] uppercase tracking-wider text-[#8C8070] font-semibold">
                       Tags
                     </div>
                     <div className="flex flex-wrap gap-1.5">
                       {community.tags.map((tag) => (
                         <span
                           key={tag}
-                          className="rounded-md bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-400"
+                          className="rounded-md bg-[#D4AF37]/10 border border-[#D4AF37]/20 px-2 py-0.5 text-[11px] text-[#D4AF37]"
                         >
                           #{tag}
                         </span>
@@ -412,19 +580,19 @@ export default function CommunityDetail() {
                     </div>
                   </div>
                 )}
-              </div>
-            </section>
+              </section>
+            </div>
           </div>
 
-          <section>
+          {/* Posts Feed Section */}
+          <section className="pt-4">
             <div className="mb-3 flex flex-col gap-3 sm:mb-4 sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="font-serif text-xl sm:text-2xl font-semibold text-amber-50">
+              <h2 className="font-serif text-xl sm:text-2xl font-semibold text-[#D4AF37]">
                 Community Posts
               </h2>
               <div className="flex flex-wrap gap-2">
                 {[
                   { id: 'latest', label: 'Latest' },
-                  { id: 'trending', label: 'Trending' },
                 ].map((filter) => (
                   <button
                     key={filter.id}
@@ -432,8 +600,8 @@ export default function CommunityDetail() {
                     onClick={() => setFeedFilter(filter.id)}
                     className={`rounded-full px-3 py-1.5 text-[11px] sm:text-xs font-medium transition-colors ${
                       feedFilter === filter.id
-                        ? 'bg-amber-400 text-black'
-                        : 'border border-stone-800/60 bg-[#141210] text-stone-400 hover:text-stone-200'
+                        ? 'bg-[#D4AF37] text-black'
+                        : 'border border-[#2A241E] bg-[#141210] text-[#A69B8D] hover:text-[#E5E0D8]'
                     }`}
                   >
                     {filter.label}
@@ -443,12 +611,12 @@ export default function CommunityDetail() {
             </div>
 
             {postsLoading ? (
-              <div className="flex items-center justify-center gap-2 py-12 text-sm text-stone-400">
+              <div className="flex items-center justify-center gap-2 py-12 text-sm text-[#A69B8D]">
                 <Loader2 size={14} className="animate-spin" />
                 Loading posts...
               </div>
             ) : sortedPosts.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-stone-800/60 px-4 py-12 text-center text-xs text-stone-500">
+              <div className="rounded-xl border border-dashed border-[#2A241E] px-4 py-12 text-center text-xs text-[#8C8070]">
                 No posts found for this community yet.
               </div>
             ) : (
@@ -461,11 +629,11 @@ export default function CommunityDetail() {
                       key={post.id}
                       role="button"
                       tabIndex={0}
-                      onClick={() => setSelectedPostId(post.id)}
+                      onClick={() => openPost(post)}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') setSelectedPostId(post.id);
+                        if (e.key === 'Enter') openPost(post);
                       }}
-                      className="cursor-pointer flex flex-col justify-between rounded-xl border border-stone-800/60 bg-[#141210] p-3.5 transition-all hover:border-amber-500/40 hover:bg-[#181512]"
+                      className="cursor-pointer flex flex-col justify-between rounded-xl border border-[#2A241E] bg-[#141210] p-3.5 transition-all hover:border-[#D4AF37]/40 hover:bg-[#181512]"
                     >
                       <div>
                         <div className="mb-2.5 flex items-center gap-2.5">
@@ -473,45 +641,45 @@ export default function CommunityDetail() {
                             <img
                               src={post.author.avatar}
                               alt=""
-                              className="h-7 w-7 shrink-0 rounded-full border border-stone-800/60 object-cover"
+                              className="h-7 w-7 shrink-0 rounded-full border border-[#2A241E] object-cover"
                             />
                           ) : (
-                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-amber-500/30 bg-amber-500/15 text-xs font-semibold text-amber-300">
+                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#D4AF37]/30 bg-[#D4AF37]/15 text-xs font-semibold text-[#D4AF37]">
                               {initial}
                             </div>
                           )}
                           <div className="min-w-0 flex-1">
-                            <div className="truncate text-xs font-medium text-amber-50">{authorName}</div>
-                            <div className="text-[10px] text-stone-500">{timeAgo(post.createdAt)}</div>
+                            <div className="truncate text-xs font-medium text-[#E5E0D8]">{authorName}</div>
+                            <div className="text-[10px] text-[#8C8070]">{timeAgo(post.createdAt)}</div>
                           </div>
                         </div>
 
                         {post.title && (
-                          <h3 className="mb-1 line-clamp-1 font-serif text-xs font-semibold text-stone-100 sm:text-sm">
+                          <h3 className="mb-1 line-clamp-1 font-serif text-xs font-semibold text-[#E5E0D8] sm:text-sm">
                             {post.title}
                           </h3>
                         )}
 
                         {post.text && (
-                          <p className="line-clamp-2 text-xs leading-relaxed text-stone-400">
+                          <p className="line-clamp-2 text-xs leading-relaxed text-[#A69B8D]">
                             {post.text}
                           </p>
                         )}
 
                         {post.media?.length > 0 && (
-                          <div className="mt-2.5 max-h-40 overflow-hidden rounded-lg border border-stone-800/60">
+                          <div className="mt-2.5 max-h-40 overflow-hidden rounded-lg border border-[#2A241E]">
                             <PostMediaGallery media={post.media} />
                           </div>
                         )}
                       </div>
 
-                      <div className="mt-3 flex items-center gap-3 border-t border-stone-800/60 pt-2.5 text-[10px] text-stone-500">
+                      <div className="mt-3 flex items-center gap-3 border-t border-[#2A241E] pt-2.5 text-[10px] text-[#8C8070]">
                         <span className="inline-flex items-center gap-1">
-                          <Heart size={12} className="text-amber-300/80" />
+                          <Heart size={12} className="text-[#D4AF37]/80" />
                           {formatCount(post.likeCount)}
                         </span>
                         <span className="inline-flex items-center gap-1">
-                          <MessageCircle size={12} className="text-amber-300/80" />
+                          <MessageCircle size={12} className="text-[#D4AF37]/80" />
                           {formatCount(post.commentCount)}
                         </span>
                       </div>
@@ -524,17 +692,17 @@ export default function CommunityDetail() {
         </>
       )}
 
+      {/* Edit & Delete Modals */}
       <EditCommunityModal
         community={editingCommunity}
         onClose={() => setEditingCommunity(null)}
-        onSuccess={handleRefresh}
+        onSuccess={handleEditSuccess}
       />
 
       <ConfirmDeleteModal
         open={Boolean(communityToDelete)}
         title="Delete Community"
         variant="dashboard"
-        error={error}
         loading={deleting}
         onConfirm={handleConfirmDelete}
         onClose={() => setCommunityToDelete(null)}

@@ -1,9 +1,7 @@
-import bcrypt from "bcryptjs";
 import User from "../models/user.js";
-import ActivityLog from "../models/activityLog.js";
 import CommunityMember from "../models/communityMember.js";
 import Community from "../models/community.js";
-import { logActivity } from "../utils/logActivity.js";
+// import { logActivity } from "../utils/logActivity.js";
 
 export const getOverview = async (req, res) => {
   try {
@@ -37,8 +35,31 @@ const formatAdminUser = (u) => ({
   updatedAt: u.updatedAt,
 });
 
+const formatChannelRef = (channel) => {
+  if (!channel) return null;
+  if (typeof channel === "object" && (channel._id || channel.name)) {
+    return {
+      id: channel._id || channel.id || undefined,
+      name: channel.name || String(channel._id || ""),
+    };
+  }
+  return { name: String(channel) };
+};
+
+const formatSubchannelRefs = (subchannels = []) =>
+  (subchannels || []).map((item) => {
+    if (item && typeof item === "object" && (item._id || item.name)) {
+      return {
+        id: item._id || item.id || undefined,
+        name: item.name || String(item._id || ""),
+      };
+    }
+    return { name: String(item) };
+  });
+
 const formatCommunity = (community, memberCount = 0) => ({
   id: community._id,
+  shortCode: community.shortCode || "",
   name: community.name,
   description: community.description || "",
   rules: community.rules || "",
@@ -46,6 +67,8 @@ const formatCommunity = (community, memberCount = 0) => ({
   coverImage: community.coverImage || "",
   galleryImages: community.galleryImages || [],
   type: community.type,
+  channel: formatChannelRef(community.channel),
+  subchannels: formatSubchannelRefs(community.subchannels),
   owner: community.owner
     ? {
         id: community.owner._id || community.owner,
@@ -160,10 +183,17 @@ export const listUsers = async (req, res) => {
   }
 };
 
-export const updateUser = async (req, res) => {
+export const updateUserStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, username, email, role, status } = req.body;
+    const { status } = req.body;
+
+    if (!["active", "banned"].includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid status. Allowed: active, banned.",
+      });
+    }
 
     const target = await User.findById(id);
 
@@ -176,146 +206,28 @@ export const updateUser = async (req, res) => {
 
     const isSelf = String(target._id) === String(req.user._id);
 
-    if (role !== undefined) {
-      const nextRole = String(role).toLowerCase().trim();
-      if (!["admin", "user"].includes(nextRole)) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid role. Allowed: admin, user.",
-        });
-      }
-
-      if (isSelf && nextRole !== target.role) {
-        return res.status(400).json({
-          success: false,
-          message: "You cannot change your own role.",
-        });
-      }
-
-      if (target.role === "admin" && nextRole !== "admin") {
-        const adminCount = await User.countDocuments({ role: "admin" });
-        if (adminCount <= 1) {
-          return res.status(400).json({
-            success: false,
-            message: "Cannot demote the last admin.",
-          });
-        }
-      }
-
-      target.role = nextRole;
+    if (isSelf && status === "banned") {
+      return res.status(400).json({
+        success: false,
+        message: "You cannot ban your own account.",
+      });
     }
 
-    if (status !== undefined) {
-      if (!["active", "suspended", "banned"].includes(status)) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid status. Allowed: active, suspended, banned.",
-        });
-      }
-      if (isSelf && status !== "active") {
-        return res.status(400).json({
-          success: false,
-          message: "You cannot suspend or ban your own account.",
-        });
-      }
-      target.status = status;
-    }
-
-    if (name !== undefined) target.name = name.trim();
-    if (username !== undefined) target.username = username.trim();
-    if (email !== undefined) target.email = email.trim().toLowerCase();
-
+    target.status = status;
     await target.save();
 
-    await logActivity({
-      actor: req.user._id,
-      action: "admin.user.update",
-      targetType: "user",
-      targetId: target._id,
-      meta: { name, username, email, role, status },
-    });
+    // await logActivity({
+    //   actor: req.user._id,
+    //   action: "admin.user.status",
+    //   targetType: "user",
+    //   targetId: target._id,
+    //   meta: { status },
+    // });
 
     return res.status(200).json({
       success: true,
-      message: "User updated successfully.",
+      message: "User status updated successfully.",
       user: formatAdminUser(target.toObject()),
-    });
-  } catch (error) {
-    if (error.code === 11000) {
-      const field = Object.keys(error.keyPattern || {})[0] || "field";
-      return res.status(400).json({
-        success: false,
-        message: `${field} already in use.`,
-      });
-    }
-
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
-
-export const resetUserPassword = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { password } = req.body;
-
-    if (!password || String(password).length < 8) {
-      return res.status(400).json({
-        success: false,
-        message: "Password must be at least 8 characters.",
-      });
-    }
-
-    const target = await User.findById(id);
-    if (!target) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found.",
-      });
-    }
-
-    target.password = await bcrypt.hash(String(password), 10);
-    await target.save();
-
-    await logActivity({
-      actor: req.user._id,
-      action: "admin.user.reset_password",
-      targetType: "user",
-      targetId: target._id,
-    });
-
-    return res.status(200).json({
-      success: true,
-      message: "Password reset successfully.",
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
-
-export const listUserActivity = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const logs = await ActivityLog.find({ actor: id })
-      .sort({ createdAt: -1 })
-      .limit(100)
-      .lean();
-
-    return res.status(200).json({
-      success: true,
-      logs: logs.map((l) => ({
-        id: l._id,
-        action: l.action,
-        targetType: l.targetType,
-        targetId: l.targetId,
-        meta: l.meta,
-        createdAt: l.createdAt,
-      })),
     });
   } catch (error) {
     return res.status(500).json({
@@ -385,7 +297,6 @@ export const getAdminCommunityDetail = async (req, res) => {
       "owner",
       "username name email avatar"
     );
-
     if (!community) {
       return res.status(404).json({
         success: false,
@@ -409,58 +320,6 @@ export const getAdminCommunityDetail = async (req, res) => {
         memberCountMap[String(community._id)] || 0
       ),
       members: members.map(formatCommunityMember),
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
-
-export const deleteUser = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    if (String(id) === String(req.user._id)) {
-      return res.status(400).json({
-        success: false,
-        message: "You cannot delete your own account.",
-      });
-    }
-
-    const target = await User.findById(id);
-
-    if (!target) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found.",
-      });
-    }
-
-    if (target.role === "admin") {
-      const adminCount = await User.countDocuments({ role: "admin" });
-      if (adminCount <= 1) {
-        return res.status(400).json({
-          success: false,
-          message: "Cannot delete the last admin.",
-        });
-      }
-    }
-
-    await User.findByIdAndDelete(id);
-
-    await logActivity({
-      actor: req.user._id,
-      action: "admin.user.delete",
-      targetType: "user",
-      targetId: id,
-      meta: { email: target.email },
-    });
-
-    return res.status(200).json({
-      success: true,
-      message: "User deleted successfully.",
     });
   } catch (error) {
     return res.status(500).json({

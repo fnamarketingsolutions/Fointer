@@ -15,14 +15,20 @@ import {
   Radio,
   MessageSquare,
   UserRound,
+  Layers,
+  GitBranch,
 } from 'lucide-react';
 
 import { useAuth } from '../../../context/AuthContext';
 import ComingSoon from '../../../shared/components/feedback/ComingSoon';
 import UserManagement from './menus/UserManagement';
 import CommunityManagement from './menus/CommunityManagement';
+import ChannelManagement from './menus/ChannelManagement';
+import SubchannelManagement from './menus/SubchannelManagement';
+import SupportTicketCenter from './menus/SupportTicketCenter';
 import UserDetail from './menus/UserDetail';
 import CommunityDetail from './menus/CommunityDetail';
+import AdminCommunityPostPage from './menus/AdminCommunityPostPage';
 import Profile from '../../profile/pages/Profile';
 
 const DEFAULT_AVATAR =
@@ -31,11 +37,13 @@ const DEFAULT_AVATAR =
 const navigationItems = [
   { id: 'users', label: 'User Management', icon: Users, type: 'users' },
   { id: 'communities', label: 'Community Management', icon: UsersRound, type: 'communities' },
+  { id: 'channels', label: 'Channels', icon: Layers, type: 'channels' },
+  { id: 'subchannels', label: 'Subchannels', icon: GitBranch, type: 'subchannels' },
   { id: 'moderation', label: 'Content Moderation', icon: Shield, type: 'soon', title: 'Content Moderation' },
   { id: 'commentary', label: 'Live Commentary', icon: MessageSquare, type: 'soon', title: 'Live Commentary' },
   { id: 'watchgroups', label: 'Watch Groups', icon: Radio, type: 'soon', title: 'Watch Groups' },
   { id: 'analytics', label: 'Reporting & Analytics', icon: BarChart3, type: 'soon', title: 'Reporting & Analytics' },
-  { id: 'support', label: 'Support Tools', icon: LifeBuoy, type: 'soon', title: 'Support Tools' },
+  { id: 'support', label: 'Support Tools', icon: LifeBuoy, type: 'support' },
   { id: 'profile', label: 'Profile', icon: UserRound, type: 'profile' },
 ];
 
@@ -247,7 +255,14 @@ const AdminDashboard = () => {
               <Route path="users" element={<UserManagement />} />
               <Route path="users/:id" element={<UserDetail />} />
               <Route path="communities" element={<CommunityManagement />} />
+              <Route
+                path="communities/:id/posts/:postId"
+                element={<AdminCommunityPostPage />}
+              />
               <Route path="communities/:id" element={<CommunityDetail />} />
+              <Route path="channels" element={<ChannelManagement />} />
+              <Route path="subchannels" element={<SubchannelManagement />} />
+              <Route path="support" element={<SupportTicketCenter />} />
               <Route path="profile" element={<Profile />} />
               {navigationItems
                 .filter((item) => item.type === 'soon')

@@ -11,31 +11,34 @@ import { useAuth } from "../../../../context/AuthContext";
 import {
   Home,
   Rss,
+  Newspaper,
   Users,
   Video,
   Clock,
   History,
   LogOut,
-  HelpCircle,
   Crown,
   X,
-  FolderPlus,
   Folders,
   FileText,
   UserRound,
+  LifeBuoy,
 } from "lucide-react";
 
-import CreateCommunity from "./CreateCommunity";
 import ManageCommunities from "./ManageCommunities";
+import ManagePostPage from "./ManagePostPage";
+import DashboardPostPage from "./DashboardPostPage";
+import DashboardFeed from "./DashboardFeed";
 import PostManagement from "../../../posts/pages/PostManagement";
 import JoinedCommunities from "./JoinedCommunities";
 import JoinRequests from "./JoinRequests";
 import ActivityHistory from "./ActivityHistory";
+import Support from "./Support";
 import ComingSoon from "../../../../shared/components/feedback/ComingSoon";
 import Profile from "../../../profile/pages/Profile";
 
 const VALID_TABS = [
-  "create",
+  "postfeed",
   "manage",
   "posts",
   "feed",
@@ -43,11 +46,11 @@ const VALID_TABS = [
   "events",
   "requests",
   "activity",
+  "support",
   "profile",
 ];
 
 const comingSoonTitles = {
-  create: "Create Community",
   manage: "Manage Communities",
   posts: "Post Management",
   feed: "Personalized Feed",
@@ -55,6 +58,7 @@ const comingSoonTitles = {
   events: "Live Events & Watch Groups",
   requests: "Join Requests",
   activity: "Activity History",
+  support: "Support",
 };
 
 const Dashboard = () => {
@@ -72,7 +76,7 @@ const Dashboard = () => {
     .filter(Boolean);
   const activeTab = VALID_TABS.includes(pathAfterDashboard[0])
     ? pathAfterDashboard[0]
-    : "create";
+    : "manage";
 
   useEffect(() => {
     if (!isMobileMenuOpen) return undefined;
@@ -109,7 +113,7 @@ const Dashboard = () => {
   };
 
   const navItems = [
-    { id: "create", label: "Create Community", icon: FolderPlus },
+    { id: "postfeed", label: "Feed", icon: Newspaper },
     { id: "manage", label: "Manage Communities", icon: Folders },
     { id: "posts", label: "Post Management", icon: FileText },
     { id: "feed", label: "Personalized Feed", icon: Rss },
@@ -117,6 +121,7 @@ const Dashboard = () => {
     { id: "events", label: "Live Events & Watch Groups", icon: Video },
     { id: "requests", label: "My Join Requests", icon: Clock },
     { id: "activity", label: "My Activity History", icon: History },
+    { id: "support", label: "Support", icon: LifeBuoy },
     { id: "profile", label: "Profile", icon: UserRound },
   ];
 
@@ -351,28 +356,28 @@ const Dashboard = () => {
         {/* Right Dynamic Workspace View */}
         <main className="flex-1 p-4 sm:p-6 md:p-8 overflow-y-auto max-h-[calc(100vh-4rem)] w-full">
           <Routes>
-            <Route index element={<Navigate to="create" replace />} />
-            <Route
-              path="create"
-              element={
-                <CreateCommunity
-                  onCreated={() => navigate("/dashboard/manage")}
-                />
-              }
-            />
+            <Route index element={<Navigate to="manage" replace />} />
+            <Route path="create" element={<Navigate to="/dashboard/manage" replace />} />
             <Route path="manage" element={<ManageCommunities />} />
+            <Route
+              path="manage/:communityId/posts/:postId"
+              element={<ManagePostPage />}
+            />
             <Route
               path="manage/:communityId"
               element={<ManageCommunities />}
             />
+            <Route path="posts/:postId" element={<DashboardPostPage />} />
             <Route path="posts" element={<PostManagement />} />
+            <Route path="postfeed/:postSlug?" element={<DashboardFeed />} />
             <Route path="communities" element={<JoinedCommunities />} />
             <Route path="requests" element={<JoinRequests />} />
+            <Route path="support" element={<Support />} />
             <Route path="profile" element={<Profile />} />
             <Route path="feed" element={renderComingSoon("feed")} />
             <Route path="events" element={renderComingSoon("events")} />
             <Route path="activity" element={<ActivityHistory />} />
-            <Route path="*" element={<Navigate to="create" replace />} />
+            <Route path="*" element={<Navigate to="manage" replace />} />
           </Routes>
         </main>
       </div>

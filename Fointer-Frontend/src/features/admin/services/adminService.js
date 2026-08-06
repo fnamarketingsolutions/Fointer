@@ -10,25 +10,10 @@ export const fetchUsers = async (params = {}) => {
   return response.data;
 };
 
-export const updateUser = async (userId, payload) => {
-  const response = await api.patch(`/admin/users/${userId}`, payload);
-  return response.data;
-};
-
-export const deleteUser = async (userId) => {
-  const response = await api.delete(`/admin/users/${userId}`);
-  return response.data;
-};
-
-export const resetUserPassword = async (userId, password) => {
-  const response = await api.post(`/admin/users/${userId}/reset-password`, {
-    password,
+export const updateUserStatus = async (userId, status) => {
+  const response = await api.patch(`/admin/users/${userId}/status`, {
+    status,
   });
-  return response.data;
-};
-
-export const fetchUserActivity = async (userId) => {
-  const response = await api.get(`/admin/users/${userId}/activity`);
   return response.data;
 };
 
@@ -49,5 +34,37 @@ export const fetchSystemSettings = async () => {
 
 export const updateSystemSettings = async (payload) => {
   const response = await api.patch('/admin/settings', payload);
+  return response.data;
+};
+
+export const fetchAdminChannels = async (params = {}) => {
+  const response = await api.get('/admin/channels', { params });
+  return response.data;
+};
+
+export const createAdminChannel = async (payload) => {
+  const response = await api.post('/admin/channels', payload);
+  return response.data;
+};
+
+export const fetchAdminSubchannels = async (params = {}) => {
+  const response = await api.get('/admin/subchannels', { params });
+  return response.data;
+};
+
+export const createAdminSubchannel = async (payload) => {
+  const response = await api.post('/admin/subchannels', payload);
+  return response.data;
+};
+
+export const fetchAdminSupportTickets = async (params = {}) => {
+  const response = await api.get('/admin/support', { params });
+  return response.data;
+};
+
+export const updateAdminSupportTicketStatus = async (ticketId, status) => {
+  const response = await api.patch(`/admin/support/${ticketId}/status`, {
+    status,
+  });
   return response.data;
 };

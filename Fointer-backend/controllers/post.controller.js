@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import Post from "../models/post.js";
 import Comment from "../models/comment.js";
 import Reaction from "../models/reaction.js";
@@ -11,7 +12,18 @@ import {
   getEditWindowMinutes,
   getEffectiveMemberRole,
 } from "../utils/communityPermissions.js";
-import { logActivity } from "../utils/logActivity.js";
+import {
+  parsePagination,
+  resolveSort,
+  buildPaginationMeta,
+} from "../utils/pagination.js";
+import { resolveDocumentId } from "../utils/shortCode.js";
+// import { logActivity } from "../utils/logActivity.js";
+
+const POST_SORT_MAP = {
+  newest: { createdAt: -1 },
+  oldest: { createdAt: 1 },
+};
 
 const formatUser = (user) => {
   if (!user || typeof user !== "object" || !user._id) {
@@ -22,6 +34,7 @@ const formatUser = (user) => {
     username: user.username,
     name: user.name,
     avatar: user.avatar || "",
+    role: user.role || "user",
   };
 };
 
@@ -58,19 +71,25 @@ const getLikeMeta = async (targetType, targetIds, userId) => {
 
 const formatPost = (post, extras = {}) => {
   const community = post.community;
+  let communityPayload = null;
+  if (community && typeof community === "object" && community._id) {
+    communityPayload = {
+      id: community._id,
+      shortCode: community.shortCode || "",
+      name: community.name,
+      coverImage: community.coverImage || "",
+    };
+  } else if (community) {
+    communityPayload = { id: community };
+  }
+
   return {
     id: post._id,
+    shortCode: post.shortCode || "",
     title: post.title || "",
     text: post.text || "",
     media: formatMedia(post.media),
-    community:
-      community && typeof community === "object" && community._id
-        ? {
-            id: community._id,
-            name: community.name,
-            coverImage: community.coverImage || "",
-          }
-        : { id: post.community },
+    community: communityPayload,
     author: formatUser(post.author),
     likeCount: extras.likeCount ?? 0,
     likedByMe: extras.likedByMe ?? false,
@@ -83,6 +102,24 @@ const formatPost = (post, extras = {}) => {
     createdAt: post.createdAt,
     updatedAt: post.updatedAt,
   };
+};
+
+/** Authenticated users may engage when post has no community. */
+const canAccessPost = async (post, user) => {
+  if (user.role === "admin") return true;
+  const communityId = post.community?._id || post.community;
+  if (!communityId) return true;
+  return (
+    (await canEngageInCommunity(communityId, user)) ||
+    (await canCreatePost(communityId, user))
+  );
+};
+
+const canEngageWithPost = async (post, user) => {
+  if (user.role === "admin") return true;
+  const communityId = post.community?._id || post.community;
+  if (!communityId) return true;
+  return canEngageInCommunity(communityId, user);
 };
 
 const formatComment = (comment, extras = {}) => ({
@@ -132,7 +169,9 @@ const userCanDeletePost = async (post, user) => {
   const isAdmin = user.role === "admin";
   if (isAdmin) return true;
   if (isAuthor && (await isWithinEditWindow(post.createdAt))) return true;
-  return canManagePostsInCommunity(post.community?._id || post.community, user);
+  const communityId = post.community?._id || post.community;
+  if (!communityId) return false;
+  return canManagePostsInCommunity(communityId, user);
 };
 
 const userCanDeleteComment = async (comment, user) => {
@@ -141,7 +180,7 @@ const userCanDeleteComment = async (comment, user) => {
   if (isAdmin) return true;
   if (isAuthor && (await isWithinEditWindow(comment.createdAt))) return true;
   const post = await Post.findById(comment.post).select("community").lean();
-  if (!post) return false;
+  if (!post?.community) return false;
   return canManagePostsInCommunity(post.community, user);
 };
 
@@ -181,6 +220,11 @@ export const listManageableCommunityIds = async (user) => {
 export const listPosts = async (req, res) => {
   try {
     const { communityId, q, mine } = req.query;
+    const sortBy = String(req.query.sortBy || "newest").trim().toLowerCase();
+    const { enabled, page, limit, skip } = parsePagination(req.query, {
+      defaultLimit: 10,
+      maxLimit: 100,
+    });
     const joinedIds = await listJoinedCommunityIds(req.user);
     const manageableIds = await listManageableCommunityIds(req.user);
 
@@ -202,11 +246,17 @@ export const listPosts = async (req, res) => {
           message: "You cannot view posts in this community.",
         });
       }
-      filter.community = communityId;
+      filter.community = mongoose.Types.ObjectId.isValid(communityId)
+        ? new mongoose.Types.ObjectId(communityId)
+        : communityId;
     } else {
       // Default: posts in communities the user has joined
       if (!joinedIds.length) {
-        return res.status(200).json({ success: true, posts: [] });
+        const empty = { success: true, posts: [] };
+        if (enabled) {
+          empty.pagination = buildPaginationMeta({ page, limit, total: 0 });
+        }
+        return res.status(200).json(empty);
       }
       filter.community = { $in: joinedIds };
     }
@@ -219,11 +269,99 @@ export const listPosts = async (req, res) => {
       ];
     }
 
-    const posts = await Post.find(filter)
-      .populate("author", "username name avatar")
-      .populate("community", "name coverImage")
-      .sort({ createdAt: -1 })
-      .lean();
+    let posts = [];
+    let total = null;
+    const needsCountSort = sortBy === "likes" || sortBy === "comments";
+
+    if (needsCountSort) {
+      if (enabled) {
+        total = await Post.countDocuments(filter);
+      }
+
+      const countField = sortBy === "likes" ? "likeCount" : "commentCount";
+      const pipeline = [{ $match: filter }];
+
+      if (sortBy === "likes") {
+        pipeline.push(
+          {
+            $lookup: {
+              from: Reaction.collection.name,
+              let: { postId: "$_id" },
+              pipeline: [
+                {
+                  $match: {
+                    $expr: {
+                      $and: [
+                        { $eq: ["$targetId", "$$postId"] },
+                        { $eq: ["$targetType", "post"] },
+                      ],
+                    },
+                  },
+                },
+              ],
+              as: "_reactions",
+            },
+          },
+          {
+            $addFields: {
+              likeCount: { $size: "$_reactions" },
+            },
+          },
+          { $project: { _reactions: 0 } }
+        );
+      } else {
+        pipeline.push(
+          {
+            $lookup: {
+              from: Comment.collection.name,
+              let: { postId: "$_id" },
+              pipeline: [
+                {
+                  $match: {
+                    $expr: { $eq: ["$post", "$$postId"] },
+                  },
+                },
+              ],
+              as: "_comments",
+            },
+          },
+          {
+            $addFields: {
+              commentCount: { $size: "$_comments" },
+            },
+          },
+          { $project: { _comments: 0 } }
+        );
+      }
+
+      pipeline.push({
+        $sort: { [countField]: -1, createdAt: -1 },
+      });
+
+      if (enabled) {
+        pipeline.push({ $skip: skip }, { $limit: limit });
+      }
+
+      const aggregated = await Post.aggregate(pipeline);
+      posts = await Post.populate(aggregated, [
+        { path: "author", select: "username name avatar role" },
+        { path: "community", select: "name coverImage shortCode" },
+      ]);
+    } else {
+      const sort = resolveSort(sortBy, POST_SORT_MAP, { createdAt: -1 });
+      let query = Post.find(filter)
+        .populate("author", "username name avatar role")
+        .populate("community", "name coverImage shortCode")
+        .sort(sort)
+        .lean();
+
+      if (enabled) {
+        total = await Post.countDocuments(filter);
+        query = query.skip(skip).limit(limit);
+      }
+
+      posts = await query;
+    }
 
     const postIds = posts.map((p) => p._id);
     const { counts, liked } = await getLikeMeta("post", postIds, req.user._id);
@@ -248,7 +386,7 @@ export const listPosts = async (req, res) => {
       })
     );
 
-    return res.status(200).json({
+    const payload = {
       success: true,
       posts: postsWithPermission.map(
         ({ post: p, canDelete, isAuthor, canEdit, isLocked }) =>
@@ -263,7 +401,13 @@ export const listPosts = async (req, res) => {
             editWindowMinutes,
           })
       ),
-    });
+    };
+
+    if (enabled) {
+      payload.pagination = buildPaginationMeta({ page, limit, total });
+    }
+
+    return res.status(200).json(payload);
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
@@ -272,20 +416,15 @@ export const listPosts = async (req, res) => {
 export const getPost = async (req, res) => {
   try {
     const post = await Post.findById(req.params.id)
-      .populate("author", "username name avatar")
-      .populate("community", "name coverImage")
+      .populate("author", "username name avatar role")
+      .populate("community", "name coverImage shortCode")
       .lean();
 
     if (!post) {
       return res.status(404).json({ success: false, message: "Post not found." });
     }
 
-    const allowed =
-      req.user.role === "admin" ||
-      (await canEngageInCommunity(post.community?._id || post.community, req.user)) ||
-      (await canCreatePost(post.community?._id || post.community, req.user));
-
-    if (!allowed) {
+    if (!(await canAccessPost(post, req.user))) {
       return res.status(403).json({
         success: false,
         message: "You cannot view this post.",
@@ -312,30 +451,248 @@ export const getPost = async (req, res) => {
   }
 };
 
+const PUBLIC_POST_FILTER = {
+  $or: [{ community: null }, { community: { $exists: false } }],
+};
+
+/** List community-less posts (public browse; optional auth for likedByMe). */
+export const listPublicPosts = async (req, res) => {
+  try {
+    const { q } = req.query;
+    const sortBy = String(req.query.sortBy || "newest").trim().toLowerCase();
+    const { enabled, page, limit, skip } = parsePagination(req.query, {
+      defaultLimit: 10,
+      maxLimit: 100,
+    });
+
+    const filter = { ...PUBLIC_POST_FILTER };
+
+    if (q && String(q).trim()) {
+      const term = String(q).trim();
+      filter.$and = [
+        { $or: PUBLIC_POST_FILTER.$or },
+        {
+          $or: [
+            { title: { $regex: term, $options: "i" } },
+            { text: { $regex: term, $options: "i" } },
+          ],
+        },
+      ];
+      delete filter.$or;
+    }
+
+    let posts = [];
+    let total = null;
+    const needsCountSort = sortBy === "likes" || sortBy === "comments";
+
+    if (needsCountSort) {
+      if (enabled) {
+        total = await Post.countDocuments(filter);
+      }
+
+      const countField = sortBy === "likes" ? "likeCount" : "commentCount";
+      const pipeline = [{ $match: filter }];
+
+      if (sortBy === "likes") {
+        pipeline.push(
+          {
+            $lookup: {
+              from: Reaction.collection.name,
+              let: { postId: "$_id" },
+              pipeline: [
+                {
+                  $match: {
+                    $expr: {
+                      $and: [
+                        { $eq: ["$targetId", "$$postId"] },
+                        { $eq: ["$targetType", "post"] },
+                      ],
+                    },
+                  },
+                },
+              ],
+              as: "_reactions",
+            },
+          },
+          {
+            $addFields: {
+              likeCount: { $size: "$_reactions" },
+            },
+          },
+          { $project: { _reactions: 0 } }
+        );
+      } else {
+        pipeline.push(
+          {
+            $lookup: {
+              from: Comment.collection.name,
+              let: { postId: "$_id" },
+              pipeline: [
+                {
+                  $match: {
+                    $expr: { $eq: ["$post", "$$postId"] },
+                  },
+                },
+              ],
+              as: "_comments",
+            },
+          },
+          {
+            $addFields: {
+              commentCount: { $size: "$_comments" },
+            },
+          },
+          { $project: { _comments: 0 } }
+        );
+      }
+
+      pipeline.push({
+        $sort: { [countField]: -1, createdAt: -1 },
+      });
+
+      if (enabled) {
+        pipeline.push({ $skip: skip }, { $limit: limit });
+      }
+
+      const aggregated = await Post.aggregate(pipeline);
+      posts = await Post.populate(aggregated, [
+        { path: "author", select: "username name avatar role" },
+      ]);
+    } else {
+      const sort = resolveSort(sortBy, POST_SORT_MAP, { createdAt: -1 });
+      let query = Post.find(filter)
+        .populate("author", "username name avatar role")
+        .sort(sort)
+        .lean();
+
+      if (enabled) {
+        total = await Post.countDocuments(filter);
+        query = query.skip(skip).limit(limit);
+      }
+
+      posts = await query;
+    }
+
+    const postIds = posts.map((p) => p._id);
+    const userId = req.user?._id;
+    const { counts, liked } = await getLikeMeta("post", postIds, userId);
+
+    const commentCounts = await Comment.aggregate([
+      { $match: { post: { $in: postIds } } },
+      { $group: { _id: "$post", count: { $sum: 1 } } },
+    ]);
+    const commentMap = Object.fromEntries(
+      commentCounts.map((c) => [String(c._id), c.count])
+    );
+
+    const editWindowMinutes = req.user ? await getEditWindowMinutes() : null;
+    const postsFormatted = await Promise.all(
+      posts.map(async (p) => {
+        if (!req.user) {
+          return formatPost(p, {
+            likeCount: counts[String(p._id)] || 0,
+            likedByMe: false,
+            commentCount: commentMap[String(p._id)] || 0,
+          });
+        }
+        const flags = await buildOwnContentFlags(p, req.user);
+        return formatPost(p, {
+          likeCount: counts[String(p._id)] || 0,
+          likedByMe: liked[String(p._id)] || false,
+          commentCount: commentMap[String(p._id)] || 0,
+          canDelete: await userCanDeletePost(p, req.user),
+          ...flags,
+          editWindowMinutes,
+        });
+      })
+    );
+
+    const payload = {
+      success: true,
+      posts: postsFormatted,
+    };
+
+    if (enabled) {
+      payload.pagination = buildPaginationMeta({ page, limit, total });
+    }
+
+    return res.status(200).json(payload);
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/** Get a single community-less post (public browse; optional auth). */
+export const getPublicPost = async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id)
+      .populate("author", "username name avatar role")
+      .lean();
+
+    if (!post) {
+      return res.status(404).json({ success: false, message: "Post not found." });
+    }
+
+    const communityId = post.community?._id || post.community;
+    if (communityId) {
+      return res.status(404).json({
+        success: false,
+        message: "This post is not publicly available.",
+      });
+    }
+
+    const userId = req.user?._id;
+    const { counts, liked } = await getLikeMeta("post", [post._id], userId);
+    const commentCount = await Comment.countDocuments({ post: post._id });
+
+    if (!req.user) {
+      return res.status(200).json({
+        success: true,
+        post: formatPost(post, {
+          likeCount: counts[String(post._id)] || 0,
+          likedByMe: false,
+          commentCount,
+        }),
+      });
+    }
+
+    const canDelete = await userCanDeletePost(post, req.user);
+    const flags = await buildOwnContentFlags(post, req.user);
+    return res.status(200).json({
+      success: true,
+      post: formatPost(post, {
+        likeCount: counts[String(post._id)] || 0,
+        likedByMe: liked[String(post._id)] || false,
+        commentCount,
+        canDelete,
+        ...flags,
+      }),
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 export const createPost = async (req, res) => {
   try {
     const { communityId, title, text, media } = req.body;
+    const hasCommunity = Boolean(communityId);
 
-    if (!communityId) {
-      return res.status(400).json({
-        success: false,
-        message: "communityId is required.",
-      });
-    }
+    if (hasCommunity) {
+      const community = await Community.findById(communityId);
+      if (!community) {
+        return res.status(404).json({
+          success: false,
+          message: "Community not found.",
+        });
+      }
 
-    const community = await Community.findById(communityId);
-    if (!community) {
-      return res.status(404).json({
-        success: false,
-        message: "Community not found.",
-      });
-    }
-
-    if (!(await canCreatePost(communityId, req.user))) {
-      return res.status(403).json({
-        success: false,
-        message: "You must be an active member to create posts.",
-      });
+      if (!(await canCreatePost(communityId, req.user))) {
+        return res.status(403).json({
+          success: false,
+          message: "You must be an active member to create posts.",
+        });
+      }
     }
 
     const cleanTitle = String(title || "").trim();
@@ -356,8 +713,7 @@ export const createPost = async (req, res) => {
       });
     }
 
-    const post = await Post.create({
-      community: communityId,
+    const postData = {
       author: req.user._id,
       title: cleanTitle,
       text: cleanText,
@@ -366,18 +722,25 @@ export const createPost = async (req, res) => {
         publicId: m.publicId || "",
         type: m.type === "video" ? "video" : "image",
       })),
-    });
+    };
+    if (hasCommunity) {
+      postData.community = communityId;
+    }
 
-    await post.populate("author", "username name avatar");
-    await post.populate("community", "name coverImage");
+    const post = await Post.create(postData);
 
-    await logActivity({
-      actor: req.user._id,
-      action: "post.create",
-      targetType: "post",
-      targetId: post._id,
-      meta: { communityId },
-    });
+    await post.populate("author", "username name avatar role");
+    if (hasCommunity) {
+      await post.populate("community", "name coverImage shortCode");
+    }
+
+    // await logActivity({
+    //   actor: req.user._id,
+    //   action: "post.create",
+    //   targetType: "post",
+    //   targetId: post._id,
+    //   meta: { communityId },
+    // });
 
     return res.status(201).json({
       success: true,
@@ -408,7 +771,9 @@ export const updatePost = async (req, res) => {
     if (!(await userCanEditOwn(post, req.user))) {
       return res.status(403).json({
         success: false,
-        message: "Edit window expired. This post is locked.",
+        message: isDocAuthor(post, req.user)
+          ? "Edit window expired. This post is locked."
+          : "You do not have permission to edit this post.",
       });
     }
 
@@ -433,8 +798,8 @@ export const updatePost = async (req, res) => {
     }
 
     await post.save();
-    await post.populate("author", "username name avatar");
-    await post.populate("community", "name coverImage");
+    await post.populate("author", "username name avatar role");
+    await post.populate("community", "name coverImage shortCode");
 
     const { counts, liked } = await getLikeMeta(
       "post",
@@ -471,7 +836,9 @@ export const deletePost = async (req, res) => {
     if (!canDelete) {
       return res.status(403).json({
         success: false,
-        message: "Edit window expired. This post is locked.",
+        message: isDocAuthor(post, req.user)
+          ? "Edit window expired. This post is locked."
+          : "You do not have permission to delete this post.",
       });
     }
 
@@ -487,12 +854,12 @@ export const deletePost = async (req, res) => {
     await Comment.deleteMany({ post: post._id });
     await Post.findByIdAndDelete(post._id);
 
-    await logActivity({
-      actor: req.user._id,
-      action: "post.delete",
-      targetType: "post",
-      targetId: post._id,
-    });
+    // await logActivity({
+    //   actor: req.user._id,
+    //   action: "post.delete",
+    //   targetType: "post",
+    //   targetId: post._id,
+    // });
 
     return res.status(200).json({
       success: true,
@@ -510,18 +877,15 @@ export const listComments = async (req, res) => {
       return res.status(404).json({ success: false, message: "Post not found." });
     }
 
-    if (!(await canEngageInCommunity(post.community, req.user)) && req.user.role !== "admin") {
-      // Allow owners/mods who manage even if engage check fails oddly
-      if (!(await canCreatePost(post.community, req.user))) {
-        return res.status(403).json({
-          success: false,
-          message: "You cannot view comments in this community.",
-        });
-      }
+    if (!(await canAccessPost(post, req.user))) {
+      return res.status(403).json({
+        success: false,
+        message: "You cannot view comments in this community.",
+      });
     }
 
     const comments = await Comment.find({ post: post._id })
-      .populate("author", "username name avatar")
+      .populate("author", "username name avatar role")
       .sort({ createdAt: 1 })
       .lean();
 
@@ -567,7 +931,7 @@ export const createComment = async (req, res) => {
       return res.status(404).json({ success: false, message: "Post not found." });
     }
 
-    if (!(await canEngageInCommunity(post.community, req.user))) {
+    if (!(await canEngageWithPost(post, req.user))) {
       return res.status(403).json({
         success: false,
         message: "Only community members can comment.",
@@ -603,7 +967,7 @@ export const createComment = async (req, res) => {
       text,
     });
 
-    await comment.populate("author", "username name avatar");
+    await comment.populate("author", "username name avatar role");
 
     return res.status(201).json({
       success: true,
@@ -635,7 +999,9 @@ export const updateComment = async (req, res) => {
     if (!(await userCanEditOwn(comment, req.user))) {
       return res.status(403).json({
         success: false,
-        message: "Edit window expired. This comment is locked.",
+        message: isDocAuthor(comment, req.user)
+          ? "Edit window expired. This comment is locked."
+          : "You do not have permission to edit this comment.",
       });
     }
 
@@ -649,7 +1015,7 @@ export const updateComment = async (req, res) => {
 
     comment.text = text;
     await comment.save();
-    await comment.populate("author", "username name avatar");
+    await comment.populate("author", "username name avatar role");
 
     const { counts, liked } = await getLikeMeta(
       "comment",
@@ -686,7 +1052,9 @@ export const deleteComment = async (req, res) => {
     if (!canDelete) {
       return res.status(403).json({
         success: false,
-        message: "Edit window expired. This comment is locked.",
+        message: isDocAuthor(comment, req.user)
+          ? "Edit window expired. This comment is locked."
+          : "You do not have permission to delete this comment.",
       });
     }
 
@@ -734,7 +1102,7 @@ export const togglePostLike = async (req, res) => {
       return res.status(404).json({ success: false, message: "Post not found." });
     }
 
-    if (!(await canEngageInCommunity(post.community, req.user))) {
+    if (!(await canEngageWithPost(post, req.user))) {
       return res.status(403).json({
         success: false,
         message: "Only community members can like posts.",
@@ -763,7 +1131,7 @@ export const toggleCommentLike = async (req, res) => {
       return res.status(404).json({ success: false, message: "Post not found." });
     }
 
-    if (!(await canEngageInCommunity(post.community, req.user))) {
+    if (!(await canEngageWithPost(post, req.user))) {
       return res.status(403).json({
         success: false,
         message: "Only community members can like comments.",
@@ -772,6 +1140,22 @@ export const toggleCommentLike = async (req, res) => {
 
     const result = await toggleLike("comment", comment._id, req.user);
     return res.status(200).json({ success: true, ...result });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * Maps the short code carried in a post URL back to its id. Access checks stay
+ * on the endpoints that actually return post data.
+ */
+export const resolvePostCode = async (req, res) => {
+  try {
+    const id = await resolveDocumentId(Post, req.params.code);
+    if (!id) {
+      return res.status(404).json({ success: false, message: "Post not found." });
+    }
+    return res.status(200).json({ success: true, id });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }

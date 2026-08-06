@@ -5,17 +5,18 @@ import { Link, useNavigate } from "react-router-dom";
 import { fetchBrowsableCommunities } from "../../../../api/communities";
 import CommunityCard from "../../../communities/components/CommunityCard";
 import { useAuth } from "../../../../context/AuthContext";
+import { useToast } from "../../../../shared/components/feedback/ToastContext";
+import { communitySegment } from "../../../../shared/services/entityLinks";
 
 export default function DiscoverCommunities() {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
+  const { showToast } = useToast();
   const [communities, setCommunities] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError("");
     try {
       const data = await fetchBrowsableCommunities({
         includeJoined: "1",
@@ -29,13 +30,13 @@ export default function DiscoverCommunities() {
 
       setCommunities(recentSorted);
     } catch (err) {
-      setError(
+      showToast(
         err?.response?.data?.message || "Unable to load communities right now."
       );
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [showToast]);
 
   useEffect(() => {
     load();
@@ -59,19 +60,13 @@ export default function DiscoverCommunities() {
             Elite Circles
           </span>
           <h2 className="text-2xl sm:text-3xl md:text-4xl font-serif text-[#E5E0D8] leading-tight">
-            Discover Private Communities
+            Discover Communities
           </h2>
           <p className="mt-3 text-sm sm:text-base text-[#A69B8D] leading-relaxed">
             Browse all public and request-access communities. Join instantly or
             send a request — your application goes directly to the community owner.
           </p>
         </motion.div>
-
-        {error && (
-          <div className="max-w-xl mx-auto mb-6 text-xs sm:text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3 text-center">
-            {error}
-          </div>
-        )}
 
         {loading ? (
           <div className="flex items-center justify-center py-16 text-[#A69B8D] text-sm gap-2">
@@ -94,7 +89,9 @@ export default function DiscoverCommunities() {
               <CommunityCard
                 key={community.id}
                 community={community}
-                onClick={() => navigate(`/communities/${community.id}`)}
+                onClick={() =>
+                  navigate(`/communities/${communitySegment(community)}`)
+                }
               />
             ))}
           </motion.div>

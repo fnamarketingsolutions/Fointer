@@ -2,6 +2,8 @@ import express from "express";
 import {
   listPosts,
   getPost,
+  listPublicPosts,
+  getPublicPost,
   createPost,
   updatePost,
   deletePost,
@@ -11,13 +13,24 @@ import {
   deleteComment,
   togglePostLike,
   toggleCommentLike,
+  resolvePostCode,
 } from "../controllers/post.controller.js";
-import { isAuthenticated } from "../middleware/auth.middleware.js";
+import {
+  isAuthenticated,
+  optionalAuthenticate,
+} from "../middleware/auth.middleware.js";
 
 const router = express.Router();
 
 router.get("/", isAuthenticated, listPosts);
 router.post("/", isAuthenticated, createPost);
+
+// Short-code lookup — must stay ahead of the /:id routes
+router.get("/resolve/:code", optionalAuthenticate, resolvePostCode);
+
+// Public browse (community-less posts) — before /:id
+router.get("/public", optionalAuthenticate, listPublicPosts);
+router.get("/public/:id", optionalAuthenticate, getPublicPost);
 
 // Comment mutations must be registered before /:id
 router.patch("/comments/:id", isAuthenticated, updateComment);

@@ -1,15 +1,17 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { FiEye, FiEyeOff } from 'react-icons/fi';
 import { ArrowLeft } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { sigupUser, resendVerificationEmail, verifyEmailOtp } from '../services/authService';
 import { useAuth } from '../../../context/AuthContext';
 import { useSocialAuth } from '../hooks/useSocialAuth';
+import { useToast } from '../../../shared/components/feedback/ToastContext';
 import SocialAuthButtons from './SocialAuthButtons';
 
 export default function SignUp() {
   const navigate = useNavigate();
   const { loginSuccess } = useAuth();
+  const { showToast } = useToast();
   const {
     loading: socialLoading,
     error: socialError,
@@ -30,15 +32,16 @@ export default function SignUp() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [emailLoading, setEmailLoading] = useState(false);
-  const [emailError, setEmailError] = useState('');
-  const [signupSuccess, setSignupSuccess] = useState('');
   const [verificationEmail, setVerificationEmail] = useState('');
   const [otp, setOtp] = useState('');
   const [verifyLoading, setVerifyLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
 
   const activeVerificationEmail = verificationEmail || pendingVerification?.email || '';
-  const errorMessage = emailError || socialError;
+
+  useEffect(() => {
+    if (socialError) showToast(socialError);
+  }, [socialError, showToast]);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -47,8 +50,6 @@ export default function SignUp() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setEmailLoading(true);
-    setEmailError('');
-    setSignupSuccess('');
     setSocialError('');
     clearPendingVerification();
 
@@ -57,14 +58,14 @@ export default function SignUp() {
       if (response?.success) {
         setVerificationEmail(response?.email || formData.email);
         setOtp('');
-        setSignupSuccess(
+        showToast(
           response?.message || 'Account created. Enter the OTP sent to your email.'
         );
       } else {
-        setEmailError(response?.message || 'Sign up failed.');
+        showToast(response?.message || 'Sign up failed.');
       }
     } catch (error) {
-      setEmailError(error?.response?.data?.message || 'Sign up failed. Please try again.');
+      showToast(error?.response?.data?.message || 'Sign up failed. Please try again.');
     } finally {
       setEmailLoading(false);
     }
@@ -74,15 +75,12 @@ export default function SignUp() {
     if (!activeVerificationEmail) return;
 
     setResendLoading(true);
-    setEmailError('');
 
     try {
       const response = await resendVerificationEmail(activeVerificationEmail);
-      setSignupSuccess(response?.message || 'OTP sent again.');
+      showToast(response?.message || 'OTP sent again.');
     } catch (error) {
-      setEmailError(
-        error?.response?.data?.message || 'Could not resend OTP.'
-      );
+      showToast(error?.response?.data?.message || 'Could not resend OTP.');
     } finally {
       setResendLoading(false);
     }
@@ -93,7 +91,6 @@ export default function SignUp() {
     if (!activeVerificationEmail || otp.length !== 6) return;
 
     setVerifyLoading(true);
-    setEmailError('');
 
     try {
       const response = await verifyEmailOtp(activeVerificationEmail, otp);
@@ -102,7 +99,7 @@ export default function SignUp() {
         navigate(response.user.role === 'admin' ? '/admin' : '/dashboard');
       }
     } catch (error) {
-      setEmailError(error?.response?.data?.message || 'OTP verification failed.');
+      showToast(error?.response?.data?.message || 'OTP verification failed.');
     } finally {
       setVerifyLoading(false);
     }
@@ -166,19 +163,6 @@ export default function SignUp() {
               Enter your details to register and get started.
             </p>
           </div>
-
-          {signupSuccess && (
-            <div className="mb-5 p-3 rounded-lg bg-emerald-950/60 border border-emerald-500/40 text-emerald-200 text-xs text-center leading-relaxed">
-              {signupSuccess}
-              {activeVerificationEmail ? ` (${activeVerificationEmail})` : ''}
-            </div>
-          )}
-
-          {errorMessage && (
-            <div className="mb-5 p-3 rounded-lg bg-red-950/60 border border-red-500/40 text-red-200 text-xs text-center leading-relaxed">
-              {errorMessage}
-            </div>
-          )}
 
           {!activeVerificationEmail ? (
             <form onSubmit={handleSubmit} className="space-y-4">

@@ -4,11 +4,12 @@ import { Loader2, RefreshCw, ArrowRight, Search } from "lucide-react";
 import { fetchJoinedCommunities } from "../../../../api/communities";
 import CommunityCard from "../../components/CommunityCard";
 import CommunityBrowseDetail from "../../components/CommunityBrowseDetail";
+import { useToast } from "../../../../shared/components/feedback/ToastContext";
 
 export default function JoinedCommunities() {
+  const { showToast } = useToast();
   const [joined, setJoined] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const [selectedId, setSelectedId] = useState(null);
   const [search, setSearch] = useState("");
 
@@ -19,16 +20,15 @@ export default function JoinedCommunities() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError("");
     try {
       const joinedRes = await fetchJoinedCommunities();
       setJoined(joinedRes?.communities || []);
     } catch (err) {
-      setError(err?.response?.data?.message || "Failed to load communities.");
+      showToast(err?.response?.data?.message || "Failed to load communities.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [showToast]);
 
   useEffect(() => {
     load();
@@ -75,12 +75,6 @@ export default function JoinedCommunities() {
           className="w-full bg-[#0D0A08] border border-[#2A241E] rounded-lg pl-9 pr-4 py-2 text-xs sm:text-sm text-[#E5E0D8] focus:outline-none focus:border-[#D4AF37]/60 placeholder:text-[#8C8070]"
         />
       </div>
-
-      {error && (
-        <div className="text-xs sm:text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 sm:px-4 py-2.5">
-          {error}
-        </div>
-      )}
 
       {joined.length === 0 ? (
         <div className="border border-dashed border-[#2A241E] rounded-xl py-12 sm:py-16 text-center text-[#8C8070] text-xs sm:text-sm px-4 space-y-4">

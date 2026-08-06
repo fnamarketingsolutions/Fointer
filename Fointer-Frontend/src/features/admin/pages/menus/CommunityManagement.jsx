@@ -13,15 +13,17 @@ import {
   deleteCommunity,
 } from '../../../../api/communities';
 import ConfirmDeleteModal from '../../../../shared/components/modals/ConfirmDeleteModal';
+import { useToast } from '../../../../shared/components/feedback/ToastContext';
 import { COMMUNITY_TYPE_LABELS } from '../../../../shared/constants/community';
+import { communitySegment } from '../../../../shared/services/entityLinks';
 
 const TYPE_LABELS = COMMUNITY_TYPE_LABELS;
 
 export default function CommunityManagement() {
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [communities, setCommunities] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [selectedId, setSelectedId] = useState(null);
   const [detail, setDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -41,36 +43,33 @@ export default function CommunityManagement() {
 
   const loadCommunities = useCallback(async () => {
     setLoading(true);
-    setError('');
     try {
       const data = await fetchAllCommunities();
       setCommunities(data?.communities || []);
     } catch (err) {
-      setError(err?.response?.data?.message || 'Failed to load communities.');
+      showToast(err?.response?.data?.message || 'Failed to load communities.');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [showToast]);
 
   useEffect(() => {
     loadCommunities();
   }, [loadCommunities]);
 
   const openDetail = (community) => {
-    navigate(`/admin/communities/${community.id}`);
+    navigate(`/admin/communities/${communitySegment(community)}`);
   };
 
   const backToList = () => {
     setSelectedId(null);
     setDetail(null);
-    setError('');
   };
 
   const handleConfirmDelete = async () => {
     if (!communityToDelete) return;
 
     setDeleting(true);
-    setError('');
     try {
       await deleteCommunity(communityToDelete.id);
       if (selectedId === communityToDelete.id) {
@@ -79,7 +78,7 @@ export default function CommunityManagement() {
       setCommunityToDelete(null);
       await loadCommunities();
     } catch (err) {
-      setError(err?.response?.data?.message || 'Failed to delete community.');
+      showToast(err?.response?.data?.message || 'Failed to delete community.');
     } finally {
       setDeleting(false);
     }
@@ -96,12 +95,6 @@ export default function CommunityManagement() {
           >
             <ArrowLeft size={14} /> Back to communities
           </button>
-
-          {error && (
-            <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3">
-              {error}
-            </div>
-          )}
 
           {detailLoading || !detail ? (
             <div className="flex items-center justify-center gap-2 py-16 text-stone-400 text-sm">
@@ -235,12 +228,6 @@ export default function CommunityManagement() {
               className="w-full bg-[#141210] border border-stone-800/60 rounded-lg pl-9 pr-4 py-2 text-xs text-stone-200 focus:outline-none focus:border-amber-600/50 placeholder:text-stone-600"
             />
           </div>
-
-          {error && (
-            <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3">
-              {error}
-            </div>
-          )}
 
           {loading ? (
             <div className="flex items-center justify-center gap-2 py-16 text-stone-400 text-sm">

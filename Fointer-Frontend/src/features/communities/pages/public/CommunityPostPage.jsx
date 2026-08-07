@@ -6,7 +6,7 @@ import useEntityId from "../../../../shared/hooks/useEntityId";
 
 export default function CommunityPostPage() {
   const { communityId, postId: postParam } = useParams();
-  const { id: postId } = useEntityId("post", postParam);
+  const { id: postId, resolving } = useEntityId("post", postParam);
   const navigate = useNavigate();
 
   const backTo = `/communities/${communityId}`;
@@ -16,6 +16,7 @@ export default function CommunityPostPage() {
       <div className="w-full px-4 sm:px-6 lg:px-8 py-8 sm:py-10">
         <PostDetail
           postId={postId}
+          resolving={resolving}
           backTo={backTo}
           backLabel="Back to community"
           onBack={() => navigate(backTo)}

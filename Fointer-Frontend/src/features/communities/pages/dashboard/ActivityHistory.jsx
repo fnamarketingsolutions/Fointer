@@ -93,23 +93,6 @@ export default function ActivityHistory() {
     }
   };
 
-  // if (editingPostId) {
-  //   return (
-  //     <PostDetail
-  //       postId={editingPostId}
-  //       onBack={() => {
-  //         setEditingPostId(null);
-  //         loadPosts();
-  //       }}
-  //       onDeleted={() => {
-  //         setEditingPostId(null);
-  //         loadPosts();
-  //       }}
-  //       backLabel="Back to activity"
-  //     />
-  //   );
-  // }
-
   return (
     <div className="space-y-6 max-w-4xl">
       <div>

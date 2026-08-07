@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+﻿import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   X,
@@ -16,6 +16,9 @@ import {
   Plus,
   Layers,
   Grid,
+  Video,
+  Check,
+  Clock,
 } from "lucide-react";
 import {
   fetchBrowsableCommunity,
@@ -28,6 +31,9 @@ import {
   createPost,
   togglePostLike,
 } from "../../../api/posts";
+import { fetchWatchGroups } from "../services/communityService";
+import JoinWatchGroupModal from "../pages/watchgroups/JoinWatchGroupModal";
+import { getJoinGroupCtaState } from "../pages/watchgroups/WatchGroupJoinAction";
 import MediaPicker from "../../../shared/components/media/MediaPicker";
 import { useToast } from "../../../shared/components/feedback/ToastContext";
 import { useAuth } from "../../../context/AuthContext";
@@ -38,6 +44,7 @@ import {
   communitySegment,
   postSegment,
 } from "../../../shared/services/entityLinks";
+import { getErrorMessage } from "../../../shared/utils/errors";
 
 const TYPE_META = {
   public: { label: COMMUNITY_TYPE_LABELS.public, icon: Globe },
@@ -150,6 +157,9 @@ export default function CommunityBrowseDetail({
   const [aboutExpanded, setAboutExpanded] = useState(false);
   const [rulesExpanded, setRulesExpanded] = useState(false);
   const [subchannelsExpanded, setSubchannelsExpanded] = useState(false);
+  const [watchGroups, setWatchGroups] = useState([]);
+  const [watchGroupsLoading, setWatchGroupsLoading] = useState(false);
+  const [joinGroupOpen, setJoinGroupOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!communityId) return;
@@ -191,12 +201,30 @@ export default function CommunityBrowseDetail({
     }
   }, [communityId]);
 
+  const loadWatchGroups = useCallback(async () => {
+    if (!communityId || !isAuthenticated) {
+      setWatchGroups([]);
+      return;
+    }
+    setWatchGroupsLoading(true);
+    try {
+      const data = await fetchWatchGroups({ communityId });
+      setWatchGroups(data?.watchGroups || []);
+    } catch (err) {
+      setWatchGroups([]);
+      showToast(getErrorMessage(err, "Failed to load watch groups."));
+    } finally {
+      setWatchGroupsLoading(false);
+    }
+  }, [communityId, isAuthenticated, showToast]);
+
   useEffect(() => {
     setHeroPreview(null);
     setAboutExpanded(false);
     setRulesExpanded(false);
     setMembersExpanded(false);
     setSubchannelsExpanded(false);
+    setJoinGroupOpen(false);
     if (communityId) {
       load();
     }
@@ -206,11 +234,19 @@ export default function CommunityBrowseDetail({
     if (community?.isMember && isAuthenticated) {
       loadMembers();
       loadPosts();
+      loadWatchGroups();
     } else {
       setMembers([]);
       setPosts([]);
+      setWatchGroups([]);
     }
-  }, [community?.isMember, isAuthenticated, loadMembers, loadPosts]);
+  }, [
+    community?.isMember,
+    isAuthenticated,
+    loadMembers,
+    loadPosts,
+    loadWatchGroups,
+  ]);
 
   const handleJoin = async () => {
     if (!community) return;
@@ -349,6 +385,49 @@ export default function CommunityBrowseDetail({
     !community?.isMember &&
     !community?.joinRequestPending;
 
+  const showJoinGroupCta =
+    Boolean(community?.isMember) &&
+    isAuthenticated &&
+    !watchGroupsLoading &&
+    watchGroups.length > 0;
+  const { allGroupsJoined, anyPendingOnly, label: joinCtaLabel } =
+    getJoinGroupCtaState(watchGroups);
+
+  const handleJoinGroupCtaClick = () => {
+    if (allGroupsJoined) {
+      navigate("/dashboard/watchgroups");
+      return;
+    }
+    setJoinGroupOpen(true);
+  };
+
+  const handleGroupJoined = (group) => {
+    setWatchGroups((list) =>
+      list.map((g) =>
+        String(g.id) === String(group.id)
+          ? {
+              ...g,
+              myRole: "member",
+              myJoinRequestStatus: null,
+              participantCount: (g.participantCount || 0) + 1,
+            }
+          : g
+      )
+    );
+    setJoinGroupOpen(false);
+    navigate(`/dashboard/watchgroups/${group.id}/chat`);
+  };
+
+  const handleGroupRequested = (group) => {
+    setWatchGroups((list) =>
+      list.map((g) =>
+        String(g.id) === String(group.id)
+          ? { ...g, myJoinRequestStatus: "pending" }
+          : g
+      )
+    );
+  };
+
   const sortedPosts = [...posts].sort(
     (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
   );
@@ -364,10 +443,34 @@ export default function CommunityBrowseDetail({
           {meta.label}
         </span>
       </div>
-      <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#D4AF37] text-black text-[10px] font-bold uppercase">
-        <Shield size={10} />
-        Verified
-      </span>
+      <div className="flex items-center gap-2 shrink-0">
+        {showJoinGroupCta && (
+          <button
+            type="button"
+            onClick={handleJoinGroupCtaClick}
+            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold transition-opacity hover:opacity-90 ${
+              allGroupsJoined
+                ? "bg-[#D4AF37]/15 text-[#D4AF37] border border-[#D4AF37]/40"
+                : anyPendingOnly
+                  ? "bg-[#2A241E] text-[#A69B8D] border border-[#2A241E]"
+                  : "bg-gradient-to-r from-[#D4AF37] to-[#AA820A] text-black"
+            }`}
+          >
+            {allGroupsJoined ? (
+              <Check size={14} />
+            ) : anyPendingOnly ? (
+              <Clock size={14} />
+            ) : (
+              <Video size={14} />
+            )}
+            {joinCtaLabel}
+          </button>
+        )}
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#D4AF37] text-black text-[10px] font-bold uppercase">
+          <Shield size={10} />
+          Verified
+        </span>
+      </div>
     </div>
   );
 
@@ -392,6 +495,28 @@ export default function CommunityBrowseDetail({
             <div className="absolute inset-0 bg-gradient-to-t from-[#0E0C0A] via-[#0E0C0A]/50 to-transparent" />
             <div className="absolute inset-0 flex flex-col justify-end p-4 sm:p-5">
               <div className="flex flex-wrap items-center gap-2 mb-2">
+                {showJoinGroupCta && (
+                  <button
+                    type="button"
+                    onClick={handleJoinGroupCtaClick}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                      allGroupsJoined
+                        ? "bg-[#D4AF37]/15 text-[#D4AF37] border border-[#D4AF37]/40"
+                        : anyPendingOnly
+                          ? "bg-[#2A241E] text-[#A69B8D] border border-[#2A241E]"
+                          : "bg-gradient-to-r from-[#D4AF37] to-[#AA820A] text-black"
+                    }`}
+                  >
+                    {allGroupsJoined ? (
+                      <Check size={10} />
+                    ) : anyPendingOnly ? (
+                      <Clock size={10} />
+                    ) : (
+                      <Video size={10} />
+                    )}
+                    {joinCtaLabel}
+                  </button>
+                )}
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#D4AF37] text-black text-[10px] font-bold uppercase">
                   <Shield size={10} />
                   Verified
@@ -704,7 +829,7 @@ export default function CommunityBrowseDetail({
       ) : canRequestJoin ? (
         <div className="space-y-3">
           <p className="text-xs text-[#A69B8D]">
-            Send a join request to the owner, or wait for an invite — like
+            Send a join request to the owner, or wait for an invite â€” like
             a friend request, either side can start.
           </p>
           <textarea
@@ -745,7 +870,7 @@ export default function CommunityBrowseDetail({
       ) : (
         <p className="text-center text-xs text-[#8C8070]">
           This community is invite-only. An owner or moderator must send
-          you an invite — accept it from Join Requests & Invites.
+          you an invite â€” accept it from Join Requests & Invites.
         </p>
       )}
     </div>
@@ -887,7 +1012,7 @@ export default function CommunityBrowseDetail({
                         </div>
                         <div className="text-[10px] text-[#8C8070] truncate">
                           {post.author?.username && (
-                            <span>@{post.author.username} · </span>
+                            <span>@{post.author.username} Â· </span>
                           )}
                           {timeAgo(post.createdAt)}
                         </div>
@@ -1088,8 +1213,23 @@ export default function CommunityBrowseDetail({
     </div>
   );
 
+  const joinGroupModal = (
+    <JoinWatchGroupModal
+      open={joinGroupOpen}
+      onClose={() => setJoinGroupOpen(false)}
+      groups={watchGroups}
+      onJoined={handleGroupJoined}
+      onRequested={handleGroupRequested}
+    />
+  );
+
   if (isPage) {
-    return content;
+    return (
+      <>
+        {content}
+        {joinGroupModal}
+      </>
+    );
   }
 
   return (
@@ -1116,6 +1256,7 @@ export default function CommunityBrowseDetail({
 
         <div className="overflow-y-auto flex-1 p-4 sm:p-5">{content}</div>
       </div>
+      {joinGroupModal}
     </div>
   );
 }

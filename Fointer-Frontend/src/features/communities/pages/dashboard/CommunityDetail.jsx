@@ -22,6 +22,9 @@ import {
   Globe,
   Layers,
   Grid,
+  Video,
+  Check,
+  Clock,
 } from "lucide-react";
 import {
   inviteToCommunity,
@@ -35,6 +38,9 @@ import {
   unbanCommunityMember,
 } from "../../../../api/communities";
 import { fetchPosts, createPost, togglePostLike } from "../../../../api/posts";
+import { fetchWatchGroups } from "../../services/communityService";
+import JoinWatchGroupModal from "../watchgroups/JoinWatchGroupModal";
+import { getJoinGroupCtaState } from "../watchgroups/WatchGroupJoinAction";
 import MediaPicker from "../../../../shared/components/media/MediaPicker";
 import PostMediaGallery from "../../../../shared/components/media/PostMediaGallery";
 import { COMMUNITY_TYPE_LABELS } from "../../../../shared/constants/community";
@@ -45,6 +51,7 @@ import {
   postSegment,
 } from "../../../../shared/services/entityLinks";
 import { useToast } from "../../../../shared/components/feedback/ToastContext";
+import { getErrorMessage } from "../../../../shared/utils/errors";
 
 const TYPE_META = {
   public: { label: COMMUNITY_TYPE_LABELS.public, icon: Globe },
@@ -141,12 +148,16 @@ export default function CommunityDetail({
   const inviteLookupSeq = useRef(0);
   const memberFilterMounted = useRef(false);
   const [expandedFilter, setExpandedFilter] = useState("all");
+  const [watchGroups, setWatchGroups] = useState([]);
+  const [watchGroupsLoading, setWatchGroupsLoading] = useState(false);
+  const [joinGroupOpen, setJoinGroupOpen] = useState(false);
 
   const community = manageData?.community;
   const viewerRole = manageData?.viewerRole || "member";
   const isOwner = viewerRole === "owner" || viewerRole === "admin";
   const isModerator = viewerRole === "moderator";
   const canModerate = isOwner || isModerator;
+  const isCommunityMember = Boolean(viewerRole);
   const galleryImages = community?.galleryImages || [];
   const heroImage =
     heroPreview || community?.coverImage || galleryImages[0] || "";
@@ -202,6 +213,23 @@ export default function CommunityDetail({
     }
   }, [selectedId, memberStatusFilter]);
 
+  const loadWatchGroups = useCallback(async () => {
+    if (!selectedId || !isCommunityMember) {
+      setWatchGroups([]);
+      return;
+    }
+    setWatchGroupsLoading(true);
+    try {
+      const data = await fetchWatchGroups({ communityId: selectedId });
+      setWatchGroups(data?.watchGroups || []);
+    } catch (err) {
+      setWatchGroups([]);
+      showToast(getErrorMessage(err, "Failed to load watch groups."));
+    } finally {
+      setWatchGroupsLoading(false);
+    }
+  }, [selectedId, isCommunityMember, showToast]);
+
   const loadPosts = useCallback(async () => {
     if (!selectedId) return;
     setPostsLoading(true);
@@ -220,12 +248,17 @@ export default function CommunityDetail({
     setAboutExpanded(false);
     setRulesExpanded(false);
     setSubchannelsExpanded(false);
+    setJoinGroupOpen(false);
     loadPosts();
   }, [selectedId, loadPosts]);
 
   useEffect(() => {
     loadMembers();
   }, [loadMembers]);
+
+  useEffect(() => {
+    loadWatchGroups();
+  }, [loadWatchGroups]);
 
   useEffect(() => {
     if (!memberFilterMounted.current) {
@@ -431,6 +464,46 @@ export default function CommunityDetail({
     navigate(`/dashboard/manage/${segment}/posts/${postSegment(post)}`);
   };
 
+  const showJoinGroupCta =
+    isCommunityMember && !watchGroupsLoading && watchGroups.length > 0;
+  const { allGroupsJoined, anyPendingOnly, label: joinCtaLabel } =
+    getJoinGroupCtaState(watchGroups);
+
+  const handleJoinCtaClick = () => {
+    if (allGroupsJoined) {
+      navigate("/dashboard/watchgroups");
+      return;
+    }
+    setJoinGroupOpen(true);
+  };
+
+  const handleGroupJoined = (group) => {
+    setWatchGroups((list) =>
+      list.map((g) =>
+        String(g.id) === String(group.id)
+          ? {
+              ...g,
+              myRole: "member",
+              myJoinRequestStatus: null,
+              participantCount: (g.participantCount || 0) + 1,
+            }
+          : g
+      )
+    );
+    setJoinGroupOpen(false);
+    navigate("/dashboard/watchgroups");
+  };
+
+  const handleGroupRequested = (group) => {
+    setWatchGroups((list) =>
+      list.map((g) =>
+        String(g.id) === String(group.id)
+          ? { ...g, myJoinRequestStatus: "pending" }
+          : g
+      )
+    );
+  };
+
   return (
     <div className="space-y-5 sm:space-y-6 max-w-full">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -493,6 +566,34 @@ export default function CommunityDetail({
                 <span className="mt-1 inline-flex items-center gap-1 text-[10px] uppercase tracking-wider text-[#D4AF37]/90">
                   <TypeIcon size={10} />
                   {meta.label}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {showJoinGroupCta && (
+                  <button
+                    type="button"
+                    onClick={handleJoinCtaClick}
+                    className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold transition-opacity hover:opacity-90 ${
+                      allGroupsJoined
+                        ? "bg-[#D4AF37]/15 text-[#D4AF37] border border-[#D4AF37]/40"
+                        : anyPendingOnly
+                          ? "bg-[#2A241E] text-[#A69B8D] border border-[#2A241E]"
+                          : "bg-gradient-to-r from-[#D4AF37] to-[#AA820A] text-black"
+                    }`}
+                  >
+                    {allGroupsJoined ? (
+                      <Check size={14} />
+                    ) : anyPendingOnly ? (
+                      <Clock size={14} />
+                    ) : (
+                      <Video size={14} />
+                    )}
+                    {joinCtaLabel}
+                  </button>
+                )}
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#D4AF37] text-black text-[10px] font-bold uppercase">
+                  <Shield size={10} />
+                  Verified
                 </span>
               </div>
             </div>
@@ -1247,6 +1348,14 @@ export default function CommunityDetail({
           )}
         </>
       )}
+
+      <JoinWatchGroupModal
+        open={joinGroupOpen}
+        onClose={() => setJoinGroupOpen(false)}
+        groups={watchGroups}
+        onJoined={handleGroupJoined}
+        onRequested={handleGroupRequested}
+      />
     </div>
   );
 }

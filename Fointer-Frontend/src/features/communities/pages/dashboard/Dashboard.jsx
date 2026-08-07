@@ -36,6 +36,9 @@ import ActivityHistory from "./ActivityHistory";
 import Support from "./Support";
 import ComingSoon from "../../../../shared/components/feedback/ComingSoon";
 import Profile from "../../../profile/pages/Profile";
+import WatchGroups from "./WatchGroups";
+import WatchGroupChatPage from "../watchgroups/WatchGroupChatPage";
+import LiveEvents from "./LiveEvents";
 
 const VALID_TABS = [
   "postfeed",
@@ -43,6 +46,7 @@ const VALID_TABS = [
   "posts",
   "feed",
   "communities",
+  "watchgroups",
   "events",
   "requests",
   "activity",
@@ -118,7 +122,8 @@ const Dashboard = () => {
     { id: "posts", label: "Post Management", icon: FileText },
     { id: "feed", label: "Personalized Feed", icon: Rss },
     { id: "communities", label: "Joined Communities", icon: Users },
-    { id: "events", label: "Live Events & Watch Groups", icon: Video },
+    { id: "events", label: "Live Events", icon: Video },
+    { id: "watchgroups", label: "Watch Groups", icon: Video },
     { id: "requests", label: "My Join Requests", icon: Clock },
     { id: "activity", label: "My Activity History", icon: History },
     { id: "support", label: "Support", icon: LifeBuoy },
@@ -375,9 +380,12 @@ const Dashboard = () => {
             <Route path="support" element={<Support />} />
             <Route path="profile" element={<Profile />} />
             <Route path="feed" element={renderComingSoon("feed")} />
-            <Route path="events" element={renderComingSoon("events")} />
+            <Route path="watchgroups" element={<WatchGroups />} />
+            <Route path="events" element={<LiveEvents />} />
+            <Route path="watchgroups/:groupId/chat/*" element={<WatchGroupChatPage />} />
+            <Route path="events" element={<Navigate to="/dashboard/watchgroups" replace />} />
             <Route path="activity" element={<ActivityHistory />} />
-            <Route path="*" element={<Navigate to="manage" replace />} />
+            <Route path="*" element={<Navigate to="/dashboard/manage" replace />} />
           </Routes>
         </main>
       </div>

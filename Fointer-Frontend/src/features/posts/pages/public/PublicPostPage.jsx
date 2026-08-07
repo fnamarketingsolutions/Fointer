@@ -7,7 +7,7 @@ import useEntityId from "../../../../shared/hooks/useEntityId";
 
 export default function PublicPostPage() {
   const { postId: postParam } = useParams();
-  const { id: postId } = useEntityId("post", postParam);
+  const { id: postId, resolving } = useEntityId("post", postParam);
   const navigate = useNavigate();
   const backTo = "/posts";
 
@@ -16,6 +16,7 @@ export default function PublicPostPage() {
       <div className="w-full px-4 sm:px-6 lg:px-8 py-8 sm:py-10">
         <PostDetail
           postId={postId}
+          resolving={resolving}
           onBack={() => navigate(backTo)}
           onDeleted={() => navigate(backTo)}
           postPathBuilder={(post) => `${backTo}/${postSegment(post)}`}

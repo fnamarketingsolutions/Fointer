@@ -25,6 +25,9 @@ const POST_SORT_MAP = {
   oldest: { createdAt: 1 },
 };
 
+// A malformed id should read as "not found" instead of surfacing a cast error.
+const isValidId = (id) => mongoose.Types.ObjectId.isValid(id);
+
 const formatUser = (user) => {
   if (!user || typeof user !== "object" || !user._id) {
     return { id: user };
@@ -415,6 +418,10 @@ export const listPosts = async (req, res) => {
 
 export const getPost = async (req, res) => {
   try {
+    if (!isValidId(req.params.id)) {
+      return res.status(404).json({ success: false, message: "Post not found." });
+    }
+
     const post = await Post.findById(req.params.id)
       .populate("author", "username name avatar role")
       .populate("community", "name coverImage shortCode")
@@ -625,6 +632,10 @@ export const listPublicPosts = async (req, res) => {
 /** Get a single community-less post (public browse; optional auth). */
 export const getPublicPost = async (req, res) => {
   try {
+    if (!isValidId(req.params.id)) {
+      return res.status(404).json({ success: false, message: "Post not found." });
+    }
+
     const post = await Post.findById(req.params.id)
       .populate("author", "username name avatar role")
       .lean();
@@ -872,6 +883,10 @@ export const deletePost = async (req, res) => {
 
 export const listComments = async (req, res) => {
   try {
+    if (!isValidId(req.params.id)) {
+      return res.status(404).json({ success: false, message: "Post not found." });
+    }
+
     const post = await Post.findById(req.params.id);
     if (!post) {
       return res.status(404).json({ success: false, message: "Post not found." });

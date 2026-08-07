@@ -31,9 +31,11 @@ import ConfirmDeleteModal from "../../../shared/components/modals/ConfirmDeleteM
 import EditWindowExpiredModal from "../../../shared/components/modals/EditWindowExpiredModal";
 import { useToast } from "../../../shared/components/feedback/ToastContext";
 import { useAuth } from "../../../context/AuthContext";
+import { postSegment } from "../../../shared/services/entityLinks";
 
 export default function PostDetail({
   postId,
+  resolving = false,
   onBack,
   onDeleted,
   embedded = false,
@@ -76,6 +78,12 @@ export default function PostDetail({
 
   // Data Fetching
   const loadPost = useCallback(async () => {
+    // The id arrives a tick late when a short code still has to be resolved.
+    if (!postId) {
+      setPost(null);
+      setLoading(resolving);
+      return;
+    }
     setLoading(true);
     try {
       const data = await fetchPostFn(postId);
@@ -86,9 +94,13 @@ export default function PostDetail({
     } finally {
       setLoading(false);
     }
-  }, [postId, fetchPostFn, showToast]);
+  }, [postId, resolving, fetchPostFn, showToast]);
 
   const loadComments = useCallback(async () => {
+    if (!postId) {
+      setComments([]);
+      return;
+    }
     setCommentsLoading(true);
     try {
       const data = await fetchComments(postId);
@@ -509,8 +521,10 @@ export default function PostDetail({
                     type="button"
                     onClick={() => {
                       const path = postPathBuilder
-                        ? postPathBuilder(recentPost.id)
-                        : `/communities/${communityId}/posts/${recentPost.id}`;
+                        ? postPathBuilder(recentPost)
+                        : `/communities/${communityId}/posts/${postSegment(
+                            recentPost
+                          )}`;
                       navigate(path);
                     }}
                     className="text-[10px] font-medium text-[#D4AF37] hover:text-[#c3a030] transition-colors"

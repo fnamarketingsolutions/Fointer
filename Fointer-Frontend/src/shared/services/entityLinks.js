@@ -17,6 +17,7 @@ const isObjectId = (value) => /^[a-f\d]{24}$/i.test(String(value ?? ''));
  * Every list already knows both the code and the id, so recording the pair
  * when a link is built means navigating from a list never needs a lookup.
  */
+
 export const primeEntityId = (kind, code, id) => {
   if (!code || !id || isObjectId(code)) return;
   caches[kind]?.set(String(code), String(id));

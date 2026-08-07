@@ -22,7 +22,6 @@ export default function ActiveEvents() {
       thumbnail: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&q=80&w=800"
     }
   ];
-
   return (
     <div className="space-y-6">
       <div>

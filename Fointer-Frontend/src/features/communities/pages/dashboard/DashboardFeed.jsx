@@ -102,7 +102,10 @@ export default function DashboardFeed() {
   const navigate = useNavigate();
   const { postSlug } = useParams();
   const { showToast } = useToast();
-  const { id: openPostId } = useEntityId("post", postSlug);
+  const { id: openPostId, resolving: postResolving } = useEntityId(
+    "post",
+    postSlug
+  );
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -288,6 +291,7 @@ export default function DashboardFeed() {
             <PostDetail
               key={postSlug}
               postId={openPostId}
+              resolving={postResolving}
               embedded
               compact
               fetchPostFn={fetchPublicPost}

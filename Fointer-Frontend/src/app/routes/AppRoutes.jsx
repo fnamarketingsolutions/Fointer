@@ -1,52 +1,54 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useParams, useSearchParams } from 'react-router-dom';
 import SignUp from '../../features/auth/components/SignUp';
 import Login from '../../features/auth/components/Login';
-import HeroSection from '../../features/public/pages/home/HeroSection';
-import AboutHero from '../../features/public/pages/about/AboutHero';
-import ServiceHero from '../../features/public/pages/services/ServiceHero';
-import ContactHero from '../../features/public/pages/contact/ContactHero';
 import ProtectedRoute from '../../guards/ProtectedRoute';
 import RoleRoute from '../../guards/RoleRoute';
-import PrivacyPolicy from '../../features/public/pages/policies/PrivacyPolicy';
-import TermsAndConditions from '../../features/public/pages/policies/TermsAndConditions';
 import Dashboard from '../../features/communities/pages/dashboard/Dashboard';
 import UserNotifications from '../../features/communities/pages/dashboard/UserNotifications';
 import AdminDashboard from '../../features/admin/pages/AdminDashboard';
-import HowToUse from '../../features/public/pages/policies/HowToUse';
-import NetworkUseCase from '../../features/public/pages/policies/NetworkUseCase';
-import UserAgreement from '../../features/public/pages/policies/UserAgreement';
-import ContentPolicy from '../../features/public/pages/policies/ContentPolicy';
-import CookiePolicy from '../../features/public/pages/policies/CookiePolicy';
-import CodeOfConduct from '../../features/public/pages/policies/CodeofConduct';
-import AllCommunities from '../../features/communities/pages/public/AllCommunities';
-import CommunityBrowsePage from '../../features/communities/pages/public/CommunityBrowsePage';
-import CommunityPostPage from '../../features/communities/pages/public/CommunityPostPage';
-import AllPosts from '../../features/posts/pages/public/AllPosts';
 import PublicPostPage from '../../features/posts/pages/public/PublicPostPage';
+
+const toDashboard = (path) => (
+  <Navigate to={`/dashboard${path}`} replace />
+);
+
+function LegacyFeedRedirect() {
+  const { postSlug } = useParams();
+  const [searchParams] = useSearchParams();
+  const q = searchParams.toString();
+  const base = postSlug ? `/post/${postSlug}` : '/';
+  return <Navigate to={`${base}${q ? `?${q}` : ''}`} replace />;
+}
 
 export default function AppRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<HeroSection />} />
       <Route path="/signup" element={<SignUp />} />
       <Route path="/login" element={<Login />} />
 
-      <Route path="/about" element={<AboutHero />} />
-      <Route path="/services" element={<ServiceHero />} />
-      <Route path="/contact-us" element={<ContactHero />} />
-      <Route path="/communities" element={<AllCommunities />} />
-      <Route path="/communities/:communityId/posts/:postId" element={<CommunityPostPage />} />
-      <Route path="/communities/:id" element={<CommunityBrowsePage />} />
-      <Route path="/posts" element={<AllPosts />} />
+      <Route path="/about" element={toDashboard('/about')} />
+      <Route path="/services" element={<Navigate to="/" replace />} />
+      <Route path="/contact-us" element={toDashboard('/contact-us')} />
+      <Route
+        path="/communities/*"
+        element={<Navigate to="/dashboard/communities" replace />}
+      />
+      <Route path="/posts" element={<Navigate to="/" replace />} />
       <Route path="/posts/:postId" element={<PublicPostPage />} />
-      <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-      <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
-      <Route path="/how-to-use" element={<HowToUse />} />
-      <Route path="/code-of-conduct" element={<CodeOfConduct />} />
-      <Route path="/network-use-cases" element={<NetworkUseCase />} />
-      <Route path="/user-agreement" element={<UserAgreement />} />
-      <Route path="/content-policy" element={<ContentPolicy />} />
-      <Route path="/cookie-policy" element={<CookiePolicy />} />
+      <Route path="/privacy-policy" element={toDashboard('/privacy-policy')} />
+      <Route
+        path="/terms-and-conditions"
+        element={toDashboard('/terms-and-conditions')}
+      />
+      <Route path="/how-to-use" element={toDashboard('/how-to-use')} />
+      <Route path="/code-of-conduct" element={toDashboard('/code-of-conduct')} />
+      <Route
+        path="/network-use-cases"
+        element={toDashboard('/network-use-cases')}
+      />
+      <Route path="/user-agreement" element={toDashboard('/user-agreement')} />
+      <Route path="/content-policy" element={toDashboard('/content-policy')} />
+      <Route path="/cookie-policy" element={toDashboard('/cookie-policy')} />
 
       <Route path="/admin-check" element={<Navigate to="/admin" replace />} />
 
@@ -73,15 +75,11 @@ export default function AppRoutes() {
       />
 
       <Route
-        path="/dashboard/*"
-        element={
-          <ProtectedRoute>
-            <RoleRoute roles={['user', 'moderator']}>
-              <Dashboard />
-            </RoleRoute>
-          </ProtectedRoute>
-        }
+        path="/dashboard/postfeed/:postSlug?"
+        element={<LegacyFeedRedirect />}
       />
+
+      <Route path="/*" element={<Dashboard />} />
     </Routes>
   );
 }

@@ -96,7 +96,7 @@ export default function SignUp() {
       const response = await verifyEmailOtp(activeVerificationEmail, otp);
       if (response?.success && response.user) {
         loginSuccess(response.user);
-        navigate(response.user.role === 'admin' ? '/admin' : '/dashboard');
+        navigate(response.user.role === 'admin' ? '/admin' : '/');
       }
     } catch (error) {
       showToast(error?.response?.data?.message || 'OTP verification failed.');

@@ -200,10 +200,11 @@ export default function CommunityDetail() {
 
   const openSubchannelManagement = (subName) => {
     const params = new URLSearchParams();
+    params.set('tab', 'subchannels');
     if (subName) params.set('q', subName);
     else if (channelName) params.set('q', channelName);
     if (channelId) params.set('channelId', channelId);
-    navigate(`/admin/subchannels${params.toString() ? `?${params}` : ''}`);
+    navigate(`/admin/channels?${params.toString()}`);
   };
 
   const handleConfirmDelete = async () => {

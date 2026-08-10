@@ -1,6 +1,7 @@
 import React from "react";
 import { Radio, Users, Play, MessageCircle } from "lucide-react";
 
+/** @deprecated Use LiveEvents.jsx — kept only if something still imports this mock. */
 export default function ActiveEvents() {
   const events = [
     {

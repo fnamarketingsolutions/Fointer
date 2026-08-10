@@ -1,46 +1,76 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, Loader2, RefreshCw, XCircle, Clock3, LifeBuoy } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  CheckCircle2,
+  Clock3,
+  LifeBuoy,
+  Loader2,
+  RefreshCw,
+  Search,
+  XCircle,
+} from "lucide-react";
 import {
   fetchAdminSupportTickets,
   updateAdminSupportTicketStatus,
-} from '../../services/adminService';
-import { useToast } from '../../../../shared/components/feedback/ToastContext';
-import { getErrorMessage } from '../../../../shared/utils/errors';
-import { formatDate } from '../../../../shared/utils/date';
+} from "../../services/adminService";
+import { useToast } from "../../../../shared/components/feedback/ToastContext";
+import { getErrorMessage } from "../../../../shared/utils/errors";
+import { timeAgo } from "../../../../shared/utils/date";
 
 const STATUS_FILTERS = [
-  { id: 'all', label: 'All' },
-  { id: 'pending', label: 'Pending' },
-  { id: 'approved', label: 'Approved' },
-  { id: 'rejected', label: 'Rejected' },
+  { id: "all", label: "All" },
+  { id: "pending", label: "Pending" },
+  { id: "approved", label: "Approved" },
+  { id: "rejected", label: "Rejected" },
 ];
 
 const STATUS_META = {
   pending: {
-    label: 'Pending',
-    className: 'bg-amber-500/10 border-amber-500/30 text-amber-400',
+    label: "Pending",
+    className: "text-[#D4AF37]",
     icon: Clock3,
   },
   approved: {
-    label: 'Approved',
-    className: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400',
+    label: "Approved",
+    className: "text-emerald-400",
     icon: CheckCircle2,
   },
   rejected: {
-    label: 'Rejected',
-    className: 'bg-red-500/10 border-red-500/30 text-red-400',
+    label: "Rejected",
+    className: "text-red-400",
     icon: XCircle,
   },
 };
 
 const getRequesterName = (ticket) =>
-  ticket?.user?.username || ticket?.user?.name || 'Unknown user';
+  ticket?.user?.username || ticket?.user?.name || "Unknown user";
+
+function ActionBtn({ onClick, disabled, tone = "ghost", children }) {
+  const tones = {
+    ghost:
+      "border border-[#2A241E] text-[#A69B8D] hover:text-[#E5E0D8] hover:border-[#D4AF37]/30",
+    success:
+      "border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10",
+    danger:
+      "border border-red-500/30 text-red-400 hover:bg-red-500/10",
+  };
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors disabled:opacity-50 ${tones[tone]}`}
+    >
+      {children}
+    </button>
+  );
+}
 
 export default function SupportTicketCenter() {
   const { showToast } = useToast();
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('all');
+  const [filter, setFilter] = useState("all");
+  const [search, setSearch] = useState("");
   const [updatingId, setUpdatingId] = useState(null);
 
   const loadTickets = useCallback(async () => {
@@ -49,7 +79,7 @@ export default function SupportTicketCenter() {
       const data = await fetchAdminSupportTickets();
       setTickets(data?.tickets || []);
     } catch (err) {
-      showToast(getErrorMessage(err, 'Failed to load support requests.'));
+      showToast(getErrorMessage(err, "Failed to load support requests."));
       setTickets([]);
     } finally {
       setLoading(false);
@@ -71,9 +101,18 @@ export default function SupportTicketCenter() {
   }, [tickets]);
 
   const visibleTickets = useMemo(() => {
-    if (filter === 'all') return tickets;
-    return tickets.filter((ticket) => ticket.status === filter);
-  }, [filter, tickets]);
+    const q = search.trim().toLowerCase();
+    return tickets.filter((ticket) => {
+      if (filter !== "all" && ticket.status !== filter) return false;
+      if (!q) return true;
+      const name = getRequesterName(ticket).toLowerCase();
+      const email = String(ticket?.user?.email || "").toLowerCase();
+      const description = String(ticket?.description || "").toLowerCase();
+      return (
+        name.includes(q) || email.includes(q) || description.includes(q)
+      );
+    });
+  }, [filter, tickets, search]);
 
   const handleStatusUpdate = async (ticketId, status) => {
     setUpdatingId(ticketId);
@@ -82,20 +121,20 @@ export default function SupportTicketCenter() {
       showToast(`Request marked as ${status}.`);
       await loadTickets();
     } catch (err) {
-      showToast(getErrorMessage(err, 'Failed to update support request.'));
+      showToast(getErrorMessage(err, "Failed to update support request."));
     } finally {
       setUpdatingId(null);
     }
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-        <div>
-          <h1 className="font-serif text-2xl md:text-3xl font-bold text-amber-50">
-            Help & Support
+    <div className="w-full max-w-3xl mx-auto space-y-5">
+      <header className="flex items-start justify-between gap-3">
+        <div className="space-y-1 min-w-0">
+          <h1 className="text-xl sm:text-2xl font-semibold text-[#E5E0D8]">
+            Support
           </h1>
-          <p className="text-xs text-stone-400 mt-1">
+          <p className="text-sm text-[#8C8070]">
             Review channel and subchannel requests from members.
           </p>
         </div>
@@ -103,85 +142,116 @@ export default function SupportTicketCenter() {
           type="button"
           onClick={loadTickets}
           disabled={loading}
-          className="p-2 rounded-lg border border-stone-800/60 text-stone-400 hover:text-amber-400 hover:border-amber-500/30 transition-colors disabled:opacity-50 self-start"
+          className="p-2 rounded-lg border border-[#2A241E] text-[#A69B8D] hover:text-[#D4AF37] hover:border-[#D4AF37]/40 transition-colors disabled:opacity-50 shrink-0"
           title="Refresh"
         >
-          <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+          <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
         </button>
-      </div>
+      </header>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex gap-1 p-1 rounded-xl bg-[#0E0C0A] border border-[#2A241E] overflow-x-auto">
         {STATUS_FILTERS.map((item) => {
           const active = filter === item.id;
+          const count = item.id === "all" ? counts.all : counts[item.id];
           return (
             <button
               key={item.id}
               type="button"
               onClick={() => setFilter(item.id)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+              className={`flex-1 min-w-[4.5rem] py-2 px-3 rounded-lg text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap ${
                 active
-                  ? 'bg-amber-500/15 border-amber-500/40 text-amber-300'
-                  : 'bg-[#141210] border-stone-800/60 text-stone-400 hover:text-stone-200'
+                  ? "bg-[#1A1510] text-[#D4AF37] border border-[#D4AF37]/35"
+                  : "text-[#8C8070] hover:text-[#E5E0D8] border border-transparent"
               }`}
             >
-              {item.label} ({item.id === 'all' ? counts.all : counts[item.id]})
+              {item.label}
+              <span className="ml-1.5 text-[10px] opacity-70">{count}</span>
             </button>
           );
         })}
       </div>
 
+      <div className="relative">
+        <Search
+          size={14}
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8C8070] pointer-events-none"
+        />
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search by user or request text…"
+          className="w-full bg-[#14100D] border border-[#2A241E] rounded-xl pl-9 pr-3 py-2.5 text-sm text-[#E5E0D8] placeholder:text-[#5C5348] focus:outline-none focus:border-[#D4AF37]/50"
+        />
+      </div>
+
       {loading ? (
-        <div className="flex items-center justify-center py-16 text-stone-400 text-sm gap-2">
-          <Loader2 size={16} className="animate-spin" />
-          Loading support requests...
+        <div className="flex items-center justify-center gap-2 py-14 text-sm text-[#A69B8D]">
+          <Loader2 size={16} className="animate-spin text-[#D4AF37]" />
+          Loading support requests…
+        </div>
+      ) : tickets.length === 0 ? (
+        <div className="border border-dashed border-[#2A241E] rounded-xl py-14 text-center text-sm text-[#8C8070] px-4 space-y-2">
+          <LifeBuoy className="w-8 h-8 mx-auto text-[#D4AF37]/40" />
+          <p>No support requests yet.</p>
         </div>
       ) : visibleTickets.length === 0 ? (
-        <div className="border border-dashed border-stone-800/60 rounded-xl py-16 text-center text-stone-500 text-sm px-4 space-y-2">
-          <LifeBuoy className="w-8 h-8 mx-auto text-amber-500/40" />
-          <p>No support requests found.</p>
+        <div className="border border-dashed border-[#2A241E] rounded-xl py-14 text-center text-sm text-[#8C8070]">
+          No requests match this filter.
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="space-y-2.5">
           {visibleTickets.map((ticket) => {
             const meta = STATUS_META[ticket.status] || STATUS_META.pending;
             const StatusIcon = meta.icon;
             const isUpdating = updatingId === ticket.id;
+            const requester = getRequesterName(ticket);
 
             return (
               <article
                 key={ticket.id}
-                className="bg-[#141210] border border-stone-800/60 rounded-xl p-5 flex flex-col gap-4"
+                className="bg-[#14100D] border border-[#2A241E] hover:border-[#D4AF37]/35 rounded-xl p-3.5 sm:p-4 transition-colors space-y-2.5"
               >
                 <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-amber-100 truncate">
-                      {getRequesterName(ticket)}
-                    </p>
-                    {ticket.createdAt ? (
-                      <p className="text-[11px] text-stone-500 mt-0.5">
-                        {formatDate(ticket.createdAt)}
+                  <div className="min-w-0 space-y-1">
+                    <div className="flex items-center gap-2 text-[11px] text-[#8C8070] flex-wrap">
+                      <span
+                        className={`inline-flex items-center gap-1 font-medium ${meta.className}`}
+                      >
+                        <StatusIcon size={12} />
+                        {meta.label}
+                      </span>
+                      <span>·</span>
+                      <span className="text-[#A69B8D]">
+                        {requester.replace(/^@+/, "")}
+                      </span>
+                      {ticket.createdAt ? (
+                        <>
+                          <span>·</span>
+                          <span>{timeAgo(ticket.createdAt)}</span>
+                        </>
+                      ) : null}
+                    </div>
+                    {ticket.user?.email ? (
+                      <p className="text-[11px] text-[#8C8070] truncate">
+                        {ticket.user.email}
                       </p>
                     ) : null}
                   </div>
-                  <span
-                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] uppercase tracking-wide shrink-0 ${meta.className}`}
-                  >
-                    <StatusIcon size={12} />
-                    {meta.label}
-                  </span>
                 </div>
 
-                <p className="text-sm text-stone-300 whitespace-pre-wrap leading-relaxed flex-1">
+                <p className="text-sm text-[#E5E0D8] whitespace-pre-wrap break-words leading-relaxed">
                   {ticket.description}
                 </p>
 
-                {ticket.status === 'pending' ? (
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    <button
-                      type="button"
+                {ticket.status === "pending" ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    <ActionBtn
+                      tone="success"
                       disabled={isUpdating}
-                      onClick={() => handleStatusUpdate(ticket.id, 'approved')}
-                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/15 disabled:opacity-60"
+                      onClick={() =>
+                        handleStatusUpdate(ticket.id, "approved")
+                      }
                     >
                       {isUpdating ? (
                         <Loader2 size={12} className="animate-spin" />
@@ -189,12 +259,13 @@ export default function SupportTicketCenter() {
                         <CheckCircle2 size={12} />
                       )}
                       Approve
-                    </button>
-                    <button
-                      type="button"
+                    </ActionBtn>
+                    <ActionBtn
+                      tone="danger"
                       disabled={isUpdating}
-                      onClick={() => handleStatusUpdate(ticket.id, 'rejected')}
-                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500/15 disabled:opacity-60"
+                      onClick={() =>
+                        handleStatusUpdate(ticket.id, "rejected")
+                      }
                     >
                       {isUpdating ? (
                         <Loader2 size={12} className="animate-spin" />
@@ -202,7 +273,7 @@ export default function SupportTicketCenter() {
                         <XCircle size={12} />
                       )}
                       Reject
-                    </button>
+                    </ActionBtn>
                   </div>
                 ) : null}
               </article>

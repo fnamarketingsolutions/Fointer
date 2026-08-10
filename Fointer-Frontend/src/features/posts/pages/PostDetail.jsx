@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   Pencil,
@@ -11,7 +11,8 @@ import {
   Reply,
   ChevronDown,
   ChevronUp,
-
+  Flag,
+  Users,
 } from "lucide-react";
 import {
   fetchPost,
@@ -25,12 +26,18 @@ import {
   togglePostLike,
   toggleCommentLike,
 } from "../../../api/posts";
+import {
+  joinPublicCommunity,
+  requestToJoin,
+} from "../../../api/communities";
 import MediaPicker from "../../../shared/components/media/MediaPicker";
 import PostMediaGallery from "../../../shared/components/media/PostMediaGallery";
 import ConfirmDeleteModal from "../../../shared/components/modals/ConfirmDeleteModal";
 import EditWindowExpiredModal from "../../../shared/components/modals/EditWindowExpiredModal";
+import ReportContentModal from "../../../shared/components/modals/ReportContentModal";
 import { useToast } from "../../../shared/components/feedback/ToastContext";
 import { useAuth } from "../../../context/AuthContext";
+import { communitySegment } from "../../../shared/services/entityLinks";
 
 export default function PostDetail({
   postId,
@@ -43,7 +50,7 @@ export default function PostDetail({
   fetchPostFn = fetchPost,
 }) {
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const { showToast } = useToast();
 
   // Post & Main Comments States
@@ -73,6 +80,8 @@ export default function PostDetail({
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ title: "", text: "", media: [] });
   const [lockModal, setLockModal] = useState(null);
+  const [reportTarget, setReportTarget] = useState(null);
+  const [joining, setJoining] = useState(false);
 
   // Data Fetching
   const loadPost = useCallback(async () => {
@@ -110,12 +119,8 @@ export default function PostDetail({
     loadPost();
     setCommentsExpanded(false);
     setCommentsOpen(!compact);
-    if (isAuthenticated) {
-      loadComments();
-    } else {
-      setComments([]);
-    }
-  }, [loadPost, loadComments, isAuthenticated, compact]);
+    loadComments();
+  }, [loadPost, loadComments, compact]);
 
   useEffect(() => {
     const communityId = post?.community?.id || post?.community;
@@ -271,6 +276,14 @@ export default function PostDetail({
       navigate("/login");
       return;
     }
+    if (!post.canEngage) {
+      showToast(
+        post.community
+          ? "Join this community to like posts."
+          : "You cannot like this post."
+      );
+      return;
+    }
     const prev = { ...post };
     setPost({
       ...post,
@@ -286,8 +299,9 @@ export default function PostDetail({
         likedByMe: data.likedByMe,
         likeCount: data.likeCount,
       }));
-    } catch {
+    } catch (err) {
       setPost(prev);
+      showToast(err?.response?.data?.message || "Failed to like post.");
     }
   };
 
@@ -296,6 +310,14 @@ export default function PostDetail({
     if (!text) return;
     if (!isAuthenticated) {
       navigate("/login");
+      return;
+    }
+    if (!post?.canEngage) {
+      showToast(
+        post?.community
+          ? "Join this community to comment."
+          : "You cannot comment on this post."
+      );
       return;
     }
     try {
@@ -322,6 +344,18 @@ export default function PostDetail({
   };
 
   const handleLikeComment = async (comment) => {
+    if (!isAuthenticated) {
+      navigate("/login");
+      return;
+    }
+    if (!post?.canEngage) {
+      showToast(
+        post?.community
+          ? "Join this community to like comments."
+          : "You cannot like this comment."
+      );
+      return;
+    }
     const prev = comments;
     setComments((list) =>
       list.map((c) =>
@@ -393,6 +427,57 @@ export default function PostDetail({
   const showPostEdit = canShowEdit(post);
   const showPostDelete = canShowDelete(post);
   const showPostActions = showPostEdit || showPostDelete;
+  const currentUserId = String(user?.id || user?._id || "");
+  const canReportPost =
+    isAuthenticated &&
+    post &&
+    currentUserId &&
+    String(post.author?.id || post.author?._id || "") !== currentUserId;
+  const canReportComment = (comment) =>
+    Boolean(
+      isAuthenticated &&
+        currentUserId &&
+        comment &&
+        String(comment.author?.id || comment.author?._id || "") !==
+          currentUserId
+    );
+
+  const needsCommunityJoin =
+    Boolean(post?.community?.id || post?.community) &&
+    isAuthenticated &&
+    post?.canEngage === false;
+
+  const communityPath = post?.community
+    ? `/dashboard/communities/${communitySegment(post.community) || post.community.id}`
+    : null;
+
+  const handleJoinCommunity = async () => {
+    const communityId = post?.community?.id || post?.community;
+    if (!communityId || joining) return;
+    if (!isAuthenticated) {
+      navigate("/login");
+      return;
+    }
+    setJoining(true);
+    try {
+      const type = post.community?.type;
+      if (type === "private_request") {
+        await requestToJoin(communityId, {});
+        showToast("Join request sent.");
+      } else {
+        await joinPublicCommunity(communityId);
+        showToast("Joined community.");
+        await loadPost();
+        await loadComments();
+      }
+    } catch (err) {
+      showToast(
+        err?.response?.data?.message || "Could not join this community."
+      );
+    } finally {
+      setJoining(false);
+    }
+  };
 
   const renderAvatar = (author, size = "md") => {
     const name = author?.name || author?.username || "Member";
@@ -510,7 +595,7 @@ export default function PostDetail({
                     onClick={() => {
                       const path = postPathBuilder
                         ? postPathBuilder(recentPost.id)
-                        : `/communities/${communityId}/posts/${recentPost.id}`;
+                        : `/dashboard/communities/${communityId}/posts/${recentPost.id}`;
                       navigate(path);
                     }}
                     className="text-[10px] font-medium text-[#D4AF37] hover:text-[#c3a030] transition-colors"
@@ -587,9 +672,18 @@ export default function PostDetail({
   const titleBlock = (
     <div className={compact ? "space-y-1 min-w-0" : "space-y-2 min-w-0"}>
       {post.community?.name && (
-        <p className="text-[10px] uppercase tracking-widest text-[#D4AF37] font-mono">
-          {post.community.name}
-        </p>
+        communityPath ? (
+          <Link
+            to={communityPath}
+            className="text-[10px] uppercase tracking-widest text-[#D4AF37] font-mono hover:text-[#e0c04a]"
+          >
+            {post.community.name}
+          </Link>
+        ) : (
+          <p className="text-[10px] uppercase tracking-widest text-[#D4AF37] font-mono">
+            {post.community.name}
+          </p>
+        )
       )}
       <h1
         className={`font-serif font-bold text-[#E5E0D8] leading-tight ${
@@ -676,6 +770,43 @@ export default function PostDetail({
               </p>
             )}
 
+            {needsCommunityJoin ? (
+              <div className="rounded-xl border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-4 py-3 space-y-2">
+                <p className="text-xs text-[#E5E0D8]">
+                  Join{" "}
+                  <span className="text-[#D4AF37] font-medium">
+                    {post.community?.name || "this community"}
+                  </span>{" "}
+                  to like and comment.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={joining}
+                    onClick={handleJoinCommunity}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#D4AF37] text-black text-xs font-semibold disabled:opacity-50"
+                  >
+                    {joining ? (
+                      <Loader2 size={12} className="animate-spin" />
+                    ) : (
+                      <Users size={12} />
+                    )}
+                    {post.community?.type === "private_request"
+                      ? "Request to join"
+                      : "Join community"}
+                  </button>
+                  {communityPath ? (
+                    <Link
+                      to={communityPath}
+                      className="inline-flex items-center px-3 py-1.5 rounded-lg border border-[#2A241E] text-xs text-[#A69B8D] hover:text-[#E5E0D8]"
+                    >
+                      View community
+                    </Link>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+
             <div
               className={`flex items-center gap-6 border-t border-[#2A241E]/60 ${
                 compact ? "pt-3" : "pt-4"
@@ -718,6 +849,24 @@ export default function PostDetail({
                 <MessageCircle size={16} />
                 <span>{post.commentCount || comments.length || 0} Comments</span>
               </button>
+
+              {canReportPost ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setReportTarget({
+                      type: "post",
+                      id: post.id,
+                      label: post.title || "this post",
+                    })
+                  }
+                  className="inline-flex items-center gap-2 text-xs font-medium text-[#A69B8D] hover:text-red-400 transition-colors ml-auto"
+                  title="Report post"
+                >
+                  <Flag size={15} />
+                  <span>Report</span>
+                </button>
+              ) : null}
             </div>
           </div>
         </article>
@@ -869,31 +1018,49 @@ export default function PostDetail({
                               )}
                             </div>
 
-                            {(canShowEdit(comment) ||
-                              canShowDelete(comment)) && (
-                              <div className="flex items-center gap-2">
-                                {canShowEdit(comment) && (
-                                  <button
-                                    type="button"
-                                    onClick={() => openEditComment(comment)}
-                                    className="text-[#8C8070] hover:text-[#D4AF37] transition-colors p-1"
-                                    title="Edit comment"
-                                  >
-                                    <Pencil size={12} />
-                                  </button>
-                                )}
-                                {canShowDelete(comment) && (
-                                  <button
-                                    type="button"
-                                    onClick={() => openDeleteComment(comment)}
-                                    className="text-[#8C8070] hover:text-red-400 transition-colors p-1"
-                                    title="Delete comment"
-                                  >
-                                    <Trash2 size={12} />
-                                  </button>
-                                )}
-                              </div>
-                            )}
+                            <div className="flex items-center gap-1 shrink-0">
+                              {canReportComment(comment) && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setReportTarget({
+                                      type: "comment",
+                                      id: comment.id,
+                                      label: "this comment",
+                                    })
+                                  }
+                                  className="text-[#8C8070] hover:text-red-400 transition-colors p-1"
+                                  title="Report comment"
+                                >
+                                  <Flag size={12} />
+                                </button>
+                              )}
+                              {(canShowEdit(comment) ||
+                                canShowDelete(comment)) && (
+                                <>
+                                  {canShowEdit(comment) && (
+                                    <button
+                                      type="button"
+                                      onClick={() => openEditComment(comment)}
+                                      className="text-[#8C8070] hover:text-[#D4AF37] transition-colors p-1"
+                                      title="Edit comment"
+                                    >
+                                      <Pencil size={12} />
+                                    </button>
+                                  )}
+                                  {canShowDelete(comment) && (
+                                    <button
+                                      type="button"
+                                      onClick={() => openDeleteComment(comment)}
+                                      className="text-[#8C8070] hover:text-red-400 transition-colors p-1"
+                                      title="Delete comment"
+                                    >
+                                      <Trash2 size={12} />
+                                    </button>
+                                  )}
+                                </>
+                              )}
+                            </div>
                           </div>
 
                           <p className="text-xs sm:text-sm text-[#C9C0B4] leading-relaxed">
@@ -1073,33 +1240,53 @@ export default function PostDetail({
                                     )}
                                   </div>
 
-                                  {(canShowEdit(reply) ||
-                                    canShowDelete(reply)) && (
-                                    <div className="flex items-center gap-2">
-                                      {canShowEdit(reply) && (
-                                        <button
-                                          type="button"
-                                          onClick={() => openEditComment(reply)}
-                                          className="text-[#8C8070] hover:text-[#D4AF37] transition-colors p-1"
-                                          title="Edit reply"
-                                        >
-                                          <Pencil size={12} />
-                                        </button>
-                                      )}
-                                      {canShowDelete(reply) && (
-                                        <button
-                                          type="button"
-                                          onClick={() =>
-                                            openDeleteComment(reply)
-                                          }
-                                          className="text-[#8C8070] hover:text-red-400 transition-colors p-1"
-                                          title="Delete reply"
-                                        >
-                                          <Trash2 size={12} />
-                                        </button>
-                                      )}
-                                    </div>
-                                  )}
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    {canReportComment(reply) && (
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setReportTarget({
+                                            type: "comment",
+                                            id: reply.id,
+                                            label: "this reply",
+                                          })
+                                        }
+                                        className="text-[#8C8070] hover:text-red-400 transition-colors p-1"
+                                        title="Report reply"
+                                      >
+                                        <Flag size={12} />
+                                      </button>
+                                    )}
+                                    {(canShowEdit(reply) ||
+                                      canShowDelete(reply)) && (
+                                      <>
+                                        {canShowEdit(reply) && (
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              openEditComment(reply)
+                                            }
+                                            className="text-[#8C8070] hover:text-[#D4AF37] transition-colors p-1"
+                                            title="Edit reply"
+                                          >
+                                            <Pencil size={12} />
+                                          </button>
+                                        )}
+                                        {canShowDelete(reply) && (
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              openDeleteComment(reply)
+                                            }
+                                            className="text-[#8C8070] hover:text-red-400 transition-colors p-1"
+                                            title="Delete reply"
+                                          >
+                                            <Trash2 size={12} />
+                                          </button>
+                                        )}
+                                      </>
+                                    )}
+                                  </div>
                                 </div>
 
                                 <p className="text-xs sm:text-sm text-[#C9C0B4] leading-relaxed">
@@ -1320,6 +1507,14 @@ export default function PostDetail({
             : "You can no longer edit or delete this post."
         }
         editWindowMinutes={lockModal?.editWindowMinutes}
+      />
+
+      <ReportContentModal
+        open={Boolean(reportTarget)}
+        onClose={() => setReportTarget(null)}
+        targetType={reportTarget?.type || "post"}
+        targetId={reportTarget?.id}
+        targetLabel={reportTarget?.label}
       />
     </div>
   );

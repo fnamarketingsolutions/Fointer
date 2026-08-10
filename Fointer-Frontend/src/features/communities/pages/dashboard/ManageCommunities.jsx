@@ -1,16 +1,13 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   Loader2,
-  ChevronRight,
   Users,
-  ChevronLeft,
-  ShieldAlert,
-  Calendar,
-  Image as ImageIcon,
   Search,
   Plus,
   HelpCircle,
+  Folders,
+  RefreshCw,
 } from "lucide-react";
 import {
   fetchMyCommunities,
@@ -23,13 +20,37 @@ import EditCommunityModal from "../../../../shared/components/modals/EditCommuni
 import CreateCommunityModal from "../../../../shared/components/modals/CreateCommunityModal";
 import HelpSupportModal from "../../../../shared/components/modals/HelpSupportModal";
 import { formatCommunityType } from "../../../../shared/utils/community";
-import { formatDate } from "../../../../shared/utils/date";
+import { timeAgo } from "../../../../shared/utils/date";
 import { getErrorMessage } from "../../../../shared/utils/errors";
 import { communitySegment } from "../../../../shared/services/entityLinks";
 import useEntityId from "../../../../shared/hooks/useEntityId";
 import { useToast } from "../../../../shared/components/feedback/ToastContext";
 
-const formatType = formatCommunityType;
+const ROLE_FILTERS = [
+  { id: "all", label: "All" },
+  { id: "owner", label: "Owned" },
+  { id: "moderator", label: "Moderating" },
+];
+
+function CommunityThumb({ community }) {
+  const name = community?.name || "Community";
+  if (community?.coverImage) {
+    return (
+      <img
+        src={community.coverImage}
+        alt={name}
+        className="w-12 h-12 rounded-lg object-cover border border-[#2A241E] shrink-0"
+      />
+    );
+  }
+  return (
+    <div className="w-12 h-12 rounded-lg bg-[#1A1510] border border-[#2A241E] flex items-center justify-center shrink-0">
+      <span className="text-sm font-semibold text-[#D4AF37]/60">
+        {name.charAt(0).toUpperCase()}
+      </span>
+    </div>
+  );
+}
 
 export default function ManageCommunities() {
   const { communityId } = useParams();
@@ -51,52 +72,78 @@ export default function ManageCommunities() {
   const [manageData, setManageData] = useState(null);
   const [manageLoading, setManageLoading] = useState(false);
   const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState("all");
 
-  const query = search.trim().toLowerCase();
-  const filteredCommunities = query
-    ? communities.filter((c) =>
-        (c.name || "").toLowerCase().includes(query)
-      )
-    : communities;
+  const counts = useMemo(() => {
+    return {
+      all: communities.length,
+      owner: communities.filter(
+        (c) => !c.membershipRole || c.membershipRole === "owner"
+      ).length,
+      moderator: communities.filter((c) => c.membershipRole === "moderator")
+        .length,
+    };
+  }, [communities]);
 
-  const loadCommunities = useCallback(async (opts = {}) => {
-    const keepExisting = Boolean(opts.keepExisting);
-    if (!keepExisting) {
-      setLoading(true);
+  const filteredCommunities = useMemo(() => {
+    let list = communities;
+    if (filter === "owner") {
+      list = list.filter(
+        (c) => !c.membershipRole || c.membershipRole === "owner"
+      );
+    } else if (filter === "moderator") {
+      list = list.filter((c) => c.membershipRole === "moderator");
     }
-    try {
-      const data = await fetchMyCommunities({ manage: true });
-      setCommunities(data?.communities || []);
-    } catch (err) {
-      showToast(getErrorMessage(err, "Failed to load communities."));
+
+    const query = search.trim().toLowerCase();
+    if (!query) return list;
+    return list.filter((c) => (c.name || "").toLowerCase().includes(query));
+  }, [communities, filter, search]);
+
+  const loadCommunities = useCallback(
+    async (opts = {}) => {
+      const keepExisting = Boolean(opts.keepExisting);
       if (!keepExisting) {
-        setCommunities([]);
+        setLoading(true);
       }
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      try {
+        const data = await fetchMyCommunities({ manage: true });
+        setCommunities(data?.communities || []);
+      } catch (err) {
+        showToast(getErrorMessage(err, "Failed to load communities."));
+        if (!keepExisting) {
+          setCommunities([]);
+        }
+      } finally {
+        setLoading(false);
+      }
+    },
+    [showToast]
+  );
 
-  const loadManage = useCallback(async (id, opts = {}) => {
-    if (!id) return;
-    const silent = Boolean(opts.silent);
-    if (!silent) {
-      setManageLoading(true);
-    }
-    try {
-      const data = await fetchCommunityManage(id);
-      setManageData(data);
-    } catch (err) {
-      showToast(getErrorMessage(err, "Failed to load community."));
+  const loadManage = useCallback(
+    async (id, opts = {}) => {
+      if (!id) return;
+      const silent = Boolean(opts.silent);
       if (!silent) {
-        setManageData(null);
+        setManageLoading(true);
       }
-    } finally {
-      if (!silent) {
-        setManageLoading(false);
+      try {
+        const data = await fetchCommunityManage(id);
+        setManageData(data);
+      } catch (err) {
+        showToast(getErrorMessage(err, "Failed to load community."));
+        if (!silent) {
+          setManageData(null);
+        }
+      } finally {
+        if (!silent) {
+          setManageLoading(false);
+        }
       }
-    }
-  }, []);
+    },
+    [showToast]
+  );
 
   useEffect(() => {
     loadCommunities();
@@ -232,201 +279,163 @@ export default function ManageCommunities() {
   }
 
   return (
-    <div className="space-y-6 max-w-full">
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-        <div>
-          <h1 className="text-xl sm:text-2xl md:text-3xl font-serif font-semibold text-[#E5E0D8]">
+    <div className="w-full max-w-3xl mx-auto space-y-5">
+      <header className="flex items-start justify-between gap-3">
+        <div className="space-y-1 min-w-0">
+          <h1 className="text-xl sm:text-2xl font-semibold text-[#E5E0D8]">
             Manage Communities
           </h1>
-          <p className="text-xs sm:text-sm text-[#A69B8D] mt-1">
-            Open a community you own or moderate to review members, join
-            requests, and settings.
+          <p className="text-sm text-[#8C8070]">
+            Communities you own or moderate — members, requests, and settings.
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
-            onClick={() => setHelpOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#2A241E] text-xs font-semibold text-[#A69B8D] hover:text-[#D4AF37] hover:border-[#D4AF37]/40 transition-colors"
+            onClick={() => loadCommunities()}
+            disabled={loading}
+            className="p-2 rounded-lg border border-[#2A241E] text-[#A69B8D] hover:text-[#D4AF37] hover:border-[#D4AF37]/40 transition-colors disabled:opacity-50"
+            title="Refresh"
           >
-            <HelpCircle size={14} />
-            Help
+            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+          </button>
+          <button
+            type="button"
+            onClick={() => setHelpOpen(true)}
+            className="p-2 rounded-lg border border-[#2A241E] text-[#A69B8D] hover:text-[#D4AF37] hover:border-[#D4AF37]/40 transition-colors"
+            title="Help"
+          >
+            <HelpCircle size={16} />
           </button>
           <button
             type="button"
             onClick={() => setCreateOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-full bg-gradient-to-r from-[#D4AF37] to-[#AA820A] text-xs font-bold text-black"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#D4AF37] text-black text-xs font-semibold hover:bg-[#e0c04a] transition-colors"
           >
-            <Plus size={14} />
-            Create Community
+            <Plus size={14} /> Create
           </button>
         </div>
+      </header>
+
+      <div className="flex gap-1 p-1 rounded-xl bg-[#0E0C0A] border border-[#2A241E] overflow-x-auto">
+        {ROLE_FILTERS.map((item) => {
+          const active = filter === item.id;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setFilter(item.id)}
+              className={`flex-1 min-w-[4.5rem] py-2 px-3 rounded-lg text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap ${
+                active
+                  ? "bg-[#1A1510] text-[#D4AF37] border border-[#D4AF37]/35"
+                  : "text-[#8C8070] hover:text-[#E5E0D8] border border-transparent"
+              }`}
+            >
+              {item.label}
+              <span className="ml-1.5 text-[10px] opacity-70">
+                {counts[item.id] ?? 0}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       <div className="relative">
-        <Search className="w-4 h-4 absolute left-3 top-2.5 text-[#8C8070]" />
+        <Search
+          size={14}
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8C8070] pointer-events-none"
+        />
         <input
-          type="text"
-          placeholder="Search by community name..."
+          type="search"
+          placeholder="Search by community name…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full bg-[#0D0A08] border border-[#2A241E] rounded-lg pl-9 pr-4 py-2 text-xs sm:text-sm text-[#E5E0D8] focus:outline-none focus:border-[#D4AF37]/60 placeholder:text-[#8C8070]"
+          className="w-full bg-[#14100D] border border-[#2A241E] rounded-xl pl-9 pr-3 py-2.5 text-sm text-[#E5E0D8] placeholder:text-[#5C5348] focus:outline-none focus:border-[#D4AF37]/50"
         />
       </div>
 
       {loading && communities.length === 0 ? (
-        <div className="flex items-center justify-center py-16 text-[#A69B8D] text-xs sm:text-sm gap-2">
-          <Loader2 size={16} className="animate-spin" />
-          Loading communities...
+        <div className="flex items-center justify-center gap-2 py-14 text-sm text-[#A69B8D]">
+          <Loader2 size={16} className="animate-spin text-[#D4AF37]" />
+          Loading communities…
         </div>
       ) : communities.length === 0 ? (
-        <div className="border border-dashed border-[#2A241E] rounded-xl py-12 sm:py-16 text-center text-[#A69B8D] text-xs sm:text-sm px-4">
-          You do not own or moderate any communities yet.
+        <div className="border border-dashed border-[#2A241E] rounded-xl py-14 text-center text-sm text-[#8C8070] px-4 space-y-3">
+          <Folders className="w-8 h-8 mx-auto text-[#D4AF37]/40" />
+          <p>You do not own or moderate any communities yet.</p>
+          <button
+            type="button"
+            onClick={() => setCreateOpen(true)}
+            className="inline-flex items-center gap-2 text-[#D4AF37] hover:text-[#e0c04a] font-medium"
+          >
+            <Plus size={14} /> Create Community
+          </button>
         </div>
       ) : filteredCommunities.length === 0 ? (
-        <div className="border border-dashed border-[#2A241E] rounded-xl py-12 sm:py-16 text-center text-[#8C8070] text-xs sm:text-sm px-4">
+        <div className="border border-dashed border-[#2A241E] rounded-xl py-14 text-center text-sm text-[#8C8070] px-4">
           No communities match your search.
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="space-y-2.5">
           {filteredCommunities.map((item) => {
-            const primaryTag =
-              Array.isArray(item.tags) && item.tags.length > 0
-                ? item.tags[0].toUpperCase()
-                : "NETWORKING";
             const ownerName =
               item.owner?.name || item.owner?.username || "You";
-            const galleryCount = item.galleryImages?.length || 0;
+            const role =
+              item.membershipRole && item.membershipRole !== "owner"
+                ? item.membershipRole
+                : "owner";
 
             return (
-              <div
+              <article
                 key={item.id}
+                role="button"
+                tabIndex={0}
                 onClick={() => openCommunity(item)}
-                className="group relative flex flex-col rounded-2xl bg-[#0D0A08] border border-[#221C17] hover:border-[#D4AF37]/40 transition-all duration-300 overflow-hidden cursor-pointer shadow-lg"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    openCommunity(item);
+                  }
+                }}
+                className="group flex items-center gap-3 bg-[#14100D] border border-[#2A241E] hover:border-[#D4AF37]/35 rounded-xl p-3.5 sm:p-4 transition-colors cursor-pointer"
               >
-                {/* Top Banner Image Header */}
-                <div className="relative w-full h-44 sm:h-48 bg-[#18130E] overflow-hidden">
-                  {item.coverImage ? (
-                    <img
-                      src={item.coverImage}
-                      alt={item.name}
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-[#1C1712] via-[#2A2119] to-[#0D0A08] flex items-center justify-center">
-                      <span className="text-5xl font-serif font-bold text-[#D4AF37]/30">
-                        {(item.name || "?").charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Dark overlay for contrast */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#0D0A08] via-black/20 to-black/50" />
-
-                  {/* Top Right Type Tag Badge */}
-                  <div className="absolute top-3 right-3 z-10 flex flex-col items-end gap-1.5">
-                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-black/70 backdrop-blur-md border border-[#D4AF37]/40 text-[11px] font-medium text-[#D4AF37] shadow-md">
-                      <ShieldAlert size={12} className="text-[#D4AF37]" />
-                      {formatType(item.type)}
+                <CommunityThumb community={item} />
+                <div className="min-w-0 flex-1 space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h2 className="text-sm font-semibold text-[#E5E0D8] group-hover:text-[#D4AF37] transition-colors truncate">
+                      {item.name || "Community"}
+                    </h2>
+                    <span className="text-[10px] text-[#8C8070]">
+                      {formatCommunityType(item.type)}
                     </span>
-                    {item.membershipRole && item.membershipRole !== "owner" && (
-                      <span className="inline-flex px-2.5 py-0.5 rounded-full bg-black/70 backdrop-blur-md border border-amber-500/40 text-[10px] uppercase tracking-wide text-amber-200">
-                        {item.membershipRole}
-                      </span>
-                    )}
+                    <span className="text-[10px] uppercase tracking-wide text-[#D4AF37]/80">
+                      {role}
+                    </span>
                   </div>
-
-                  {/* Carousel Indicator Navigation Dots (Visual replica) */}
-                  {Array.isArray(item.galleryImages) &&
-                    item.galleryImages.length > 0 && (
+                  {item.description ? (
+                    <p className="text-[11px] text-[#8C8070] line-clamp-1">
+                      {item.description}
+                    </p>
+                  ) : null}
+                  <div className="flex items-center gap-2 text-[11px] text-[#8C8070] flex-wrap">
+                    <span className="inline-flex items-center gap-1">
+                      <Users size={11} />
+                      {item.memberCount ?? 1} members
+                    </span>
+                    <span>·</span>
+                    <span>Owner {ownerName}</span>
+                    {item.createdAt ? (
                       <>
-                        <button
-                          type="button"
-                          onClick={(e) => e.stopPropagation()}
-                          className="absolute left-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-black/50 text-white/70 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <ChevronLeft size={12} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => e.stopPropagation()}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-black/50 text-white/70 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <ChevronRight size={12} />
-                        </button>
+                        <span>·</span>
+                        <span>{timeAgo(item.createdAt)}</span>
                       </>
-                    )}
-                </div>
-
-                {/* Content Section */}
-                <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between">
-                  <div>
-                    {/* Tag Category */}
-                    <p className="text-[10px] font-bold tracking-widest text-[#D4AF37] uppercase mb-1">
-                      {primaryTag}
-                    </p>
-
-                    {/* Community Title */}
-                    <h3 className="text-xl sm:text-2xl font-serif font-bold text-[#E5E0D8] mb-2 truncate">
-                      {item.name}
-                    </h3>
-
-                    {/* Description */}
-                    <p className="text-xs sm:text-sm text-[#A69B8D] line-clamp-2 leading-relaxed min-h-[2.5rem]">
-                      {item.description || "No description available"}
-                    </p>
-
-                    {item.rules && (
-                      <p className="text-[11px] text-[#8C8070] line-clamp-1 mt-1.5 italic">
-                        Rules: {item.rules}
-                      </p>
-                    )}
-
-                    {Array.isArray(item.tags) && item.tags.length > 1 && (
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {item.tags.slice(0, 3).map((tag) => (
-                          <span
-                            key={tag}
-                            className="px-1.5 py-0.5 rounded text-[9px] bg-[#D4AF37]/10 text-[#D4AF37]"
-                          >
-                            #{tag}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Footer Meta Details */}
-                  <div className="pt-4 mt-3 border-t border-[#221C17] space-y-2">
-                    <div className="flex items-center justify-between text-xs text-[#8C8070] gap-2">
-                      <div className="flex items-center gap-1.5 font-medium text-[#A69B8D] min-w-0">
-                        <Users size={14} className="text-[#8C8070] shrink-0" />
-                        <span>{item.memberCount ?? 1} members</span>
-                      </div>
-                      {galleryCount > 0 && (
-                        <span className="inline-flex items-center gap-1 shrink-0">
-                          <ImageIcon size={12} />
-                          {galleryCount}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-[#8C8070] gap-2">
-                      <span className="truncate">Owner: {ownerName}</span>
-                      {item.createdAt && (
-                        <span className="inline-flex items-center gap-1 shrink-0">
-                          <Calendar size={10} />
-                          {formatDate(item.createdAt)}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex justify-end">
-                      <span className="font-semibold text-[10px] tracking-wider uppercase text-[#D4AF37]/80">
-                        Manage
-                      </span>
-                    </div>
+                    ) : null}
                   </div>
                 </div>
-              </div>
+                <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-[#D4AF37]/70 group-hover:text-[#D4AF37]">
+                  Manage
+                </span>
+              </article>
             );
           })}
         </div>
@@ -438,10 +447,7 @@ export default function ManageCommunities() {
         onSuccess={() => loadCommunities({ keepExisting: true })}
       />
 
-      <HelpSupportModal
-        open={helpOpen}
-        onClose={() => setHelpOpen(false)}
-      />
+      <HelpSupportModal open={helpOpen} onClose={() => setHelpOpen(false)} />
     </div>
   );
 }

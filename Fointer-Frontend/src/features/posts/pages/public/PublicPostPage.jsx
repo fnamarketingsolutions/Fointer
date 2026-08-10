@@ -9,7 +9,8 @@ export default function PublicPostPage() {
   const { postId: postParam } = useParams();
   const { id: postId } = useEntityId("post", postParam);
   const navigate = useNavigate();
-  const backTo = "/posts";
+  const backTo = "/";
+  const postBase = "/posts";
 
   return (
     <div className="min-h-screen bg-[#0E0C0A] text-[#E5E0D8]">
@@ -18,7 +19,7 @@ export default function PublicPostPage() {
           postId={postId}
           onBack={() => navigate(backTo)}
           onDeleted={() => navigate(backTo)}
-          postPathBuilder={(post) => `${backTo}/${postSegment(post)}`}
+          postPathBuilder={(post) => `${postBase}/${postSegment(post)}`}
           fetchPostFn={fetchPublicPost}
         />
       </div>

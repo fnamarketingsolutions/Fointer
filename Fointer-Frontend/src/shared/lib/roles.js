@@ -15,5 +15,5 @@ export const canAccessRoles = (userRole, allowedRoles = []) => {
 };
 
 export const getDashboardPathForRole = (role) => {
-  return role === "admin" ? "/admin" : "/dashboard";
+  return role === "admin" ? "/admin" : "/";
 };

@@ -78,6 +78,8 @@ const formatPost = (post, extras = {}) => {
       shortCode: community.shortCode || "",
       name: community.name,
       coverImage: community.coverImage || "",
+      type: community.type || "",
+      channel: community.channel || "",
     };
   } else if (community) {
     communityPayload = { id: community };
@@ -96,6 +98,7 @@ const formatPost = (post, extras = {}) => {
     commentCount: extras.commentCount ?? 0,
     canEdit: extras.canEdit ?? false,
     canDelete: extras.canDelete ?? false,
+    canEngage: extras.canEngage ?? false,
     isAuthor: extras.isAuthor ?? false,
     isLocked: extras.isLocked ?? false,
     editWindowMinutes: extras.editWindowMinutes ?? null,
@@ -104,18 +107,58 @@ const formatPost = (post, extras = {}) => {
   };
 };
 
-/** Authenticated users may engage when post has no community. */
-const canAccessPost = async (post, user) => {
-  if (user.role === "admin") return true;
+const DISCOVERABLE_COMMUNITY_TYPES = ["public", "private_request"];
+
+const getDiscoverableCommunityIds = async () => {
+  const rows = await Community.find({
+    type: { $in: DISCOVERABLE_COMMUNITY_TYPES },
+  })
+    .select("_id")
+    .lean();
+  return rows.map((row) => row._id);
+};
+
+const getCommunityIdsByChannel = async (channelName, { discoverableOnly = false } = {}) => {
+  const name = String(channelName || "").trim();
+  if (!name) return [];
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const filter = { channel: new RegExp(`^${escaped}$`, "i") };
+  if (discoverableOnly) {
+    filter.type = { $in: DISCOVERABLE_COMMUNITY_TYPES };
+  }
+  const rows = await Community.find(filter).select("_id").lean();
+  return rows.map((row) => row._id);
+};
+
+const resolveCommunityType = async (post) => {
+  const community = post.community;
+  if (!community) return null;
+  if (typeof community === "object" && community.type) return community.type;
+  const id = community._id || community;
+  if (!id) return null;
+  const doc = await Community.findById(id).select("type").lean();
+  return doc?.type || null;
+};
+
+/** Anyone may view community-less + discoverable community posts; private invite needs membership. */
+const canViewPost = async (post, user) => {
+  if (user?.role === "admin") return true;
   const communityId = post.community?._id || post.community;
   if (!communityId) return true;
+
+  const type = await resolveCommunityType(post);
+  if (DISCOVERABLE_COMMUNITY_TYPES.includes(type)) return true;
+
+  if (!user) return false;
   return (
     (await canEngageInCommunity(communityId, user)) ||
     (await canCreatePost(communityId, user))
   );
 };
 
+/** Like / comment: community-less ok when logged in; community posts require membership. */
 const canEngageWithPost = async (post, user) => {
+  if (!user) return false;
   if (user.role === "admin") return true;
   const communityId = post.community?._id || post.community;
   if (!communityId) return true;
@@ -220,6 +263,7 @@ export const listManageableCommunityIds = async (user) => {
 export const listPosts = async (req, res) => {
   try {
     const { communityId, q, mine } = req.query;
+    const channel = String(req.query.channel || "").trim();
     const sortBy = String(req.query.sortBy || "newest").trim().toLowerCase();
     const { enabled, page, limit, skip } = parsePagination(req.query, {
       defaultLimit: 10,
@@ -251,14 +295,20 @@ export const listPosts = async (req, res) => {
         : communityId;
     } else {
       // Default: posts in communities the user has joined
-      if (!joinedIds.length) {
+      let scopeIds = joinedIds;
+      if (channel) {
+        const channelIds = await getCommunityIdsByChannel(channel);
+        const channelSet = new Set(channelIds.map(String));
+        scopeIds = joinedIds.filter((id) => channelSet.has(String(id)));
+      }
+      if (!scopeIds.length) {
         const empty = { success: true, posts: [] };
         if (enabled) {
           empty.pagination = buildPaginationMeta({ page, limit, total: 0 });
         }
         return res.status(200).json(empty);
       }
-      filter.community = { $in: joinedIds };
+      filter.community = { $in: scopeIds };
     }
 
     if (q && String(q).trim()) {
@@ -345,13 +395,13 @@ export const listPosts = async (req, res) => {
       const aggregated = await Post.aggregate(pipeline);
       posts = await Post.populate(aggregated, [
         { path: "author", select: "username name avatar role" },
-        { path: "community", select: "name coverImage shortCode" },
+        { path: "community", select: "name coverImage shortCode type channel" },
       ]);
     } else {
       const sort = resolveSort(sortBy, POST_SORT_MAP, { createdAt: -1 });
       let query = Post.find(filter)
         .populate("author", "username name avatar role")
-        .populate("community", "name coverImage shortCode")
+        .populate("community", "name coverImage shortCode type channel")
         .sort(sort)
         .lean();
 
@@ -388,18 +438,21 @@ export const listPosts = async (req, res) => {
 
     const payload = {
       success: true,
-      posts: postsWithPermission.map(
-        ({ post: p, canDelete, isAuthor, canEdit, isLocked }) =>
-          formatPost(p, {
-            likeCount: counts[String(p._id)] || 0,
-            likedByMe: liked[String(p._id)] || false,
-            commentCount: commentMap[String(p._id)] || 0,
-            canEdit,
-            canDelete,
-            isAuthor,
-            isLocked,
-            editWindowMinutes,
-          })
+      posts: await Promise.all(
+        postsWithPermission.map(
+          async ({ post: p, canDelete, isAuthor, canEdit, isLocked }) =>
+            formatPost(p, {
+              likeCount: counts[String(p._id)] || 0,
+              likedByMe: liked[String(p._id)] || false,
+              commentCount: commentMap[String(p._id)] || 0,
+              canEdit,
+              canDelete,
+              canEngage: await canEngageWithPost(p, req.user),
+              isAuthor,
+              isLocked,
+              editWindowMinutes,
+            })
+        )
       ),
     };
 
@@ -417,14 +470,14 @@ export const getPost = async (req, res) => {
   try {
     const post = await Post.findById(req.params.id)
       .populate("author", "username name avatar role")
-      .populate("community", "name coverImage shortCode")
+      .populate("community", "name coverImage shortCode type channel")
       .lean();
 
     if (!post) {
       return res.status(404).json({ success: false, message: "Post not found." });
     }
 
-    if (!(await canAccessPost(post, req.user))) {
+    if (!(await canViewPost(post, req.user))) {
       return res.status(403).json({
         success: false,
         message: "You cannot view this post.",
@@ -443,6 +496,7 @@ export const getPost = async (req, res) => {
         likedByMe: liked[String(post._id)] || false,
         commentCount,
         canDelete,
+        canEngage: await canEngageWithPost(post, req.user),
         ...flags,
       }),
     });
@@ -451,39 +505,60 @@ export const getPost = async (req, res) => {
   }
 };
 
-const PUBLIC_POST_FILTER = {
-  $or: [{ community: null }, { community: { $exists: false } }],
-};
-
-/** List community-less posts (public browse; optional auth for likedByMe). */
+/** Discover feed: community-less + posts in public / request-to-join communities. */
 export const listPublicPosts = async (req, res) => {
   try {
     const { q } = req.query;
+    const channel = String(req.query.channel || "").trim();
     const sortBy = String(req.query.sortBy || "newest").trim().toLowerCase();
     const { enabled, page, limit, skip } = parsePagination(req.query, {
       defaultLimit: 10,
       maxLimit: 100,
     });
 
-    const filter = { ...PUBLIC_POST_FILTER };
+    let visibility;
+    if (channel) {
+      const channelCommunityIds = await getCommunityIdsByChannel(channel, {
+        discoverableOnly: true,
+      });
+      visibility = {
+        community: { $in: channelCommunityIds },
+      };
+    } else {
+      const discoverableIds = await getDiscoverableCommunityIds();
+      const visibilityOr = [
+        { community: null },
+        { community: { $exists: false } },
+      ];
+      if (discoverableIds.length) {
+        visibilityOr.push({ community: { $in: discoverableIds } });
+      }
+      visibility = { $or: visibilityOr };
+    }
 
+    let filter = { ...visibility };
     if (q && String(q).trim()) {
       const term = String(q).trim();
-      filter.$and = [
-        { $or: PUBLIC_POST_FILTER.$or },
-        {
-          $or: [
-            { title: { $regex: term, $options: "i" } },
-            { text: { $regex: term, $options: "i" } },
-          ],
-        },
-      ];
-      delete filter.$or;
+      filter = {
+        $and: [
+          visibility,
+          {
+            $or: [
+              { title: { $regex: term, $options: "i" } },
+              { text: { $regex: term, $options: "i" } },
+            ],
+          },
+        ],
+      };
     }
 
     let posts = [];
     let total = null;
     const needsCountSort = sortBy === "likes" || sortBy === "comments";
+    const communityPopulate = {
+      path: "community",
+      select: "name coverImage shortCode type channel",
+    };
 
     if (needsCountSort) {
       if (enabled) {
@@ -557,11 +632,13 @@ export const listPublicPosts = async (req, res) => {
       const aggregated = await Post.aggregate(pipeline);
       posts = await Post.populate(aggregated, [
         { path: "author", select: "username name avatar role" },
+        communityPopulate,
       ]);
     } else {
       const sort = resolveSort(sortBy, POST_SORT_MAP, { createdAt: -1 });
       let query = Post.find(filter)
         .populate("author", "username name avatar role")
+        .populate(communityPopulate)
         .sort(sort)
         .lean();
 
@@ -593,6 +670,7 @@ export const listPublicPosts = async (req, res) => {
             likeCount: counts[String(p._id)] || 0,
             likedByMe: false,
             commentCount: commentMap[String(p._id)] || 0,
+            canEngage: false,
           });
         }
         const flags = await buildOwnContentFlags(p, req.user);
@@ -601,6 +679,7 @@ export const listPublicPosts = async (req, res) => {
           likedByMe: liked[String(p._id)] || false,
           commentCount: commentMap[String(p._id)] || 0,
           canDelete: await userCanDeletePost(p, req.user),
+          canEngage: await canEngageWithPost(p, req.user),
           ...flags,
           editWindowMinutes,
         });
@@ -622,19 +701,19 @@ export const listPublicPosts = async (req, res) => {
   }
 };
 
-/** Get a single community-less post (public browse; optional auth). */
+/** Get a single discoverable post (optional auth). */
 export const getPublicPost = async (req, res) => {
   try {
     const post = await Post.findById(req.params.id)
       .populate("author", "username name avatar role")
+      .populate("community", "name coverImage shortCode type channel")
       .lean();
 
     if (!post) {
       return res.status(404).json({ success: false, message: "Post not found." });
     }
 
-    const communityId = post.community?._id || post.community;
-    if (communityId) {
+    if (!(await canViewPost(post, req.user || null))) {
       return res.status(404).json({
         success: false,
         message: "This post is not publicly available.",
@@ -652,6 +731,7 @@ export const getPublicPost = async (req, res) => {
           likeCount: counts[String(post._id)] || 0,
           likedByMe: false,
           commentCount,
+          canEngage: false,
         }),
       });
     }
@@ -665,6 +745,7 @@ export const getPublicPost = async (req, res) => {
         likedByMe: liked[String(post._id)] || false,
         commentCount,
         canDelete,
+        canEngage: await canEngageWithPost(post, req.user),
         ...flags,
       }),
     });
@@ -872,15 +953,17 @@ export const deletePost = async (req, res) => {
 
 export const listComments = async (req, res) => {
   try {
-    const post = await Post.findById(req.params.id);
+    const post = await Post.findById(req.params.id)
+      .populate("community", "type")
+      .lean();
     if (!post) {
       return res.status(404).json({ success: false, message: "Post not found." });
     }
 
-    if (!(await canAccessPost(post, req.user))) {
+    if (!(await canViewPost(post, req.user || null))) {
       return res.status(403).json({
         success: false,
-        message: "You cannot view comments in this community.",
+        message: "You cannot view comments on this post.",
       });
     }
 
@@ -890,7 +973,20 @@ export const listComments = async (req, res) => {
       .lean();
 
     const ids = comments.map((c) => c._id);
-    const { counts, liked } = await getLikeMeta("comment", ids, req.user._id);
+    const userId = req.user?._id;
+    const { counts, liked } = await getLikeMeta("comment", ids, userId);
+
+    if (!req.user) {
+      return res.status(200).json({
+        success: true,
+        comments: comments.map((c) =>
+          formatComment(c, {
+            likeCount: counts[String(c._id)] || 0,
+            likedByMe: false,
+          })
+        ),
+      });
+    }
 
     const editWindowMinutes = await getEditWindowMinutes();
     const commentsWithPermission = await Promise.all(
@@ -1158,5 +1254,348 @@ export const resolvePostCode = async (req, res) => {
     return res.status(200).json({ success: true, id });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/** Authenticated user's own comments (activity history). */
+export const listMyComments = async (req, res) => {
+  try {
+    const comments = await Comment.find({ author: req.user._id })
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .populate("author", "username name avatar role")
+      .populate({
+        path: "post",
+        select: "title text community shortCode author createdAt",
+        populate: [
+          { path: "community", select: "name shortCode coverImage" },
+          { path: "author", select: "username name avatar" },
+        ],
+      })
+      .lean();
+
+    const commentIds = comments.map((c) => c._id);
+    const { counts, liked } = await getLikeMeta(
+      "comment",
+      commentIds,
+      req.user._id
+    );
+    const editWindowMinutes = await getEditWindowMinutes();
+
+    const items = await Promise.all(
+      comments.map(async (c) => {
+        const flags = await buildOwnContentFlags(c, req.user);
+        const canDelete = await userCanDeleteComment(c, req.user);
+        const post = c.post;
+        let postPayload = null;
+        if (post && typeof post === "object" && post._id) {
+          postPayload = {
+            id: post._id,
+            shortCode: post.shortCode || "",
+            title: post.title || "",
+            text: post.text || "",
+            community:
+              post.community && typeof post.community === "object" && post.community._id
+                ? {
+                    id: post.community._id,
+                    name: post.community.name,
+                    shortCode: post.community.shortCode || "",
+                    coverImage: post.community.coverImage || "",
+                  }
+                : post.community
+                  ? { id: post.community }
+                  : null,
+            author: formatUser(post.author),
+            createdAt: post.createdAt,
+          };
+        } else if (post) {
+          postPayload = { id: post };
+        }
+
+        return {
+          ...formatComment(c, {
+            likeCount: counts[String(c._id)] || 0,
+            likedByMe: liked[String(c._id)] || false,
+            canEdit: flags.canEdit,
+            canDelete,
+            isAuthor: flags.isAuthor,
+            isLocked: flags.isLocked,
+            editWindowMinutes,
+          }),
+          post: postPayload,
+          isReply: Boolean(c.parent),
+        };
+      })
+    );
+
+    // Drop comments whose post was deleted
+    const filtered = items.filter((item) => item.post?.id);
+
+    return res.json({ success: true, comments: filtered });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to load comments.",
+    });
+  }
+};
+
+/** Posts the authenticated user has liked (activity history). */
+export const listMyLikedPosts = async (req, res) => {
+  try {
+    const reactions = await Reaction.find({
+      user: req.user._id,
+      targetType: "post",
+    })
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .lean();
+
+    const postIds = reactions.map((r) => r.targetId);
+    if (!postIds.length) {
+      return res.json({ success: true, posts: [] });
+    }
+
+    const posts = await Post.find({ _id: { $in: postIds } })
+      .populate("author", "username name avatar role")
+      .populate("community", "name shortCode coverImage")
+      .lean();
+
+    const postMap = Object.fromEntries(posts.map((p) => [String(p._id), p]));
+    const { counts } = await getLikeMeta("post", postIds, req.user._id);
+
+    const commentCounts = await Comment.aggregate([
+      { $match: { post: { $in: postIds } } },
+      { $group: { _id: "$post", count: { $sum: 1 } } },
+    ]);
+    const commentMap = Object.fromEntries(
+      commentCounts.map((c) => [String(c._id), c.count])
+    );
+
+    const editWindowMinutes = await getEditWindowMinutes();
+    const likedAtMap = Object.fromEntries(
+      reactions.map((r) => [String(r.targetId), r.createdAt])
+    );
+
+    const ordered = [];
+    for (const id of postIds) {
+      const p = postMap[String(id)];
+      if (!p) continue;
+      const flags = await buildOwnContentFlags(p, req.user);
+      ordered.push({
+        ...formatPost(p, {
+          likeCount: counts[String(p._id)] || 0,
+          likedByMe: true,
+          commentCount: commentMap[String(p._id)] || 0,
+          canEdit: flags.canEdit,
+          canDelete: await userCanDeletePost(p, req.user),
+          isAuthor: flags.isAuthor,
+          isLocked: flags.isLocked,
+          editWindowMinutes,
+        }),
+        likedAt: likedAtMap[String(id)] || null,
+      });
+    }
+
+    return res.json({ success: true, posts: ordered });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to load liked posts.",
+    });
+  }
+};
+
+/** Admin: list all posts (community + public) for content moderation. */
+export const adminListModerationPosts = async (req, res) => {
+  try {
+    const q = String(req.query.q || "").trim();
+    const scope = String(req.query.scope || "all").toLowerCase();
+    const { enabled, page, limit, skip } = parsePagination(req.query, {
+      defaultLimit: 20,
+      maxLimit: 100,
+    });
+
+    const and = [];
+    if (scope === "community") {
+      and.push({ community: { $ne: null } });
+    } else if (scope === "public") {
+      and.push({
+        $or: [{ community: null }, { community: { $exists: false } }],
+      });
+    }
+    if (q) {
+      const regex = new RegExp(
+        q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+        "i"
+      );
+      and.push({ $or: [{ title: regex }, { text: regex }] });
+    }
+    const filter = and.length ? { $and: and } : {};
+
+    const total = await Post.countDocuments(filter);
+    let query = Post.find(filter)
+      .sort({ createdAt: -1 })
+      .populate("author", "username name avatar role status")
+      .populate("community", "name shortCode coverImage");
+
+    if (enabled) {
+      query = query.skip(skip).limit(limit);
+    } else {
+      query = query.limit(100);
+    }
+
+    const posts = await query.lean();
+    const postIds = posts.map((p) => p._id);
+    const { counts } = await getLikeMeta("post", postIds, req.user._id);
+    const commentCounts = await Comment.aggregate([
+      { $match: { post: { $in: postIds } } },
+      { $group: { _id: "$post", count: { $sum: 1 } } },
+    ]);
+    const commentMap = Object.fromEntries(
+      commentCounts.map((c) => [String(c._id), c.count])
+    );
+
+    const [communityTotal, publicTotal] = await Promise.all([
+      Post.countDocuments({ community: { $ne: null } }),
+      Post.countDocuments({
+        $or: [{ community: null }, { community: { $exists: false } }],
+      }),
+    ]);
+
+    const payload = {
+      success: true,
+      posts: posts.map((p) => ({
+        ...formatPost(p, {
+          likeCount: counts[String(p._id)] || 0,
+          likedByMe: false,
+          commentCount: commentMap[String(p._id)] || 0,
+          canEdit: true,
+          canDelete: true,
+          isAuthor: false,
+          isLocked: false,
+        }),
+        authorStatus:
+          p.author && typeof p.author === "object"
+            ? p.author.status || "active"
+            : null,
+        mediaCount: Array.isArray(p.media) ? p.media.length : 0,
+      })),
+      summary: {
+        all: communityTotal + publicTotal,
+        community: communityTotal,
+        public: publicTotal,
+      },
+    };
+
+    if (enabled) {
+      payload.pagination = buildPaginationMeta({ page, limit, total });
+    }
+
+    return res.json(payload);
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to list posts.",
+    });
+  }
+};
+
+/** Admin: list all comments for content moderation. */
+export const adminListModerationComments = async (req, res) => {
+  try {
+    const q = String(req.query.q || "").trim();
+    const { enabled, page, limit, skip } = parsePagination(req.query, {
+      defaultLimit: 20,
+      maxLimit: 100,
+    });
+
+    const filter = {};
+    if (q) {
+      filter.text = {
+        $regex: q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+        $options: "i",
+      };
+    }
+
+    const total = await Comment.countDocuments(filter);
+    let query = Comment.find(filter)
+      .sort({ createdAt: -1 })
+      .populate("author", "username name avatar role status")
+      .populate({
+        path: "post",
+        select: "title text community shortCode",
+        populate: { path: "community", select: "name shortCode" },
+      });
+
+    if (enabled) {
+      query = query.skip(skip).limit(limit);
+    } else {
+      query = query.limit(100);
+    }
+
+    const comments = await query.lean();
+    const commentIds = comments.map((c) => c._id);
+    const { counts } = await getLikeMeta("comment", commentIds, req.user._id);
+
+    const items = comments.map((c) => {
+      const post = c.post;
+      let postPayload = null;
+      if (post && typeof post === "object" && post._id) {
+        postPayload = {
+          id: post._id,
+          shortCode: post.shortCode || "",
+          title: post.title || "",
+          community:
+            post.community &&
+            typeof post.community === "object" &&
+            post.community._id
+              ? {
+                  id: post.community._id,
+                  name: post.community.name,
+                  shortCode: post.community.shortCode || "",
+                }
+              : post.community
+                ? { id: post.community }
+                : null,
+        };
+      } else if (post) {
+        postPayload = { id: post };
+      }
+
+      return {
+        ...formatComment(c, {
+          likeCount: counts[String(c._id)] || 0,
+          likedByMe: false,
+          canEdit: true,
+          canDelete: true,
+          isAuthor: false,
+          isLocked: false,
+        }),
+        post: postPayload,
+        isReply: Boolean(c.parent),
+        authorStatus:
+          c.author && typeof c.author === "object"
+            ? c.author.status || "active"
+            : null,
+      };
+    });
+
+    const payload = {
+      success: true,
+      comments: items,
+      summary: { all: total },
+    };
+
+    if (enabled) {
+      payload.pagination = buildPaginationMeta({ page, limit, total });
+    }
+
+    return res.json(payload);
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to list comments.",
+    });
   }
 };

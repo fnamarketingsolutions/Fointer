@@ -1,29 +1,45 @@
-import React, { useCallback, useEffect, useRef, useState, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Loader2,
-  RefreshCw,
-  Shield,
   Award,
-  Users,
-  FileText,
-  Save,
-  X,
+  Camera,
   Eye,
   EyeOff,
+  FileText,
+  Loader2,
+  RefreshCw,
+  Save,
+  Shield,
+  Users,
+  X,
 } from "lucide-react";
 import {
   fetchMyProfile,
-  updateMyProfile,
   updateMyPassword,
+  updateMyProfile,
 } from "../../../api/profile";
 import { uploadMedia } from "../../../api/uploads";
 import { useAuth } from "../../../context/AuthContext";
 import { MAX_FILE_SIZE } from "../../../shared/constants/uploads";
 import { useToast } from "../../../shared/components/feedback/ToastContext";
+import { timeAgo } from "../../../shared/utils/date";
+
+const TABS = [
+  { id: "profile", label: "Profile" },
+  { id: "security", label: "Security" },
+  { id: "communities", label: "Communities" },
+  { id: "posts", label: "My Posts" },
+];
+
+const fieldClass =
+  "w-full bg-[#0E0C0A] border border-[#2A241E] rounded-lg px-3 py-2.5 text-sm text-[#E5E0D8] focus:outline-none focus:border-[#D4AF37]/50 placeholder:text-[#5C5348]";
+
+const labelClass =
+  "block text-[11px] uppercase tracking-wide text-[#8C8070] mb-1.5";
 
 export default function Profile() {
   const { refreshUser } = useAuth();
   const { showToast } = useToast();
+  const [tab, setTab] = useState("profile");
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -71,12 +87,14 @@ export default function Profile() {
     load();
   }, [load]);
 
-  const interestList = useMemo(() => {
-    return form.interests
-      .split(",")
-      .map((t) => t.trim())
-      .filter(Boolean);
-  }, [form.interests]);
+  const interestList = useMemo(
+    () =>
+      form.interests
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean),
+    [form.interests]
+  );
 
   const addInterest = () => {
     const value = interestInput.trim();
@@ -124,8 +142,13 @@ export default function Profile() {
 
       const updated = data?.user || data?.profile;
       if (updated) {
-        const cleanedUsername = String(updated.username || "").replace(/^@+/, "");
-        setProfile((prev) => (prev ? { ...prev, ...updated, username: cleanedUsername } : updated));
+        const cleanedUsername = String(updated.username || "").replace(
+          /^@+/,
+          ""
+        );
+        setProfile((prev) =>
+          prev ? { ...prev, ...updated, username: cleanedUsername } : updated
+        );
         setForm({
           name: updated.name ?? form.name,
           username: cleanedUsername,
@@ -165,7 +188,6 @@ export default function Profile() {
   const handleAvatarSelect = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = "";
-
     if (!file) return;
 
     if (file.size > MAX_FILE_SIZE) {
@@ -174,14 +196,10 @@ export default function Profile() {
     }
 
     setAvatarSaving(true);
-
     try {
       const upload = await uploadMedia(file, "fointer/avatars");
       const avatarUrl = upload?.media?.url;
-
-      if (!avatarUrl) {
-        throw new Error("Upload did not return an image URL.");
-      }
+      if (!avatarUrl) throw new Error("Upload did not return an image URL.");
 
       const data = await updateMyProfile({ avatar: avatarUrl });
       showToast(data?.message || "Profile photo updated.");
@@ -190,10 +208,13 @@ export default function Profile() {
       if (updated) {
         setProfile((prev) => (prev ? { ...prev, ...updated } : prev));
       }
-
       if (refreshUser) await refreshUser();
     } catch (err) {
-      showToast(err?.response?.data?.message || err?.message || "Failed to update profile photo.");
+      showToast(
+        err?.response?.data?.message ||
+          err?.message ||
+          "Failed to update profile photo."
+      );
     } finally {
       setAvatarSaving(false);
     }
@@ -208,21 +229,25 @@ export default function Profile() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-16 text-[#A69B8D] text-sm gap-2">
-        <Loader2 size={16} className="animate-spin" />
-        Loading profile...
+      <div className="flex items-center justify-center gap-2 py-14 text-sm text-[#A69B8D]">
+        <Loader2 size={16} className="animate-spin text-[#D4AF37]" />
+        Loading profile…
       </div>
     );
   }
+
+  const communityCount = profile?.stats?.communitiesJoined || 0;
+  const postCount = profile?.stats?.posts || 0;
+
   return (
-    <div className="space-y-6 max-w-4xl">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl sm:text-2xl md:text-3xl font-serif font-semibold text-[#E5E0D8]">
+    <div className="w-full max-w-3xl mx-auto space-y-5">
+      <header className="flex items-start justify-between gap-3">
+        <div className="space-y-1 min-w-0">
+          <h1 className="text-xl sm:text-2xl font-semibold text-[#E5E0D8]">
             Profile
           </h1>
-          <p className="text-xs sm:text-sm text-[#A69B8D] mt-1">
-            Your identity, security, communities, posts, and achievements.
+          <p className="text-sm text-[#8C8070]">
+            Identity, security, communities, and posts.
           </p>
         </div>
         <button
@@ -234,55 +259,36 @@ export default function Profile() {
         >
           <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
         </button>
-      </div>
+      </header>
 
-      {/* Identity */}
-      <section className="bg-[#14100D] border border-[#2A241E] rounded-xl p-4 sm:p-6">
-        <div className="flex items-center gap-4 mb-5">
-          <button
-            type="button"
-            onClick={() => avatarInputRef.current?.click()}
-            disabled={avatarSaving}
-            title="Change photo"
-            className="relative shrink-0 rounded-full focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/60 disabled:opacity-70"
-          >
-            {profile?.avatar ? (
-              <img
-                src={profile.avatar}
-                alt={profile?.name || "Profile"}
-                className="w-16 h-16 rounded-full object-cover border border-[#D4AF37]/40"
-              />
+      {/* Identity strip */}
+      <div className="flex items-center gap-4 bg-[#14100D] border border-[#2A241E] rounded-xl p-3.5 sm:p-4">
+        <button
+          type="button"
+          onClick={() => avatarInputRef.current?.click()}
+          disabled={avatarSaving}
+          title="Change photo"
+          className="relative shrink-0 rounded-full focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/50 disabled:opacity-70 group"
+        >
+          {profile?.avatar ? (
+            <img
+              src={profile.avatar}
+              alt={profile?.name || "Profile"}
+              className="w-16 h-16 rounded-full object-cover border border-[#2A241E]"
+            />
+          ) : (
+            <div className="w-16 h-16 rounded-full bg-[#1A1510] border border-[#2A241E] flex items-center justify-center text-[#D4AF37] text-xl font-semibold">
+              {(profile?.name || "U").charAt(0).toUpperCase()}
+            </div>
+          )}
+          <span className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+            {avatarSaving ? (
+              <Loader2 size={16} className="animate-spin text-[#D4AF37]" />
             ) : (
-              <div className="w-16 h-16 rounded-full bg-[#D4AF37]/15 border border-[#D4AF37]/30 flex items-center justify-center text-[#D4AF37] text-2xl font-serif font-semibold">
-                {(profile?.name || "U").charAt(0).toUpperCase()}
-              </div>
+              <Camera size={16} className="text-[#E5E0D8]" />
             )}
-            {avatarSaving && (
-              <span className="absolute inset-0 rounded-full bg-black/55 flex items-center justify-center">
-                <Loader2 size={18} className="animate-spin text-[#D4AF37]" />
-              </span>
-            )}
-          </button>
-          <div>
-            <h2 className="text-lg font-serif font-semibold text-[#D4AF37]">
-              {profile?.name || "Member"}
-            </h2>
-            <p className="text-xs text-[#A69B8D]">
-              {profile?.username} · {profile?.email}
-            </p>
-            <p className="text-[10px] uppercase tracking-wider text-[#8C8070] mt-1 font-mono">
-              {profile?.role} account
-            </p>
-            <button
-              type="button"
-              onClick={() => avatarInputRef.current?.click()}
-              disabled={avatarSaving}
-              className="mt-2 text-[11px] text-[#D4AF37] hover:text-[#E5E0D8] transition-colors disabled:opacity-70"
-            >
-              {avatarSaving ? "Uploading photo..." : "Change photo"}
-            </button>
-          </div>
-        </div>
+          </span>
+        </button>
         <input
           ref={avatarInputRef}
           type="file"
@@ -292,307 +298,340 @@ export default function Profile() {
           disabled={avatarSaving}
         />
 
-        <form onSubmit={handleSaveProfile} className="space-y-4">
-          <div>
-            <label className="block text-[10px] uppercase tracking-wider text-[#8C8070] mb-1">
-              Display Name
-            </label>
-            <input
-              value={form.name}
-              onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
-              className="w-full bg-[#0E0C0A] border border-[#2A241E] rounded-lg px-3 py-2 text-sm text-[#E5E0D8] focus:outline-none focus:border-[#D4AF37]/50"
-            />
-          </div>
-
-          <div>
-            <label className="block text-[10px] uppercase tracking-wider text-[#8C8070] mb-1">
-              Username
-            </label>
-            <input
-              value={form.username}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, username: e.target.value }))
-              }
-              className="w-full bg-[#0E0C0A] border border-[#2A241E] rounded-lg px-3 py-2 text-sm text-[#E5E0D8] focus:outline-none focus:border-[#D4AF37]/50"
-            />
-          </div>
-
-          <div>
-            <label className="block text-[10px] uppercase tracking-wider text-[#8C8070] mb-1">
-              Email
-            </label>
-            <input
-              value={profile?.email || ""}
-              disabled
-              className="w-full bg-[#0E0C0A]/60 border border-[#2A241E] rounded-lg px-3 py-2 text-sm text-[#8C8070] cursor-not-allowed"
-            />
-          </div>
-
-          <div>
-            <label className="block text-[10px] uppercase tracking-wider text-[#8C8070] mb-1">
-              Bio
-            </label>
-            <textarea
-              value={form.bio}
-              onChange={(e) => setForm((p) => ({ ...p, bio: e.target.value }))}
-              rows={3}
-              maxLength={500}
-              placeholder="Tell others about yourself..."
-              className="w-full bg-[#0E0C0A] border border-[#2A241E] rounded-lg px-3 py-2 text-sm text-[#E5E0D8] focus:outline-none focus:border-[#D4AF37]/50 resize-y"
-            />
-          </div>
-
-          <div>
-            <label className="block text-[10px] uppercase tracking-wider text-[#8C8070] mb-1">
-              Interests
-            </label>
-            <div className="flex flex-wrap gap-1.5 mb-2">
-              {interestList.map((tag) => (
-                <span
-                  key={tag}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#D4AF37]/10 text-[#D4AF37] text-[11px]"
-                >
-                  {tag}
-                  <button
-                    type="button"
-                    onClick={() => removeInterest(tag)}
-                    className="hover:text-red-300"
-                  >
-                    <X size={10} />
-                  </button>
-                </span>
-              ))}
-            </div>
-            <div className="flex gap-2">
-              <input
-                value={interestInput}
-                onChange={(e) => setInterestInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    addInterest();
-                  }
-                }}
-                placeholder="Add interest and press Enter"
-                className="flex-1 bg-[#0E0C0A] border border-[#2A241E] rounded-lg px-3 py-2 text-sm text-[#E5E0D8] focus:outline-none focus:border-[#D4AF37]/50"
-              />
-              <button
-                type="button"
-                onClick={addInterest}
-                className="px-3 py-2 rounded-lg border border-[#2A241E] text-xs text-[#A69B8D] hover:text-[#D4AF37]"
-              >
-                Add
-              </button>
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            disabled={saving}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#D4AF37] text-black text-xs font-semibold disabled:opacity-60"
-          >
-            {saving ? (
-              <Loader2 size={14} className="animate-spin" />
-            ) : (
-              <Save size={14} />
-            )}
-            Save Profile
-          </button>
-        </form>
-      </section>
-
-      {/* Security */}
-      <section className="bg-[#14100D] border border-[#2A241E] rounded-xl p-4 sm:p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Shield size={16} className="text-[#D4AF37]" />
-          <h2 className="text-base font-serif font-semibold text-[#E5E0D8]">
-            Security
+        <div className="min-w-0 flex-1">
+          <h2 className="text-base sm:text-lg font-semibold text-[#E5E0D8] truncate">
+            {profile?.name || "Member"}
           </h2>
-        </div>
-        {!profile?.hasPassword ? (
-          <p className="text-xs text-[#A69B8D]">
-            This account uses social login. Password changes are not available.
+          <p className="text-xs text-[#8C8070] truncate">
+            @{String(profile?.username || "").replace(/^@+/, "")}
+            {profile?.email ? ` · ${profile.email}` : ""}
           </p>
-        ) : (
-          <form onSubmit={handlePassword} className="space-y-3 max-w-md">
-            <div className="relative">
-              <input
-                type={passwordVisibility.currentPassword ? "text" : "password"}
-                value={passwordForm.currentPassword}
-                onChange={(e) =>
-                  setPasswordForm((p) => ({
-                    ...p,
-                    currentPassword: e.target.value,
-                  }))
-                }
-                placeholder="Current password"
-                required
-                className="w-full bg-[#0E0C0A] border border-[#2A241E] rounded-lg px-3 py-2 pr-11 text-sm text-[#E5E0D8] focus:outline-none focus:border-[#D4AF37]/50"
-              />
-              <button
-                type="button"
-                onClick={() => togglePasswordVisibility("currentPassword")}
-                className="absolute inset-y-0 right-0 px-3 text-[#A69B8D] hover:text-[#D4AF37] transition-colors"
-                title={passwordVisibility.currentPassword ? "Hide password" : "Show password"}
-              >
-                {passwordVisibility.currentPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
+          <div className="flex items-center gap-3 mt-1.5 text-[11px] text-[#8C8070]">
+            <span className="capitalize">{profile?.role || "user"}</span>
+            <span>·</span>
+            <span>{communityCount} communities</span>
+            <span>·</span>
+            <span>{postCount} posts</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 p-1 rounded-xl bg-[#0E0C0A] border border-[#2A241E] overflow-x-auto">
+        {TABS.map((t) => {
+          const active = tab === t.id;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setTab(t.id)}
+              className={`flex-1 min-w-[4.5rem] py-2 px-3 rounded-lg text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap ${
+                active
+                  ? "bg-[#1A1510] text-[#D4AF37] border border-[#D4AF37]/35"
+                  : "text-[#8C8070] hover:text-[#E5E0D8] border border-transparent"
+              }`}
+            >
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Profile tab */}
+      {tab === "profile" && (
+        <div className="space-y-4">
+          <form
+            onSubmit={handleSaveProfile}
+            className="bg-[#14100D] border border-[#2A241E] rounded-xl p-4 sm:p-5 space-y-4"
+          >
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div>
+                <label className={labelClass}>Display name</label>
+                <input
+                  value={form.name}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, name: e.target.value }))
+                  }
+                  className={fieldClass}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Username</label>
+                <input
+                  value={form.username}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, username: e.target.value }))
+                  }
+                  className={fieldClass}
+                />
+              </div>
             </div>
-            <div className="relative">
+
+            <div>
+              <label className={labelClass}>Email</label>
               <input
-                type={passwordVisibility.newPassword ? "text" : "password"}
-                value={passwordForm.newPassword}
-                onChange={(e) =>
-                  setPasswordForm((p) => ({ ...p, newPassword: e.target.value }))
-                }
-                placeholder="New password (min 8 characters)"
-                required
-                minLength={8}
-                className="w-full bg-[#0E0C0A] border border-[#2A241E] rounded-lg px-3 py-2 pr-11 text-sm text-[#E5E0D8] focus:outline-none focus:border-[#D4AF37]/50"
+                value={profile?.email || ""}
+                disabled
+                className={`${fieldClass} opacity-60 cursor-not-allowed`}
               />
-              <button
-                type="button"
-                onClick={() => togglePasswordVisibility("newPassword")}
-                className="absolute inset-y-0 right-0 px-3 text-[#A69B8D] hover:text-[#D4AF37] transition-colors"
-                title={passwordVisibility.newPassword ? "Hide password" : "Show password"}
-              >
-                {passwordVisibility.newPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
             </div>
-            <div className="relative">
-              <input
-                type={passwordVisibility.confirmPassword ? "text" : "password"}
-                value={passwordForm.confirmPassword}
+
+            <div>
+              <label className={labelClass}>Bio</label>
+              <textarea
+                value={form.bio}
                 onChange={(e) =>
-                  setPasswordForm((p) => ({
-                    ...p,
-                    confirmPassword: e.target.value,
-                  }))
+                  setForm((p) => ({ ...p, bio: e.target.value }))
                 }
-                placeholder="Confirm new password"
-                required
-                minLength={8}
-                className="w-full bg-[#0E0C0A] border border-[#2A241E] rounded-lg px-3 py-2 pr-11 text-sm text-[#E5E0D8] focus:outline-none focus:border-[#D4AF37]/50"
+                rows={3}
+                maxLength={500}
+                placeholder="Tell others about yourself…"
+                className={`${fieldClass} resize-y`}
               />
-              <button
-                type="button"
-                onClick={() => togglePasswordVisibility("confirmPassword")}
-                className="absolute inset-y-0 right-0 px-3 text-[#A69B8D] hover:text-[#D4AF37] transition-colors"
-                title={passwordVisibility.confirmPassword ? "Hide password" : "Show password"}
-              >
-                {passwordVisibility.confirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
+              <p className="text-[10px] text-[#5C5348] text-right mt-1">
+                {form.bio.length}/500
+              </p>
             </div>
+
+            <div>
+              <label className={labelClass}>Interests</label>
+              {interestList.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {interestList.map((tag) => (
+                    <span
+                      key={tag}
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-[#2A241E] bg-[#0E0C0A] text-[11px] text-[#A69B8D]"
+                    >
+                      {tag}
+                      <button
+                        type="button"
+                        onClick={() => removeInterest(tag)}
+                        className="hover:text-red-400"
+                        aria-label={`Remove ${tag}`}
+                      >
+                        <X size={11} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+              <div className="flex gap-2">
+                <input
+                  value={interestInput}
+                  onChange={(e) => setInterestInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addInterest();
+                    }
+                  }}
+                  placeholder="Add interest and press Enter"
+                  className={fieldClass}
+                />
+                <button
+                  type="button"
+                  onClick={addInterest}
+                  className="px-3 py-2 rounded-lg border border-[#2A241E] text-xs text-[#A69B8D] hover:text-[#D4AF37] hover:border-[#D4AF37]/40 shrink-0"
+                >
+                  Add
+                </button>
+              </div>
+            </div>
+
             <button
               type="submit"
-              disabled={passwordSaving}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-[#D4AF37]/40 text-[#D4AF37] text-xs font-semibold disabled:opacity-60"
+              disabled={saving}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#D4AF37] text-black text-sm font-semibold disabled:opacity-60"
             >
-              {passwordSaving && <Loader2 size={14} className="animate-spin" />}
-              Update Password
+              {saving ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Save size={14} />
+              )}
+              Save profile
             </button>
           </form>
-        )}
-      </section>
 
-      {/* Achievements */}
-      <section className="bg-[#14100D] border border-[#2A241E] rounded-xl p-4 sm:p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Award size={16} className="text-[#D4AF37]" />
-          <h2 className="text-base font-serif font-semibold text-[#E5E0D8]">
-            Achievements
-          </h2>
-        </div>
-        {!profile?.achievements?.length ? (
-          <p className="text-xs text-[#8C8070]">
-            Join communities and post to unlock badges.
-          </p>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {profile.achievements.map((badge) => (
-              <div
-                key={badge.id}
-                className="px-3 py-2 rounded-lg border border-[#D4AF37]/30 bg-[#D4AF37]/10"
-                title={badge.description}
-              >
-                <div className="text-[11px] font-bold uppercase tracking-wide text-[#D4AF37]">
-                  {badge.label}
-                </div>
-                <div className="text-[10px] text-[#A69B8D] mt-0.5">
-                  {badge.description}
-                </div>
+          {/* Achievements */}
+          <section className="bg-[#14100D] border border-[#2A241E] rounded-xl p-4 sm:p-5 space-y-3">
+            <div className="flex items-center gap-2">
+              <Award size={15} className="text-[#D4AF37]" />
+              <h3 className="text-sm font-semibold text-[#E5E0D8]">
+                Achievements
+              </h3>
+            </div>
+            {!profile?.achievements?.length ? (
+              <p className="text-xs text-[#8C8070]">
+                Join communities and post to unlock badges.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {profile.achievements.map((badge) => (
+                  <div
+                    key={badge.id}
+                    className="flex items-start gap-3 p-3 rounded-lg border border-[#2A241E] bg-[#0E0C0A]"
+                    title={badge.description}
+                  >
+                    <Award size={14} className="text-[#D4AF37] mt-0.5 shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-[#E5E0D8]">
+                        {badge.label}
+                      </p>
+                      <p className="text-[11px] text-[#8C8070] mt-0.5">
+                        {badge.description}
+                      </p>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
+          </section>
+        </div>
+      )}
+
+      {/* Security */}
+      {tab === "security" && (
+        <section className="bg-[#14100D] border border-[#2A241E] rounded-xl p-4 sm:p-5 space-y-4">
+          <div className="flex items-center gap-2">
+            <Shield size={15} className="text-[#D4AF37]" />
+            <h3 className="text-sm font-semibold text-[#E5E0D8]">
+              Change password
+            </h3>
           </div>
-        )}
-      </section>
+
+          {!profile?.hasPassword ? (
+            <p className="text-sm text-[#8C8070]">
+              This account uses social login. Password changes are not
+              available.
+            </p>
+          ) : (
+            <form onSubmit={handlePassword} className="space-y-3 max-w-md">
+              {[
+                {
+                  key: "currentPassword",
+                  placeholder: "Current password",
+                },
+                {
+                  key: "newPassword",
+                  placeholder: "New password (min 8 characters)",
+                },
+                {
+                  key: "confirmPassword",
+                  placeholder: "Confirm new password",
+                },
+              ].map(({ key, placeholder }) => (
+                <div key={key} className="relative">
+                  <input
+                    type={passwordVisibility[key] ? "text" : "password"}
+                    value={passwordForm[key]}
+                    onChange={(e) =>
+                      setPasswordForm((p) => ({
+                        ...p,
+                        [key]: e.target.value,
+                      }))
+                    }
+                    placeholder={placeholder}
+                    required
+                    minLength={key === "currentPassword" ? undefined : 8}
+                    className={`${fieldClass} pr-11`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => togglePasswordVisibility(key)}
+                    className="absolute inset-y-0 right-0 px-3 text-[#A69B8D] hover:text-[#D4AF37] transition-colors"
+                    title={
+                      passwordVisibility[key] ? "Hide password" : "Show password"
+                    }
+                  >
+                    {passwordVisibility[key] ? (
+                      <EyeOff size={16} />
+                    ) : (
+                      <Eye size={16} />
+                    )}
+                  </button>
+                </div>
+              ))}
+              <button
+                type="submit"
+                disabled={passwordSaving}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-[#D4AF37]/40 text-[#D4AF37] text-sm font-semibold disabled:opacity-60"
+              >
+                {passwordSaving ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : null}
+                Update password
+              </button>
+            </form>
+          )}
+        </section>
+      )}
 
       {/* Communities */}
-      <section className="bg-[#14100D] border border-[#2A241E] rounded-xl p-4 sm:p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Users size={16} className="text-[#D4AF37]" />
-          <h2 className="text-base font-serif font-semibold text-[#E5E0D8]">
-            Communities{" "}
-            <span className="text-[#A69B8D] font-sans text-sm">
-              ({profile?.stats?.communitiesJoined || 0})
-            </span>
-          </h2>
-        </div>
-        {!profile?.communities?.length ? (
-          <p className="text-xs text-[#8C8070]">No communities joined yet.</p>
-        ) : (
-          <div className="space-y-2">
-            {profile.communities.map((c) => (
-              <div
+      {tab === "communities" && (
+        <section className="space-y-2.5">
+          <div className="flex items-center gap-2 px-0.5">
+            <Users size={15} className="text-[#D4AF37]" />
+            <h3 className="text-sm font-semibold text-[#E5E0D8]">
+              Communities
+            </h3>
+            <span className="text-[11px] text-[#8C8070]">({communityCount})</span>
+          </div>
+
+          {!profile?.communities?.length ? (
+            <div className="border border-dashed border-[#2A241E] rounded-xl py-14 text-center text-sm text-[#8C8070]">
+              No communities joined yet.
+            </div>
+          ) : (
+            profile.communities.map((c) => (
+              <article
                 key={c.id}
-                className="flex items-center justify-between gap-3 p-3 rounded-lg bg-[#0E0C0A] border border-[#2A241E]"
+                className="flex items-center justify-between gap-3 bg-[#14100D] border border-[#2A241E] hover:border-[#D4AF37]/35 rounded-xl p-3.5 sm:p-4 transition-colors"
               >
                 <div className="min-w-0">
-                  <div className="text-sm text-[#E5E0D8] truncate">{c.name}</div>
-                  <div className="text-[10px] text-[#8C8070] uppercase">
-                    {c.membershipRole}
-                  </div>
+                  <p className="text-sm font-medium text-[#E5E0D8] truncate">
+                    {c.name}
+                  </p>
+                  <p className="text-[11px] text-[#8C8070] capitalize mt-0.5">
+                    {c.membershipRole || "member"}
+                  </p>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+              </article>
+            ))
+          )}
+        </section>
+      )}
 
       {/* Posts */}
-      <section className="bg-[#14100D] border border-[#2A241E] rounded-xl p-4 sm:p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <FileText size={16} className="text-[#D4AF37]" />
-          <h2 className="text-base font-serif font-semibold text-[#E5E0D8]">
-            Posts{" "}
-            <span className="text-[#A69B8D] font-sans text-sm">
-              ({profile?.stats?.posts || 0})
-            </span>
-          </h2>
-        </div>
-        {!profile?.posts?.length ? (
-          <p className="text-xs text-[#8C8070]">No posts yet.</p>
-        ) : (
-          <div className="space-y-2">
-            {profile.posts.map((p) => (
-              <div
-                key={p.id}
-                className="p-3 rounded-lg bg-[#0E0C0A] border border-[#2A241E]"
-              >
-                <div className="text-sm font-medium text-[#E5E0D8] truncate">
-                  {p.title}
-                </div>
-                <div className="text-[10px] text-[#8C8070] mt-0.5">
-                  {p.community?.name || "Community"}
-                  {p.createdAt
-                    ? ` · ${new Date(p.createdAt).toLocaleDateString()}`
-                    : ""}
-                </div>
-              </div>
-            ))}
+      {tab === "posts" && (
+        <section className="space-y-2.5">
+          <div className="flex items-center gap-2 px-0.5">
+            <FileText size={15} className="text-[#D4AF37]" />
+            <h3 className="text-sm font-semibold text-[#E5E0D8]">Posts</h3>
+            <span className="text-[11px] text-[#8C8070]">({postCount})</span>
           </div>
-        )}
-      </section>
+
+          {!profile?.posts?.length ? (
+            <div className="border border-dashed border-[#2A241E] rounded-xl py-14 text-center text-sm text-[#8C8070]">
+              No posts yet.
+            </div>
+          ) : (
+            profile.posts.map((p) => (
+              <article
+                key={p.id}
+                className="bg-[#14100D] border border-[#2A241E] hover:border-[#D4AF37]/35 rounded-xl p-3.5 sm:p-4 transition-colors space-y-1"
+              >
+                <p className="text-sm font-medium text-[#E5E0D8] line-clamp-2">
+                  {p.title || "Untitled"}
+                </p>
+                <p className="text-[11px] text-[#8C8070]">
+                  {p.community?.name || "Community"}
+                  {p.createdAt ? ` · ${timeAgo(p.createdAt)}` : ""}
+                </p>
+              </article>
+            ))
+          )}
+        </section>
+      )}
     </div>
   );
 }

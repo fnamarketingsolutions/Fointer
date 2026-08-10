@@ -65,4 +65,14 @@ export const toggleCommentLike = async (commentId) => {
   return response.data;
 };
 
+export const fetchMyComments = async (params = {}) => {
+  const response = await api.get('/posts/activity/comments', { params });
+  return response.data;
+};
+
+export const fetchMyLikedPosts = async (params = {}) => {
+  const response = await api.get('/posts/activity/likes', { params });
+  return response.data;
+};
+
 export { uploadMedia } from '../../../shared/services/uploadService';

@@ -19,16 +19,16 @@ import {
 import { uploadMedia } from "../../../api/uploads";
 import { useAuth } from "../../../context/AuthContext";
 import { MAX_FILE_SIZE } from "../../../shared/constants/uploads";
+import { useToast } from "../../../shared/components/feedback/ToastContext";
 
 export default function Profile() {
   const { refreshUser } = useAuth();
+  const { showToast } = useToast();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [avatarSaving, setAvatarSaving] = useState(false);
   const [passwordSaving, setPasswordSaving] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
   const [form, setForm] = useState({
     name: "",
     username: "",
@@ -50,7 +50,6 @@ export default function Profile() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError("");
     try {
       const data = await fetchMyProfile();
       const p = data?.profile;
@@ -62,11 +61,11 @@ export default function Profile() {
         interests: (p?.interests || []).join(", "),
       });
     } catch (err) {
-      setError(err?.response?.data?.message || "Failed to load profile.");
+      showToast(err?.response?.data?.message || "Failed to load profile.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [showToast]);
 
   useEffect(() => {
     load();
@@ -98,18 +97,31 @@ export default function Profile() {
 
   const handleSaveProfile = async (e) => {
     e.preventDefault();
+
+    const next = {
+      name: form.name.trim(),
+      username: form.username.trim().replace(/^@+/, ""),
+      bio: form.bio.trim(),
+      interests: interestList,
+    };
+    const prevInterests = profile?.interests || [];
+    const unchanged =
+      next.name === (profile?.name || "") &&
+      next.username === String(profile?.username || "").replace(/^@+/, "") &&
+      next.bio === (profile?.bio || "") &&
+      next.interests.length === prevInterests.length &&
+      next.interests.every((t, i) => t === prevInterests[i]);
+
+    if (unchanged) {
+      showToast("Nothing to change.");
+      return;
+    }
+
     setSaving(true);
-    setError("");
-    setSuccess("");
     try {
-      const data = await updateMyProfile({
-        name: form.name.trim(),
-        username: form.username.trim().replace(/^@+/, ""),
-        bio: form.bio.trim(),
-        interests: interestList,
-      });
-      setSuccess(data?.message || "Profile updated.");
-      
+      const data = await updateMyProfile(next);
+      showToast(data?.message || "Profile updated.");
+
       const updated = data?.user || data?.profile;
       if (updated) {
         const cleanedUsername = String(updated.username || "").replace(/^@+/, "");
@@ -126,7 +138,7 @@ export default function Profile() {
 
       if (refreshUser) await refreshUser();
     } catch (err) {
-      setError(err?.response?.data?.message || "Failed to update profile.");
+      showToast(err?.response?.data?.message || "Failed to update profile.");
     } finally {
       setSaving(false);
     }
@@ -135,18 +147,16 @@ export default function Profile() {
   const handlePassword = async (e) => {
     e.preventDefault();
     setPasswordSaving(true);
-    setError("");
-    setSuccess("");
     try {
       const data = await updateMyPassword(passwordForm);
-      setSuccess(data?.message || "Password updated.");
+      showToast(data?.message || "Password updated.");
       setPasswordForm({
         currentPassword: "",
         newPassword: "",
         confirmPassword: "",
       });
     } catch (err) {
-      setError(err?.response?.data?.message || "Failed to update password.");
+      showToast(err?.response?.data?.message || "Failed to update password.");
     } finally {
       setPasswordSaving(false);
     }
@@ -159,14 +169,11 @@ export default function Profile() {
     if (!file) return;
 
     if (file.size > MAX_FILE_SIZE) {
-      setError("Selected image is too large. Max size is 5 MB.");
-      setSuccess("");
+      showToast("Selected image is too large. Max size is 5 MB.");
       return;
     }
 
     setAvatarSaving(true);
-    setError("");
-    setSuccess("");
 
     try {
       const upload = await uploadMedia(file, "fointer/avatars");
@@ -177,8 +184,8 @@ export default function Profile() {
       }
 
       const data = await updateMyProfile({ avatar: avatarUrl });
-      setSuccess(data?.message || "Profile photo updated.");
-      
+      showToast(data?.message || "Profile photo updated.");
+
       const updated = data?.user || data?.profile;
       if (updated) {
         setProfile((prev) => (prev ? { ...prev, ...updated } : prev));
@@ -186,7 +193,7 @@ export default function Profile() {
 
       if (refreshUser) await refreshUser();
     } catch (err) {
-      setError(err?.response?.data?.message || err?.message || "Failed to update profile photo.");
+      showToast(err?.response?.data?.message || err?.message || "Failed to update profile photo.");
     } finally {
       setAvatarSaving(false);
     }
@@ -228,17 +235,6 @@ export default function Profile() {
           <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
         </button>
       </div>
-
-      {error && (
-        <div className="text-xs sm:text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2.5">
-          {error}
-        </div>
-      )}
-      {success && (
-        <div className="text-xs sm:text-sm text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2.5">
-          {success}
-        </div>
-      )}
 
       {/* Identity */}
       <section className="bg-[#14100D] border border-[#2A241E] rounded-xl p-4 sm:p-6">

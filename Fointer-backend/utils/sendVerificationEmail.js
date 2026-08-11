@@ -37,6 +37,16 @@ export const getRequestsActionUrl = () => {
   return `${frontendUrl}/dashboard/requests`;
 };
 
+export const getSupportAdminUrl = () => {
+  const frontendUrl = String(process.env.FRONTEND_URL || "").replace(/\/$/, "");
+  return `${frontendUrl}/admin/support`;
+};
+
+export const getSupportUserUrl = () => {
+  const frontendUrl = String(process.env.FRONTEND_URL || "").replace(/\/$/, "");
+  return `${frontendUrl}/dashboard/support`;
+};
+
 /**
  * Shared dashboard notification email used by join-request and invite flows.
  */
@@ -260,6 +270,102 @@ export const sendCommunityInviteDeclinedEmail = async ({
     `,
     ctaLabel: "View invites",
     actionUrl,
+  });
+};
+
+const SUPPORT_REQUEST_INTRO =
+  "A member is requesting a channel and subchannel. If they need additional channels or subchannels, their details are in the message below. Please review and respond from the admin dashboard.";
+
+export const sendSupportRequestEmail = async ({ userName, description }) => {
+  const to = process.env.EMAIL_FROM || process.env.SMTP_USER;
+  if (!to) {
+    throw new Error("Support recipient email is missing (EMAIL_FROM / SMTP_USER).");
+  }
+
+  const from = getFromAddress();
+  const transporter = createTransporter();
+  const safeName = escapeHtml(userName) || "A user";
+  const safeDescription = escapeHtml(description).replace(/\n/g, "<br/>");
+  const adminUrl = escapeHtml(getSupportAdminUrl());
+
+  await transporter.sendMail({
+    from,
+    to,
+    subject: "New support request",
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1f2937; max-width: 560px;">
+        <h2 style="margin-bottom: 16px; color: #130d08;">New support request</h2>
+        <p style="margin: 0 0 16px; color: #4b5563;">${SUPPORT_REQUEST_INTRO}</p>
+        <p style="margin: 0 0 8px;"><strong>From:</strong> ${safeName}</p>
+        <p style="margin: 0 0 8px;"><strong>Message:</strong></p>
+        <div style="margin: 0 0 24px; padding: 16px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; color: #374151;">
+          ${safeDescription}
+        </div>
+        <p style="margin: 0 0 8px;">
+          <a
+            href="${adminUrl}"
+            style="display: inline-block; padding: 12px 20px; background: #f8a201; color: #130d08; text-decoration: none; border-radius: 8px; font-weight: 600;"
+          >
+            See help support
+          </a>
+        </p>
+        <p style="font-size: 12px; color: #6b7280; margin-top: 16px;">
+          Or open this link: <a href="${adminUrl}">${adminUrl}</a>
+        </p>
+      </div>
+    `,
+  });
+};
+
+const getSupportStatusCopy = (status) => {
+  if (status === "approved") {
+    return {
+      title: "Support request approved",
+      subject: "Your channel request was approved",
+      body: "Your channel and subchannel request has been approved and created. You can view the updated status on your support page.",
+      ctaLabel: "View support status",
+      statusLabel: "Created",
+    };
+  }
+
+  if (status === "rejected") {
+    return {
+      title: "Support request rejected",
+      subject: "Your channel request was rejected",
+      body: "Your channel and subchannel request has been reviewed and rejected. You can view the updated status on your support page.",
+      ctaLabel: "View support status",
+      statusLabel: "Rejected",
+    };
+  }
+
+  return {
+    title: "Support request received",
+    subject: "Your channel request is pending review",
+    body: "Your channel and subchannel request has been received and is pending review. We will notify you when an admin updates the status.",
+    ctaLabel: "View support status",
+    statusLabel: "Pending",
+  };
+};
+
+export const sendSupportStatusUpdateEmail = async ({ to, userName, status }) => {
+  if (!to) {
+    throw new Error("Recipient email is missing.");
+  }
+
+  const copy = getSupportStatusCopy(status);
+  const safeStatus = escapeHtml(copy.statusLabel);
+
+  await sendDashboardNotificationEmail({
+    to,
+    subject: copy.subject,
+    title: copy.title,
+    greetingName: userName,
+    bodyHtml: `
+      <p>${copy.body}</p>
+      <p><strong>Status:</strong> ${safeStatus}</p>
+    `,
+    ctaLabel: copy.ctaLabel,
+    actionUrl: getSupportUserUrl(),
   });
 };
 

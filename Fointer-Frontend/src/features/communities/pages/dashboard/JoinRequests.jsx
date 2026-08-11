@@ -19,6 +19,7 @@ import {
 } from "../../../../api/communities";
 import CommunityBrowseDetail from "../../components/CommunityBrowseDetail";
 import { COMMUNITY_TYPE_LABELS } from "../../../../shared/constants/community";
+import { useToast } from "../../../../shared/components/feedback/ToastContext";
 
 const TYPE_LABELS = COMMUNITY_TYPE_LABELS;
 
@@ -81,12 +82,57 @@ const matchesCommunityName = (community, query) => {
     .includes(query.toLowerCase());
 };
 
+const CommunityThumb = ({ community }) => {
+  const name = community?.name || "Community";
+
+  if (community?.coverImage) {
+    return (
+      <img
+        src={community.coverImage}
+        alt={name}
+        className="w-12 h-12 rounded-lg object-cover border border-[#2A241E] shrink-0"
+      />
+    );
+  }
+
+  return (
+    <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-[#1C1712] via-[#2A2119] to-[#0D0A08] border border-[#2A241E] flex items-center justify-center shrink-0">
+      <span className="text-lg font-serif font-bold text-[#D4AF37]/50">
+        {name.charAt(0).toUpperCase()}
+      </span>
+    </div>
+  );
+};
+
+const CommunityBadge = ({ community }) => {
+  const name = community?.name || "Community";
+
+  return (
+    <span
+      title={name}
+      className="absolute -bottom-1 -right-1 w-5 h-5 rounded-md overflow-hidden bg-[#1C1712] border-2 border-[#14100D] flex items-center justify-center"
+    >
+      {community?.coverImage ? (
+        <img
+          src={community.coverImage}
+          alt={name}
+          className="w-full h-full object-cover"
+        />
+      ) : (
+        <span className="text-[9px] font-serif font-bold text-[#D4AF37]/70">
+          {name.charAt(0).toUpperCase()}
+        </span>
+      )}
+    </span>
+  );
+};
+
 export default function JoinRequests() {
+  const { showToast } = useToast();
   const [requests, setRequests] = useState([]);
   const [invites, setInvites] = useState([]);
   const [incomingRequests, setIncomingRequests] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const [actionId, setActionId] = useState(null);
   const [actionRequestId, setActionRequestId] = useState(null);
   const [selectedCommunityId, setSelectedCommunityId] = useState(null);
@@ -96,7 +142,6 @@ export default function JoinRequests() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError("");
     try {
       const [reqData, inviteData, managedData] = await Promise.all([
         fetchMyJoinRequests(),
@@ -124,11 +169,11 @@ export default function JoinRequests() {
       );
       setIncomingRequests(incomingResults.flat());
     } catch (err) {
-      setError(err?.response?.data?.message || "Failed to load requests.");
+      showToast(err?.response?.data?.message || "Failed to load requests.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [showToast]);
 
   useEffect(() => {
     load();
@@ -197,13 +242,12 @@ export default function JoinRequests() {
 
   const handleAccept = async (inviteId) => {
     setActionId(inviteId);
-    setError("");
     try {
       await acceptInvite(inviteId);
       closeDetail();
       await load();
     } catch (err) {
-      setError(err?.response?.data?.message || "Failed to accept invite.");
+      showToast(err?.response?.data?.message || "Failed to accept invite.");
     } finally {
       setActionId(null);
     }
@@ -211,13 +255,12 @@ export default function JoinRequests() {
 
   const handleDecline = async (inviteId) => {
     setActionId(inviteId);
-    setError("");
     try {
       await declineInvite(inviteId);
       closeDetail();
       await load();
     } catch (err) {
-      setError(err?.response?.data?.message || "Failed to decline invite.");
+      showToast(err?.response?.data?.message || "Failed to decline invite.");
     } finally {
       setActionId(null);
     }
@@ -226,12 +269,11 @@ export default function JoinRequests() {
   const handleApproveIncoming = async (communityId, requestId) => {
     if (!communityId || !requestId) return;
     setActionRequestId(requestId);
-    setError("");
     try {
       await approveJoinRequest(communityId, requestId);
       await load();
     } catch (err) {
-      setError(err?.response?.data?.message || "Failed to approve request.");
+      showToast(err?.response?.data?.message || "Failed to approve request.");
     } finally {
       setActionRequestId(null);
     }
@@ -240,12 +282,11 @@ export default function JoinRequests() {
   const handleDenyIncoming = async (communityId, requestId) => {
     if (!communityId || !requestId) return;
     setActionRequestId(requestId);
-    setError("");
     try {
       await denyJoinRequest(communityId, requestId);
       await load();
     } catch (err) {
-      setError(err?.response?.data?.message || "Failed to deny request.");
+      showToast(err?.response?.data?.message || "Failed to deny request.");
     } finally {
       setActionRequestId(null);
     }
@@ -305,12 +346,6 @@ export default function JoinRequests() {
         />
       </div>
 
-      {error && (
-        <div className="text-xs sm:text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 sm:px-4 py-2.5">
-          {error}
-        </div>
-      )}
-
       {loading ? (
         <div className="flex items-center justify-center py-12 sm:py-16 text-[#A69B8D] text-xs sm:text-sm gap-2">
           <Loader2 size={16} className="animate-spin" />
@@ -346,24 +381,27 @@ export default function JoinRequests() {
                       <button
                         type="button"
                         onClick={() => openInviteDetail(community.id, invite)}
-                        className="space-y-1.5 min-w-0 text-left hover:opacity-90 transition-opacity"
+                        className="flex items-center gap-3 min-w-0 text-left hover:opacity-90 transition-opacity"
                       >
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="font-serif font-bold text-base sm:text-lg text-[#E5E0D8] truncate">
-                            {community.name || "Community"}
-                          </h3>
-                          <span className="text-[10px] text-[#8C8070] font-mono px-2 py-0.5 border border-[#2A241E] rounded">
-                            {TYPE_LABELS[community.type] || community.type}
-                          </span>
+                        <CommunityThumb community={community} />
+                        <div className="space-y-1.5 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="font-serif font-bold text-base sm:text-lg text-[#E5E0D8] truncate">
+                              {community.name || "Community"}
+                            </h3>
+                            <span className="text-[10px] text-[#8C8070] font-mono px-2 py-0.5 border border-[#2A241E] rounded">
+                              {TYPE_LABELS[community.type] || community.type}
+                            </span>
+                          </div>
+                          <p className="text-[11px] sm:text-xs text-[#8C8070]">
+                            Invited by: {inviterName}
+                          </p>
+                          <p className="text-[10px] text-[#8C8070] font-mono">
+                            {invite.createdAt
+                              ? new Date(invite.createdAt).toLocaleDateString()
+                              : "—"}
+                          </p>
                         </div>
-                        <p className="text-[11px] sm:text-xs text-[#8C8070]">
-                          Invited by: {inviterName}
-                        </p>
-                        <p className="text-[10px] text-[#8C8070] font-mono">
-                          {invite.createdAt
-                            ? new Date(invite.createdAt).toLocaleDateString()
-                            : "—"}
-                        </p>
                       </button>
 
                       {invite.status === "pending" ? (
@@ -425,30 +463,33 @@ export default function JoinRequests() {
                       <button
                         type="button"
                         onClick={() => openRequestDetail(community.id)}
-                        className="space-y-1.5 min-w-0 text-left hover:opacity-90 transition-opacity"
+                        className="flex items-center gap-3 min-w-0 text-left hover:opacity-90 transition-opacity"
                       >
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="font-serif font-bold text-base sm:text-lg text-[#E5E0D8] truncate">
-                            {community.name || "Community"}
-                          </h3>
-                          <span className="text-[10px] text-[#8C8070] font-mono px-2 py-0.5 border border-[#2A241E] rounded">
-                            {TYPE_LABELS[community.type] || community.type}
-                          </span>
-                        </div>
-                        <p className="text-[11px] sm:text-xs text-[#8C8070]">
-                          Owner: {ownerName}
-                        </p>
-                        {req.message && (
-                          <p className="text-xs text-[#A69B8D] line-clamp-2">
-                            &ldquo;{req.message}&rdquo;
+                        <CommunityThumb community={community} />
+                        <div className="space-y-1.5 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="font-serif font-bold text-base sm:text-lg text-[#E5E0D8] truncate">
+                              {community.name || "Community"}
+                            </h3>
+                            <span className="text-[10px] text-[#8C8070] font-mono px-2 py-0.5 border border-[#2A241E] rounded">
+                              {TYPE_LABELS[community.type] || community.type}
+                            </span>
+                          </div>
+                          <p className="text-[11px] sm:text-xs text-[#8C8070]">
+                            Owner: {ownerName}
                           </p>
-                        )}
-                        <p className="text-[10px] text-[#8C8070] font-mono">
-                          Submitted on{" "}
-                          {req.createdAt
-                            ? new Date(req.createdAt).toLocaleDateString()
-                            : "—"}
-                        </p>
+                          {req.message && (
+                            <p className="text-xs text-[#A69B8D] line-clamp-2">
+                              &ldquo;{req.message}&rdquo;
+                            </p>
+                          )}
+                          <p className="text-[10px] text-[#8C8070] font-mono">
+                            Submitted on{" "}
+                            {req.createdAt
+                              ? new Date(req.createdAt).toLocaleDateString()
+                              : "—"}
+                          </p>
+                        </div>
                       </button>
 
                       <span
@@ -494,17 +535,20 @@ export default function JoinRequests() {
                       className="bg-[#14100D] border border-[#2A241E] p-4 sm:p-5 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4"
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        {request.user?.avatar ? (
-                          <img
-                            src={request.user.avatar}
-                            alt=""
-                            className="w-10 h-10 rounded-full object-cover border border-[#2A241E] shrink-0"
-                          />
-                        ) : (
-                          <div className="w-10 h-10 rounded-full bg-[#D4AF37]/15 border border-[#D4AF37]/30 flex items-center justify-center text-[#D4AF37] text-sm font-semibold shrink-0">
-                            {initial}
-                          </div>
-                        )}
+                        <div className="relative shrink-0">
+                          {request.user?.avatar ? (
+                            <img
+                              src={request.user.avatar}
+                              alt=""
+                              className="w-10 h-10 rounded-full object-cover border border-[#2A241E]"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-[#D4AF37]/15 border border-[#D4AF37]/30 flex items-center justify-center text-[#D4AF37] text-sm font-semibold">
+                              {initial}
+                            </div>
+                          )}
+                          <CommunityBadge community={community} />
+                        </div>
                         <div className="min-w-0 space-y-0.5">
                           <div className="text-sm font-medium text-[#E5E0D8] truncate">
                             {name}

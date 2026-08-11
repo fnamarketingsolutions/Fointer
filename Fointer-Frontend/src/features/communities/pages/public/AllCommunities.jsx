@@ -4,6 +4,8 @@ import { Loader2, Search } from "lucide-react";
 import { fetchBrowsableCommunities } from "../../../../api/communities";
 import CommunityCard from "../../components/CommunityCard";
 import { useAuth } from "../../../../context/AuthContext";
+import { useToast } from "../../../../shared/components/feedback/ToastContext";
+import { communitySegment } from "../../../../shared/services/entityLinks";
 
 const PAGE_SIZE = 10;
 
@@ -18,11 +20,11 @@ export default function AllCommunities() {
   const navigate = useNavigate();
   const location = useLocation();
   const { isAuthenticated } = useAuth();
+  const { showToast } = useToast();
   const searchInputRef = useRef(null);
   const [communities, setCommunities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [page, setPage] = useState(1);
@@ -35,7 +37,6 @@ export default function AllCommunities() {
       } else {
         setLoading(true);
       }
-      setError("");
       try {
         const params = {
           includeJoined: "1",
@@ -49,7 +50,7 @@ export default function AllCommunities() {
         setHasMore(Boolean(data?.pagination?.hasMore));
         setPage(pageNum);
       } catch (err) {
-        setError(
+        showToast(
           err?.response?.data?.message || "Unable to load communities right now."
         );
         if (!append) setCommunities([]);
@@ -59,7 +60,7 @@ export default function AllCommunities() {
         setLoadingMore(false);
       }
     },
-    []
+    [showToast]
   );
 
   useEffect(() => {
@@ -128,12 +129,6 @@ export default function AllCommunities() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-12">
-        {error && (
-          <div className="mb-6 text-xs sm:text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3 text-center">
-            {error}
-          </div>
-        )}
-
         {loading ? (
           <div className="flex items-center justify-center py-16 text-[#A69B8D] text-sm gap-2">
             <Loader2 size={18} className="animate-spin" />
@@ -152,7 +147,9 @@ export default function AllCommunities() {
                 <CommunityCard
                   key={community.id}
                   community={community}
-                  onClick={() => navigate(`/communities/${community.id}`)}
+                  onClick={() =>
+                    navigate(`/communities/${communitySegment(community)}`)
+                  }
                 />
               ))}
             </div>

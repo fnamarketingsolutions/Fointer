@@ -2,27 +2,27 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Loader2, Users } from 'lucide-react';
 import { fetchAdminUserDetail } from '../../../../api/dashboard';
+import { useToast } from '../../../../shared/components/feedback/ToastContext';
 
 export default function UserDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
 
   const loadDetail = useCallback(async () => {
     if (!id) return;
     setLoading(true);
-    setError('');
     try {
       const data = await fetchAdminUserDetail(id);
       setDetail(data);
     } catch (err) {
-      setError(err?.response?.data?.message || 'Failed to load user detail.');
+      showToast(err?.response?.data?.message || 'Failed to load user detail.');
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, showToast]);
 
   useEffect(() => {
     loadDetail();
@@ -37,12 +37,6 @@ export default function UserDetail() {
       >
         <ArrowLeft size={14} /> Back to users
       </button>
-
-      {error && (
-        <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3">
-          {error}
-        </div>
-      )}
 
       {loading ? (
         <div className="flex items-center justify-center gap-2 py-20 text-stone-400 text-sm">

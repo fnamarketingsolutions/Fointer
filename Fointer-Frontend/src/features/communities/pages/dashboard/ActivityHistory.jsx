@@ -10,6 +10,7 @@ import PostDetail from "../../../posts/pages/PostDetail";
 import ConfirmDeleteModal from "../../../../shared/components/modals/ConfirmDeleteModal";
 import EditWindowExpiredModal from "../../../../shared/components/modals/EditWindowExpiredModal";
 import { timeAgo } from "../../../../shared/utils/date";
+import { useToast } from "../../../../shared/components/feedback/ToastContext";
 
 const getEditWindowLabel = (createdAt, canEdit, editWindowMinutes = 60) => {
   if (!createdAt || !canEdit) return "Edit window expired";
@@ -22,10 +23,10 @@ const getEditWindowLabel = (createdAt, canEdit, editWindowMinutes = 60) => {
 };
 
 export default function ActivityHistory() {
+  const { showToast } = useToast();
   const [subTab, setSubTab] = useState("posts");
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const [deletePostId, setDeletePostId] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [editingPostId, setEditingPostId] = useState(null);
@@ -33,17 +34,16 @@ export default function ActivityHistory() {
 
   const loadPosts = useCallback(async () => {
     setLoading(true);
-    setError("");
     try {
       const data = await fetchPosts({ mine: "1" });
       setPosts(data?.posts || []);
     } catch (err) {
-      setError(err?.response?.data?.message || "Failed to load your posts.");
+      showToast(err?.response?.data?.message || "Failed to load your posts.");
       setPosts([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [showToast]);
 
   useEffect(() => {
     if (subTab === "posts") {
@@ -82,34 +82,16 @@ export default function ActivityHistory() {
   const handleDelete = async () => {
     if (!deletePostId) return;
     setDeleting(true);
-    setError("");
     try {
       await deletePost(deletePostId);
       setDeletePostId(null);
       await loadPosts();
     } catch (err) {
-      setError(err?.response?.data?.message || "Failed to delete post.");
+      showToast(err?.response?.data?.message || "Failed to delete post.");
     } finally {
       setDeleting(false);
     }
   };
-
-  // if (editingPostId) {
-  //   return (
-  //     <PostDetail
-  //       postId={editingPostId}
-  //       onBack={() => {
-  //         setEditingPostId(null);
-  //         loadPosts();
-  //       }}
-  //       onDeleted={() => {
-  //         setEditingPostId(null);
-  //         loadPosts();
-  //       }}
-  //       backLabel="Back to activity"
-  //     />
-  //   );
-  // }
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -132,12 +114,6 @@ export default function ActivityHistory() {
           Comments & Liked Posts
         </button>
       </div>
-
-      {error && !lockModal && (
-        <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-          {error}
-        </div>
-      )}
 
       {subTab === "posts" && (
         <div className="space-y-4">

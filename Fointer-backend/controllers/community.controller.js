@@ -1,8 +1,11 @@
+import mongoose from "mongoose";
 import Community, { COMMUNITY_TYPES } from "../models/community.js";
 import CommunityMember from "../models/communityMember.js";
 import CommunityJoinRequest from "../models/communityJoinRequest.js";
 import CommunityInvite from "../models/communityInvite.js";
 import User from "../models/user.js";
+import Channel from "../models/channel.js";
+import Subchannel from "../models/subchannel.js";
 import { destroyManyFromCloudinary } from "../utils/cloudinary.js";
 import {
   getMembership,
@@ -18,6 +21,7 @@ import {
   resolveSort,
   buildPaginationMeta,
 } from "../utils/pagination.js";
+import { resolveDocumentId } from "../utils/shortCode.js";
 import {
   getRequestsActionUrl,
   sendJoinRequestReceivedEmail,
@@ -34,14 +38,105 @@ const COMMUNITY_SORT_MAP = {
 
 const MAX_GALLERY_IMAGES = 5;
 
+// ==========================================
+// CENTRALIZED HELPERS & FORMATTERS
+// ==========================================
+
+/**
+ * Standard populate array used across detail & listing endpoints.
+ * Channel / subchannels are stored as name strings on the community document.
+ */
+const COMMUNITY_POPULATE_STDLIB = [
+  { path: "owner", select: "username name email avatar" },
+];
+
+/**
+ * Helper function to query and fully populate community references
+ */
+export const getPopulatedCommunity = async (id) => {
+  return await Community.findById(id).populate(COMMUNITY_POPULATE_STDLIB);
+};
+
+/**
+ * Resolve channel + subchannel ObjectIds from the client into display names
+ * that are persisted on the community document.
+ */
+const resolveChannelAndSubchannelNames = async (channelInput, subchannelsInput) => {
+  const channelId = String(channelInput || "").trim();
+  if (!channelId || !mongoose.Types.ObjectId.isValid(channelId)) {
+    return {
+      error: { status: 400, message: "A valid channel is required." },
+    };
+  }
+
+  const channelDoc = await Channel.findById(channelId);
+  if (!channelDoc) {
+    return {
+      error: { status: 400, message: "Selected channel was not found." },
+    };
+  }
+
+  const rawSubchannels = Array.isArray(subchannelsInput)
+    ? subchannelsInput
+    : subchannelsInput
+    ? [subchannelsInput]
+    : [];
+
+  const subchannelIds = [
+    ...new Set(
+      rawSubchannels.map((id) => String(id || "").trim()).filter(Boolean)
+    ),
+  ];
+
+  if (subchannelIds.length < 1 || subchannelIds.length > 5) {
+    return {
+      error: {
+        status: 400,
+        message: "Select between 1 and 5 subchannels.",
+      },
+    };
+  }
+
+  if (subchannelIds.some((id) => !mongoose.Types.ObjectId.isValid(id))) {
+    return {
+      error: {
+        status: 400,
+        message: "One or more subchannels are invalid.",
+      },
+    };
+  }
+
+  const subchannelDocs = await Subchannel.find({
+    _id: { $in: subchannelIds },
+    channel: channelId,
+  });
+
+  if (subchannelDocs.length !== subchannelIds.length) {
+    return {
+      error: {
+        status: 400,
+        message: "All subchannels must belong to the selected channel.",
+      },
+    };
+  }
+
+  // Preserve client selection order
+  const nameById = new Map(
+    subchannelDocs.map((doc) => [String(doc._id), doc.name])
+  );
+
+  return {
+    channelName: channelDoc.name,
+    subchannelNames: subchannelIds
+      .map((id) => nameById.get(id))
+      .filter(Boolean),
+    channelDoc,
+  };
+};
+
 const normalizeTags = (tags) => {
   if (!tags) return [];
-  const list = Array.isArray(tags)
-    ? tags
-    : String(tags)
-        .split(",")
-        .map((t) => t.trim());
-
+  const list = Array.isArray(tags) ? tags : String(tags).split(",");
   return [
     ...new Set(
       list
@@ -56,79 +151,12 @@ const normalizeGalleryImages = (images) => {
   const list = Array.isArray(images) ? images : [images];
   return [
     ...new Set(
-      list
-        .map((url) => String(url || "").trim())
-        .filter(Boolean)
+      list.map((url) => String(url || "").trim()).filter(Boolean)
     ),
   ].slice(0, MAX_GALLERY_IMAGES);
 };
 
-const formatOwner = (owner, ownerId) => {
-  if (owner && typeof owner === "object" && owner._id) {
-    return {
-      id: owner._id,
-      username: owner.username,
-      name: owner.name,
-      email: owner.email,
-      avatar: owner.avatar || "",
-    };
-  }
-  return { id: ownerId };
-};
-
-const formatCommunity = (community, extras = {}) => {
-  const owner = community.owner;
-  const ownerId =
-    owner && typeof owner === "object" && owner._id
-      ? owner._id
-      : community.owner;
-
-  return {
-    id: community._id,
-    name: community.name,
-    description: community.description || "",
-    rules: community.rules || "",
-    tags: community.tags || [],
-    coverImage: community.coverImage || "",
-    galleryImages: community.galleryImages || [],
-    type: community.type,
-    owner: formatOwner(owner, ownerId),
-    memberCount: extras.memberCount ?? community.memberCount ?? 0,
-    createdAt: community.createdAt,
-    updatedAt: community.updatedAt,
-    ...extras,
-  };
-};
-
-const formatJoinRequest = (request) => {
-  const user = request.user;
-  return {
-    id: request._id,
-    status: request.status,
-    message: request.message || "",
-    createdAt: request.createdAt,
-    updatedAt: request.updatedAt,
-    user:
-      user && typeof user === "object" && user._id
-        ? {
-            id: user._id,
-            username: user.username,
-            name: user.name,
-            email: user.email,
-            avatar: user.avatar || "",
-          }
-        : { id: request.user },
-  };
-};
-
-const canInviteToCommunity = async (community, user) => {
-  if (canManageCommunity(community, user)) return true;
-  const membership = await getMembership(community._id, user._id);
-  const role = getEffectiveMemberRole(membership);
-  return role === "owner" || role === "moderator";
-};
-
-const formatInviteUser = (user, fallbackId) => {
+const formatUserRef = (user, fallbackId) => {
   if (user && typeof user === "object" && user._id) {
     return {
       id: user._id,
@@ -138,25 +166,87 @@ const formatInviteUser = (user, fallbackId) => {
       avatar: user.avatar || "",
     };
   }
-  return { id: fallbackId };
+  return fallbackId ? { id: fallbackId } : null;
 };
 
-const formatInvite = (invite) => {
-  const community = invite.community;
+const formatChannelRef = (channel) => {
+  if (!channel) return null;
+  // Legacy populated ObjectId ref
+  if (typeof channel === "object" && (channel._id || channel.name)) {
+    return {
+      id: channel._id || channel.id || undefined,
+      name: channel.name || String(channel._id || ""),
+    };
+  }
+  // Stored as name string
+  return { name: String(channel) };
+};
+
+const formatSubchannelRefs = (subchannels = []) =>
+  (subchannels || []).map((item) => {
+    if (item && typeof item === "object" && (item._id || item.name)) {
+      return {
+        id: item._id || item.id || undefined,
+        name: item.name || String(item._id || ""),
+      };
+    }
+    // Stored as name string
+    return { name: String(item) };
+  });
+
+/**
+ * Universal community formatter: includes channel and subchannels details
+ * so the community detail page can cleanly render them above "About".
+ */
+const formatCommunity = (community, extras = {}) => {
+  const owner = community.owner;
+  const ownerId =
+    owner && typeof owner === "object" && owner._id
+      ? owner._id
+      : community.owner;
+
   return {
-    id: invite._id,
-    status: invite.status,
-    message: invite.message || "",
-    createdAt: invite.createdAt,
-    updatedAt: invite.updatedAt,
-    inviter: formatInviteUser(invite.inviter, invite.inviter),
-    invitee: formatInviteUser(invite.invitee, invite.invitee),
-    community:
-      community && typeof community === "object" && community._id
-        ? formatCommunity(community)
-        : { id: invite.community },
+    id: community._id,
+    shortCode: community.shortCode || "",
+    name: community.name,
+    description: community.description || "",
+    rules: community.rules || "",
+    tags: community.tags || [],
+    coverImage: community.coverImage || "",
+    galleryImages: community.galleryImages || [],
+    type: community.type,
+    channel: formatChannelRef(community.channel),
+    subchannels: formatSubchannelRefs(community.subchannels),
+    owner: formatUserRef(owner, ownerId),
+    memberCount: extras.memberCount ?? community.memberCount ?? 0,
+    createdAt: community.createdAt,
+    updatedAt: community.updatedAt,
+    ...extras,
   };
 };
+
+const formatJoinRequest = (request) => ({
+  id: request._id,
+  status: request.status,
+  message: request.message || "",
+  createdAt: request.createdAt,
+  updatedAt: request.updatedAt,
+  user: formatUserRef(request.user, request.user),
+});
+
+const formatInvite = (invite) => ({
+  id: invite._id,
+  status: invite.status,
+  message: invite.message || "",
+  createdAt: invite.createdAt,
+  updatedAt: invite.updatedAt,
+  inviter: formatUserRef(invite.inviter, invite.inviter),
+  invitee: formatUserRef(invite.invitee, invite.invitee),
+  community:
+    invite.community && typeof invite.community === "object" && invite.community._id
+      ? formatCommunity(invite.community)
+      : { id: invite.community },
+});
 
 const getMemberCounts = async (communityIds) => {
   if (!communityIds.length) return {};
@@ -182,20 +272,50 @@ const getMemberCounts = async (communityIds) => {
   }, {});
 };
 
-const placeholderGrowthSeries = () => {
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"];
-  return months.map((label) => ({ label, value: 0 }));
+const canInviteToCommunity = async (community, user) => {
+  if (canManageCommunity(community, user)) return true;
+  const membership = await getMembership(community._id, user._id);
+  const role = getEffectiveMemberRole(membership);
+  return role === "owner" || role === "moderator";
 };
+
+const placeholderGrowthSeries = () =>
+  ["Jan", "Feb", "Mar", "Apr", "May", "Jun"].map((label) => ({ label, value: 0 }));
+
+// ==========================================
+// CONTROLLERS
+// ==========================================
 
 export const createCommunity = async (req, res) => {
   try {
-    const { name, description, rules, tags, coverImage, galleryImages, type } =
-      req.body;
+    const {
+      name,
+      description,
+      rules,
+      tags,
+      coverImage,
+      galleryImages,
+      type,
+      channel: channelInput,
+      subchannels: subchannelsInput,
+    } = req.body;
 
     if (!name || !name.trim()) {
       return res.status(400).json({
         success: false,
         message: "Community name is required.",
+      });
+    }
+
+    const channelId = String(channelInput || "").trim();
+    const resolved = await resolveChannelAndSubchannelNames(
+      channelId,
+      subchannelsInput
+    );
+    if (resolved.error) {
+      return res.status(resolved.error.status).json({
+        success: false,
+        message: resolved.error.message,
       });
     }
 
@@ -223,6 +343,8 @@ export const createCommunity = async (req, res) => {
       coverImage: coverImage?.trim() || "",
       galleryImages: gallery,
       type: communityType,
+      channel: resolved.channelName,
+      subchannels: resolved.subchannelNames,
       owner: req.user._id,
     });
 
@@ -233,12 +355,12 @@ export const createCommunity = async (req, res) => {
       status: "active",
     });
 
-    await community.populate("owner", "username name email avatar");
+    const populatedCommunity = await getPopulatedCommunity(community._id);
 
     return res.status(201).json({
       success: true,
       message: "Community created successfully.",
-      community: formatCommunity(community, { memberCount: 1 }),
+      community: formatCommunity(populatedCommunity, { memberCount: 1 }),
     });
   } catch (error) {
     return res.status(500).json({
@@ -251,11 +373,9 @@ export const createCommunity = async (req, res) => {
 export const listMyCommunities = async (req, res) => {
   try {
     const { manage } = req.query;
-
     let communities;
 
     if (manage === "true") {
-      // Owned + active (non-expired) moderator communities
       const memberships = await CommunityMember.find({
         user: req.user._id,
         status: "active",
@@ -281,7 +401,7 @@ export const listMyCommunities = async (req, res) => {
       }, {});
 
       communities = await Community.find({ _id: { $in: communityIds } })
-        .populate("owner", "username name email avatar")
+        .populate(COMMUNITY_POPULATE_STDLIB)
         .sort({ createdAt: -1 });
 
       const countMap = await getMemberCounts(communities.map((c) => c._id));
@@ -298,7 +418,7 @@ export const listMyCommunities = async (req, res) => {
     }
 
     communities = await Community.find({ owner: req.user._id })
-      .populate("owner", "username name email avatar")
+      .populate(COMMUNITY_POPULATE_STDLIB)
       .sort({ createdAt: -1 });
 
     const countMap = await getMemberCounts(communities.map((c) => c._id));
@@ -323,7 +443,7 @@ export const listMyCommunities = async (req, res) => {
 export const listAllCommunities = async (req, res) => {
   try {
     const communities = await Community.find()
-      .populate("owner", "username name email avatar")
+      .populate(COMMUNITY_POPULATE_STDLIB)
       .sort({ createdAt: -1 });
 
     const countMap = await getMemberCounts(communities.map((c) => c._id));
@@ -336,7 +456,6 @@ export const listAllCommunities = async (req, res) => {
         })
       ),
     });
-
   } catch (error) {
     return res.status(500).json({
       success: false,
@@ -347,10 +466,7 @@ export const listAllCommunities = async (req, res) => {
 
 export const getCommunity = async (req, res) => {
   try {
-    const community = await Community.findById(req.params.id).populate(
-      "owner",
-      "username name email avatar"
-    );
+    const community = await getPopulatedCommunity(req.params.id);
 
     if (!community) {
       return res.status(404).json({
@@ -402,13 +518,9 @@ export const updateCommunity = async (req, res) => {
       galleryImages,
       avatar,
       type,
+      subchannels: subchannelsInput,
     } = req.body;
-    const nextCover =
-      coverImage !== undefined
-        ? coverImage
-        : avatar !== undefined
-          ? avatar
-          : undefined;
+    const nextCover = coverImage !== undefined ? coverImage : avatar;
 
     if (name !== undefined) {
       if (!name.trim()) {
@@ -464,15 +576,49 @@ export const updateCommunity = async (req, res) => {
       community.type = type;
     }
 
-    await community.save();
-    await community.populate("owner", "username name email avatar");
+    if (subchannelsInput !== undefined) {
+      const channelName = String(community.channel || "").trim();
+      if (!channelName) {
+        return res.status(400).json({
+          success: false,
+          message: "Community must have a channel before setting subchannels.",
+        });
+      }
 
+      const channelDoc = await Channel.findOne({
+        nameNormalized: channelName.toLowerCase(),
+      });
+      if (!channelDoc) {
+        return res.status(400).json({
+          success: false,
+          message: "Community channel was not found.",
+        });
+      }
+
+      const resolved = await resolveChannelAndSubchannelNames(
+        channelDoc._id,
+        subchannelsInput
+      );
+      if (resolved.error) {
+        return res.status(resolved.error.status).json({
+          success: false,
+          message: resolved.error.message,
+        });
+      }
+
+      community.subchannels = resolved.subchannelNames;
+    }
+
+    await community.save();
+
+    // Populate channel, subchannels, and owner after saving updates
+    const updatedCommunity = await getPopulatedCommunity(community._id);
     const countMap = await getMemberCounts([community._id]);
 
     return res.status(200).json({
       success: true,
       message: "Community updated successfully.",
-      community: formatCommunity(community, {
+      community: formatCommunity(updatedCommunity, {
         memberCount: countMap[String(community._id)] || 0,
       }),
     });
@@ -529,10 +675,7 @@ export const deleteCommunity = async (req, res) => {
 
 export const getCommunityManage = async (req, res) => {
   try {
-    const community = await Community.findById(req.params.id).populate(
-      "owner",
-      "username name email avatar"
-    );
+    const community = await getPopulatedCommunity(req.params.id);
 
     if (!community) {
       return res.status(404).json({
@@ -627,7 +770,6 @@ export const listJoinRequests = async (req, res) => {
   }
 };
 
-
 export const listJoinedCommunities = async (req, res) => {
   try {
     const memberships = await CommunityMember.find({
@@ -637,7 +779,7 @@ export const listJoinedCommunities = async (req, res) => {
 
     const communityIds = memberships.map((m) => m.community);
     const communities = await Community.find({ _id: { $in: communityIds } })
-      .populate("owner", "username name email avatar")
+      .populate(COMMUNITY_POPULATE_STDLIB)
       .sort({ createdAt: -1 });
 
     const roleMap = {};
@@ -672,8 +814,8 @@ export const listBrowsableCommunities = async (req, res) => {
     const q = String(req.query.q || req.query.search || "").trim();
     const tag = String(req.query.tag || "").trim().toLowerCase();
     const sortBy = String(req.query.sortBy || "newest").trim().toLowerCase();
-    const pageProvided =
-      req.query.page !== undefined && req.query.page !== "";
+    const pageProvided = req.query.page !== undefined && req.query.page !== "";
+
     const { enabled, page, limit, skip } = parsePagination(req.query, {
       defaultLimit: pageProvided ? 10 : 48,
       maxLimit: 100,
@@ -700,8 +842,7 @@ export const listBrowsableCommunities = async (req, res) => {
 
       memberIds = memberships.map((m) => m.community);
       const includeJoined =
-        req.query.includeJoined === "1" ||
-        req.query.includeJoined === "true";
+        req.query.includeJoined === "1" || req.query.includeJoined === "true";
       if (memberIds.length && !includeJoined) {
         filter._id = { $nin: memberIds };
       }
@@ -779,19 +920,18 @@ export const listBrowsableCommunities = async (req, res) => {
     } else {
       const sort = resolveSort(sortBy, COMMUNITY_SORT_MAP, { createdAt: -1 });
 
+      let query = Community.find(filter)
+        .populate(COMMUNITY_POPULATE_STDLIB)
+        .sort(sort);
+
       if (enabled) {
         total = await Community.countDocuments(filter);
-        communities = await Community.find(filter)
-          .populate("owner", "username name email avatar")
-          .sort(sort)
-          .skip(skip)
-          .limit(limit);
+        query = query.skip(skip).limit(limit);
       } else {
-        communities = await Community.find(filter)
-          .populate("owner", "username name email avatar")
-          .sort(sort)
-          .limit(limit);
+        query = query.limit(limit);
       }
+
+      communities = await query;
     }
 
     const countMap =
@@ -832,10 +972,7 @@ export const listBrowsableCommunities = async (req, res) => {
 
 export const getBrowsableCommunity = async (req, res) => {
   try {
-    const community = await Community.findById(req.params.id).populate(
-      "owner",
-      "username name email avatar"
-    );
+    const community = await getPopulatedCommunity(req.params.id);
 
     if (!community) {
       return res.status(404).json({
@@ -900,7 +1037,7 @@ export const listDiscoverCommunities = async (req, res) => {
       _id: { $nin: memberIds },
       type: { $in: ["public", "private_request"] },
     })
-      .populate("owner", "username name email avatar")
+      .populate(COMMUNITY_POPULATE_STDLIB)
       .sort({ createdAt: -1 });
 
     const pending = await CommunityJoinRequest.find({
@@ -934,7 +1071,7 @@ export const listMyJoinRequests = async (req, res) => {
     const requests = await CommunityJoinRequest.find({ user: req.user._id })
       .populate({
         path: "community",
-        populate: { path: "owner", select: "username name email avatar" },
+        populate: COMMUNITY_POPULATE_STDLIB,
       })
       .sort({ createdAt: -1 });
 
@@ -965,10 +1102,7 @@ export const listMyJoinRequests = async (req, res) => {
 
 export const createJoinRequest = async (req, res) => {
   try {
-    const community = await Community.findById(req.params.id).populate(
-      "owner",
-      "username name email avatar"
-    );
+    const community = await getPopulatedCommunity(req.params.id);
 
     if (!community) {
       return res.status(404).json({
@@ -1028,8 +1162,7 @@ export const createJoinRequest = async (req, res) => {
     await joinRequest.populate("user", "username name email avatar");
 
     const owner = community.owner;
-    const ownerEmail =
-      owner && typeof owner === "object" ? owner.email : null;
+    const ownerEmail = owner && typeof owner === "object" ? owner.email : null;
     const actionUrl = getRequestsActionUrl();
     const requesterName =
       req.user.name || req.user.username || joinRequest.user?.username || "A user";
@@ -1070,10 +1203,7 @@ export const createJoinRequest = async (req, res) => {
 
 export const joinPublicCommunity = async (req, res) => {
   try {
-    const community = await Community.findById(req.params.id).populate(
-      "owner",
-      "username name email avatar"
-    );
+    const community = await getPopulatedCommunity(req.params.id);
 
     if (!community) {
       return res.status(404).json({
@@ -1183,10 +1313,7 @@ export const listBrowsableCommunityMembers = async (req, res) => {
 
 export const createCommunityInvite = async (req, res) => {
   try {
-    const community = await Community.findById(req.params.id).populate(
-      "owner",
-      "username name email avatar"
-    );
+    const community = await getPopulatedCommunity(req.params.id);
 
     if (!community) {
       return res.status(404).json({
@@ -1224,7 +1351,12 @@ export const createCommunityInvite = async (req, res) => {
 
     const invitee = await User.findOne({
       $or: [
-        { username: new RegExp(`^${identifier.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") },
+        {
+          username: new RegExp(
+            `^${identifier.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+            "i"
+          ),
+        },
         { email: identifier },
       ],
     }).select("username name email avatar");
@@ -1331,7 +1463,7 @@ export const listMyInvites = async (req, res) => {
       .populate("invitee", "username name email avatar")
       .populate({
         path: "community",
-        populate: { path: "owner", select: "username name email avatar" },
+        populate: COMMUNITY_POPULATE_STDLIB,
       })
       .sort({ createdAt: -1 });
 
@@ -1376,7 +1508,7 @@ export const listCommunityInvites = async (req, res) => {
       .populate("invitee", "username name email avatar")
       .populate({
         path: "community",
-        populate: { path: "owner", select: "username name email avatar" },
+        populate: COMMUNITY_POPULATE_STDLIB,
       })
       .sort({ createdAt: -1 });
 
@@ -1399,7 +1531,7 @@ export const acceptCommunityInvite = async (req, res) => {
       .populate("invitee", "username name email avatar")
       .populate({
         path: "community",
-        populate: { path: "owner", select: "username name email avatar" },
+        populate: COMMUNITY_POPULATE_STDLIB,
       });
 
     if (!invite) {
@@ -1540,7 +1672,7 @@ export const declineCommunityInvite = async (req, res) => {
       .populate("invitee", "username name email avatar")
       .populate({
         path: "community",
-        populate: { path: "owner", select: "username name email avatar" },
+        populate: COMMUNITY_POPULATE_STDLIB,
       });
 
     if (!invite) {
@@ -1617,6 +1749,28 @@ export const declineCommunityInvite = async (req, res) => {
       message: "Invite declined.",
       invite: formatInvite(invite),
     });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+/**
+ * Maps the short code carried in a community URL back to its id. Access checks
+ * stay on the endpoints that actually return community data.
+ */
+export const resolveCommunityCode = async (req, res) => {
+  try {
+    const id = await resolveDocumentId(Community, req.params.code);
+    if (!id) {
+      return res.status(404).json({
+        success: false,
+        message: "Community not found.",
+      });
+    }
+    return res.status(200).json({ success: true, id });
   } catch (error) {
     return res.status(500).json({
       success: false,

@@ -18,7 +18,9 @@ import {
   updateUserStatus,
 } from '../../../../api/dashboard';
 import { useAuth } from '../../../../context/AuthContext';
+import { useToast } from '../../../../shared/components/feedback/ToastContext';
 import { COMMUNITY_TYPE_LABELS } from '../../../../shared/constants/community';
+import { communitySegment } from '../../../../shared/services/entityLinks';
 
 const FILTERS = [
   { id: 'all', label: 'All' },
@@ -39,11 +41,11 @@ const TYPE_LABELS = COMMUNITY_TYPE_LABELS;
 const UserManagement = () => {
   const { user: currentUser } = useAuth();
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [users, setUsers] = useState([]);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [busyId, setBusyId] = useState(null);
   const [expandedUserId, setExpandedUserId] = useState(null);
   const [detailByUserId, setDetailByUserId] = useState({});
@@ -54,7 +56,6 @@ const UserManagement = () => {
     const nextFilter = opts.filter ?? filter;
     const nextSearch = opts.search ?? search;
     setLoading(true);
-    setError('');
     try {
       const params = {};
       if (nextSearch.trim()) params.q = nextSearch.trim();
@@ -68,7 +69,7 @@ const UserManagement = () => {
       const data = await fetchUsers(params);
       setUsers(data?.users || []);
     } catch (err) {
-      setError(err?.response?.data?.message || 'Failed to load users.');
+      showToast(err?.response?.data?.message || 'Failed to load users.');
     } finally {
       setLoading(false);
     }
@@ -81,16 +82,15 @@ const UserManagement = () => {
 
   const setStatus = async (u, status) => {
     if (String(u.id) === String(currentUser?.id || currentUser?._id) && status !== 'active') {
-      setError('You cannot ban your own account.');
+      showToast('You cannot ban your own account.');
       return;
     }
     setBusyId(u.id);
-    setError('');
     try {
       await updateUserStatus(u.id, status);
       await loadUsers();
     } catch (err) {
-      setError(err?.response?.data?.message || 'Failed to update status.');
+      showToast(err?.response?.data?.message || 'Failed to update status.');
     } finally {
       setBusyId(null);
     }
@@ -109,12 +109,11 @@ const UserManagement = () => {
     if (detailByUserId[u.id]) return;
 
     setDetailLoadingId(u.id);
-    setError('');
     try {
       const data = await fetchAdminUserDetail(u.id);
       setDetailByUserId((prev) => ({ ...prev, [u.id]: data }));
     } catch (err) {
-      setError(err?.response?.data?.message || 'Failed to load user detail.');
+      showToast(err?.response?.data?.message || 'Failed to load user detail.');
     } finally {
       setDetailLoadingId(null);
     }
@@ -178,12 +177,6 @@ const UserManagement = () => {
           </button>
         ))}
       </div>
-
-      {error && (
-        <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3">
-          {error}
-        </div>
-      )}
 
       {loading ? (
         <div className="flex items-center justify-center gap-2 py-16 text-stone-400 text-sm">
@@ -373,7 +366,9 @@ const UserManagement = () => {
                                           type="button"
                                           onClick={(e) => {
                                             e.stopPropagation();
-                                            navigate(`/admin/communities/${community.id}`);
+                                            navigate(
+                                              `/admin/communities/${communitySegment(community)}`
+                                            );
                                           }}
                                           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-500/20 bg-amber-500/10 text-amber-300 text-[11px] font-semibold hover:bg-amber-500/20 transition-colors hover:cursor-pointer"
                                         >

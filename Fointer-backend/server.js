@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import dns from "dns";
+import http from "http";
 
 dns.setServers(["8.8.8.8", "8.8.4.4"]);
 import cookieParser from "cookie-parser";
@@ -9,9 +10,14 @@ import connectDB from "./config/db.js";
 import authRoute from "./routes/authRoute.js";
 import dashboardRoute from "./routes/dashboardRoute.js";
 import communityRoute from "./routes/communityRoute.js";
+import channelRoute from "./routes/channelRoute.js";
 import postRoute from "./routes/postRoute.js";
 import uploadRoute from "./routes/uploadRoute.js";
 import profileRoute from "./routes/profileRoute.js";
+import watchGroupRoute from "./routes/watchGroupRoute.js";
+import liveEventRoute from "./routes/liveEventRoute.js";
+import { initSocket } from "./sockets/initSocket.js";
+import { registerSocketModules } from "./sockets/socketRegistry.js";
 
 const app = express();
 const PORT = process.env.PORT;
@@ -36,13 +42,20 @@ app.use(
 
 app.use("/api/auth", authRoute);
 app.use("/api", dashboardRoute);
+app.use("/api", channelRoute);
 app.use("/api/communities", communityRoute);
+app.use("/api/watch-groups", watchGroupRoute);
+app.use("/api/live-events", liveEventRoute);
 app.use("/api/posts", postRoute);
 app.use("/api/uploads", uploadRoute);
 app.use("/api/profile", profileRoute);
 
 connectDB();
 
-app.listen(PORT, () => {
+const httpServer = http.createServer(app);
+const io = initSocket(httpServer);
+registerSocketModules(io);
+
+httpServer.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });

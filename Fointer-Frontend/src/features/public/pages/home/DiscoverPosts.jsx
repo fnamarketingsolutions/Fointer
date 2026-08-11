@@ -5,17 +5,18 @@ import { Link, useNavigate } from "react-router-dom";
 import { fetchPublicPosts } from "../../../../api/posts";
 import PostCard from "../../../posts/components/PostCard";
 import { useAuth } from "../../../../context/AuthContext";
+import { useToast } from "../../../../shared/components/feedback/ToastContext";
+import { postSegment } from "../../../../shared/services/entityLinks";
 
 export default function DiscoverPosts() {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
+  const { showToast } = useToast();
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError("");
     try {
       const data = await fetchPublicPosts({
         page: 1,
@@ -24,14 +25,14 @@ export default function DiscoverPosts() {
       });
       setPosts(data?.posts || []);
     } catch (err) {
-      setError(
+      showToast(
         err?.response?.data?.message || "Unable to load posts right now."
       );
       setPosts([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [showToast]);
 
   useEffect(() => {
     load();
@@ -61,12 +62,6 @@ export default function DiscoverPosts() {
           </p>
         </motion.div>
 
-        {error && (
-          <div className="max-w-xl mx-auto mb-6 text-xs sm:text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3 text-center">
-            {error}
-          </div>
-        )}
-
         {loading ? (
           <div className="flex items-center justify-center py-16 text-[#A69B8D] text-sm gap-2">
             <Loader2 size={18} className="animate-spin" />
@@ -88,7 +83,7 @@ export default function DiscoverPosts() {
               <PostCard
                 key={post.id}
                 post={post}
-                onClick={() => navigate(`/posts/${post.id}`)}
+                onClick={() => navigate(`/posts/${postSegment(post)}`)}
               />
             ))}
           </motion.div>

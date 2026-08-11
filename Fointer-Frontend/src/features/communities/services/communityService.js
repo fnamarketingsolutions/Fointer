@@ -176,3 +176,4 @@ export const denyJoinRequest = async (communityId, requestId) => {
   );
   return response.data;
 };
+

@@ -17,12 +17,16 @@ import {
   resolveSort,
   buildPaginationMeta,
 } from "../utils/pagination.js";
+import { resolveDocumentId } from "../utils/shortCode.js";
 // import { logActivity } from "../utils/logActivity.js";
 
 const POST_SORT_MAP = {
   newest: { createdAt: -1 },
   oldest: { createdAt: 1 },
 };
+
+// A malformed id should read as "not found" instead of surfacing a cast error.
+const isValidId = (id) => mongoose.Types.ObjectId.isValid(id);
 
 const formatUser = (user) => {
   if (!user || typeof user !== "object" || !user._id) {
@@ -74,6 +78,7 @@ const formatPost = (post, extras = {}) => {
   if (community && typeof community === "object" && community._id) {
     communityPayload = {
       id: community._id,
+      shortCode: community.shortCode || "",
       name: community.name,
       coverImage: community.coverImage || "",
     };
@@ -83,6 +88,7 @@ const formatPost = (post, extras = {}) => {
 
   return {
     id: post._id,
+    shortCode: post.shortCode || "",
     title: post.title || "",
     text: post.text || "",
     media: formatMedia(post.media),
@@ -342,13 +348,13 @@ export const listPosts = async (req, res) => {
       const aggregated = await Post.aggregate(pipeline);
       posts = await Post.populate(aggregated, [
         { path: "author", select: "username name avatar role" },
-        { path: "community", select: "name coverImage" },
+        { path: "community", select: "name coverImage shortCode" },
       ]);
     } else {
       const sort = resolveSort(sortBy, POST_SORT_MAP, { createdAt: -1 });
       let query = Post.find(filter)
         .populate("author", "username name avatar role")
-        .populate("community", "name coverImage")
+        .populate("community", "name coverImage shortCode")
         .sort(sort)
         .lean();
 
@@ -412,9 +418,13 @@ export const listPosts = async (req, res) => {
 
 export const getPost = async (req, res) => {
   try {
+    if (!isValidId(req.params.id)) {
+      return res.status(404).json({ success: false, message: "Post not found." });
+    }
+
     const post = await Post.findById(req.params.id)
       .populate("author", "username name avatar role")
-      .populate("community", "name coverImage")
+      .populate("community", "name coverImage shortCode")
       .lean();
 
     if (!post) {
@@ -622,6 +632,10 @@ export const listPublicPosts = async (req, res) => {
 /** Get a single community-less post (public browse; optional auth). */
 export const getPublicPost = async (req, res) => {
   try {
+    if (!isValidId(req.params.id)) {
+      return res.status(404).json({ success: false, message: "Post not found." });
+    }
+
     const post = await Post.findById(req.params.id)
       .populate("author", "username name avatar role")
       .lean();
@@ -728,7 +742,7 @@ export const createPost = async (req, res) => {
 
     await post.populate("author", "username name avatar role");
     if (hasCommunity) {
-      await post.populate("community", "name coverImage");
+      await post.populate("community", "name coverImage shortCode");
     }
 
     // await logActivity({
@@ -796,7 +810,7 @@ export const updatePost = async (req, res) => {
 
     await post.save();
     await post.populate("author", "username name avatar role");
-    await post.populate("community", "name coverImage");
+    await post.populate("community", "name coverImage shortCode");
 
     const { counts, liked } = await getLikeMeta(
       "post",
@@ -869,6 +883,10 @@ export const deletePost = async (req, res) => {
 
 export const listComments = async (req, res) => {
   try {
+    if (!isValidId(req.params.id)) {
+      return res.status(404).json({ success: false, message: "Post not found." });
+    }
+
     const post = await Post.findById(req.params.id);
     if (!post) {
       return res.status(404).json({ success: false, message: "Post not found." });
@@ -1137,6 +1155,22 @@ export const toggleCommentLike = async (req, res) => {
 
     const result = await toggleLike("comment", comment._id, req.user);
     return res.status(200).json({ success: true, ...result });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * Maps the short code carried in a post URL back to its id. Access checks stay
+ * on the endpoints that actually return post data.
+ */
+export const resolvePostCode = async (req, res) => {
+  try {
+    const id = await resolveDocumentId(Post, req.params.code);
+    if (!id) {
+      return res.status(404).json({ success: false, message: "Post not found." });
+    }
+    return res.status(200).json({ success: true, id });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }

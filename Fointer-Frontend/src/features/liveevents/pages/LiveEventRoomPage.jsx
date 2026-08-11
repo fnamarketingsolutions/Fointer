@@ -4,43 +4,46 @@ import {
   EllipsisVertical,
   Loader2,
   Pencil,
+  Radio,
   Send,
+  Square,
   Trash2,
   Users,
   X,
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
-  closeWatchGroup,
-  createWatchGroupMessage,
-  deleteWatchGroupMessage,
-  fetchWatchGroupChatMeta,
-  fetchWatchGroupMessages,
-  removeWatchGroupMember,
-  updateWatchGroupMessage,
-} from "../../services/communityService";
-import { useToast } from "../../../../shared/components/feedback/ToastContext";
-import { getErrorMessage } from "../../../../shared/utils/errors";
+  closeLiveEvent,
+  createLiveEventMessage,
+  deleteLiveEventMessage,
+  endLiveEvent,
+  fetchLiveEventChatMeta,
+  fetchLiveEventMessages,
+  removeLiveEventMember,
+  updateLiveEventMessage,
+} from "../services/liveEventService";
+import { useToast } from "../../../shared/components/feedback/ToastContext";
+import { getErrorMessage } from "../../../shared/utils/errors";
 import {
-  joinWatchGroupRoom,
-  leaveWatchGroupRoom,
-  getWatchGroupChatSocket,
-  watchGroupSocketEvents,
-} from "../../services/watchGroupChatSocket";
-import { useAuth } from "../../../../context/AuthContext";
-import ConfirmDeleteModal from "../../../../shared/components/modals/ConfirmDeleteModal";
+  joinLiveEventRoom,
+  leaveLiveEventRoom,
+  getLiveEventChatSocket,
+  liveEventSocketEvents,
+} from "../services/liveEventChatSocket";
+import { useAuth } from "../../../context/AuthContext";
+import ConfirmDeleteModal from "../../../shared/components/modals/ConfirmDeleteModal";
 
 const PAGE_LIMIT = 30;
 const SCROLL_TOP_THRESHOLD = 80;
 
-export default function WatchGroupChatPage({
-  groupId: propGroupId,
+export default function LiveEventRoomPage({
+  eventId: propEventId,
   onBack,
-  onGroupClosed,
+  onEventClosed,
   onMemberRemoved,
 }) {
   const params = useParams();
-  const groupId = propGroupId || params.groupId;
+  const eventId = propEventId || params.eventId;
 
   const navigate = useNavigate();
   const { showToast } = useToast();
@@ -66,8 +69,9 @@ export default function WatchGroupChatPage({
   const [removingMember, setRemovingMember] = useState(null);
   const [removeMemberLoading, setRemoveMemberLoading] = useState(false);
 
-  const [closeGroupOpen, setCloseGroupOpen] = useState(false);
-  const [closeGroupLoading, setCloseGroupLoading] = useState(false);
+  const [closeEventOpen, setCloseEventOpen] = useState(false);
+  const [closeEventLoading, setCloseEventLoading] = useState(false);
+  const [endLoading, setEndLoading] = useState(false);
 
   const messagesWrapRef = useRef(null);
   const actionMenuRef = useRef(null);
@@ -92,20 +96,20 @@ export default function WatchGroupChatPage({
   }, []);
 
   const loadChat = useCallback(async () => {
-    if (!groupId) return;
+    if (!eventId) return;
     setLoading(true);
     shouldStickToBottomRef.current = true;
     try {
       const [metaData, messageData] = await Promise.all([
-        fetchWatchGroupChatMeta(groupId),
-        fetchWatchGroupMessages(groupId, { limit: PAGE_LIMIT }),
+        fetchLiveEventChatMeta(eventId),
+        fetchLiveEventMessages(eventId, { limit: PAGE_LIMIT }),
       ]);
       setChatMeta(metaData?.chatMeta || null);
       setMessages(messageData?.messages || []);
       setHasMore(Boolean(messageData?.pagination?.hasMore));
       setNextCursor(messageData?.pagination?.nextCursor || null);
     } catch (err) {
-      showToast(getErrorMessage(err, "Failed to load chat."));
+      showToast(getErrorMessage(err, "Failed to load live room."));
       setChatMeta(null);
       setMessages([]);
       setHasMore(false);
@@ -113,7 +117,7 @@ export default function WatchGroupChatPage({
     } finally {
       setLoading(false);
     }
-  }, [groupId, showToast]);
+  }, [eventId, showToast]);
 
   useEffect(() => {
     loadChat();
@@ -126,7 +130,7 @@ export default function WatchGroupChatPage({
   }, [messages.length]);
 
   const loadOlderMessages = useCallback(async () => {
-    if (!groupId || !hasMore || !nextCursor || loadingOlderRef.current) return;
+    if (!eventId || !hasMore || !nextCursor || loadingOlderRef.current) return;
 
     const wrap = messagesWrapRef.current;
     if (!wrap) return;
@@ -137,7 +141,7 @@ export default function WatchGroupChatPage({
     const previousTop = wrap.scrollTop;
 
     try {
-      const messageData = await fetchWatchGroupMessages(groupId, {
+      const messageData = await fetchLiveEventMessages(eventId, {
         limit: PAGE_LIMIT,
         before: nextCursor,
       });
@@ -164,7 +168,7 @@ export default function WatchGroupChatPage({
       loadingOlderRef.current = false;
       setLoadingOlder(false);
     }
-  }, [groupId, hasMore, nextCursor, showToast]);
+  }, [eventId, hasMore, nextCursor, showToast]);
 
   const handleMessagesScroll = useCallback(() => {
     const wrap = messagesWrapRef.current;
@@ -197,39 +201,65 @@ export default function WatchGroupChatPage({
   }, []);
 
   useEffect(() => {
-    if (!groupId) return undefined;
-    const socket = getWatchGroupChatSocket();
-    const activeGroupId = String(groupId);
+    if (!eventId) return undefined;
+    const socket = getLiveEventChatSocket();
+    const activeEventId = String(eventId);
 
-    joinWatchGroupRoom(activeGroupId);
+    joinLiveEventRoom(activeEventId);
 
     const onCreated = (payload) => {
-      if (String(payload?.groupId) !== activeGroupId) return;
+      if (String(payload?.eventId) !== activeEventId) return;
       if (!payload?.message) return;
       upsertMessage(payload.message);
     };
     const onUpdated = (payload) => {
-      if (String(payload?.groupId) !== activeGroupId) return;
+      if (String(payload?.eventId) !== activeEventId) return;
       if (!payload?.message) return;
       upsertMessage(payload.message);
     };
     const onDeleted = (payload) => {
-      if (String(payload?.groupId) !== activeGroupId) return;
+      if (String(payload?.eventId) !== activeEventId) return;
       if (!payload?.message) return;
       upsertMessage(payload.message);
     };
+    const onStatusUpdated = (payload) => {
+      if (String(payload?.eventId) !== activeEventId) return;
+      const nextStatus = payload?.status || payload?.liveEvent?.status;
+      if (!nextStatus) return;
+      setChatMeta((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          isEnded: nextStatus === "ended" || nextStatus === "closed",
+          event: {
+            ...prev.event,
+            status: nextStatus,
+          },
+        };
+      });
+      if (nextStatus === "ended" || nextStatus === "closed") {
+        setEditingMessageId(null);
+        setText("");
+        setComposerError("");
+        if (nextStatus === "closed") {
+          onEventClosed?.();
+        }
+      }
+    };
 
-    socket.on(watchGroupSocketEvents.messageCreated, onCreated);
-    socket.on(watchGroupSocketEvents.messageUpdated, onUpdated);
-    socket.on(watchGroupSocketEvents.messageDeleted, onDeleted);
+    socket.on(liveEventSocketEvents.messageCreated, onCreated);
+    socket.on(liveEventSocketEvents.messageUpdated, onUpdated);
+    socket.on(liveEventSocketEvents.messageDeleted, onDeleted);
+    socket.on(liveEventSocketEvents.eventStatusUpdated, onStatusUpdated);
 
     return () => {
-      leaveWatchGroupRoom(activeGroupId);
-      socket.off(watchGroupSocketEvents.messageCreated, onCreated);
-      socket.off(watchGroupSocketEvents.messageUpdated, onUpdated);
-      socket.off(watchGroupSocketEvents.messageDeleted, onDeleted);
+      leaveLiveEventRoom(activeEventId);
+      socket.off(liveEventSocketEvents.messageCreated, onCreated);
+      socket.off(liveEventSocketEvents.messageUpdated, onUpdated);
+      socket.off(liveEventSocketEvents.messageDeleted, onDeleted);
+      socket.off(liveEventSocketEvents.eventStatusUpdated, onStatusUpdated);
     };
-  }, [groupId, upsertMessage]);
+  }, [eventId, upsertMessage, onEventClosed]);
 
   const clearComposer = () => {
     setText("");
@@ -244,10 +274,20 @@ export default function WatchGroupChatPage({
     setOpenActionMenuId(null);
   };
 
+  const isEnded = Boolean(
+    chatMeta?.isEnded ||
+      chatMeta?.event?.status === "ended" ||
+      chatMeta?.event?.status === "closed"
+  );
+
   const handleSend = async () => {
     const payload = { text: text.trim() };
     if (!payload.text) {
       setComposerError("Please enter a message.");
+      return;
+    }
+    if (!editingMessageId && isEnded) {
+      setComposerError("This live event has ended.");
       return;
     }
 
@@ -255,15 +295,15 @@ export default function WatchGroupChatPage({
     setComposerError("");
     try {
       if (editingMessageId) {
-        const response = await updateWatchGroupMessage(
-          groupId,
+        const response = await updateLiveEventMessage(
+          eventId,
           editingMessageId,
           payload
         );
         upsertMessage(response?.data);
         showToast("Message updated.");
       } else {
-        const response = await createWatchGroupMessage(groupId, payload);
+        const response = await createLiveEventMessage(eventId, payload);
         upsertMessage(response?.data);
       }
       clearComposer();
@@ -283,7 +323,7 @@ export default function WatchGroupChatPage({
     if (!deletingMessageId) return;
     setDeleteLoading(true);
     try {
-      const response = await deleteWatchGroupMessage(groupId, deletingMessageId);
+      const response = await deleteLiveEventMessage(eventId, deletingMessageId);
       upsertMessage(response?.data);
       if (editingMessageId === deletingMessageId) {
         clearComposer();
@@ -301,7 +341,7 @@ export default function WatchGroupChatPage({
     if (!removingMember?.id) return;
     setRemoveMemberLoading(true);
     try {
-      await removeWatchGroupMember(groupId, removingMember.id);
+      await removeLiveEventMember(eventId, removingMember.id);
       showToast("Member removed.");
       setChatMeta((prev) => {
         if (!prev) return prev;
@@ -324,23 +364,45 @@ export default function WatchGroupChatPage({
     }
   };
 
-  const confirmCloseGroup = async () => {
-    setCloseGroupLoading(true);
+  const confirmCloseEvent = async () => {
+    setCloseEventLoading(true);
     try {
-      await closeWatchGroup(groupId);
-      showToast("Watch group deleted.");
-      setCloseGroupOpen(false);
-      if (onGroupClosed) {
-        onGroupClosed();
+      await closeLiveEvent(eventId);
+      showToast("Live event deleted.");
+      setCloseEventOpen(false);
+      if (onEventClosed) {
+        onEventClosed();
       } else if (onBack) {
         onBack();
       } else {
-        navigate("/dashboard/watchgroups");
+        navigate("/dashboard/events");
       }
     } catch (err) {
-      showToast(getErrorMessage(err, "Failed to delete watch group."));
+      showToast(getErrorMessage(err, "Failed to delete live event."));
     } finally {
-      setCloseGroupLoading(false);
+      setCloseEventLoading(false);
+    }
+  };
+
+  const handleEndEvent = async () => {
+    if (!chatMeta?.canManageEvent || endLoading || isEnded) return;
+    setEndLoading(true);
+    try {
+      await endLiveEvent(eventId);
+      setChatMeta((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          isEnded: true,
+          event: { ...prev.event, status: "ended" },
+        };
+      });
+      clearComposer();
+      showToast("Live event ended.");
+    } catch (err) {
+      showToast(getErrorMessage(err, "Failed to end live event."));
+    } finally {
+      setEndLoading(false);
     }
   };
 
@@ -349,54 +411,77 @@ export default function WatchGroupChatPage({
     [messages, editingMessageId]
   );
 
-  const groupTitle = chatMeta?.group?.name || "Watch Group Chat";
+  const eventTitle = chatMeta?.event?.title || "Live Commentary";
+  const communityLabel = chatMeta?.event?.community?.name || "Community";
   const administrator = chatMeta?.administrator;
   const adminLabel =
     administrator?.username || administrator?.name || "Administrator";
-  const isGroupOwner =
-    chatMeta?.myRole === "owner" ||
-    (administrator?.id &&
-      currentUserId &&
-      String(administrator.id) === String(currentUserId));
-  const canManageGroup = Boolean(
-    chatMeta?.canManageGroup ?? isGroupOwner
-  );
+  const canManageEvent = Boolean(chatMeta?.canManageEvent);
   const canModerateCommunity = Boolean(chatMeta?.canModerateCommunity);
-  const canSendMessages = Boolean(chatMeta?.myRole);
+  const canSendMessages = Boolean(chatMeta?.myRole) && !isEnded;
 
   const handleBackClick = () => {
     if (onBack) {
       onBack();
     } else {
-      navigate("/dashboard/watchgroups");
+      navigate("/dashboard/events");
     }
   };
 
   return (
-    <div className="h-full bg-[#0F0C09] border border-[#2A241E] rounded-2xl overflow-hidden flex flex-col min-h-0">
-      {/* Top Bar Header */}
-      <div className="px-4 sm:px-5 py-3 border-b border-[#2A241E] bg-[#14100D] sticky top-0 z-20 shrink-0">
+    <div className="h-full bg-[#0F0C09] overflow-hidden flex flex-col min-h-0">
+      <div className="px-3 sm:px-4 py-3 border-b border-[#2A241E] bg-[#14100D] sticky top-0 z-20 shrink-0">
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={handleBackClick}
             className="p-1.5 rounded-md text-[#A69B8D] hover:text-[#E5E0D8] hover:bg-[#1D1713] transition-colors"
-            title="Back to watch groups"
+            title="Back to live events"
           >
             <ArrowLeft size={16} />
           </button>
           <div className="min-w-0 flex-1">
             <h1 className="text-sm sm:text-base font-semibold text-[#E5E0D8] truncate">
-              {groupTitle}
+              {eventTitle}
             </h1>
             <p className="text-[11px] text-[#8C8070] truncate">
-              Group Administrator
+              Host
               <span className="text-[#D4AF37]/90"> @{adminLabel}</span>
             </p>
             <p className="text-[10px] text-[#5A5046] truncate mt-0.5">
-              {chatMeta?.memberCount || 0} members
+              {communityLabel}
+              <span className="mx-1.5 text-[#3A332C]">·</span>
+              {chatMeta?.memberCount || 0} watching
             </p>
           </div>
+
+          {canManageEvent && !isEnded ? (
+            <button
+              type="button"
+              onClick={handleEndEvent}
+              disabled={endLoading || loading}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[10px] font-semibold uppercase tracking-wide shrink-0 bg-[#1D1713] text-[#8C8070] hover:text-[#E5E0D8] hover:bg-[#251E17] transition-colors disabled:opacity-60"
+              title="End live event"
+            >
+              {endLoading ? (
+                <Loader2 size={12} className="animate-spin" />
+              ) : (
+                <Square size={12} />
+              )}
+              End
+            </button>
+          ) : (
+            <span
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[10px] font-semibold uppercase tracking-wide shrink-0 ${
+                isEnded
+                  ? "bg-[#2A241E] text-[#A69B8D]"
+                  : "bg-[#1D1713] text-[#D4AF37]"
+              }`}
+            >
+              <Radio size={12} />
+              {isEnded ? "Ended" : "Live"}
+            </span>
+          )}
 
           <div className="relative shrink-0" ref={membersMenuRef}>
             <button
@@ -418,7 +503,7 @@ export default function WatchGroupChatPage({
                     currentUserId &&
                     String(member.id) === String(currentUserId);
                   const canRemove =
-                    canManageGroup &&
+                    canManageEvent &&
                     !isSelf &&
                     (canModerateCommunity || !isOwnerMember);
                   return (
@@ -431,7 +516,7 @@ export default function WatchGroupChatPage({
                           @{member.username || "user"}
                           {isOwnerMember ? (
                             <span className="ml-1 text-[10px] text-[#D4AF37]">
-                              admin
+                              host
                             </span>
                           ) : null}
                         </p>
@@ -456,16 +541,16 @@ export default function WatchGroupChatPage({
                     </div>
                   );
                 })}
-                {canManageGroup ? (
+                {canManageEvent ? (
                   <button
                     type="button"
                     onClick={() => {
-                      setCloseGroupOpen(true);
+                      setCloseEventOpen(true);
                       setMembersMenuOpen(false);
                     }}
                     className="w-full mt-1 px-2 py-2 text-left text-xs text-red-300 hover:bg-[#1E1813] rounded-lg border-t border-[#2A241E]"
                   >
-                    Delete group
+                    Delete event
                   </button>
                 ) : null}
               </div>
@@ -474,11 +559,10 @@ export default function WatchGroupChatPage({
         </div>
       </div>
 
-      {/* Messages Scroll Region — scrollbar hidden */}
       <div
         ref={messagesWrapRef}
         onScroll={handleMessagesScroll}
-        className="flex-1 overflow-y-auto px-3 sm:px-4 py-4 space-y-2.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+        className="flex-1 overflow-y-auto px-0 py-1.5 space-y-2.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
       >
         {loading ? (
           <div className="flex items-center justify-center py-16 text-[#A69B8D] text-xs sm:text-sm gap-2">
@@ -487,7 +571,7 @@ export default function WatchGroupChatPage({
           </div>
         ) : messages.length === 0 ? (
           <p className="text-xs text-[#8C8070] text-center py-10">
-            No messages yet. Start the conversation.
+            No messages yet. Start the commentary.
           </p>
         ) : (
           <>
@@ -506,9 +590,7 @@ export default function WatchGroupChatPage({
               const isMine =
                 authorId && String(authorId) === String(currentUserId);
               const authorName =
-                message.author?.name ||
-                message.author?.username ||
-                "Member";
+                message.author?.name || message.author?.username || "Member";
               const showActions = message.canEdit || message.canDelete;
 
               return (
@@ -638,12 +720,15 @@ export default function WatchGroupChatPage({
         )}
       </div>
 
-      {/* Message Composer Area */}
-      <div className="border-t border-[#2A241E] bg-[#14100D] p-3 sm:p-4 space-y-2 shrink-0">
-        {!canSendMessages ? (
+      <div className="border-t border-[#2A241E] bg-[#14100D] p-2 sm:p-3 space-y-2 shrink-0">
+        {isEnded ? (
+          <p className="text-xs text-[#D4AF37]/90 text-center py-1">
+            This live event has ended. Messaging is disabled.
+          </p>
+        ) : !canSendMessages ? (
           <p className="text-xs text-[#8C8070] text-center py-1">
-            Join this watch group to send messages. You can still moderate as a
-            community moderator.
+            Join this live event to send messages. Moderators can still manage
+            the room.
           </p>
         ) : (
           <>
@@ -703,8 +788,7 @@ export default function WatchGroupChatPage({
         onConfirm={confirmDelete}
         loading={deleteLoading}
       >
-        This removes the message for everyone in the group. The author&apos;s
-        username will still appear with &ldquo;This message was deleted.&rdquo;
+        This removes the message for everyone in the live room.
       </ConfirmDeleteModal>
 
       <ConfirmDeleteModal
@@ -716,21 +800,21 @@ export default function WatchGroupChatPage({
         onConfirm={confirmRemoveMember}
         loading={removeMemberLoading}
       >
-        Remove @{removingMember?.username || "this member"} from the watch
-        group? They will lose access to this chat.
+        Remove @{removingMember?.username || "this member"} from the live event?
+        They will lose access to this room.
       </ConfirmDeleteModal>
 
       <ConfirmDeleteModal
-        open={closeGroupOpen}
-        title="Delete watch group"
+        open={closeEventOpen}
+        title="Delete live event"
         variant="dashboard"
-        confirmLabel="Delete group"
-        onClose={() => setCloseGroupOpen(false)}
-        onConfirm={confirmCloseGroup}
-        loading={closeGroupLoading}
+        confirmLabel="Delete event"
+        onClose={() => setCloseEventOpen(false)}
+        onConfirm={confirmCloseEvent}
+        loading={closeEventLoading}
       >
-        This closes the group for all members. The group will no longer appear
-        in active watch groups.
+        This closes the event for all participants. It will no longer appear in
+        active live events.
       </ConfirmDeleteModal>
     </div>
   );

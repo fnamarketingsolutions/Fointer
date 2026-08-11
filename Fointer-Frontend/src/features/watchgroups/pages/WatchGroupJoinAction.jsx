@@ -3,9 +3,9 @@ import { Loader2, Check, Clock } from "lucide-react";
 import {
   joinWatchGroup,
   requestJoinWatchGroup,
-} from "../../services/communityService";
-import { useToast } from "../../../../shared/components/feedback/ToastContext";
-import { getErrorMessage } from "../../../../shared/utils/errors";
+} from "../services/watchGroupService";
+import { useToast } from "../../../shared/components/feedback/ToastContext";
+import { getErrorMessage } from "../../../shared/utils/errors";
 
 /**
  * Join / Request / Joined / Pending control for a single watch group.

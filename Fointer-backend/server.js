@@ -15,6 +15,7 @@ import postRoute from "./routes/postRoute.js";
 import uploadRoute from "./routes/uploadRoute.js";
 import profileRoute from "./routes/profileRoute.js";
 import watchGroupRoute from "./routes/watchGroupRoute.js";
+import liveEventRoute from "./routes/liveEventRoute.js";
 import { initSocket } from "./sockets/initSocket.js";
 import { registerSocketModules } from "./sockets/socketRegistry.js";
 
@@ -44,6 +45,7 @@ app.use("/api", dashboardRoute);
 app.use("/api", channelRoute);
 app.use("/api/communities", communityRoute);
 app.use("/api/watch-groups", watchGroupRoute);
+app.use("/api/live-events", liveEventRoute);
 app.use("/api/posts", postRoute);
 app.use("/api/uploads", uploadRoute);
 app.use("/api/profile", profileRoute);

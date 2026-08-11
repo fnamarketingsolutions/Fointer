@@ -31,9 +31,9 @@ import {
   createPost,
   togglePostLike,
 } from "../../../api/posts";
-import { fetchWatchGroups } from "../services/communityService";
-import JoinWatchGroupModal from "../pages/watchgroups/JoinWatchGroupModal";
-import { getJoinGroupCtaState } from "../pages/watchgroups/WatchGroupJoinAction";
+import { fetchWatchGroups } from "../../watchgroups/services/watchGroupService";
+import JoinWatchGroupModal from "../../watchgroups/pages/JoinWatchGroupModal";
+import { getJoinGroupCtaState } from "../../watchgroups/pages/WatchGroupJoinAction";
 import MediaPicker from "../../../shared/components/media/MediaPicker";
 import { useToast } from "../../../shared/components/feedback/ToastContext";
 import { useAuth } from "../../../context/AuthContext";

@@ -13,6 +13,8 @@ import {
   getEffectiveMemberRole,
 } from "../utils/communityPermissions.js";
 import { resolveDocumentId } from "../utils/shortCode.js";
+import { getIo } from "../sockets/initSocket.js";
+import { WATCH_GROUP_SOCKET_EVENTS, toWatchGroupRoom } from "../sockets/events.js";
 
 const formatUser = (user) => {
   if (!user || typeof user !== "object" || !user._id) {
@@ -101,9 +103,14 @@ const getActiveParticipantCount = async (watchGroupId) =>
     status: "active",
   });
 
+const OPEN_WATCH_GROUP_STATUSES = ["active", "paused"];
+
+const isOpenWatchGroup = (group) =>
+  Boolean(group && OPEN_WATCH_GROUP_STATUSES.includes(group.status));
+
 const ensureCommunityMemberForGroup = async (group, user) => {
   if (!group?.community) {
-    return { ok: false, code: 404, message: "Watch group not found." };
+    return { ok: true };
   }
   const communityId = group.community._id || group.community;
   const canEngage = await canEngageInCommunity(communityId, user);
@@ -139,8 +146,7 @@ const upsertActiveMember = async (watchGroupId, userId) => {
 };
 
 /**
- * Create a watch group within a community.
- * Allowed for active community members (member, moderator, owner) and platform admins.
+ * Create a watch group. Community is optional; when set, creator must be a community member.
  */
 export const createWatchGroup = async (req, res) => {
   try {
@@ -148,12 +154,6 @@ export const createWatchGroup = async (req, res) => {
       req.body;
 
     const communityRef = communityId || communityInput;
-    if (!communityRef) {
-      return res.status(400).json({
-        success: false,
-        message: "Community is required.",
-      });
-    }
 
     if (!name || !String(name).trim()) {
       return res.status(400).json({
@@ -162,20 +162,23 @@ export const createWatchGroup = async (req, res) => {
       });
     }
 
-    const community = await resolveCommunity(communityRef);
-    if (!community) {
-      return res.status(404).json({
-        success: false,
-        message: "Community not found.",
-      });
-    }
+    let community = null;
+    if (communityRef) {
+      community = await resolveCommunity(communityRef);
+      if (!community) {
+        return res.status(404).json({
+          success: false,
+          message: "Community not found.",
+        });
+      }
 
-    const canCreate = await canEngageInCommunity(community._id, req.user);
-    if (!canCreate) {
-      return res.status(403).json({
-        success: false,
-        message: "Only community members can create watch groups.",
-      });
+      const canCreate = await canEngageInCommunity(community._id, req.user);
+      if (!canCreate) {
+        return res.status(403).json({
+          success: false,
+          message: "Only community members can create watch groups.",
+        });
+      }
     }
 
     const groupType = type || "public";
@@ -207,7 +210,7 @@ export const createWatchGroup = async (req, res) => {
       name: String(name).trim(),
       type: groupType,
       maxParticipants: max,
-      community: community._id,
+      community: community?._id || null,
       createdBy: req.user._id,
       status: "active",
     });
@@ -248,7 +251,7 @@ export const createWatchGroup = async (req, res) => {
 export const listWatchGroups = async (req, res) => {
   try {
     const communityRef = req.query.communityId || req.query.community;
-    const filter = { status: "active" };
+    const filter = { status: { $in: OPEN_WATCH_GROUP_STATUSES } };
 
     if (communityRef) {
       const community = await resolveCommunity(communityRef);
@@ -459,7 +462,7 @@ export const getWatchGroupCreateContext = async (req, res) => {
 export const joinWatchGroup = async (req, res) => {
   try {
     const group = await resolveWatchGroup(req.params.groupId);
-    if (!group || group.status !== "active") {
+    if (!isOpenWatchGroup(group)) {
       return res.status(404).json({
         success: false,
         message: "Watch group not found.",
@@ -534,7 +537,7 @@ export const joinWatchGroup = async (req, res) => {
 export const createWatchGroupJoinRequest = async (req, res) => {
   try {
     const group = await resolveWatchGroup(req.params.groupId);
-    if (!group || group.status !== "active") {
+    if (!isOpenWatchGroup(group)) {
       return res.status(404).json({
         success: false,
         message: "Watch group not found.",
@@ -701,7 +704,7 @@ const canManageWatchGroup = async (group, user) => {
 export const listWatchGroupJoinRequests = async (req, res) => {
   try {
     const group = await resolveWatchGroup(req.params.groupId);
-    if (!group || group.status !== "active") {
+    if (!isOpenWatchGroup(group)) {
       return res.status(404).json({
         success: false,
         message: "Watch group not found.",
@@ -745,7 +748,7 @@ export const listWatchGroupJoinRequests = async (req, res) => {
 export const approveWatchGroupJoinRequest = async (req, res) => {
   try {
     const group = await resolveWatchGroup(req.params.groupId);
-    if (!group || group.status !== "active") {
+    if (!isOpenWatchGroup(group)) {
       return res.status(404).json({
         success: false,
         message: "Watch group not found.",
@@ -811,7 +814,7 @@ export const approveWatchGroupJoinRequest = async (req, res) => {
 export const denyWatchGroupJoinRequest = async (req, res) => {
   try {
     const group = await resolveWatchGroup(req.params.groupId);
-    if (!group || group.status !== "active") {
+    if (!isOpenWatchGroup(group)) {
       return res.status(404).json({
         success: false,
         message: "Watch group not found.",
@@ -862,12 +865,70 @@ export const denyWatchGroupJoinRequest = async (req, res) => {
 };
 
 /**
+ * Pause or resume messaging for a watch group (group owner only).
+ * Separate from close — paused groups remain open for reading/joining.
+ */
+export const setWatchGroupPaused = async (req, res) => {
+  try {
+    const group = await resolveWatchGroup(req.params.groupId);
+    if (!isOpenWatchGroup(group)) {
+      return res.status(404).json({
+        success: false,
+        message: "Watch group not found.",
+      });
+    }
+
+    const ownerCheck = await assertGroupOwner(group, req.user);
+    if (!ownerCheck.ok) {
+      return res.status(ownerCheck.code).json({
+        success: false,
+        message: "Only the watch group owner can pause or resume this group.",
+      });
+    }
+
+    const paused = Boolean(req.body?.paused);
+    group.status = paused ? "paused" : "active";
+    await group.save();
+
+    const lean = group.toObject ? group.toObject() : group;
+    const payload = {
+      groupId: String(group._id),
+      status: group.status,
+      watchGroup: formatWatchGroup(lean, { canManage: true }),
+    };
+
+    try {
+      const io = getIo();
+      if (io) {
+        io.to(toWatchGroupRoom(String(group._id))).emit(
+          WATCH_GROUP_SOCKET_EVENTS.GROUP_STATUS_UPDATED,
+          payload
+        );
+      }
+    } catch {
+      // Socket optional — pause still persists without live broadcast.
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: paused ? "Watch group paused." : "Watch group resumed.",
+      watchGroup: formatWatchGroup(lean, { canManage: true }),
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+/**
  * Soft-close a watch group (group admin or community moderator). Sets status to "closed".
  */
 export const closeWatchGroup = async (req, res) => {
   try {
     const group = await resolveWatchGroup(req.params.groupId);
-    if (!group || group.status !== "active") {
+    if (!isOpenWatchGroup(group)) {
       return res.status(404).json({
         success: false,
         message: "Watch group not found.",
@@ -905,7 +966,7 @@ export const closeWatchGroup = async (req, res) => {
 export const removeWatchGroupMember = async (req, res) => {
   try {
     const group = await resolveWatchGroup(req.params.groupId);
-    if (!group || group.status !== "active") {
+    if (!isOpenWatchGroup(group)) {
       return res.status(404).json({
         success: false,
         message: "Watch group not found.",

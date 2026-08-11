@@ -38,9 +38,9 @@ import {
   unbanCommunityMember,
 } from "../../../../api/communities";
 import { fetchPosts, createPost, togglePostLike } from "../../../../api/posts";
-import { fetchWatchGroups } from "../../services/communityService";
-import JoinWatchGroupModal from "../watchgroups/JoinWatchGroupModal";
-import { getJoinGroupCtaState } from "../watchgroups/WatchGroupJoinAction";
+import { fetchWatchGroups } from "../../../watchgroups/services/watchGroupService";
+import JoinWatchGroupModal from "../../../watchgroups/pages/JoinWatchGroupModal";
+import { getJoinGroupCtaState } from "../../../watchgroups/pages/WatchGroupJoinAction";
 import MediaPicker from "../../../../shared/components/media/MediaPicker";
 import PostMediaGallery from "../../../../shared/components/media/PostMediaGallery";
 import { COMMUNITY_TYPE_LABELS } from "../../../../shared/constants/community";

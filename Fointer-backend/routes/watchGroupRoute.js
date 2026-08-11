@@ -8,6 +8,7 @@ import {
   listWatchGroupJoinRequests,
   approveWatchGroupJoinRequest,
   denyWatchGroupJoinRequest,
+  setWatchGroupPaused,
   closeWatchGroup,
   removeWatchGroupMember,
 } from "../controllers/watchGroup.controller.js";
@@ -37,6 +38,7 @@ router.post(
   isAuthenticated,
   denyWatchGroupJoinRequest
 );
+router.patch("/:groupId/pause", isAuthenticated, setWatchGroupPaused);
 router.delete("/:groupId/members/:userId", isAuthenticated, removeWatchGroupMember);
 router.delete("/:groupId", isAuthenticated, closeWatchGroup);
 

@@ -36,15 +36,16 @@ import ActivityHistory from "./ActivityHistory";
 import Support from "./Support";
 import ComingSoon from "../../../../shared/components/feedback/ComingSoon";
 import Profile from "../../../profile/pages/Profile";
-import WatchGroups from "./WatchGroups";
-import WatchGroupChatPage from "../watchgroups/WatchGroupChatPage";
-import LiveEvents from "./LiveEvents";
+import WatchGroups from "../../../watchgroups/pages/WatchGroups";
+import WatchGroupChatPage from "../../../watchgroups/pages/WatchGroupChatPage";
+import LiveEvents from "../../../liveevents/pages/LiveEvents";
+import LiveEventRoomPage from "../../../liveevents/pages/LiveEventRoomPage";
 
 const VALID_TABS = [
   "postfeed",
   "manage",
   "posts",
-  "feed",
+  // "feed",
   "communities",
   "watchgroups",
   "events",
@@ -57,7 +58,7 @@ const VALID_TABS = [
 const comingSoonTitles = {
   manage: "Manage Communities",
   posts: "Post Management",
-  feed: "Personalized Feed",
+  // feed: "Personalized Feed",
   communities: "Joined Communities",
   events: "Live Events & Watch Groups",
   requests: "Join Requests",
@@ -120,7 +121,7 @@ const Dashboard = () => {
     { id: "postfeed", label: "Feed", icon: Newspaper },
     { id: "manage", label: "Manage Communities", icon: Folders },
     { id: "posts", label: "Post Management", icon: FileText },
-    { id: "feed", label: "Personalized Feed", icon: Rss },
+    // { id: "feed", label: "Personalized Feed", icon: Rss },
     { id: "communities", label: "Joined Communities", icon: Users },
     { id: "events", label: "Live Events", icon: Video },
     { id: "watchgroups", label: "Watch Groups", icon: Video },
@@ -379,11 +380,17 @@ const Dashboard = () => {
             <Route path="requests" element={<JoinRequests />} />
             <Route path="support" element={<Support />} />
             <Route path="profile" element={<Profile />} />
-            <Route path="feed" element={renderComingSoon("feed")} />
+            {/* <Route path="feed" element={renderComingSoon("feed")} /> */}
             <Route path="watchgroups" element={<WatchGroups />} />
             <Route path="events" element={<LiveEvents />} />
-            <Route path="watchgroups/:groupId/chat/*" element={<WatchGroupChatPage />} />
-            <Route path="events" element={<Navigate to="/dashboard/watchgroups" replace />} />
+            <Route
+              path="watchgroups/:groupId/chat/*"
+              element={<WatchGroupChatPage />}
+            />
+            <Route
+              path="events/:eventId/room/*"
+              element={<LiveEventRoomPage />}
+            />
             <Route path="activity" element={<ActivityHistory />} />
             <Route path="*" element={<Navigate to="/dashboard/manage" replace />} />
           </Routes>

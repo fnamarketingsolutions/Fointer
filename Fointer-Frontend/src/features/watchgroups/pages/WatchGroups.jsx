@@ -20,14 +20,14 @@ import {
   approveWatchGroupJoinRequest,
   denyWatchGroupJoinRequest,
   closeWatchGroup,
-} from "../../services/communityService";
-import CreateWatchGroupModal from "../watchgroups/CreateWatchGroupModal";
-import WatchGroupJoinAction from "../watchgroups/WatchGroupJoinAction";
-import WatchGroupChatPage from "../watchgroups/WatchGroupChatPage";
-import { useToast } from "../../../../shared/components/feedback/ToastContext";
-import { getErrorMessage } from "../../../../shared/utils/errors";
-import { useAuth } from "../../../../context/AuthContext";
-import ConfirmDeleteModal from "../../../../shared/components/modals/ConfirmDeleteModal";
+} from "../services/watchGroupService";
+import CreateWatchGroupModal from "./CreateWatchGroupModal";
+import WatchGroupJoinAction from "./WatchGroupJoinAction";
+import WatchGroupChatPage from "./WatchGroupChatPage";
+import { useToast } from "../../../shared/components/feedback/ToastContext";
+import { getErrorMessage } from "../../../shared/utils/errors";
+import { useAuth } from "../../../context/AuthContext";
+import ConfirmDeleteModal from "../../../shared/components/modals/ConfirmDeleteModal";
 
 const STATUS_TABS = [
   { id: "all", label: "All" },
@@ -266,16 +266,16 @@ export default function WatchGroups() {
       <div
         className={`${
           showMobileChat ? "hidden md:flex" : "flex"
-        } w-full md:w-1/2 flex-col h-full gap-3 overflow-hidden shrink-0 pt-3 sm:pt-4 px-1`}
+        } w-full md:w-1/2 flex-col h-full gap-3 overflow-hidden shrink-0 pt-3 sm:pt-4 px-0`}
       >
-        <div className="flex items-start justify-between gap-3 shrink-0">
+        <div className="flex items-start justify-between gap-3 shrink-0 px-2">
           <div className="min-w-0 flex-1">
             <h1 className="text-xl sm:text-2xl font-serif font-semibold text-[#E5E0D8] flex items-center gap-2">
               <Video size={22} className="text-[#D4AF37]" />
               Watch Groups
             </h1>
             <p className="text-xs text-[#A69B8D] mt-1">
-              Create live commentary rooms for your communities.
+              Create Watch Groups rooms for your communities.
             </p>
             <div className="relative mt-3 max-w-md">
               <Search
@@ -313,7 +313,7 @@ export default function WatchGroups() {
         </div>
 
         {/* Filter Tabs */}
-        <div className="flex items-center gap-2 flex-wrap shrink-0">
+        <div className="flex items-center gap-2 flex-wrap shrink-0 px-2">
           {STATUS_TABS.map((tab) => (
             <button
               key={tab.id}
@@ -383,10 +383,10 @@ export default function WatchGroups() {
               return (
                 <div
                   key={group.id}
-                  className={`bg-[#14100D] border rounded-2xl p-4 space-y-3 transition-all ${
+                  className={`bg-[#14100D] border-x-0 border-t-0 border-b px-2 py-2.5 space-y-2.5 transition-all ${
                     isSelected
-                      ? "border-[#D4AF37] bg-[#1A140F] shadow-lg"
-                      : "border-[#2A241E] hover:border-[#D4AF37]/40"
+                      ? "border-[#D4AF37] bg-[#1A140F] border-b-2"
+                      : "border-[#D4AF37]/70 hover:border-[#D4AF37]"
                   }`}
                 >
                   <div
@@ -403,26 +403,54 @@ export default function WatchGroups() {
                     }}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <h3 className="font-serif font-bold text-base text-[#E5E0D8] leading-snug">
+                      <h3 className="font-serif font-bold text-base text-[#E5E0D8] leading-snug min-w-0 flex-1 truncate">
                         {group.name}
                       </h3>
-                      <span
-                        className={`inline-flex items-center gap-1 shrink-0 px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wide ${
-                          group.type === "private"
-                            ? "bg-[#2A241E] text-[#A69B8D]"
-                            : "bg-[#D4AF37]/15 text-[#D4AF37]"
-                        }`}
+                      <div
+                        className="flex items-center gap-1.5 shrink-0"
+                        onClick={(e) => e.stopPropagation()}
                       >
-                        <TypeIcon size={10} />
-                        {group.type}
-                      </span>
+                        {!member ? (
+                          <WatchGroupJoinAction
+                            group={group}
+                            onJoined={(g) => {
+                              markJoined(g);
+                              setActiveGroupId(g.id);
+                            }}
+                            onRequested={markRequested}
+                          />
+                        ) : null}
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wide ${
+                            group.type === "private"
+                              ? "bg-[#2A241E] text-[#A69B8D]"
+                              : "bg-[#D4AF37]/15 text-[#D4AF37]"
+                          }`}
+                        >
+                          <TypeIcon size={10} />
+                          {group.type}
+                        </span>
+                        {canManage ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeletingGroup(group);
+                            }}
+                            className="p-1.5 rounded-md text-red-300 hover:bg-red-400/10 transition-colors"
+                            title="Delete group"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        ) : null}
+                      </div>
                     </div>
 
                     <p className="text-[11px] text-[#8C8070] font-mono uppercase tracking-wider truncate">
-                      {group.community?.name || "Community"}
+                      {group.community?.name || "No community"}
                     </p>
 
-                    <div className="flex items-center justify-between text-xs text-[#A69B8D] pt-2 border-t border-[#2A241E]">
+                    <div className="flex items-center justify-between text-xs text-[#A69B8D] pt-1">
                       <span className="inline-flex items-center gap-1.5">
                         <Users size={13} className="text-[#D4AF37]" />
                         {group.participantCount ?? 0}/{group.maxParticipants}{" "}
@@ -439,35 +467,6 @@ export default function WatchGroups() {
                       </span>
                     </div>
                   </div>
-
-                  {(canManage || !member) && (
-                    <div className="pt-1 flex items-center justify-end gap-2">
-                      {canManage ? (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setDeletingGroup(group);
-                          }}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-red-400/30 text-[11px] text-red-300 hover:bg-red-400/10"
-                          title="Delete group"
-                        >
-                          <Trash2 size={12} />
-                          Delete
-                        </button>
-                      ) : null}
-                      {!member ? (
-                        <WatchGroupJoinAction
-                          group={group}
-                          onJoined={(g) => {
-                            markJoined(g);
-                            setActiveGroupId(g.id);
-                          }}
-                          onRequested={markRequested}
-                        />
-                      ) : null}
-                    </div>
-                  )}
 
                   {created && pendingCount > 0 && (
                     <div className="pt-1 space-y-2">
@@ -560,7 +559,7 @@ export default function WatchGroups() {
       <div
         className={`${
           showMobileChat ? "flex" : "hidden md:flex"
-        } w-full md:w-1/2 h-full flex-col min-h-0 pt-0 md:pt-4`}
+        } w-full md:w-1/2 h-full flex-col min-h-0 p-0`}
       >
         {activeGroupId ? (
           <WatchGroupChatPage
@@ -574,8 +573,8 @@ export default function WatchGroups() {
             onMemberRemoved={() => load()}
           />
         ) : (
-          <div className="h-full bg-[#0F0C09]/80 border border-[#2A241E] rounded-2xl flex flex-col items-center justify-center p-6 text-center">
-            <div className="w-14 h-14 rounded-full bg-[#14100D] border border-[#2A241E] flex items-center justify-center mb-3">
+          <div className="h-full bg-[#0F0C09]/80 flex flex-col items-center justify-center p-6 text-center">
+            <div className="w-14 h-14 rounded-full bg-[#14100D] flex items-center justify-center mb-3">
               <MessageSquare size={24} className="text-[#8C8070]" />
             </div>
             <h2 className="text-base font-semibold text-[#E5E0D8]">

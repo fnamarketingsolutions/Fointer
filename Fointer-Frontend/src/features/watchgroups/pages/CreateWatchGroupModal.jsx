@@ -11,9 +11,9 @@ import {
 import {
   createWatchGroup,
   fetchWatchGroupCreateContext,
-} from "../../services/communityService";
-import { useToast } from "../../../../shared/components/feedback/ToastContext";
-import { getErrorMessage } from "../../../../shared/utils/errors";
+} from "../services/watchGroupService";
+import { useToast } from "../../../shared/components/feedback/ToastContext";
+import { getErrorMessage } from "../../../shared/utils/errors";
 
 const emptyForm = {
   name: "",
@@ -26,13 +26,13 @@ const TYPE_OPTIONS = [
   {
     value: "public",
     label: "Public",
-    description: "Any community member can join freely.",
+    description: "Anyone with access can join freely.",
     icon: Globe,
   },
   {
     value: "private",
     label: "Private",
-    description: "Invite-only access within the community.",
+    description: "Invite-only — members must request to join.",
     icon: Lock,
   },
 ];
@@ -73,7 +73,7 @@ export default function CreateWatchGroupModal({ open, onClose, onSuccess }) {
           ...emptyForm,
           maxParticipants: data?.defaults?.maxParticipants ?? 50,
           type: data?.defaults?.type ?? "public",
-          communityId: list.length === 1 ? list[0].id : "",
+          communityId: "",
         });
         setCommunityDropdownOpen(false);
       } catch (err) {
@@ -101,29 +101,28 @@ export default function CreateWatchGroupModal({ open, onClose, onSuccess }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.communityId) {
-      showToast("Please select a community.");
-      return;
-    }
     if (!form.name.trim()) {
       showToast("Group name is required.");
       return;
     }
 
     const max = Number(form.maxParticipants);
-    if (!Number.isFinite(max) || !Number.isInteger(max) || max < 2) {
-      showToast("Max participants must be at least 2.");
+    if (!Number.isFinite(max) || !Number.isInteger(max) || max < 2 || max > 50) {
+      showToast("Max participants must be between 2 and 50.");
       return;
     }
 
     setSaving(true);
     try {
-      await createWatchGroup({
+      const payload = {
         name: form.name.trim(),
         type: form.type,
         maxParticipants: max,
-        communityId: form.communityId,
-      });
+      };
+      if (form.communityId) {
+        payload.communityId = form.communityId;
+      }
+      await createWatchGroup(payload);
       showToast("Watch group created.");
       if (onSuccess) onSuccess();
       onClose();
@@ -143,7 +142,7 @@ export default function CreateWatchGroupModal({ open, onClose, onSuccess }) {
               Create Watch Group
             </h3>
             <p className="text-[11px] text-[#A69B8D] mt-0.5">
-              Start a live commentary room for your community.
+              Start a live commentary room. Community is optional.
             </p>
           </div>
           <button
@@ -159,16 +158,15 @@ export default function CreateWatchGroupModal({ open, onClose, onSuccess }) {
         <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-5">
           <div className="relative" ref={communityRef}>
             <label className="block text-[11px] font-bold uppercase tracking-wider text-[#D4AF37] mb-2">
-              Community
+              Community{" "}
+              <span className="font-normal normal-case tracking-normal text-[#8C8070]">
+                (optional)
+              </span>
             </label>
             {loadingContext ? (
               <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-lg bg-[#0E0C0A] border border-[#2A241E] text-xs text-[#8C8070]">
                 <Loader2 size={14} className="animate-spin" />
                 Loading communities...
-              </div>
-            ) : communities.length === 0 ? (
-              <div className="px-3.5 py-2.5 rounded-lg bg-[#0E0C0A]/60 border border-[#2A241E] text-xs text-[#8C8070]">
-                Join a community first to create a watch group.
               </div>
             ) : (
               <>
@@ -180,7 +178,7 @@ export default function CreateWatchGroupModal({ open, onClose, onSuccess }) {
                   <span className="truncate">
                     {selectedCommunity
                       ? selectedCommunity.name
-                      : "Select a community"}
+                      : "No community"}
                   </span>
                   <ChevronDown
                     size={16}
@@ -191,6 +189,21 @@ export default function CreateWatchGroupModal({ open, onClose, onSuccess }) {
                 </button>
                 {communityDropdownOpen && (
                   <div className="absolute left-0 right-0 top-full mt-1.5 z-30 max-h-48 overflow-y-auto bg-[#0E0C0A] border border-[#2A241E] rounded-lg shadow-xl py-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleInputChange("communityId", "");
+                        setCommunityDropdownOpen(false);
+                      }}
+                      className={`w-full text-left px-3.5 py-2 text-xs sm:text-sm transition-colors flex items-center justify-between ${
+                        !form.communityId
+                          ? "bg-[#D4AF37]/15 text-[#D4AF37] font-semibold"
+                          : "text-[#E5E0D8] hover:bg-[#1a1510]"
+                      }`}
+                    >
+                      <span className="truncate">No community</span>
+                      {!form.communityId && <Check size={14} />}
+                    </button>
                     {communities.map((c) => (
                       <button
                         key={c.id}
@@ -276,7 +289,7 @@ export default function CreateWatchGroupModal({ open, onClose, onSuccess }) {
               <input
                 type="number"
                 min={2}
-                max={500}
+                max={50}
                 value={form.maxParticipants}
                 onChange={(e) =>
                   handleInputChange("maxParticipants", e.target.value)
@@ -285,7 +298,7 @@ export default function CreateWatchGroupModal({ open, onClose, onSuccess }) {
               />
             </div>
             <p className="text-[10px] text-[#8C8070] mt-1.5">
-              Default is 50. Range: 2–500.
+              Default is 50. Range: 2–50.
             </p>
           </div>
 
@@ -300,7 +313,7 @@ export default function CreateWatchGroupModal({ open, onClose, onSuccess }) {
             </button>
             <button
               type="submit"
-              disabled={saving || loadingContext || communities.length === 0}
+              disabled={saving || loadingContext}
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-[#D4AF37] to-[#AA820A] text-black text-xs sm:text-sm font-bold disabled:opacity-60"
             >
               {saving && <Loader2 size={16} className="animate-spin" />}

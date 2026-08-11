@@ -1,14 +1,31 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { Loader2, Search, X, Heart, MessageCircle } from "lucide-react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import {
+  Loader2,
+  Search,
+  X,
+  Heart,
+  MessageCircle,
+  Radio,
+  Video,
+  Users,
+  Globe,
+  Lock,
+} from "lucide-react";
 import { fetchPublicPost, fetchPublicPosts } from "../../../../api/posts";
 import PostDetail from "../../../posts/pages/PostDetail";
 import { useToast } from "../../../../shared/components/feedback/ToastContext";
 import { postSegment } from "../../../../shared/services/entityLinks";
 import useEntityId from "../../../../shared/hooks/useEntityId";
+import { fetchLiveEvents } from "../../../liveevents/services/liveEventService";
+import { fetchWatchGroups } from "../../../watchgroups/services/watchGroupService";
+import { getErrorMessage } from "../../../../shared/utils/errors";
 
 const FEED_PATH = "/dashboard/postfeed";
+const LIVE_EVENTS_PATH = "/dashboard/events";
+const WATCH_GROUPS_PATH = "/dashboard/watchgroups";
 const PAGE_SIZE = 10;
+const SIDEBAR_PREVIEW_COUNT = 3;
 
 function CustomPostCard({ post, onClick }) {
   const authorName =
@@ -32,7 +49,6 @@ function CustomPostCard({ post, onClick }) {
       onClick={onClick}
       className="bg-[#14100D] rounded-xl p-4 sm:p-5 flex flex-col gap-3 cursor-pointer transition-all shadow-md group w-full"
     >
-      {/* 1. Author Name & Time Header */}
       <div className="flex items-center gap-3">
         {post?.author?.avatar ? (
           <img
@@ -55,7 +71,6 @@ function CustomPostCard({ post, onClick }) {
         </div>
       </div>
 
-      {/* 2. Image */}
       {coverImage && (
         <div className="w-full h-48 sm:h-52 rounded-lg overflow-hidden bg-[#0A0806] my-1">
           <img
@@ -66,21 +81,18 @@ function CustomPostCard({ post, onClick }) {
         </div>
       )}
 
-      {/* 3. Title */}
       {post?.title && (
         <h3 className="text-base sm:text-lg font-serif font-bold text-[#E5E0D8] line-clamp-2 leading-snug">
           {post.title}
         </h3>
       )}
 
-      {/* 4. Description */}
       {post?.text && (
         <p className="text-xs sm:text-sm text-[#A69B8D] line-clamp-3 leading-relaxed">
           {post.text}
         </p>
       )}
 
-      {/* 5. Likes & Comments Icons Section */}
       <div className="flex items-center gap-4 pt-2 text-xs text-[#A69B8D] mt-auto">
         <div className="flex items-center gap-1.5 hover:text-[#D4AF37] transition-colors">
           <Heart
@@ -95,6 +107,113 @@ function CustomPostCard({ post, onClick }) {
         </div>
       </div>
     </div>
+  );
+}
+
+function FeedSidebarSection({
+  title,
+  icon: Icon,
+  viewMoreTo,
+  loading,
+  emptyLabel,
+  children,
+}) {
+  return (
+    <section className="space-y-1.5 overflow-hidden">
+      <div className="flex items-center justify-between gap-2 px-1">
+        <h2 className="text-sm font-semibold text-[#E5E0D8] flex items-center gap-1.5">
+          <Icon size={14} className="text-[#D4AF37]" />
+          {title}
+        </h2>
+        <Link
+          to={viewMoreTo}
+          className="text-[11px] font-medium text-[#D4AF37] hover:text-[#e0c04a] transition-colors whitespace-nowrap"
+        >
+          View more
+        </Link>
+      </div>
+      {loading ? (
+        <div className="flex items-center justify-center py-6 text-[#8C8070] text-xs gap-2">
+          <Loader2 size={14} className="animate-spin text-[#D4AF37]" />
+          Loading...
+        </div>
+      ) : React.Children.count(children) === 0 ? (
+        <p className="text-xs text-[#8C8070] px-1 py-3">{emptyLabel}</p>
+      ) : (
+        <div className="space-y-0 overflow-hidden">{children}</div>
+      )}
+    </section>
+  );
+}
+
+function LiveEventPreviewTile({ event, onClick }) {
+  const AccessIcon =
+    event.access === "community_restricted" ? Lock : Globe;
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full text-left bg-transparent border-x-0 border-t-0 border-b border-[#D4AF37]/70 hover:border-[#D4AF37] px-1.5 py-2 space-y-1 transition-colors"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <h3 className="font-serif font-bold text-sm text-[#E5E0D8] leading-snug min-w-0 flex-1 truncate">
+          {event.title}
+        </h3>
+        <span
+          className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-semibold uppercase tracking-wide shrink-0 ${
+            event.access === "community_restricted"
+              ? "bg-[#2A241E] text-[#A69B8D]"
+              : "bg-[#D4AF37]/15 text-[#D4AF37]"
+          }`}
+        >
+          <AccessIcon size={9} />
+          {event.access === "community_restricted" ? "Restricted" : "Public"}
+        </span>
+      </div>
+      <p className="text-[10px] text-[#8C8070] font-mono uppercase tracking-wider truncate">
+        {event.community?.name || "Community"}
+      </p>
+      <div className="flex items-center gap-1.5 text-[11px] text-[#A69B8D]">
+        <Users size={12} className="text-[#D4AF37]" />
+        {event.participantCount ?? 0} watching
+      </div>
+    </button>
+  );
+}
+
+function WatchGroupPreviewTile({ group, onClick }) {
+  const TypeIcon = group.type === "private" ? Lock : Globe;
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full text-left bg-transparent border-x-0 border-t-0 border-b border-[#D4AF37]/70 hover:border-[#D4AF37] px-1.5 py-2 space-y-1 transition-colors"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <h3 className="font-serif font-bold text-sm text-[#E5E0D8] leading-snug min-w-0 flex-1 truncate">
+          {group.name}
+        </h3>
+        <span
+          className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-semibold uppercase tracking-wide shrink-0 ${
+            group.type === "private"
+              ? "bg-[#2A241E] text-[#A69B8D]"
+              : "bg-[#D4AF37]/15 text-[#D4AF37]"
+          }`}
+        >
+          <TypeIcon size={9} />
+          {group.type}
+        </span>
+      </div>
+      <p className="text-[10px] text-[#8C8070] font-mono uppercase tracking-wider truncate">
+        {group.community?.name || "No community"}
+      </p>
+      <div className="flex items-center gap-1.5 text-[11px] text-[#A69B8D]">
+        <Users size={12} className="text-[#D4AF37]" />
+        {group.participantCount ?? 0}/{group.maxParticipants} participants
+      </div>
+    </button>
   );
 }
 
@@ -113,6 +232,10 @@ export default function DashboardFeed() {
   const [searchInput, setSearchInput] = useState("");
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
+
+  const [liveEvents, setLiveEvents] = useState([]);
+  const [watchGroups, setWatchGroups] = useState([]);
+  const [sidebarLoading, setSidebarLoading] = useState(true);
 
   const load = useCallback(
     async ({ q = "", pageNum = 1, append = false } = {}) => {
@@ -146,9 +269,33 @@ export default function DashboardFeed() {
     [showToast]
   );
 
+  const loadSidebar = useCallback(async () => {
+    setSidebarLoading(true);
+    try {
+      const [eventsData, groupsData] = await Promise.all([
+        fetchLiveEvents(),
+        fetchWatchGroups(),
+      ]);
+      setLiveEvents((eventsData?.liveEvents || []).slice(0, SIDEBAR_PREVIEW_COUNT));
+      setWatchGroups(
+        (groupsData?.watchGroups || []).slice(0, SIDEBAR_PREVIEW_COUNT)
+      );
+    } catch (err) {
+      showToast(getErrorMessage(err, "Unable to load sidebar previews."));
+      setLiveEvents([]);
+      setWatchGroups([]);
+    } finally {
+      setSidebarLoading(false);
+    }
+  }, [showToast]);
+
   useEffect(() => {
     load({ q: query, pageNum: 1, append: false });
   }, [load, query]);
+
+  useEffect(() => {
+    loadSidebar();
+  }, [loadSidebar]);
 
   const openPost = (post) => {
     navigate(`${FEED_PATH}/${postSegment(post)}`);
@@ -182,6 +329,42 @@ export default function DashboardFeed() {
     load({ q: query, pageNum: page + 1, append: true });
   };
 
+  const sidebarBlocks = (
+    <>
+      <FeedSidebarSection
+        title="Live Events"
+        icon={Radio}
+        viewMoreTo={LIVE_EVENTS_PATH}
+        loading={sidebarLoading}
+        emptyLabel="No live events yet."
+      >
+        {liveEvents.map((event) => (
+          <LiveEventPreviewTile
+            key={event.id}
+            event={event}
+            onClick={() => navigate(LIVE_EVENTS_PATH)}
+          />
+        ))}
+      </FeedSidebarSection>
+
+      <FeedSidebarSection
+        title="Watch Groups"
+        icon={Video}
+        viewMoreTo={WATCH_GROUPS_PATH}
+        loading={sidebarLoading}
+        emptyLabel="No watch groups yet."
+      >
+        {watchGroups.map((group) => (
+          <WatchGroupPreviewTile
+            key={group.id}
+            group={group}
+            onClick={() => navigate(WATCH_GROUPS_PATH)}
+          />
+        ))}
+      </FeedSidebarSection>
+    </>
+  );
+
   return (
     <div className="text-[#E5E0D8] w-full px-2 sm:px-4 lg:px-6">
       <div className="mb-6 sm:mb-8">
@@ -193,7 +376,6 @@ export default function DashboardFeed() {
           likes, or comments.
         </p>
 
-        {/* Search Bar */}
         <form
           onSubmit={handleSearch}
           className="mt-6 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 max-w-2xl w-full"
@@ -222,45 +404,56 @@ export default function DashboardFeed() {
         </form>
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center py-16 text-[#A69B8D] text-sm gap-2 w-full">
-          <Loader2 size={18} className="animate-spin text-[#D4AF37]" />
-          Loading posts...
-        </div>
-      ) : posts.length === 0 ? (
-        <div className="border border-dashed border-[#2A241E] rounded-2xl py-16 text-center text-[#8C8070] text-sm px-4 max-w-xl mx-auto">
-          {query
-            ? `No posts match “${query}”.`
-            : "No public posts to show yet."}
-        </div>
-      ) : (
-        <>
-          {/* Full Width Grid Container */}
-          <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
-            {posts.map((post) => (
-              <CustomPostCard
-                key={post.id}
-                post={post}
-                onClick={() => openPost(post)}
-              />
-            ))}
-          </div>
-
-          {hasMore && (
-            <div className="mt-8 flex justify-center w-full">
-              <button
-                type="button"
-                onClick={handleLoadMore}
-                disabled={loadingMore}
-                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg border border-[#2A241E] text-sm text-[#E5E0D8] hover:border-[#D4AF37]/50 hover:text-[#D4AF37] disabled:opacity-60 transition-colors"
-              >
-                {loadingMore && <Loader2 size={16} className="animate-spin text-[#D4AF37]" />}
-                Load more
-              </button>
+      <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 items-start">
+        {/* Left: posts ~60% */}
+        <div className="w-full lg:w-[60%] min-w-0">
+          {loading ? (
+            <div className="flex items-center justify-center py-16 text-[#A69B8D] text-sm gap-2 w-full">
+              <Loader2 size={18} className="animate-spin text-[#D4AF37]" />
+              Loading posts...
             </div>
+          ) : posts.length === 0 ? (
+            <div className="border border-dashed border-[#2A241E] rounded-2xl py-16 text-center text-[#8C8070] text-sm px-4 max-w-xl mx-auto">
+              {query
+                ? `No posts match “${query}”.`
+                : "No public posts to show yet."}
+            </div>
+          ) : (
+            <>
+              <div className="w-full grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                {posts.map((post) => (
+                  <CustomPostCard
+                    key={post.id}
+                    post={post}
+                    onClick={() => openPost(post)}
+                  />
+                ))}
+              </div>
+
+              {hasMore && (
+                <div className="mt-8 flex justify-center w-full">
+                  <button
+                    type="button"
+                    onClick={handleLoadMore}
+                    disabled={loadingMore}
+                    className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg border border-[#2A241E] text-sm text-[#E5E0D8] hover:border-[#D4AF37]/50 hover:text-[#D4AF37] disabled:opacity-60 transition-colors"
+                  >
+                    {loadingMore && (
+                      <Loader2 size={16} className="animate-spin text-[#D4AF37]" />
+                    )}
+                    Load more
+                  </button>
+                </div>
+              )}
+            </>
           )}
-        </>
-      )}
+        </div>
+
+        {/* Right: sidebar ~40% — fixed in view, not independently scrollable */}
+        <aside className="w-full lg:w-[40%] min-w-0 lg:sticky lg:top-4 lg:self-start space-y-5 overflow-hidden shrink-0">
+          {sidebarBlocks}
+        </aside>
+      </div>
 
       {postSlug && (
         <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-0 sm:p-6">

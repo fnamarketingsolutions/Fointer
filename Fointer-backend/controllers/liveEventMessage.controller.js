@@ -1,24 +1,26 @@
-import WatchGroupMember from "../models/watchGroupMember.js";
+import LiveEventMember from "../models/liveEventMember.js";
 import { getIo } from "../sockets/initSocket.js";
 import {
   ensureActiveMembership,
   ensureChatAccess,
   formatMessage,
   formatUser,
-  isGroupAdmin,
   MESSAGE_EDIT_WINDOW_MINUTES,
   parsePagination,
-  WatchGroupMessage,
-} from "../services/watchGroupMessage.service.js";
-import { WATCH_GROUP_SOCKET_EVENTS, toWatchGroupRoom } from "../sockets/events.js";
+  LiveEventMessage,
+} from "../services/liveEventMessage.service.js";
+import {
+  LIVE_EVENT_SOCKET_EVENTS,
+  toLiveEventRoom,
+} from "../sockets/events.js";
 
-const emitMessageEvent = (eventName, groupId, payload) => {
+const emitMessageEvent = (eventName, eventId, payload) => {
   const io = getIo();
   if (!io) return;
-  const roomId = String(groupId);
-  io.to(toWatchGroupRoom(roomId)).emit(eventName, {
+  const roomId = String(eventId);
+  io.to(toLiveEventRoom(roomId)).emit(eventName, {
     ...payload,
-    groupId: roomId,
+    eventId: roomId,
   });
 };
 
@@ -28,25 +30,22 @@ const canEditMessage = (message, userId) => {
   return elapsedMs <= MESSAGE_EDIT_WINDOW_MINUTES * 60 * 1000;
 };
 
-const canDeleteMessage = (message, userId, group, membership) => {
-  if (isGroupAdmin(group, membership, userId)) return true;
-  return canEditMessage(message, userId);
-};
-
-const formatOpts = (access, userId) => ({
-  isGroupAdmin: isGroupAdmin(access.group, access.membership, userId),
+const formatOpts = (access) => ({
+  canModerate: Boolean(access.canModerate),
 });
 
-export const getWatchGroupChatMeta = async (req, res) => {
+export const getLiveEventChatMeta = async (req, res) => {
   try {
-    const { groupId } = req.params;
-    const access = await ensureChatAccess(groupId, req.user);
+    const { eventId } = req.params;
+    const access = await ensureChatAccess(eventId, req.user);
     if (!access.ok) {
-      return res.status(access.code).json({ success: false, message: access.message });
+      return res
+        .status(access.code)
+        .json({ success: false, message: access.message });
     }
 
-    const members = await WatchGroupMember.find({
-      watchGroup: groupId,
+    const members = await LiveEventMember.find({
+      liveEvent: eventId,
       status: "active",
     })
       .populate("user", "username name avatar")
@@ -63,35 +62,34 @@ export const getWatchGroupChatMeta = async (req, res) => {
         role: row.role,
       }));
 
-    const canManageGroup =
-      isGroupAdmin(access.group, access.membership, req.user._id) ||
-      access.canModerate ||
-      req.user.role === "admin";
+    const canManageEvent =
+      access.canModerate || req.user.role === "admin";
 
     return res.status(200).json({
       success: true,
       chatMeta: {
-        group: {
-          id: access.group._id,
-          shortCode: access.group.shortCode || null,
-          name: access.group.name,
-          type: access.group.type,
-          status: access.group.status,
-          community: access.group.community
+        event: {
+          id: access.event._id,
+          shortCode: access.event.shortCode || null,
+          title: access.event.title,
+          category: access.event.category,
+          access: access.event.access,
+          status: access.event.status,
+          community: access.event.community
             ? {
-                id: access.group.community._id,
-                shortCode: access.group.community.shortCode || null,
-                name: access.group.community.name,
+                id: access.event.community._id,
+                shortCode: access.event.community.shortCode || null,
+                name: access.event.community.name,
               }
             : null,
         },
-        administrator: formatUser(access.group.createdBy),
+        administrator: formatUser(access.event.createdBy),
         members: memberList,
         memberCount: memberList.length,
         myRole: access.membership?.role || null,
-        canManageGroup,
+        canManageEvent,
         canModerateCommunity: Boolean(access.canModerate),
-        isPaused: access.group.status === "paused",
+        isEnded: access.event.status === "ended",
       },
     });
   } catch (error) {
@@ -99,21 +97,23 @@ export const getWatchGroupChatMeta = async (req, res) => {
   }
 };
 
-export const listWatchGroupMessages = async (req, res) => {
+export const listLiveEventMessages = async (req, res) => {
   try {
-    const { groupId } = req.params;
-    const access = await ensureChatAccess(groupId, req.user);
+    const { eventId } = req.params;
+    const access = await ensureChatAccess(eventId, req.user);
     if (!access.ok) {
-      return res.status(access.code).json({ success: false, message: access.message });
+      return res
+        .status(access.code)
+        .json({ success: false, message: access.message });
     }
 
     const { limit, before } = parsePagination(req.query);
-    const query = { watchGroup: groupId };
+    const query = { liveEvent: eventId };
     if (before) {
       query.createdAt = { $lt: before };
     }
 
-    const rows = await WatchGroupMessage.find(query)
+    const rows = await LiveEventMessage.find(query)
       .sort({ createdAt: -1 })
       .limit(limit + 1)
       .populate("author", "username name avatar")
@@ -127,7 +127,7 @@ export const listWatchGroupMessages = async (req, res) => {
     return res.status(200).json({
       success: true,
       messages: ordered.map((row) =>
-        formatMessage(row, req.user._id, formatOpts(access, req.user._id))
+        formatMessage(row, req.user._id, formatOpts(access))
       ),
       pagination: {
         hasMore,
@@ -140,18 +140,20 @@ export const listWatchGroupMessages = async (req, res) => {
   }
 };
 
-export const createWatchGroupMessage = async (req, res) => {
+export const createLiveEventMessage = async (req, res) => {
   try {
-    const { groupId } = req.params;
-    const access = await ensureActiveMembership(groupId, req.user._id);
+    const { eventId } = req.params;
+    const access = await ensureActiveMembership(eventId, req.user._id);
     if (!access.ok) {
-      return res.status(access.code).json({ success: false, message: access.message });
+      return res
+        .status(access.code)
+        .json({ success: false, message: access.message });
     }
 
-    if (access.group.status === "paused") {
+    if (access.event.status !== "active") {
       return res.status(403).json({
         success: false,
-        message: "This watch group is paused.",
+        message: "This live event has ended.",
       });
     }
 
@@ -163,23 +165,24 @@ export const createWatchGroupMessage = async (req, res) => {
       });
     }
 
-    const created = await WatchGroupMessage.create({
-      watchGroup: groupId,
+    const created = await LiveEventMessage.create({
+      liveEvent: eventId,
       author: req.user._id,
       text,
     });
 
-    const populated = await WatchGroupMessage.findById(created._id)
+    const populated = await LiveEventMessage.findById(created._id)
       .populate("author", "username name avatar")
       .lean();
 
+    const chatAccess = await ensureChatAccess(eventId, req.user);
     const message = formatMessage(
       populated,
       req.user._id,
-      formatOpts(access, req.user._id)
+      formatOpts(chatAccess.ok ? chatAccess : { canModerate: false })
     );
-    emitMessageEvent(WATCH_GROUP_SOCKET_EVENTS.MESSAGE_CREATED, groupId, {
-      groupId,
+    emitMessageEvent(LIVE_EVENT_SOCKET_EVENTS.MESSAGE_CREATED, eventId, {
+      eventId,
       message,
     });
 
@@ -193,21 +196,25 @@ export const createWatchGroupMessage = async (req, res) => {
   }
 };
 
-export const updateWatchGroupMessage = async (req, res) => {
+export const updateLiveEventMessage = async (req, res) => {
   try {
-    const { groupId, messageId } = req.params;
-    const access = await ensureActiveMembership(groupId, req.user._id);
+    const { eventId, messageId } = req.params;
+    const access = await ensureActiveMembership(eventId, req.user._id);
     if (!access.ok) {
-      return res.status(access.code).json({ success: false, message: access.message });
+      return res
+        .status(access.code)
+        .json({ success: false, message: access.message });
     }
 
-    const existing = await WatchGroupMessage.findOne({
+    const existing = await LiveEventMessage.findOne({
       _id: messageId,
-      watchGroup: groupId,
+      liveEvent: eventId,
     });
 
     if (!existing) {
-      return res.status(404).json({ success: false, message: "Message not found." });
+      return res
+        .status(404)
+        .json({ success: false, message: "Message not found." });
     }
     if (existing.status === "deleted") {
       return res.status(400).json({
@@ -235,17 +242,18 @@ export const updateWatchGroupMessage = async (req, res) => {
     existing.editedAt = new Date();
     await existing.save();
 
-    const populated = await WatchGroupMessage.findById(existing._id)
+    const populated = await LiveEventMessage.findById(existing._id)
       .populate("author", "username name avatar")
       .lean();
+    const chatAccess = await ensureChatAccess(eventId, req.user);
     const message = formatMessage(
       populated,
       req.user._id,
-      formatOpts(access, req.user._id)
+      formatOpts(chatAccess.ok ? chatAccess : { canModerate: false })
     );
 
-    emitMessageEvent(WATCH_GROUP_SOCKET_EVENTS.MESSAGE_UPDATED, groupId, {
-      groupId,
+    emitMessageEvent(LIVE_EVENT_SOCKET_EVENTS.MESSAGE_UPDATED, eventId, {
+      eventId,
       message,
     });
 
@@ -259,48 +267,41 @@ export const updateWatchGroupMessage = async (req, res) => {
   }
 };
 
-export const softDeleteWatchGroupMessage = async (req, res) => {
+export const softDeleteLiveEventMessage = async (req, res) => {
   try {
-    const { groupId, messageId } = req.params;
-    const access = await ensureChatAccess(groupId, req.user);
+    const { eventId, messageId } = req.params;
+    const access = await ensureChatAccess(eventId, req.user);
     if (!access.ok) {
-      return res.status(access.code).json({ success: false, message: access.message });
+      return res
+        .status(access.code)
+        .json({ success: false, message: access.message });
     }
 
-    const existing = await WatchGroupMessage.findOne({
+    if (!access.canModerate && req.user.role !== "admin") {
+      return res.status(403).json({
+        success: false,
+        message:
+          "Only community owners or moderators can remove live event messages.",
+      });
+    }
+
+    const existing = await LiveEventMessage.findOne({
       _id: messageId,
-      watchGroup: groupId,
+      liveEvent: eventId,
     });
     if (!existing) {
-      return res.status(404).json({ success: false, message: "Message not found." });
+      return res
+        .status(404)
+        .json({ success: false, message: "Message not found." });
     }
     if (existing.status === "deleted") {
-      const populated = await WatchGroupMessage.findById(existing._id)
+      const populated = await LiveEventMessage.findById(existing._id)
         .populate("author", "username name avatar")
         .lean();
       return res.status(200).json({
         success: true,
         message: "Message already deleted.",
-        data: formatMessage(
-          populated,
-          req.user._id,
-          formatOpts(access, req.user._id)
-        ),
-      });
-    }
-    if (
-      !canDeleteMessage(
-        existing,
-        req.user._id,
-        access.group,
-        access.membership
-      )
-    ) {
-      return res.status(403).json({
-        success: false,
-        message:
-          "Messages can only be deleted by the author within 60 minutes, or by the group administrator.",
-        editWindowMinutes: MESSAGE_EDIT_WINDOW_MINUTES,
+        data: formatMessage(populated, req.user._id, formatOpts(access)),
       });
     }
 
@@ -310,17 +311,17 @@ export const softDeleteWatchGroupMessage = async (req, res) => {
     existing.text = "";
     await existing.save();
 
-    const populated = await WatchGroupMessage.findById(existing._id)
+    const populated = await LiveEventMessage.findById(existing._id)
       .populate("author", "username name avatar")
       .lean();
     const message = formatMessage(
       populated,
       req.user._id,
-      formatOpts(access, req.user._id)
+      formatOpts(access)
     );
 
-    emitMessageEvent(WATCH_GROUP_SOCKET_EVENTS.MESSAGE_DELETED, groupId, {
-      groupId,
+    emitMessageEvent(LIVE_EVENT_SOCKET_EVENTS.MESSAGE_DELETED, eventId, {
+      eventId,
       message,
     });
 

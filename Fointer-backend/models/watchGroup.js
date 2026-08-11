@@ -3,7 +3,7 @@ import { shortCodeField, withShortCode } from "../utils/shortCode.js";
 
 export const WATCH_GROUP_TYPES = ["public", "private"];
 export const DEFAULT_MAX_PARTICIPANTS = 50;
-export const ABSOLUTE_MAX_PARTICIPANTS = 500;
+export const ABSOLUTE_MAX_PARTICIPANTS = 50;
 
 const watchGroupSchema = new mongoose.Schema(
   {
@@ -29,7 +29,7 @@ const watchGroupSchema = new mongoose.Schema(
     community: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Community",
-      required: true,
+      default: null,
       index: true,
     },
     createdBy: {
@@ -39,7 +39,7 @@ const watchGroupSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["active", "closed"],
+      enum: ["active", "paused", "closed"],
       default: "active",
     },
   },

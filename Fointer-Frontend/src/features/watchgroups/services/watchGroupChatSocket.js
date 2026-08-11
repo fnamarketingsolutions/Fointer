@@ -6,6 +6,7 @@ export const watchGroupSocketEvents = {
   messageCreated: "message:created",
   messageUpdated: "message:updated",
   messageDeleted: "message:deleted",
+  groupStatusUpdated: "group:statusUpdated",
 };
 
 /**

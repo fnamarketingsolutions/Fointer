@@ -1,6 +1,6 @@
-import WatchGroup from "../models/watchGroup.js";
-import WatchGroupMember from "../models/watchGroupMember.js";
-import WatchGroupMessage from "../models/watchGroupMessage.model.js";
+import LiveEvent from "../models/liveEvent.js";
+import LiveEventMember from "../models/liveEventMember.js";
+import LiveEventMessage from "../models/liveEventMessage.js";
 import { canModerateCommunity } from "../utils/communityPermissions.js";
 
 export const MESSAGE_EDIT_WINDOW_MINUTES = 60;
@@ -24,14 +24,14 @@ export const formatMessage = (message, viewerId, options = {}) => {
   const withinWindow =
     Date.now() - new Date(message.createdAt).getTime() <=
     MESSAGE_EDIT_WINDOW_MINUTES * 60 * 1000;
-  const isAdmin = Boolean(options.isGroupAdmin);
+  const canModerate = Boolean(options.canModerate);
   const canEdit = !isDeleted && isAuthor && withinWindow;
-  const canDelete =
-    !isDeleted && (isAdmin || (isAuthor && withinWindow));
+  // Only community owner/moderator can delete messages (moderate live event)
+  const canDelete = !isDeleted && canModerate;
 
   return {
     id: message._id,
-    watchGroup: message.watchGroup,
+    liveEvent: message.liveEvent,
     author: formatUser(message.author),
     text: isDeleted ? "" : message.text || "",
     status: message.status,
@@ -46,91 +46,80 @@ export const formatMessage = (message, viewerId, options = {}) => {
   };
 };
 
-export const isWatchGroupCreator = (group, userId) => {
-  const creatorId = group?.createdBy?._id || group?.createdBy;
-  return Boolean(creatorId && String(creatorId) === String(userId));
+const getCommunityRef = (event) => {
+  if (!event?.community) return null;
+  if (event.community._id) return event.community;
+  return { _id: event.community };
 };
 
-export const isGroupAdmin = (group, membership, userId) => {
-  if (isWatchGroupCreator(group, userId)) return true;
-  return membership?.role === "owner" && membership?.status === "active";
-};
-
-const getCommunityRef = (group) => {
-  if (!group?.community) return null;
-  if (group.community._id) return group.community;
-  return { _id: group.community };
-};
-
-export const resolveCommunityModeration = async (group, user) => {
-  const community = getCommunityRef(group);
+export const resolveCommunityModeration = async (event, user) => {
+  const community = getCommunityRef(event);
   if (!community?._id) return false;
   return canModerateCommunity(community, user);
 };
 
 /**
- * Active group member required (for send / edit).
- * Open groups include active and paused (send is blocked separately when paused).
+ * Active event member required (for send / edit).
  */
-export const ensureActiveMembership = async (groupId, userId) => {
-  const [group, membership] = await Promise.all([
-    WatchGroup.findOne({ _id: groupId, status: { $in: ["active", "paused"] } })
+export const ensureActiveMembership = async (eventId, userId) => {
+  const [event, membership] = await Promise.all([
+    LiveEvent.findOne({ _id: eventId, status: "active" })
       .populate("community", "name shortCode")
       .populate("createdBy", "username name avatar")
       .lean(),
-    WatchGroupMember.findOne({
-      watchGroup: groupId,
+    LiveEventMember.findOne({
+      liveEvent: eventId,
       user: userId,
       status: "active",
     }).lean(),
   ]);
 
-  if (!group) {
-    return { ok: false, code: 404, message: "Watch group not found." };
+  if (!event) {
+    return { ok: false, code: 404, message: "Live event not found." };
   }
   if (!membership) {
     return {
       ok: false,
       code: 403,
-      message: "Only watch group members can access chat.",
+      message: "Only live event members can access chat.",
     };
   }
 
-  return { ok: true, group, membership };
+  return { ok: true, event, membership };
 };
 
 /**
  * Member OR community moderator may read chat.
  */
-export const ensureChatAccess = async (groupId, user) => {
-  const [group, membership] = await Promise.all([
-    WatchGroup.findOne({ _id: groupId, status: { $in: ["active", "paused"] } })
+export const ensureChatAccess = async (eventId, user) => {
+  const [event, membership] = await Promise.all([
+    LiveEvent.findOne({ _id: eventId, status: { $in: ["active", "ended"] } })
       .populate("community", "name shortCode")
       .populate("createdBy", "username name avatar")
       .lean(),
-    WatchGroupMember.findOne({
-      watchGroup: groupId,
+    LiveEventMember.findOne({
+      liveEvent: eventId,
       user: user._id,
       status: "active",
     }).lean(),
   ]);
 
-  if (!group) {
-    return { ok: false, code: 404, message: "Watch group not found." };
+  if (!event) {
+    return { ok: false, code: 404, message: "Live event not found." };
   }
 
-  const canModerate = await resolveCommunityModeration(group, user);
+  const canModerate = await resolveCommunityModeration(event, user);
   if (!membership && !canModerate) {
     return {
       ok: false,
       code: 403,
-      message: "Only watch group members can access chat.",
+      message: "Only live event members can access chat.",
     };
   }
 
   return {
     ok: true,
-    group,
+    event,
     membership: membership || null,
     canModerate,
   };
@@ -148,4 +137,4 @@ export const parsePagination = (query = {}) => {
   };
 };
 
-export { WatchGroupMessage };
+export { LiveEventMessage };

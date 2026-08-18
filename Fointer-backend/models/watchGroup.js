@@ -2,18 +2,19 @@ import mongoose from "mongoose";
 import { shortCodeField, withShortCode } from "../utils/shortCode.js";
 
 export const WATCH_GROUP_TYPES = ["public", "private"];
-export const DEFAULT_MAX_PARTICIPANTS = 50;
-export const ABSOLUTE_MAX_PARTICIPANTS = 50;
+
+const DEFAULT_MAX = 50;
+const ABSOLUTE_MAX = 200;
 
 const watchGroupSchema = new mongoose.Schema(
   {
+    shortCode: shortCodeField,
     name: {
       type: String,
       required: true,
       trim: true,
       maxlength: 100,
     },
-    shortCode: shortCodeField,
     type: {
       type: String,
       enum: WATCH_GROUP_TYPES,
@@ -22,25 +23,15 @@ const watchGroupSchema = new mongoose.Schema(
     },
     maxParticipants: {
       type: Number,
-      default: DEFAULT_MAX_PARTICIPANTS,
+      default: DEFAULT_MAX,
       min: 2,
-      max: ABSOLUTE_MAX_PARTICIPANTS,
+      max: ABSOLUTE_MAX,
     },
-    community: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Community",
-      default: null,
-      index: true,
-    },
-    createdBy: {
+    owner: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
-    },
-    status: {
-      type: String,
-      enum: ["active", "paused", "closed"],
-      default: "active",
+      index: true,
     },
   },
   {
@@ -48,8 +39,13 @@ const watchGroupSchema = new mongoose.Schema(
   }
 );
 
-watchGroupSchema.index({ community: 1, createdAt: -1 });
+watchGroupSchema.index({ type: 1, createdAt: -1 });
+watchGroupSchema.index({ name: "text" });
+
 withShortCode(watchGroupSchema);
+
+export const WATCH_GROUP_DEFAULT_MAX = DEFAULT_MAX;
+export const WATCH_GROUP_ABSOLUTE_MAX = ABSOLUTE_MAX;
 
 const WatchGroup = mongoose.model("WatchGroup", watchGroupSchema);
 

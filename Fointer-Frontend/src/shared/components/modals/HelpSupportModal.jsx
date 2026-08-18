@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Loader2, X } from 'lucide-react';
+import {
+  LuLoaderCircle as Loader2,
+  LuX as X
+} from 'react-icons/lu';
 import { createSupportTicket } from '../../../api/channels';
 import { useToast } from '../feedback/ToastContext';
 import { getErrorMessage } from '../../utils/errors';

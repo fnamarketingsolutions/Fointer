@@ -1,18 +1,18 @@
 import React from 'react';
-import { 
-  UserPlus, 
-  Compass, 
-  MessageSquare, 
-  Users, 
-  Settings, 
-  HelpCircle,
-  ArrowRight,
-  CheckCircle2,
-  ShieldCheck,
-  Search,
-  Bell,
-  Heart
-} from 'lucide-react';
+import {
+  LuUserPlus as UserPlus,
+  LuCompass as Compass,
+  LuMessageSquare as MessageSquare,
+  LuUsers as Users,
+  LuSettings as Settings,
+  LuCircleHelp as HelpCircle,
+  LuArrowRight as ArrowRight,
+  LuCircleCheck as CheckCircle2,
+  LuShieldCheck as ShieldCheck,
+  LuSearch as Search,
+  LuBell as Bell,
+  LuHeart as Heart
+} from 'react-icons/lu';
 
 export default function HowToUse() {
   const steps = [

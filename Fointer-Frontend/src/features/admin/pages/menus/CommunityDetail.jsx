@@ -1,21 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  ArrowLeft,
-  CalendarDays,
-  ChevronDown,
-  ChevronUp,
-  Grid,
-  Heart,
-  Layers,
-  Loader2,
-  MessageCircle,
-  Pencil,
-  RefreshCw,
-  Shield,
-  Trash2,
-  Users,
-} from 'lucide-react';
+  LuArrowLeft as ArrowLeft,
+  LuCalendarDays as CalendarDays,
+  LuChevronDown as ChevronDown,
+  LuChevronUp as ChevronUp,
+  LuLayoutGrid as Grid,
+  LuHeart as Heart,
+  LuLayers as Layers,
+  LuLoaderCircle as Loader2,
+  LuMessageCircle as MessageCircle,
+  LuPencil as Pencil,
+  LuRefreshCw as RefreshCw,
+  LuShield as Shield,
+  LuTrash2 as Trash2,
+  LuUsers as Users
+} from 'react-icons/lu';
 import { fetchAdminCommunityDetail } from '../../../../api/dashboard';
 import { deleteCommunity } from '../../../../api/communities';
 import { fetchPosts } from '../../../../api/posts';
@@ -200,10 +200,11 @@ export default function CommunityDetail() {
 
   const openSubchannelManagement = (subName) => {
     const params = new URLSearchParams();
+    params.set('tab', 'subchannels');
     if (subName) params.set('q', subName);
     else if (channelName) params.set('q', channelName);
     if (channelId) params.set('channelId', channelId);
-    navigate(`/admin/subchannels${params.toString() ? `?${params}` : ''}`);
+    navigate(`/admin/channels?${params.toString()}`);
   };
 
   const handleConfirmDelete = async () => {

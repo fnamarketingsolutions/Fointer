@@ -1,4 +1,6 @@
 import Channel from "../models/channel.js";
+import { sendServerError } from "../utils/safeError.js";
+import { escapeRegex } from "../utils/validate.js";
 
 const formatChannel = (channel) => ({
   id: channel._id,
@@ -38,10 +40,7 @@ export const createChannel = async (req, res) => {
         message: "A channel with this name already exists.",
       });
     }
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };
 
@@ -50,7 +49,7 @@ export const listChannels = async (req, res) => {
     const q = String(req.query.q || "").trim();
     const filter = {};
     if (q) {
-      const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const escaped = escapeRegex(q);
       filter.name = new RegExp(escaped, "i");
     }
 
@@ -60,9 +59,6 @@ export const listChannels = async (req, res) => {
       channels: channels.map(formatChannel),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };

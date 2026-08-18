@@ -7,28 +7,36 @@ export const LIVE_EVENT_CATEGORIES = [
   "news",
   "custom",
 ];
-export const LIVE_EVENT_ACCESS = ["public", "community_restricted"];
+
+export const LIVE_EVENT_ACCESS = ["public", "community"];
+
+export const LIVE_EVENT_STATUS = ["live", "ended"];
 
 const liveEventSchema = new mongoose.Schema(
   {
+    shortCode: shortCodeField,
     title: {
       type: String,
       required: true,
       trim: true,
-      maxlength: 100,
+      maxlength: 160,
     },
-    shortCode: shortCodeField,
     category: {
       type: String,
       enum: LIVE_EVENT_CATEGORIES,
       required: true,
-      default: "custom",
+    },
+    customCategory: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: 60,
     },
     access: {
       type: String,
       enum: LIVE_EVENT_ACCESS,
       required: true,
-      default: "community_restricted",
+      default: "community",
     },
     community: {
       type: mongoose.Schema.Types.ObjectId,
@@ -36,15 +44,21 @@ const liveEventSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
-    createdBy: {
+    host: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
+      index: true,
     },
     status: {
       type: String,
-      enum: ["active", "ended", "closed"],
-      default: "active",
+      enum: LIVE_EVENT_STATUS,
+      default: "live",
+      index: true,
+    },
+    endedAt: {
+      type: Date,
+      default: null,
     },
   },
   {
@@ -52,8 +66,9 @@ const liveEventSchema = new mongoose.Schema(
   }
 );
 
-liveEventSchema.index({ community: 1, createdAt: -1 });
 liveEventSchema.index({ status: 1, createdAt: -1 });
+liveEventSchema.index({ community: 1, status: 1 });
+
 withShortCode(liveEventSchema);
 
 const LiveEvent = mongoose.model("LiveEvent", liveEventSchema);

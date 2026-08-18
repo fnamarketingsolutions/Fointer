@@ -1,5 +1,8 @@
 import { useEffect } from 'react';
-import { Loader2, X } from 'lucide-react';
+import {
+  LuLoaderCircle as Loader2,
+  LuX as X
+} from 'react-icons/lu';
 import { useToast } from '../feedback/ToastContext';
 
 /**

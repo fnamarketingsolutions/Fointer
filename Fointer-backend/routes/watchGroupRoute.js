@@ -1,47 +1,41 @@
 import express from "express";
 import {
-  createWatchGroup,
   listWatchGroups,
-  getWatchGroupCreateContext,
+  getWatchGroup,
+  createWatchGroup,
   joinWatchGroup,
-  createWatchGroupJoinRequest,
-  listWatchGroupJoinRequests,
-  approveWatchGroupJoinRequest,
-  denyWatchGroupJoinRequest,
-  setWatchGroupPaused,
-  closeWatchGroup,
-  removeWatchGroupMember,
+  leaveWatchGroup,
+  deleteWatchGroup,
+  listParticipants,
+  removeParticipant,
+  addParticipant,
+  setParticipantRole,
+  listWatchMessages,
+  deleteWatchMessage,
 } from "../controllers/watchGroup.controller.js";
 import { isAuthenticated } from "../middleware/auth.middleware.js";
-import watchGroupMessageRoute from "./watchGroupMessage.route.js";
 
 const router = express.Router();
 
-router.get("/create-context", isAuthenticated, getWatchGroupCreateContext);
 router.get("/", isAuthenticated, listWatchGroups);
 router.post("/", isAuthenticated, createWatchGroup);
 
-router.post("/:groupId/join", isAuthenticated, joinWatchGroup);
-router.get("/:groupId/join-requests", isAuthenticated, listWatchGroupJoinRequests);
-router.post(
-  "/:groupId/join-requests",
+router.get("/:id/participants", isAuthenticated, listParticipants);
+router.post("/:id/participants", isAuthenticated, addParticipant);
+router.delete("/:id/participants/:memberId", isAuthenticated, removeParticipant);
+router.patch(
+  "/:id/participants/:memberId/role",
   isAuthenticated,
-  createWatchGroupJoinRequest
+  setParticipantRole
 );
-router.post(
-  "/:groupId/join-requests/:requestId/approve",
-  isAuthenticated,
-  approveWatchGroupJoinRequest
-);
-router.post(
-  "/:groupId/join-requests/:requestId/deny",
-  isAuthenticated,
-  denyWatchGroupJoinRequest
-);
-router.patch("/:groupId/pause", isAuthenticated, setWatchGroupPaused);
-router.delete("/:groupId/members/:userId", isAuthenticated, removeWatchGroupMember);
-router.delete("/:groupId", isAuthenticated, closeWatchGroup);
 
-router.use("/:groupId", watchGroupMessageRoute);
+router.get("/:id/messages", isAuthenticated, listWatchMessages);
+router.delete("/:id/messages/:messageId", isAuthenticated, deleteWatchMessage);
+
+router.post("/:id/join", isAuthenticated, joinWatchGroup);
+router.post("/:id/leave", isAuthenticated, leaveWatchGroup);
+
+router.get("/:id", isAuthenticated, getWatchGroup);
+router.delete("/:id", isAuthenticated, deleteWatchGroup);
 
 export default router;

@@ -120,7 +120,6 @@ export const formatMember = (membership) => {
             id: user._id,
             username: user.username,
             name: user.name,
-            email: user.email,
             avatar: user.avatar || "",
           }
         : { id: membership.user },

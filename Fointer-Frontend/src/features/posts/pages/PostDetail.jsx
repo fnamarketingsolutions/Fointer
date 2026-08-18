@@ -1,18 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
-  ArrowLeft,
-  Pencil,
-  Trash2,
-  X,
-  Loader2,
-  Heart,
-  MessageCircle,
-  Reply,
-  ChevronDown,
-  ChevronUp,
-
-} from "lucide-react";
+  LuPencil as Pencil,
+  LuTrash2 as Trash2,
+  LuLoaderCircle as Loader2,
+  LuHeart as Heart,
+  LuMessageCircle as MessageCircle,
+  LuFlag as Flag,
+  LuUsers as Users
+} from "react-icons/lu";
 import {
   fetchPost,
   fetchPosts,
@@ -25,17 +21,25 @@ import {
   togglePostLike,
   toggleCommentLike,
 } from "../../../api/posts";
-import MediaPicker from "../../../shared/components/media/MediaPicker";
+import {
+  joinPublicCommunity,
+  requestToJoin,
+} from "../../../api/communities";
 import PostMediaGallery from "../../../shared/components/media/PostMediaGallery";
 import ConfirmDeleteModal from "../../../shared/components/modals/ConfirmDeleteModal";
 import EditWindowExpiredModal from "../../../shared/components/modals/EditWindowExpiredModal";
+import ReportContentModal from "../../../shared/components/modals/ReportContentModal";
+import PostAuthorAvatar from "../components/PostAuthorAvatar";
+import PostCommentsSection from "../components/PostCommentsSection";
+import PostEditModal from "../components/PostEditModal";
+import RecentPostsSidebar from "../components/RecentPostsSidebar";
 import { useToast } from "../../../shared/components/feedback/ToastContext";
 import { useAuth } from "../../../context/AuthContext";
-import { postSegment } from "../../../shared/services/entityLinks";
+import { communitySegment } from "../../../shared/services/entityLinks";
+import { timeAgo } from "../../../shared/utils/date";
 
 export default function PostDetail({
   postId,
-  resolving = false,
   onBack,
   onDeleted,
   embedded = false,
@@ -45,7 +49,7 @@ export default function PostDetail({
   fetchPostFn = fetchPost,
 }) {
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const { showToast } = useToast();
 
   // Post & Main Comments States
@@ -75,15 +79,11 @@ export default function PostDetail({
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ title: "", text: "", media: [] });
   const [lockModal, setLockModal] = useState(null);
+  const [reportTarget, setReportTarget] = useState(null);
+  const [joining, setJoining] = useState(false);
 
   // Data Fetching
   const loadPost = useCallback(async () => {
-    // The id arrives a tick late when a short code still has to be resolved.
-    if (!postId) {
-      setPost(null);
-      setLoading(resolving);
-      return;
-    }
     setLoading(true);
     try {
       const data = await fetchPostFn(postId);
@@ -94,13 +94,9 @@ export default function PostDetail({
     } finally {
       setLoading(false);
     }
-  }, [postId, resolving, fetchPostFn, showToast]);
+  }, [postId, fetchPostFn, showToast]);
 
   const loadComments = useCallback(async () => {
-    if (!postId) {
-      setComments([]);
-      return;
-    }
     setCommentsLoading(true);
     try {
       const data = await fetchComments(postId);
@@ -119,15 +115,17 @@ export default function PostDetail({
   }, [postId, showToast]);
 
   useEffect(() => {
+    if (!postId) {
+      setPost(null);
+      setLoading(false);
+      setComments([]);
+      return;
+    }
     loadPost();
     setCommentsExpanded(false);
     setCommentsOpen(!compact);
-    if (isAuthenticated) {
-      loadComments();
-    } else {
-      setComments([]);
-    }
-  }, [loadPost, loadComments, isAuthenticated, compact]);
+    loadComments();
+  }, [loadPost, loadComments, compact, postId]);
 
   useEffect(() => {
     const communityId = post?.community?.id || post?.community;
@@ -283,6 +281,14 @@ export default function PostDetail({
       navigate("/login");
       return;
     }
+    if (!post.canEngage) {
+      showToast(
+        post.community
+          ? "Join this community to like posts."
+          : "You cannot like this post."
+      );
+      return;
+    }
     const prev = { ...post };
     setPost({
       ...post,
@@ -298,8 +304,9 @@ export default function PostDetail({
         likedByMe: data.likedByMe,
         likeCount: data.likeCount,
       }));
-    } catch {
+    } catch (err) {
       setPost(prev);
+      showToast(err?.response?.data?.message || "Failed to like post.");
     }
   };
 
@@ -308,6 +315,14 @@ export default function PostDetail({
     if (!text) return;
     if (!isAuthenticated) {
       navigate("/login");
+      return;
+    }
+    if (!post?.canEngage) {
+      showToast(
+        post?.community
+          ? "Join this community to comment."
+          : "You cannot comment on this post."
+      );
       return;
     }
     try {
@@ -334,6 +349,18 @@ export default function PostDetail({
   };
 
   const handleLikeComment = async (comment) => {
+    if (!isAuthenticated) {
+      navigate("/login");
+      return;
+    }
+    if (!post?.canEngage) {
+      showToast(
+        post?.community
+          ? "Join this community to like comments."
+          : "You cannot like this comment."
+      );
+      return;
+    }
     const prev = comments;
     setComments((list) =>
       list.map((c) =>
@@ -405,40 +432,56 @@ export default function PostDetail({
   const showPostEdit = canShowEdit(post);
   const showPostDelete = canShowDelete(post);
   const showPostActions = showPostEdit || showPostDelete;
-
-  const renderAvatar = (author, size = "md") => {
-    const name = author?.name || author?.username || "Member";
-    const initial = name.charAt(0).toUpperCase();
-    const sizeClass = size === "sm" ? "w-8 h-8 text-xs" : "w-10 h-10 text-sm";
-
-    if (author?.avatar) {
-      return (
-        <img
-          src={author.avatar}
-          alt=""
-          className={`${sizeClass} rounded-full object-cover border border-[#2A241E] shrink-0`}
-        />
-      );
-    }
-    return (
-      <div
-        className={`${sizeClass} rounded-full bg-[#D4AF37]/15 border border-[#D4AF37]/30 flex items-center justify-center text-[#D4AF37] font-semibold shrink-0`}
-      >
-        {initial}
-      </div>
+  const currentUserId = String(user?.id || user?._id || "");
+  const canReportPost =
+    isAuthenticated &&
+    post &&
+    currentUserId &&
+    String(post.author?.id || post.author?._id || "") !== currentUserId;
+  const canReportComment = (comment) =>
+    Boolean(
+      isAuthenticated &&
+        currentUserId &&
+        comment &&
+        String(comment.author?.id || comment.author?._id || "") !==
+          currentUserId
     );
-  };
 
-  const timeAgo = (dateStr) => {
-    if (!dateStr) return "";
-    const seconds = Math.floor((new Date() - new Date(dateStr)) / 1000);
-    if (seconds < 60) return "just now";
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m ago`;
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours}h ago`;
-    const days = Math.floor(hours / 24);
-    return `${days}d ago`;
+  const needsCommunityJoin =
+    Boolean(post?.community?.id || post?.community) &&
+    isAuthenticated &&
+    post?.canEngage === false;
+
+  const communityPath = post?.community
+    ? `/communities/${communitySegment(post.community) || post.community.id}`
+    : null;
+
+  const handleJoinCommunity = async () => {
+    const communityId = post?.community?.id || post?.community;
+    if (!communityId || joining) return;
+    if (!isAuthenticated) {
+      navigate("/login");
+      return;
+    }
+    setJoining(true);
+    try {
+      const type = post.community?.type;
+      if (type === "private_request") {
+        await requestToJoin(communityId, {});
+        showToast("Join request sent.");
+      } else {
+        await joinPublicCommunity(communityId);
+        showToast("Joined community.");
+        await loadPost();
+        await loadComments();
+      }
+    } catch (err) {
+      showToast(
+        err?.response?.data?.message || "Could not join this community."
+      );
+    } finally {
+      setJoining(false);
+    }
   };
 
   if (loading) {
@@ -464,80 +507,13 @@ export default function PostDetail({
   const hasCommunity = Boolean(communityId);
 
   const sidebarCard = hasCommunity ? (
-    <div className="bg-[#14100D] rounded-xl p-5 space-y-4 shadow-xl">
-      <h3 className="text-sm font-serif font-semibold text-[#E5E0D8] border-b border-[#2A241E] pb-3">
-        Recent Posts
-      </h3>
-      {recentPostsLoading ? (
-        <div className="flex items-center gap-2 text-xs text-[#8C8070] py-2">
-          <Loader2 size={14} className="animate-spin text-[#D4AF37]" />
-          Loading...
-        </div>
-      ) : recentPosts.length === 0 ? (
-        <p className="text-xs text-[#8C8070]">
-          No other posts for this community.
-        </p>
-      ) : (
-        <div className="space-y-3">
-          {recentPosts.map((recentPost) => {
-            const authorName =
-              recentPost.author?.name ||
-              recentPost.author?.username ||
-              "Member";
-            const coverImage = recentPost.media?.find((m) => m.type === "image");
-
-            return (
-              <div
-                key={recentPost.id}
-                className="rounded-lg border border-[#2A241E] bg-[#0E0C0A] p-3 space-y-2"
-              >
-                <div className="flex items-start gap-3">
-                  {renderAvatar(recentPost.author, "sm")}
-                  <div className="min-w-0 flex-1">
-                    <div className="text-xs font-semibold text-[#E5E0D8] truncate">
-                      {authorName}
-                    </div>
-                    {recentPost.author?.username && (
-                      <div className="text-[10px] text-[#A69B8D] truncate">
-                        @{recentPost.author.username}
-                      </div>
-                    )}
-                    <div className="text-[10px] text-[#8C8070] mt-0.5">
-                      {timeAgo(recentPost.createdAt)}
-                    </div>
-                  </div>
-                  {coverImage && (
-                    <div className="w-16 h-16 shrink-0 rounded-md overflow-hidden bg-[#14100D] border border-[#2A241E]">
-                      <img
-                        src={coverImage.url}
-                        alt=""
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                  )}
-                </div>
-                <div className="flex justify-end">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const path = postPathBuilder
-                        ? postPathBuilder(recentPost)
-                        : `/communities/${communityId}/posts/${postSegment(
-                            recentPost
-                          )}`;
-                      navigate(path);
-                    }}
-                    className="text-[10px] font-medium text-[#D4AF37] hover:text-[#c3a030] transition-colors"
-                  >
-                    Details →
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
+    <RecentPostsSidebar
+      recentPosts={recentPosts}
+      recentPostsLoading={recentPostsLoading}
+      communityId={communityId}
+      postPathBuilder={postPathBuilder}
+      navigate={navigate}
+    />
   ) : null;
 
   const postActions = showPostActions ? (
@@ -571,7 +547,7 @@ export default function PostDetail({
         compact ? "min-w-0" : "py-2 border-y border-[#2A241E]/40"
       }`}
     >
-      {renderAvatar(post.author, compact ? "sm" : "md")}
+      <PostAuthorAvatar author={post.author} size={compact ? "sm" : "md"} />
       <div className="min-w-0">
         <div className="text-sm font-semibold text-[#E5E0D8] truncate">
           {post.author?.name || post.author?.username || "Member"}
@@ -601,9 +577,18 @@ export default function PostDetail({
   const titleBlock = (
     <div className={compact ? "space-y-1 min-w-0" : "space-y-2 min-w-0"}>
       {post.community?.name && (
-        <p className="text-[10px] uppercase tracking-widest text-[#D4AF37] font-mono">
-          {post.community.name}
-        </p>
+        communityPath ? (
+          <Link
+            to={communityPath}
+            className="text-[10px] uppercase tracking-widest text-[#D4AF37] font-mono hover:text-[#e0c04a]"
+          >
+            {post.community.name}
+          </Link>
+        ) : (
+          <p className="text-[10px] uppercase tracking-widest text-[#D4AF37] font-mono">
+            {post.community.name}
+          </p>
+        )
       )}
       <h1
         className={`font-serif font-bold text-[#E5E0D8] leading-tight ${
@@ -690,6 +675,43 @@ export default function PostDetail({
               </p>
             )}
 
+            {needsCommunityJoin ? (
+              <div className="rounded-xl border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-4 py-3 space-y-2">
+                <p className="text-xs text-[#E5E0D8]">
+                  Join{" "}
+                  <span className="text-[#D4AF37] font-medium">
+                    {post.community?.name || "this community"}
+                  </span>{" "}
+                  to like and comment.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={joining}
+                    onClick={handleJoinCommunity}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#D4AF37] text-black text-xs font-semibold disabled:opacity-50"
+                  >
+                    {joining ? (
+                      <Loader2 size={12} className="animate-spin" />
+                    ) : (
+                      <Users size={12} />
+                    )}
+                    {post.community?.type === "private_request"
+                      ? "Request to join"
+                      : "Join community"}
+                  </button>
+                  {communityPath ? (
+                    <Link
+                      to={communityPath}
+                      className="inline-flex items-center px-3 py-1.5 rounded-lg border border-[#2A241E] text-xs text-[#A69B8D] hover:text-[#E5E0D8]"
+                    >
+                      View community
+                    </Link>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+
             <div
               className={`flex items-center gap-6 border-t border-[#2A241E]/60 ${
                 compact ? "pt-3" : "pt-4"
@@ -732,486 +754,62 @@ export default function PostDetail({
                 <MessageCircle size={16} />
                 <span>{post.commentCount || comments.length || 0} Comments</span>
               </button>
+
+              {canReportPost ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setReportTarget({
+                      type: "post",
+                      id: post.id,
+                      label: post.title || "this post",
+                    })
+                  }
+                  className="inline-flex items-center gap-2 text-xs font-medium text-[#A69B8D] hover:text-red-400 transition-colors ml-auto"
+                  title="Report post"
+                >
+                  <Flag size={15} />
+                  <span>Report</span>
+                </button>
+              ) : null}
             </div>
           </div>
         </article>
       </div>
 
-      {commentsVisible && (
-      <section
-        className={`bg-[#14100D] shadow-xl ${
-          compact
-            ? "rounded-lg p-4 space-y-4"
-            : "rounded-xl p-5 sm:p-8 space-y-6"
-        }`}
-      >
-        <div
-          className={`flex items-center justify-between gap-3 border-b border-[#2A241E] ${
-            compact ? "pb-3" : "pb-4"
-          }`}
-        >
-          <h2
-            className={`font-serif font-semibold text-[#E5E0D8] ${
-              compact ? "text-base" : "text-lg sm:text-xl"
-            }`}
-          >
-            Discussion{" "}
-            <span className="text-[#A69B8D] font-sans text-xs sm:text-sm">
-              ({post.commentCount || comments.length || 0})
-            </span>
-          </h2>
-          {!commentsLoading &&
-            topLevel.length > 3 &&
-            !commentsExpanded && (
-              <button
-                type="button"
-                onClick={() => setCommentsExpanded(true)}
-                className="text-xs text-[#D4AF37] hover:text-[#c3a030] transition-colors shrink-0"
-              >
-                View all comments
-              </button>
-            )}
-        </div>
-
-        {/* Main Comment Input Box (Slow Reveal Transition) */}
-        <div
-          className={`overflow-hidden transition-all duration-300 ease-in-out ${
-            mainInputVisible
-              ? `max-h-60 opacity-100 ${compact ? "mb-4" : "mb-6"}`
-              : "max-h-0 opacity-0 pointer-events-none"
-          }`}
-        >
-          <div className="rounded-lg border border-[#2A241E] bg-[#0E0C0A] p-4 space-y-3">
-            <textarea
-              value={commentText}
-              onChange={(e) => setCommentText(e.target.value)}
-              rows={3}
-              placeholder="Write a comment..."
-              className="w-full bg-transparent text-sm text-[#E5E0D8] placeholder:text-[#8C8070] focus:outline-none resize-y"
-            />
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowMainCommentInput(false);
-                  if (compact) setCommentsOpen(false);
-                  setCommentText("");
-                }}
-                className="px-3.5 py-2 rounded-lg text-xs text-[#A69B8D] hover:text-[#E5E0D8] transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => submitComment(null)}
-                className="px-4 py-2 rounded-lg bg-[#D4AF37] text-[#0E0C0A] text-xs font-bold hover:bg-[#c3a030] transition-colors"
-              >
-                Post Comment
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Comments List */}
-        {commentsLoading ? (
-          <div className="flex items-center gap-2 text-xs text-[#8C8070] py-4">
-            <Loader2 size={14} className="animate-spin text-[#D4AF37]" />{" "}
-            Loading comments...
-          </div>
-        ) : topLevel.length === 0 ? (
-          <p className="text-xs text-[#8C8070] py-4">No comments yet.</p>
-        ) : (
-          <div className="space-y-6">
-            {visibleTopLevel.map((comment) => {
-              const replies = getReplies(comment.id);
-              const isExpanded = !!expandedReplies[comment.id];
-              const isReplyingHere = replyTargetId === comment.id;
-
-              return (
-                <div key={comment.id} className="space-y-3">
-                  {/* Parent Comment Item */}
-                  <div className="py-2">
-                    {editingComment?.id === comment.id ? (
-                      <div className="space-y-3 bg-[#0E0C0A] p-3 rounded-lg border border-[#2A241E]">
-                        <textarea
-                          value={editingComment.text}
-                          onChange={(e) =>
-                            setEditingComment((p) => ({
-                              ...p,
-                              text: e.target.value,
-                            }))
-                          }
-                          rows={2}
-                          className="w-full bg-[#14100D] border border-[#2A241E] rounded-lg px-3 py-2 text-xs text-[#E5E0D8] focus:outline-none focus:border-[#D4AF37]/60 resize-y"
-                        />
-                        <div className="flex gap-2 justify-end">
-                          <button
-                            type="button"
-                            onClick={() => setEditingComment(null)}
-                            className="px-3 py-1.5 rounded border border-[#2A241E] text-[11px] text-[#A69B8D] hover:text-[#E5E0D8]"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            type="button"
-                            onClick={saveCommentEdit}
-                            className="px-3.5 py-1.5 rounded bg-[#D4AF37] text-[#0E0C0A] text-[11px] font-bold hover:bg-[#c3a030]"
-                          >
-                            Save
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-start gap-3">
-                        {renderAvatar(comment.author, "sm")}
-                        <div className="min-w-0 flex-1 space-y-1.5">
-                          {/* Header info */}
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-xs font-bold text-[#E5E0D8]">
-                                {comment.author?.name ||
-                                  comment.author?.username ||
-                                  "Member"}
-                              </span>
-                              <span className="text-[11px] text-[#8C8070]">
-                                {timeAgo(comment.createdAt)}
-                              </span>
-                              {comment.author?.role && (
-                                <span className="text-[9px] uppercase tracking-wider bg-[#D4AF37]/15 text-[#D4AF37] px-1.5 py-0.5 rounded font-mono border border-[#D4AF37]/30">
-                                  {comment.author.role}
-                                </span>
-                              )}
-                            </div>
-
-                            {(canShowEdit(comment) ||
-                              canShowDelete(comment)) && (
-                              <div className="flex items-center gap-2">
-                                {canShowEdit(comment) && (
-                                  <button
-                                    type="button"
-                                    onClick={() => openEditComment(comment)}
-                                    className="text-[#8C8070] hover:text-[#D4AF37] transition-colors p-1"
-                                    title="Edit comment"
-                                  >
-                                    <Pencil size={12} />
-                                  </button>
-                                )}
-                                {canShowDelete(comment) && (
-                                  <button
-                                    type="button"
-                                    onClick={() => openDeleteComment(comment)}
-                                    className="text-[#8C8070] hover:text-red-400 transition-colors p-1"
-                                    title="Delete comment"
-                                  >
-                                    <Trash2 size={12} />
-                                  </button>
-                                )}
-                              </div>
-                            )}
-                          </div>
-
-                          <p className="text-xs sm:text-sm text-[#C9C0B4] leading-relaxed">
-                            {comment.text}
-                          </p>
-
-                          {/* Action Controls Below Comment */}
-                          <div className="flex items-center gap-4 pt-1 text-[11px] text-[#A69B8D]">
-                            <button
-                              type="button"
-                              onClick={() => handleLikeComment(comment)}
-                              className={`inline-flex items-center gap-1.5 hover:text-[#E5E0D8] transition-colors ${
-                                comment.likedByMe
-                                  ? "text-[#D4AF37] font-semibold"
-                                  : ""
-                              }`}
-                            >
-                              <Heart
-                                size={13}
-                                className={
-                                  comment.likedByMe
-                                    ? "fill-current text-[#D4AF37]"
-                                    : ""
-                                }
-                              />
-                              <span>{comment.likeCount || 0}</span>
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setShowMainCommentInput(false);
-                                if (isReplyingHere) {
-                                  setReplyTargetId(null);
-                                  setCommentText("");
-                                } else {
-                                  setReplyTargetId(comment.id);
-                                  setCommentText("");
-                                }
-                              }}
-                              className="inline-flex items-center gap-1.5 hover:text-[#D4AF37] transition-colors"
-                            >
-                              <Reply size={13} />
-                              <span>Reply</span>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Inline Reply Input directly under comment (Slow animation reveal) */}
-                  <div
-                    className={`ml-6 sm:ml-10 overflow-hidden transition-all duration-300 ease-in-out ${
-                      isReplyingHere
-                        ? "max-h-60 opacity-100 my-2"
-                        : "max-h-0 opacity-0 pointer-events-none"
-                    }`}
-                  >
-                    <div className="rounded-lg border border-[#2A241E] bg-[#0E0C0A] p-3 space-y-2">
-                      <textarea
-                        value={commentText}
-                        onChange={(e) => setCommentText(e.target.value)}
-                        rows={2}
-                        placeholder={`Reply to ${
-                          comment.author?.name || "member"
-                        }...`}
-                        className="w-full bg-transparent text-xs text-[#E5E0D8] placeholder:text-[#8C8070] focus:outline-none resize-y"
-                      />
-                      <div className="flex justify-end gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setReplyTargetId(null);
-                            setCommentText("");
-                          }}
-                          className="px-3 py-1 rounded text-[11px] text-[#A69B8D] hover:text-[#E5E0D8]"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => submitComment(comment.id)}
-                          className="px-3 py-1 rounded bg-[#D4AF37] text-[#0E0C0A] text-[11px] font-bold hover:bg-[#c3a030]"
-                        >
-                          Reply
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* View/Hide Replies Trigger */}
-                  {replies.length > 0 && (
-                    <div className="ml-6 sm:ml-10 pt-1">
-                      <button
-                        type="button"
-                        onClick={() => toggleRepliesExpand(comment.id)}
-                        className="inline-flex items-center gap-1.5 text-xs text-[#D4AF37] font-medium hover:underline focus:outline-none"
-                      >
-                        {isExpanded ? (
-                          <>
-                            <ChevronUp size={14} />
-                            Hide replies
-                          </>
-                        ) : (
-                          <>
-                            <ChevronDown size={14} />
-                            View {replies.length}{" "}
-                            {replies.length === 1 ? "reply" : "replies"}
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Expanded Replies Wrapper with smooth transition */}
-                  <div
-                    className={`ml-6 sm:ml-10 border-l border-[#2A241E] pl-4 sm:pl-6 space-y-3 overflow-hidden transition-all duration-300 ease-in-out ${
-                      isExpanded
-                        ? "max-h-[2000px] opacity-100 mt-2"
-                        : "max-h-0 opacity-0 pointer-events-none"
-                    }`}
-                  >
-                    {replies.map((reply) => {
-                      const isReplyingToReply = replyTargetId === reply.id;
-
-                      return (
-                        <div key={reply.id} className="py-2 space-y-2">
-                          {editingComment?.id === reply.id ? (
-                            <div className="space-y-3 bg-[#0E0C0A] p-3 rounded-lg border border-[#2A241E]">
-                              <textarea
-                                value={editingComment.text}
-                                onChange={(e) =>
-                                  setEditingComment((p) => ({
-                                    ...p,
-                                    text: e.target.value,
-                                  }))
-                                }
-                                rows={2}
-                                className="w-full bg-[#14100D] border border-[#2A241E] rounded-lg px-3 py-2 text-xs text-[#E5E0D8] focus:outline-none focus:border-[#D4AF37]/60 resize-y"
-                              />
-                              <div className="flex gap-2 justify-end">
-                                <button
-                                  type="button"
-                                  onClick={() => setEditingComment(null)}
-                                  className="px-3 py-1.5 rounded border border-[#2A241E] text-[11px] text-[#A69B8D] hover:text-[#E5E0D8]"
-                                >
-                                  Cancel
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={saveCommentEdit}
-                                  className="px-3.5 py-1.5 rounded bg-[#D4AF37] text-[#0E0C0A] text-[11px] font-bold hover:bg-[#c3a030]"
-                                >
-                                  Save
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="flex items-start gap-3">
-                              {renderAvatar(reply.author, "sm")}
-                              <div className="min-w-0 flex-1 space-y-1.5">
-                                <div className="flex items-center justify-between gap-2">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="text-xs font-bold text-[#E5E0D8]">
-                                      {reply.author?.name ||
-                                        reply.author?.username ||
-                                        "Member"}
-                                    </span>
-                                    <span className="text-[11px] text-[#8C8070]">
-                                      {timeAgo(reply.createdAt)}
-                                    </span>
-                                    {reply.author?.role && (
-                                      <span className="text-[9px] uppercase tracking-wider bg-[#D4AF37]/15 text-[#D4AF37] px-1.5 py-0.5 rounded font-mono border border-[#D4AF37]/30">
-                                        {reply.author.role}
-                                      </span>
-                                    )}
-                                  </div>
-
-                                  {(canShowEdit(reply) ||
-                                    canShowDelete(reply)) && (
-                                    <div className="flex items-center gap-2">
-                                      {canShowEdit(reply) && (
-                                        <button
-                                          type="button"
-                                          onClick={() => openEditComment(reply)}
-                                          className="text-[#8C8070] hover:text-[#D4AF37] transition-colors p-1"
-                                          title="Edit reply"
-                                        >
-                                          <Pencil size={12} />
-                                        </button>
-                                      )}
-                                      {canShowDelete(reply) && (
-                                        <button
-                                          type="button"
-                                          onClick={() =>
-                                            openDeleteComment(reply)
-                                          }
-                                          className="text-[#8C8070] hover:text-red-400 transition-colors p-1"
-                                          title="Delete reply"
-                                        >
-                                          <Trash2 size={12} />
-                                        </button>
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
-
-                                <p className="text-xs sm:text-sm text-[#C9C0B4] leading-relaxed">
-                                  {reply.text}
-                                </p>
-
-                                <div className="flex items-center gap-4 pt-1 text-[11px] text-[#A69B8D]">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleLikeComment(reply)}
-                                    className={`inline-flex items-center gap-1.5 hover:text-[#E5E0D8] transition-colors ${
-                                      reply.likedByMe
-                                        ? "text-[#D4AF37] font-semibold"
-                                        : ""
-                                    }`}
-                                  >
-                                    <Heart
-                                      size={13}
-                                      className={
-                                        reply.likedByMe
-                                          ? "fill-current text-[#D4AF37]"
-                                          : ""
-                                      }
-                                    />
-                                    <span>{reply.likeCount || 0}</span>
-                                  </button>
-
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      if (isReplyingToReply) {
-                                        setReplyTargetId(null);
-                                        setCommentText("");
-                                      } else {
-                                        setReplyTargetId(reply.id);
-                                        setCommentText("");
-                                      }
-                                    }}
-                                    className="inline-flex items-center gap-1.5 hover:text-[#D4AF37] transition-colors"
-                                  >
-                                    <Reply size={13} />
-                                    <span>Reply</span>
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Nested Input below reply item */}
-                          <div
-                            className={`overflow-hidden transition-all duration-300 ease-in-out ${
-                              isReplyingToReply
-                                ? "max-h-60 opacity-100 my-2"
-                                : "max-h-0 opacity-0 pointer-events-none"
-                            }`}
-                          >
-                            <div className="rounded-lg border border-[#2A241E] bg-[#0E0C0A] p-3 space-y-2">
-                              <textarea
-                                value={commentText}
-                                onChange={(e) => setCommentText(e.target.value)}
-                                rows={2}
-                                placeholder={`Reply to ${
-                                  reply.author?.name || "member"
-                                }...`}
-                                className="w-full bg-transparent text-xs text-[#E5E0D8] placeholder:text-[#8C8070] focus:outline-none resize-y"
-                              />
-                              <div className="flex justify-end gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setReplyTargetId(null);
-                                    setCommentText("");
-                                  }}
-                                  className="px-3 py-1 rounded text-[11px] text-[#A69B8D] hover:text-[#E5E0D8]"
-                                >
-                                  Cancel
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => submitComment(comment.id)}
-                                  className="px-3 py-1 rounded bg-[#D4AF37] text-[#0E0C0A] text-[11px] font-bold hover:bg-[#c3a030]"
-                                >
-                                  Reply
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-        </section>
-      )}
+      <PostCommentsSection
+        visible={commentsVisible}
+        compact={compact}
+        post={post}
+        comments={comments}
+        commentsLoading={commentsLoading}
+        commentsExpanded={commentsExpanded}
+        setCommentsExpanded={setCommentsExpanded}
+        topLevel={topLevel}
+        visibleTopLevel={visibleTopLevel}
+        getReplies={getReplies}
+        expandedReplies={expandedReplies}
+        toggleRepliesExpand={toggleRepliesExpand}
+        replyTargetId={replyTargetId}
+        setReplyTargetId={setReplyTargetId}
+        showMainCommentInput={showMainCommentInput}
+        setShowMainCommentInput={setShowMainCommentInput}
+        commentText={commentText}
+        setCommentText={setCommentText}
+        mainInputVisible={mainInputVisible}
+        editingComment={editingComment}
+        setEditingComment={setEditingComment}
+        submitComment={submitComment}
+        saveCommentEdit={saveCommentEdit}
+        handleLikeComment={handleLikeComment}
+        openEditComment={openEditComment}
+        openDeleteComment={openDeleteComment}
+        canShowEdit={canShowEdit}
+        canShowDelete={canShowDelete}
+        canReportComment={canReportComment}
+        setReportTarget={setReportTarget}
+        setCommentsOpen={setCommentsOpen}
+      />
       {!embedded && sidebarCard && <div className="lg:hidden">{sidebarCard}</div>}
     </>
   );
@@ -1235,70 +833,15 @@ export default function PostDetail({
         </div>
       )}
 
-      {/* Edit Modal */}
-      {showEdit && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div
-            className="absolute inset-0 bg-black/80 backdrop-blur-sm"
-            onClick={() => setShowEdit(false)}
-          />
-          <form
-            onSubmit={handleSaveEdit}
-            className="relative w-full sm:max-w-lg max-h-[90vh] overflow-y-auto bg-[#14100D] border border-[#2A241E] rounded-t-xl sm:rounded-xl p-6 space-y-4 shadow-2xl"
-          >
-            <div className="flex items-center justify-between pb-2 border-b border-[#2A241E]">
-              <h2 className="text-lg font-semibold text-[#E5E0D8]">
-                Edit Post
-              </h2>
-              <button type="button" onClick={() => setShowEdit(false)}>
-                <X size={18} className="text-[#A69B8D] hover:text-[#E5E0D8]" />
-              </button>
-            </div>
-            <div className="space-y-1">
-              <label className="block text-[10px] uppercase tracking-wider text-[#8C8070]">
-                Title
-              </label>
-              <input
-                value={form.title}
-                onChange={(e) =>
-                  setForm((p) => ({ ...p, title: e.target.value }))
-                }
-                required
-                className="w-full bg-[#0E0C0A] border border-[#2A241E] rounded-lg px-3 py-2 text-xs text-[#E5E0D8] focus:outline-none focus:border-[#D4AF37]/60"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="block text-[10px] uppercase tracking-wider text-[#8C8070]">
-                Description
-              </label>
-              <textarea
-                value={form.text}
-                onChange={(e) =>
-                  setForm((p) => ({ ...p, text: e.target.value }))
-                }
-                rows={4}
-                className="w-full bg-[#0E0C0A] border border-[#2A241E] rounded-lg px-3 py-2 text-xs text-[#E5E0D8] focus:outline-none focus:border-[#D4AF37]/60 resize-y"
-              />
-            </div>
-            <div>
-              <MediaPicker
-                media={form.media}
-                onChange={(media) => setForm((p) => ({ ...p, media }))}
-                onError={showToast}
-                label="Media"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={saving}
-              className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[#D4AF37] text-[#0E0C0A] text-xs font-bold disabled:opacity-60 transition-colors"
-            >
-              {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-              Save Changes
-            </button>
-          </form>
-        </div>
-      )}
+      <PostEditModal
+        open={showEdit}
+        form={form}
+        setForm={setForm}
+        saving={saving}
+        onClose={() => setShowEdit(false)}
+        onSubmit={handleSaveEdit}
+        showToast={showToast}
+      />
 
       {/* Delete Modals */}
       <ConfirmDeleteModal
@@ -1334,6 +877,14 @@ export default function PostDetail({
             : "You can no longer edit or delete this post."
         }
         editWindowMinutes={lockModal?.editWindowMinutes}
+      />
+
+      <ReportContentModal
+        open={Boolean(reportTarget)}
+        onClose={() => setReportTarget(null)}
+        targetType={reportTarget?.type || "post"}
+        targetId={reportTarget?.id}
+        targetLabel={reportTarget?.label}
       />
     </div>
   );

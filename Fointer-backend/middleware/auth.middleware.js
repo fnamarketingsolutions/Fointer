@@ -80,8 +80,6 @@ export const authorize = (...roles) => (req, res, next) => {
     return res.status(403).json({
       success: false,
       message: "Forbidden.",
-      role: current || null,
-      required: allowed,
     });
   }
   next();

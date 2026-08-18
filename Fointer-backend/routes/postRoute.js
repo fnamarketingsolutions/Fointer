@@ -14,6 +14,8 @@ import {
   togglePostLike,
   toggleCommentLike,
   resolvePostCode,
+  listMyComments,
+  listMyLikedPosts,
 } from "../controllers/post.controller.js";
 import {
   isAuthenticated,
@@ -32,12 +34,16 @@ router.get("/resolve/:code", optionalAuthenticate, resolvePostCode);
 router.get("/public", optionalAuthenticate, listPublicPosts);
 router.get("/public/:id", optionalAuthenticate, getPublicPost);
 
+// Activity history — before /:id
+router.get("/activity/comments", isAuthenticated, listMyComments);
+router.get("/activity/likes", isAuthenticated, listMyLikedPosts);
+
 // Comment mutations must be registered before /:id
 router.patch("/comments/:id", isAuthenticated, updateComment);
 router.delete("/comments/:id", isAuthenticated, deleteComment);
 router.post("/comments/:id/like", isAuthenticated, toggleCommentLike);
 
-router.get("/:id/comments", isAuthenticated, listComments);
+router.get("/:id/comments", optionalAuthenticate, listComments);
 router.post("/:id/comments", isAuthenticated, createComment);
 router.post("/:id/like", isAuthenticated, togglePostLike);
 

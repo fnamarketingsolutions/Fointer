@@ -1,14 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { FiEye, FiEyeOff, FiHome } from 'react-icons/fi';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { loginUser, resendVerificationEmail, verifyEmailOtp } from '../services/authService';
 import { useAuth } from '../../../context/AuthContext';
 import { useSocialAuth } from '../hooks/useSocialAuth';
 import { useToast } from '../../../shared/components/feedback/ToastContext';
 import SocialAuthButtons from './SocialAuthButtons';
+import { getDashboardPathForRole } from '../../../shared/lib/roles';
+import { getSafeReturnPath } from '../../../shared/lib/safeRedirect';
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { loginSuccess } = useAuth();
   const { showToast } = useToast();
   const {
@@ -28,6 +31,15 @@ export default function Login() {
   const [otp, setOtp] = useState('');
   const [verifyLoading, setVerifyLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
+
+  const redirectAfterLogin = (role) => {
+    if (role === 'admin') {
+      navigate(getDashboardPathForRole(role), { replace: true });
+      return;
+    }
+    const safe = getSafeReturnPath(location.state?.from);
+    navigate(safe || getDashboardPathForRole(role), { replace: true });
+  };
 
   const activeVerificationEmail = verificationEmail || pendingVerification?.email || '';
 
@@ -50,7 +62,7 @@ export default function Login() {
       const response = await loginUser(formData);
       if (response?.success && response.user) {
         loginSuccess(response.user);
-        navigate(response.user.role === 'admin' ? '/admin' : '/dashboard');
+        redirectAfterLogin(response.user.role);
       } else {
         showToast(response?.message || 'Invalid email or password.');
       }
@@ -90,7 +102,7 @@ export default function Login() {
       const response = await verifyEmailOtp(activeVerificationEmail, otp);
       if (response?.success && response.user) {
         loginSuccess(response.user);
-        navigate(response.user.role === 'admin' ? '/admin' : '/dashboard');
+        redirectAfterLogin(response.user.role);
       }
     } catch (error) {
       showToast(error?.response?.data?.message || 'OTP verification failed.');

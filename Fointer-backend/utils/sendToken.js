@@ -1,16 +1,15 @@
 import generateToken from "../config/generateToken.js";
-
-const isProduction = process.env.NODE_ENV === "production";
-
+import {
+  AUTH_COOKIE_MAX_AGE_MS,
+  getAuthCookieOptions,
+} from "./cookieOptions.js";
 
 const sendToken = (user, statusCode, res) => {
   const token = generateToken(user._id, user.role);
 
   res.cookie("token", token, {
-    httpOnly: true,
-    secure: true,
-    sameSite: "none",
-    maxAge: 7 * 24 * 60 * 60 * 1000,
+    ...getAuthCookieOptions(),
+    maxAge: AUTH_COOKIE_MAX_AGE_MS,
   });
 
   res.status(statusCode).json({

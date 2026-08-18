@@ -15,7 +15,7 @@ const ALLOWED_MIME = [
 export const upload = multer({
   storage,
   limits: {
-    fileSize: 50 * 1024 * 1024, // 50MB
+    fileSize: 15 * 1024 * 1024, // 15MB
   },
   fileFilter: (_req, file, cb) => {
     if (ALLOWED_MIME.includes(file.mimetype)) {

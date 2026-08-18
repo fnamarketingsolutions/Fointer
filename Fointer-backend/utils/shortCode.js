@@ -46,6 +46,21 @@ export const withShortCode = (schema) => {
 export const isObjectId = (value) => /^[a-f\d]{24}$/i.test(String(value ?? ""));
 
 /**
+ * Accept only a plain hex ObjectId string (or ObjectId instance).
+ * Rejects objects/arrays so Express qs operator injection cannot reach Mongo.
+ */
+export const parseObjectIdInput = (value) => {
+  if (value == null || value === "") return null;
+  if (typeof value === "object") {
+    if (value instanceof mongoose.Types.ObjectId) return value;
+    return null;
+  }
+  const raw = String(value).trim();
+  if (!isObjectId(raw)) return null;
+  return mongoose.Types.ObjectId.createFromHexString(raw);
+};
+
+/**
  * URL segments carry a short code, but older links still carry a raw id, so
  * both shapes have to resolve.
  */

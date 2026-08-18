@@ -13,6 +13,7 @@ import {
   sendJoinRequestApprovedEmail,
   sendJoinRequestDeniedEmail,
 } from "../utils/sendVerificationEmail.js";
+import { sendServerError } from "../utils/safeError.js";
 
 const formatJoinRequest = (request) => {
   const user = request.user;
@@ -74,10 +75,7 @@ export const listCommunityMembers = async (req, res) => {
       members: members.map(formatMember),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };
 
@@ -108,10 +106,7 @@ export const listModerators = async (req, res) => {
         .map(formatMember),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };
 
@@ -182,10 +177,7 @@ export const assignModerator = async (req, res) => {
       member: formatMember(membership),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };
 
@@ -231,10 +223,7 @@ export const revokeModerator = async (req, res) => {
       member: formatMember(membership),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };
 
@@ -319,10 +308,7 @@ export const removeMemberRole = async (req, res) => {
       member: formatMember(membership),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };
 
@@ -385,10 +371,7 @@ export const banMember = async (req, res) => {
       member: formatMember(membership),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };
 
@@ -431,10 +414,7 @@ export const unbanMember = async (req, res) => {
       member: formatMember(membership),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };
 
@@ -557,10 +537,7 @@ export const approveJoinRequest = async (req, res) => {
       request: formatJoinRequest(joinRequest),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };
 
@@ -633,9 +610,6 @@ export const denyJoinRequest = async (req, res) => {
       request: formatJoinRequest(joinRequest),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };

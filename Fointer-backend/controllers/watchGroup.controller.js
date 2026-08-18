@@ -1,24 +1,17 @@
-import Community from "../models/community.js";
 import WatchGroup, {
   WATCH_GROUP_TYPES,
-  DEFAULT_MAX_PARTICIPANTS,
-  ABSOLUTE_MAX_PARTICIPANTS,
+  WATCH_GROUP_DEFAULT_MAX,
+  WATCH_GROUP_ABSOLUTE_MAX,
 } from "../models/watchGroup.js";
 import WatchGroupMember from "../models/watchGroupMember.js";
-import WatchGroupJoinRequest from "../models/watchGroupJoinRequest.js";
-import CommunityMember from "../models/communityMember.js";
-import {
-  canEngageInCommunity,
-  canModerateCommunity,
-  getEffectiveMemberRole,
-} from "../utils/communityPermissions.js";
+import WatchGroupMessage from "../models/watchGroupMessage.js";
+import User from "../models/user.js";
 import { resolveDocumentId } from "../utils/shortCode.js";
-import { getIo } from "../sockets/initSocket.js";
-import { WATCH_GROUP_SOCKET_EVENTS, toWatchGroupRoom } from "../sockets/events.js";
+import { sendServerError } from "../utils/safeError.js";
 
 const formatUser = (user) => {
   if (!user || typeof user !== "object" || !user._id) {
-    return user ? { id: user } : null;
+    return { id: user };
   }
   return {
     id: user._id,
@@ -28,1012 +21,813 @@ const formatUser = (user) => {
   };
 };
 
-const formatCommunityBrief = (community) => {
-  if (!community || typeof community !== "object" || !community._id) {
-    return community ? { id: community } : null;
-  }
-  return {
-    id: community._id,
-    shortCode: community.shortCode || null,
-    name: community.name,
-  };
-};
-
-export const formatWatchGroup = (group, extras = {}) => {
-  const participantCount =
-    extras.participantCount != null
-      ? extras.participantCount
-      : Array.isArray(group.participantCount)
-        ? group.participantCount[0]?.count
-        : undefined;
-
-  return {
-    id: group._id,
-    shortCode: group.shortCode || null,
-    name: group.name,
-    type: group.type,
-    maxParticipants: group.maxParticipants,
-    status: group.status,
-    community: formatCommunityBrief(group.community),
-    createdBy: formatUser(group.createdBy),
-    participantCount:
-      participantCount != null ? Number(participantCount) : extras.participantCount ?? 1,
-    myRole: extras.myRole || null,
-    myJoinRequestStatus:
-      extras.myJoinRequestStatus !== undefined
-        ? extras.myJoinRequestStatus
-        : null,
-    pendingRequestCount:
-      extras.pendingRequestCount != null
-        ? Number(extras.pendingRequestCount)
-        : undefined,
-    canManage: Boolean(extras.canManage),
-    createdAt: group.createdAt,
-    updatedAt: group.updatedAt,
-  };
-};
-
-const formatJoinRequest = (request) => ({
-  id: request._id,
-  status: request.status,
-  message: request.message || "",
-  user: formatUser(request.user),
-  watchGroup: request.watchGroup?._id || request.watchGroup || null,
-  createdAt: request.createdAt,
-  updatedAt: request.updatedAt,
+export const formatWatchGroup = (group, extras = {}) => ({
+  id: group._id,
+  shortCode: group.shortCode || "",
+  name: group.name,
+  type: group.type,
+  maxParticipants: group.maxParticipants,
+  owner: formatUser(group.owner),
+  participantCount: extras.participantCount ?? 0,
+  messageCount: extras.messageCount ?? 0,
+  viewerRole: extras.viewerRole ?? null,
+  isMember: extras.isMember ?? false,
+  canJoin: extras.canJoin ?? false,
+  canModerate: extras.canModerate ?? false,
+  canDelete: extras.canDelete ?? false,
+  createdAt: group.createdAt,
+  updatedAt: group.updatedAt,
 });
 
-const resolveCommunity = async (value) => {
-  const id = await resolveDocumentId(Community, value);
-  if (!id) return null;
-  return Community.findById(id);
+export const formatWatchMessage = (message, extras = {}) => ({
+  id: message._id,
+  group: message.group?._id || message.group,
+  text: message.text,
+  author: formatUser(message.author),
+  canDelete: extras.canDelete ?? false,
+  createdAt: message.createdAt,
+  updatedAt: message.updatedAt,
+});
+
+export const formatParticipant = (membership) => {
+  const user = membership.user;
+  return {
+    id: membership._id,
+    role: membership.role,
+    status: membership.status,
+    joinedAt: membership.createdAt,
+    user:
+      user && typeof user === "object" && user._id
+        ? formatUser(user)
+        : { id: membership.user },
+  };
 };
 
-const resolveWatchGroup = async (value) => {
-  const id = await resolveDocumentId(WatchGroup, value);
+export const findWatchGroupByParam = async (param) => {
+  const id = await resolveDocumentId(WatchGroup, param);
   if (!id) return null;
-  return WatchGroup.findById(id)
-    .populate("community", "name shortCode")
-    .populate("createdBy", "username name avatar");
+  return WatchGroup.findById(id).populate("owner", "username name avatar");
 };
 
-const getActiveParticipantCount = async (watchGroupId) =>
-  WatchGroupMember.countDocuments({
-    watchGroup: watchGroupId,
+const getMembership = async (groupId, userId) =>
+  WatchGroupMember.findOne({
+    group: groupId,
+    user: userId,
     status: "active",
   });
 
-const OPEN_WATCH_GROUP_STATUSES = ["active", "paused"];
-
-const isOpenWatchGroup = (group) =>
-  Boolean(group && OPEN_WATCH_GROUP_STATUSES.includes(group.status));
-
-const ensureCommunityMemberForGroup = async (group, user) => {
-  if (!group?.community) {
-    return { ok: true };
-  }
-  const communityId = group.community._id || group.community;
-  const canEngage = await canEngageInCommunity(communityId, user);
-  if (!canEngage) {
-    return {
-      ok: false,
-      code: 403,
-      message: "Only community members can join watch groups.",
-    };
-  }
-  return { ok: true };
+export const getViewerRole = async (group, user) => {
+  if (!user) return null;
+  if (user.role === "admin") return "admin";
+  const membership = await getMembership(group._id, user._id);
+  return membership?.role || null;
 };
 
-const upsertActiveMember = async (watchGroupId, userId) => {
-  const existing = await WatchGroupMember.findOne({
-    watchGroup: watchGroupId,
-    user: userId,
-  });
+export const userCanModerateWatchGroup = async (group, user) => {
+  const role = await getViewerRole(group, user);
+  return role === "admin" || role === "owner" || role === "moderator";
+};
 
-  if (existing) {
-    existing.status = "active";
-    if (!existing.role) existing.role = "member";
-    await existing.save();
-    return existing;
-  }
+export const userCanDeleteWatchGroup = async (group, user) => {
+  if (!user) return false;
+  if (user.role === "admin") return true;
+  const role = await getViewerRole(group, user);
+  return role === "owner";
+};
 
-  return WatchGroupMember.create({
-    watchGroup: watchGroupId,
-    user: userId,
-    role: "member",
-    status: "active",
+export const userIsMember = async (group, user) => {
+  if (!user) return false;
+  if (user.role === "admin") return true;
+  return Boolean(await getMembership(group._id, user._id));
+};
+
+export const userCanAccessWatchGroup = async (group, user) => {
+  if (!user) return false;
+  if (user.role === "admin") return true;
+  if (group.type === "public") return true;
+  return userIsMember(group, user);
+};
+
+const countActiveParticipants = async (groupId) =>
+  WatchGroupMember.countDocuments({ group: groupId, status: "active" });
+
+const attachMeta = async (group, user) => {
+  const participantCount = await countActiveParticipants(group._id);
+  const membership = user ? await getMembership(group._id, user._id) : null;
+  const viewerRole =
+    user?.role === "admin"
+      ? "admin"
+      : membership?.role || null;
+  const isMember = Boolean(membership) || user?.role === "admin";
+  const canModerate = await userCanModerateWatchGroup(group, user);
+  const canDelete = await userCanDeleteWatchGroup(group, user);
+  const atCapacity = participantCount >= group.maxParticipants;
+  const canJoin =
+    Boolean(user) &&
+    !membership &&
+    !atCapacity &&
+    (group.type === "public" || user.role === "admin");
+
+  return formatWatchGroup(group, {
+    participantCount,
+    viewerRole,
+    isMember,
+    canJoin,
+    canModerate,
+    canDelete,
   });
 };
 
-/**
- * Create a watch group. Community is optional; when set, creator must be a community member.
- */
+export const listWatchGroups = async (req, res) => {
+  try {
+    const q = String(req.query.q || "").trim();
+    const filter = {};
+
+    // Public groups + private groups the user belongs to
+    const memberships = await WatchGroupMember.find({
+      user: req.user._id,
+      status: "active",
+    }).select("group");
+    const memberGroupIds = memberships.map((m) => m.group);
+
+    if (req.user.role === "admin") {
+      // admins see all
+    } else {
+      filter.$or = [
+        { type: "public" },
+        { _id: { $in: memberGroupIds } },
+      ];
+    }
+
+    const queryFilter = { ...filter };
+    if (q) {
+      queryFilter.name = {
+        $regex: q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+        $options: "i",
+      };
+    }
+
+    const groups = await WatchGroup.find(queryFilter)
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .populate("owner", "username name avatar");
+
+    const formatted = [];
+    for (const group of groups) {
+      if (await userCanAccessWatchGroup(group, req.user)) {
+        formatted.push(await attachMeta(group, req.user));
+      }
+    }
+
+    return res.json({ success: true, groups: formatted });
+  } catch (error) {
+    return sendServerError(res, error, "Failed to list watch groups.");
+  }
+};
+
+export const getWatchGroup = async (req, res) => {
+  try {
+    const group = await findWatchGroupByParam(req.params.id);
+    if (!group) {
+      return res.status(404).json({
+        success: false,
+        message: "Watch group not found.",
+      });
+    }
+
+    if (!(await userCanAccessWatchGroup(group, req.user))) {
+      return res.status(403).json({
+        success: false,
+        message: "You do not have access to this watch group.",
+      });
+    }
+
+    return res.json({
+      success: true,
+      group: await attachMeta(group, req.user),
+    });
+  } catch (error) {
+    return sendServerError(res, error, "Failed to load watch group.");
+  }
+};
+
 export const createWatchGroup = async (req, res) => {
   try {
-    const { name, type, maxParticipants, communityId, community: communityInput } =
-      req.body;
+    const name = String(req.body.name || "").trim();
+    const type = String(req.body.type || "public")
+      .toLowerCase()
+      .trim();
+    let maxParticipants = Number(req.body.maxParticipants);
 
-    const communityRef = communityId || communityInput;
-
-    if (!name || !String(name).trim()) {
+    if (!name) {
       return res.status(400).json({
         success: false,
         message: "Group name is required.",
       });
     }
-
-    let community = null;
-    if (communityRef) {
-      community = await resolveCommunity(communityRef);
-      if (!community) {
-        return res.status(404).json({
-          success: false,
-          message: "Community not found.",
-        });
-      }
-
-      const canCreate = await canEngageInCommunity(community._id, req.user);
-      if (!canCreate) {
-        return res.status(403).json({
-          success: false,
-          message: "Only community members can create watch groups.",
-        });
-      }
-    }
-
-    const groupType = type || "public";
-    if (!WATCH_GROUP_TYPES.includes(groupType)) {
+    if (!WATCH_GROUP_TYPES.includes(type)) {
       return res.status(400).json({
         success: false,
-        message: `Invalid type. Allowed: ${WATCH_GROUP_TYPES.join(", ")}.`,
+        message: "Type must be public or private.",
       });
     }
-
-    let max = DEFAULT_MAX_PARTICIPANTS;
-    if (maxParticipants != null && maxParticipants !== "") {
-      max = Number(maxParticipants);
-      if (!Number.isFinite(max) || !Number.isInteger(max)) {
-        return res.status(400).json({
-          success: false,
-          message: "Max participants must be a whole number.",
-        });
-      }
-      if (max < 2 || max > ABSOLUTE_MAX_PARTICIPANTS) {
-        return res.status(400).json({
-          success: false,
-          message: `Max participants must be between 2 and ${ABSOLUTE_MAX_PARTICIPANTS}.`,
-        });
-      }
+    if (!Number.isFinite(maxParticipants) || maxParticipants <= 0) {
+      maxParticipants = WATCH_GROUP_DEFAULT_MAX;
     }
+    maxParticipants = Math.min(
+      WATCH_GROUP_ABSOLUTE_MAX,
+      Math.max(2, Math.floor(maxParticipants))
+    );
 
     const group = await WatchGroup.create({
-      name: String(name).trim(),
-      type: groupType,
-      maxParticipants: max,
-      community: community?._id || null,
-      createdBy: req.user._id,
-      status: "active",
+      name,
+      type,
+      maxParticipants,
+      owner: req.user._id,
     });
 
     await WatchGroupMember.create({
-      watchGroup: group._id,
+      group: group._id,
       user: req.user._id,
       role: "owner",
       status: "active",
     });
 
-    const populated = await WatchGroup.findById(group._id)
-      .populate("community", "name shortCode")
-      .populate("createdBy", "username name avatar")
-      .lean();
+    const populated = await WatchGroup.findById(group._id).populate(
+      "owner",
+      "username name avatar"
+    );
 
     return res.status(201).json({
       success: true,
-      message: "Watch group created successfully.",
-      watchGroup: formatWatchGroup(populated, {
-        participantCount: 1,
-        myRole: "owner",
-      }),
+      message: "Watch group created.",
+      group: await attachMeta(populated, req.user),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error, "Failed to create watch group.");
   }
 };
 
-/**
- * List watch groups for the current user:
- * - With communityId: all active groups in that community (members only)
- * - Without: groups in communities the user belongs to (joinable + joined)
- */
-export const listWatchGroups = async (req, res) => {
-  try {
-    const communityRef = req.query.communityId || req.query.community;
-    const filter = { status: { $in: OPEN_WATCH_GROUP_STATUSES } };
-
-    if (communityRef) {
-      const community = await resolveCommunity(communityRef);
-      if (!community) {
-        return res.status(404).json({
-          success: false,
-          message: "Community not found.",
-        });
-      }
-
-      const canView = await canEngageInCommunity(community._id, req.user);
-      if (!canView) {
-        return res.status(403).json({
-          success: false,
-          message: "Only community members can view watch groups.",
-        });
-      }
-
-      filter.community = community._id;
-    } else {
-      // Groups in communities the user belongs to (joinable), plus any
-      // groups they already joined (in case membership lapsed).
-      const [communityMemberships, groupMemberships] = await Promise.all([
-        CommunityMember.find({
-          user: req.user._id,
-          status: "active",
-        })
-          .select("community")
-          .lean(),
-        WatchGroupMember.find({
-          user: req.user._id,
-          status: "active",
-        })
-          .select("watchGroup")
-          .lean(),
-      ]);
-
-      const communityIds = communityMemberships.map((m) => m.community);
-      const memberGroupIds = groupMemberships.map((m) => m.watchGroup);
-
-      if (!communityIds.length && !memberGroupIds.length) {
-        return res.status(200).json({
-          success: true,
-          watchGroups: [],
-        });
-      }
-
-      const or = [];
-      if (communityIds.length) {
-        or.push({ community: { $in: communityIds } });
-      }
-      if (memberGroupIds.length) {
-        or.push({ _id: { $in: memberGroupIds } });
-      }
-      filter.$or = or;
-    }
-
-    const groups = await WatchGroup.find(filter)
-      .sort({ createdAt: -1 })
-      .populate("community", "name shortCode")
-      .populate("createdBy", "username name avatar")
-      .lean();
-
-    const groupIds = groups.map((g) => g._id);
-    const [counts, myMemberships, myPendingRequests, pendingCounts] =
-      await Promise.all([
-        WatchGroupMember.aggregate([
-          { $match: { watchGroup: { $in: groupIds }, status: "active" } },
-          { $group: { _id: "$watchGroup", count: { $sum: 1 } } },
-        ]),
-        WatchGroupMember.find({
-          watchGroup: { $in: groupIds },
-          user: req.user._id,
-          status: "active",
-        })
-          .select("watchGroup role")
-          .lean(),
-        WatchGroupJoinRequest.find({
-          watchGroup: { $in: groupIds },
-          user: req.user._id,
-          status: "pending",
-        })
-          .select("watchGroup")
-          .lean(),
-        WatchGroupJoinRequest.aggregate([
-          {
-            $match: {
-              watchGroup: { $in: groupIds },
-              status: "pending",
-            },
-          },
-          { $group: { _id: "$watchGroup", count: { $sum: 1 } } },
-        ]),
-      ]);
-
-    const countMap = new Map(counts.map((c) => [String(c._id), c.count]));
-    const roleMap = new Map(
-      myMemberships.map((m) => [String(m.watchGroup), m.role])
-    );
-    const pendingMine = new Set(
-      myPendingRequests.map((r) => String(r.watchGroup))
-    );
-    const pendingCountMap = new Map(
-      pendingCounts.map((c) => [String(c._id), c.count])
-    );
-
-    const communityIds = [
-      ...new Set(
-        groups
-          .map((g) => String(g.community?._id || g.community || ""))
-          .filter(Boolean)
-      ),
-    ];
-
-    const moderateCommunityIds = new Set();
-    if (req.user.role === "admin") {
-      communityIds.forEach((id) => moderateCommunityIds.add(id));
-    } else if (communityIds.length) {
-      const communityMemberships = await CommunityMember.find({
-        community: { $in: communityIds },
-        user: req.user._id,
-        status: "active",
-      }).lean();
-      for (const membership of communityMemberships) {
-        const role = getEffectiveMemberRole(membership);
-        if (role === "owner" || role === "moderator") {
-          moderateCommunityIds.add(String(membership.community));
-        }
-      }
-    }
-
-    return res.status(200).json({
-      success: true,
-      watchGroups: groups.map((g) => {
-        const id = String(g._id);
-        const myRole = roleMap.get(id) || null;
-        const isOwner =
-          myRole === "owner" ||
-          String(g.createdBy?._id || g.createdBy) === String(req.user._id);
-        const communityId = String(g.community?._id || g.community || "");
-        const canManage =
-          isOwner ||
-          req.user.role === "admin" ||
-          moderateCommunityIds.has(communityId);
-        return formatWatchGroup(g, {
-          participantCount: countMap.get(id) || 0,
-          myRole,
-          myJoinRequestStatus: pendingMine.has(id) ? "pending" : null,
-          pendingRequestCount: isOwner ? pendingCountMap.get(id) || 0 : undefined,
-          canManage,
-        });
-      }),
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
-
-/**
- * Communities the user can create a watch group in (active membership).
- */
-export const getWatchGroupCreateContext = async (req, res) => {
-  try {
-    const rows = await CommunityMember.find({
-      user: req.user._id,
-      status: "active",
-    })
-      .populate("community", "name shortCode type")
-      .lean();
-
-    const communities = rows
-      .map((row) => {
-        const role = getEffectiveMemberRole(row);
-        if (!role || !row.community) return null;
-        return {
-          id: row.community._id,
-          shortCode: row.community.shortCode || null,
-          name: row.community.name,
-          type: row.community.type,
-          membershipRole: role,
-        };
-      })
-      .filter(Boolean)
-      .sort((a, b) => a.name.localeCompare(b.name));
-
-    return res.status(200).json({
-      success: true,
-      communities,
-      defaults: {
-        maxParticipants: DEFAULT_MAX_PARTICIPANTS,
-        type: "public",
-      },
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
-
-/**
- * Join a public watch group (community members only).
- */
 export const joinWatchGroup = async (req, res) => {
   try {
-    const group = await resolveWatchGroup(req.params.groupId);
-    if (!isOpenWatchGroup(group)) {
+    const group = await findWatchGroupByParam(req.params.id);
+    if (!group) {
       return res.status(404).json({
         success: false,
         message: "Watch group not found.",
       });
     }
 
-    if (group.type !== "public") {
-      return res.status(400).json({
+    if (group.type === "private" && req.user.role !== "admin") {
+      return res.status(403).json({
         success: false,
-        message: "Private watch groups require a join request.",
+        message: "Private groups require an invite from the owner or a moderator.",
       });
     }
 
-    const access = await ensureCommunityMemberForGroup(group, req.user);
-    if (!access.ok) {
-      return res.status(access.code).json({
-        success: false,
-        message: access.message,
-      });
-    }
-
-    const existing = await WatchGroupMember.findOne({
-      watchGroup: group._id,
+    let membership = await WatchGroupMember.findOne({
+      group: group._id,
       user: req.user._id,
-      status: "active",
-    }).lean();
+    });
 
-    if (existing) {
-      const participantCount = await getActiveParticipantCount(group._id);
-      return res.status(200).json({
+    if (membership?.status === "active") {
+      return res.json({
         success: true,
-        message: "Already a member of this watch group.",
-        watchGroup: formatWatchGroup(group.toObject ? group.toObject() : group, {
-          participantCount,
-          myRole: existing.role,
-          myJoinRequestStatus: null,
-        }),
+        message: "Already a member.",
+        group: await attachMeta(group, req.user),
       });
     }
 
-    const participantCount = await getActiveParticipantCount(group._id);
-    if (participantCount >= group.maxParticipants) {
+    const count = await countActiveParticipants(group._id);
+    if (count >= group.maxParticipants) {
       return res.status(400).json({
         success: false,
         message: "This watch group is full.",
       });
     }
 
-    const membership = await upsertActiveMember(group._id, req.user._id);
-    const lean = group.toObject ? group.toObject() : group;
-
-    return res.status(200).json({
-      success: true,
-      message: "Joined watch group successfully.",
-      watchGroup: formatWatchGroup(lean, {
-        participantCount: participantCount + 1,
-        myRole: membership.role,
-        myJoinRequestStatus: null,
-      }),
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
-
-/**
- * Request to join a private watch group.
- */
-export const createWatchGroupJoinRequest = async (req, res) => {
-  try {
-    const group = await resolveWatchGroup(req.params.groupId);
-    if (!isOpenWatchGroup(group)) {
-      return res.status(404).json({
-        success: false,
-        message: "Watch group not found.",
+    if (membership) {
+      membership.status = "active";
+      membership.role = membership.role === "owner" ? "owner" : "member";
+      membership.removedAt = null;
+      membership.removedBy = null;
+      await membership.save();
+    } else {
+      await WatchGroupMember.create({
+        group: group._id,
+        user: req.user._id,
+        role: "member",
+        status: "active",
       });
     }
 
-    if (group.type !== "private") {
-      return res.status(400).json({
-        success: false,
-        message: "Public watch groups can be joined directly.",
-      });
-    }
-
-    const access = await ensureCommunityMemberForGroup(group, req.user);
-    if (!access.ok) {
-      return res.status(access.code).json({
-        success: false,
-        message: access.message,
-      });
-    }
-
-    const existingMember = await WatchGroupMember.findOne({
-      watchGroup: group._id,
-      user: req.user._id,
-      status: "active",
-    }).lean();
-
-    if (existingMember) {
-      return res.status(400).json({
-        success: false,
-        message: "You are already a member of this watch group.",
-      });
-    }
-
-    const existingPending = await WatchGroupJoinRequest.findOne({
-      watchGroup: group._id,
-      user: req.user._id,
-      status: "pending",
-    });
-
-    if (existingPending) {
-      return res.status(200).json({
-        success: true,
-        message: "Join request already pending.",
-        request: formatJoinRequest(existingPending),
-        myJoinRequestStatus: "pending",
-      });
-    }
-
-    const joinRequest = await WatchGroupJoinRequest.create({
-      watchGroup: group._id,
-      user: req.user._id,
-      status: "pending",
-      message: String(req.body?.message || "").trim(),
-    });
-
-    await joinRequest.populate("user", "username name avatar");
-
-    return res.status(201).json({
-      success: true,
-      message: "Join request submitted.",
-      request: formatJoinRequest(joinRequest),
-      myJoinRequestStatus: "pending",
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
-
-const assertGroupOwner = async (group, user) => {
-  if (!group) {
-    return { ok: false, code: 404, message: "Watch group not found." };
-  }
-  const creatorId = group.createdBy?._id || group.createdBy;
-  const ownerMembership = await WatchGroupMember.findOne({
-    watchGroup: group._id,
-    user: user._id,
-    role: "owner",
-    status: "active",
-  }).lean();
-
-  if (
-    String(creatorId) !== String(user._id) &&
-    !ownerMembership &&
-    user.role !== "admin"
-  ) {
-    return {
-      ok: false,
-      code: 403,
-      message: "Only the watch group owner can manage join requests.",
-    };
-  }
-  return { ok: true };
-};
-
-const getGroupCommunityRef = (group) => {
-  if (!group?.community) return null;
-  if (group.community._id) return group.community;
-  return { _id: group.community };
-};
-
-/**
- * Group admin (creator / owner role / platform admin) OR community moderator/owner.
- */
-const canManageWatchGroup = async (group, user) => {
-  if (!group) {
-    return {
-      ok: false,
-      code: 404,
-      message: "Watch group not found.",
-      isGroupOwner: false,
-      isCommunityModerator: false,
-    };
-  }
-
-  const ownerCheck = await assertGroupOwner(group, user);
-  if (ownerCheck.ok) {
-    const community = getGroupCommunityRef(group);
-    const isCommunityModerator = community
-      ? await canModerateCommunity(community, user)
-      : user.role === "admin";
-    return {
-      ok: true,
-      isGroupOwner: true,
-      isCommunityModerator,
-    };
-  }
-
-  const community = getGroupCommunityRef(group);
-  if (!community?._id) {
-    return {
-      ok: false,
-      code: 403,
-      message: "You do not have permission to manage this watch group.",
-      isGroupOwner: false,
-      isCommunityModerator: false,
-    };
-  }
-
-  const isCommunityModerator = await canModerateCommunity(community, user);
-  if (isCommunityModerator) {
-    return {
-      ok: true,
-      isGroupOwner: false,
-      isCommunityModerator: true,
-    };
-  }
-
-  return {
-    ok: false,
-    code: 403,
-    message: "You do not have permission to manage this watch group.",
-    isGroupOwner: false,
-    isCommunityModerator: false,
-  };
-};
-
-/**
- * List pending join requests for a watch group (owner only).
- */
-export const listWatchGroupJoinRequests = async (req, res) => {
-  try {
-    const group = await resolveWatchGroup(req.params.groupId);
-    if (!isOpenWatchGroup(group)) {
-      return res.status(404).json({
-        success: false,
-        message: "Watch group not found.",
-      });
-    }
-
-    const ownerCheck = await assertGroupOwner(group, req.user);
-    if (!ownerCheck.ok) {
-      return res.status(ownerCheck.code).json({
-        success: false,
-        message: ownerCheck.message,
-      });
-    }
-
-    const status = String(req.query.status || "pending").trim().toLowerCase();
-    const filter = { watchGroup: group._id };
-    if (["pending", "approved", "denied"].includes(status)) {
-      filter.status = status;
-    }
-
-    const requests = await WatchGroupJoinRequest.find(filter)
-      .populate("user", "username name avatar")
-      .sort({ createdAt: -1 })
-      .lean();
-
-    return res.status(200).json({
-      success: true,
-      requests: requests.map(formatJoinRequest),
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
-
-/**
- * Approve a private watch group join request (owner only).
- */
-export const approveWatchGroupJoinRequest = async (req, res) => {
-  try {
-    const group = await resolveWatchGroup(req.params.groupId);
-    if (!isOpenWatchGroup(group)) {
-      return res.status(404).json({
-        success: false,
-        message: "Watch group not found.",
-      });
-    }
-
-    const ownerCheck = await assertGroupOwner(group, req.user);
-    if (!ownerCheck.ok) {
-      return res.status(ownerCheck.code).json({
-        success: false,
-        message: ownerCheck.message,
-      });
-    }
-
-    const joinRequest = await WatchGroupJoinRequest.findOne({
-      _id: req.params.requestId,
-      watchGroup: group._id,
-    }).populate("user", "username name avatar");
-
-    if (!joinRequest) {
-      return res.status(404).json({
-        success: false,
-        message: "Join request not found.",
-      });
-    }
-
-    if (joinRequest.status !== "pending") {
-      return res.status(400).json({
-        success: false,
-        message: "Only pending join requests can be approved.",
-      });
-    }
-
-    const userId = joinRequest.user._id || joinRequest.user;
-    const participantCount = await getActiveParticipantCount(group._id);
-    if (participantCount >= group.maxParticipants) {
-      return res.status(400).json({
-        success: false,
-        message: "This watch group is full.",
-      });
-    }
-
-    joinRequest.status = "approved";
-    await joinRequest.save();
-    await upsertActiveMember(group._id, userId);
-
-    return res.status(200).json({
-      success: true,
-      message: "Join request approved.",
-      request: formatJoinRequest(joinRequest),
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
-
-/**
- * Deny a private watch group join request (owner only).
- */
-export const denyWatchGroupJoinRequest = async (req, res) => {
-  try {
-    const group = await resolveWatchGroup(req.params.groupId);
-    if (!isOpenWatchGroup(group)) {
-      return res.status(404).json({
-        success: false,
-        message: "Watch group not found.",
-      });
-    }
-
-    const ownerCheck = await assertGroupOwner(group, req.user);
-    if (!ownerCheck.ok) {
-      return res.status(ownerCheck.code).json({
-        success: false,
-        message: ownerCheck.message,
-      });
-    }
-
-    const joinRequest = await WatchGroupJoinRequest.findOne({
-      _id: req.params.requestId,
-      watchGroup: group._id,
-    }).populate("user", "username name avatar");
-
-    if (!joinRequest) {
-      return res.status(404).json({
-        success: false,
-        message: "Join request not found.",
-      });
-    }
-
-    if (joinRequest.status !== "pending") {
-      return res.status(400).json({
-        success: false,
-        message: "Only pending join requests can be denied.",
-      });
-    }
-
-    joinRequest.status = "denied";
-    await joinRequest.save();
-
-    return res.status(200).json({
-      success: true,
-      message: "Join request denied.",
-      request: formatJoinRequest(joinRequest),
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
-
-/**
- * Pause or resume messaging for a watch group (group owner only).
- * Separate from close — paused groups remain open for reading/joining.
- */
-export const setWatchGroupPaused = async (req, res) => {
-  try {
-    const group = await resolveWatchGroup(req.params.groupId);
-    if (!isOpenWatchGroup(group)) {
-      return res.status(404).json({
-        success: false,
-        message: "Watch group not found.",
-      });
-    }
-
-    const ownerCheck = await assertGroupOwner(group, req.user);
-    if (!ownerCheck.ok) {
-      return res.status(ownerCheck.code).json({
-        success: false,
-        message: "Only the watch group owner can pause or resume this group.",
-      });
-    }
-
-    const paused = Boolean(req.body?.paused);
-    group.status = paused ? "paused" : "active";
-    await group.save();
-
-    const lean = group.toObject ? group.toObject() : group;
-    const payload = {
+    const payload = await attachMeta(group, req.user);
+    req.app.get("io")?.to(`watch:${group._id}`).emit("watch_participant_joined", {
       groupId: String(group._id),
-      status: group.status,
-      watchGroup: formatWatchGroup(lean, { canManage: true }),
-    };
+      participantCount: payload.participantCount,
+    });
 
-    try {
-      const io = getIo();
-      if (io) {
-        io.to(toWatchGroupRoom(String(group._id))).emit(
-          WATCH_GROUP_SOCKET_EVENTS.GROUP_STATUS_UPDATED,
-          payload
-        );
-      }
-    } catch {
-      // Socket optional — pause still persists without live broadcast.
-    }
-
-    return res.status(200).json({
+    return res.json({
       success: true,
-      message: paused ? "Watch group paused." : "Watch group resumed.",
-      watchGroup: formatWatchGroup(lean, { canManage: true }),
+      message: "Joined watch group.",
+      group: payload,
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error, "Failed to join watch group.");
   }
 };
 
-/**
- * Soft-close a watch group (group admin or community moderator). Sets status to "closed".
- */
-export const closeWatchGroup = async (req, res) => {
+export const leaveWatchGroup = async (req, res) => {
   try {
-    const group = await resolveWatchGroup(req.params.groupId);
-    if (!isOpenWatchGroup(group)) {
+    const group = await findWatchGroupByParam(req.params.id);
+    if (!group) {
       return res.status(404).json({
         success: false,
         message: "Watch group not found.",
       });
     }
 
-    const manageCheck = await canManageWatchGroup(group, req.user);
-    if (!manageCheck.ok) {
-      return res.status(manageCheck.code).json({
-        success: false,
-        message: "Only the watch group owner or a community moderator can delete this group.",
-      });
-    }
-
-    group.status = "closed";
-    await group.save();
-
-    return res.status(200).json({
-      success: true,
-      message: "Watch group deleted.",
-      watchGroup: formatWatchGroup(group, { canManage: true }),
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
-
-/**
- * Remove a member from a watch group (group admin or community moderator).
- * Community moderators may remove the group creator / owner-role members.
- */
-export const removeWatchGroupMember = async (req, res) => {
-  try {
-    const group = await resolveWatchGroup(req.params.groupId);
-    if (!isOpenWatchGroup(group)) {
-      return res.status(404).json({
-        success: false,
-        message: "Watch group not found.",
-      });
-    }
-
-    const manageCheck = await canManageWatchGroup(group, req.user);
-    if (!manageCheck.ok) {
-      return res.status(manageCheck.code).json({
-        success: false,
-        message: "Only the watch group owner or a community moderator can remove members.",
-      });
-    }
-
-    const targetUserId = req.params.userId;
-    if (!targetUserId) {
+    const membership = await getMembership(group._id, req.user._id);
+    if (!membership) {
       return res.status(400).json({
         success: false,
-        message: "Member id is required.",
+        message: "You are not a member of this group.",
       });
     }
-
-    if (String(targetUserId) === String(req.user._id)) {
+    if (membership.role === "owner") {
       return res.status(400).json({
         success: false,
-        message: "You cannot remove yourself from the group.",
-      });
-    }
-
-    const creatorId = group.createdBy?._id || group.createdBy;
-    const isTargetCreator = String(targetUserId) === String(creatorId);
-
-    const membership = await WatchGroupMember.findOne({
-      watchGroup: group._id,
-      user: targetUserId,
-    });
-
-    if (!membership || membership.status !== "active") {
-      return res.status(404).json({
-        success: false,
-        message: "Member not found in this watch group.",
-      });
-    }
-
-    const isTargetOwnerRole = membership.role === "owner";
-    if (
-      (isTargetCreator || isTargetOwnerRole) &&
-      !manageCheck.isCommunityModerator
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: "The group administrator cannot be removed.",
+        message: "Owners cannot leave. Delete the group instead.",
       });
     }
 
     membership.status = "removed";
+    membership.removedAt = new Date();
+    membership.removedBy = req.user._id;
     await membership.save();
 
-    return res.status(200).json({
+    const count = await countActiveParticipants(group._id);
+    req.app.get("io")?.to(`watch:${group._id}`).emit("watch_participant_left", {
+      groupId: String(group._id),
+      userId: String(req.user._id),
+      participantCount: count,
+    });
+
+    return res.json({ success: true, message: "Left watch group." });
+  } catch (error) {
+    return sendServerError(res, error, "Failed to leave watch group.");
+  }
+};
+
+export const deleteWatchGroup = async (req, res) => {
+  try {
+    const group = await findWatchGroupByParam(req.params.id);
+    if (!group) {
+      return res.status(404).json({
+        success: false,
+        message: "Watch group not found.",
+      });
+    }
+
+    if (!(await userCanDeleteWatchGroup(group, req.user))) {
+      return res.status(403).json({
+        success: false,
+        message: "Only the group owner can delete this watch group.",
+      });
+    }
+
+    const groupId = String(group._id);
+    await WatchGroupMessage.deleteMany({ group: group._id });
+    await WatchGroupMember.deleteMany({ group: group._id });
+    await group.deleteOne();
+
+    req.app.get("io")?.to(`watch:${groupId}`).emit("watch_group_deleted", {
+      groupId,
+    });
+
+    return res.json({ success: true, message: "Watch group deleted." });
+  } catch (error) {
+    return sendServerError(res, error, "Failed to delete watch group.");
+  }
+};
+
+export const listParticipants = async (req, res) => {
+  try {
+    const group = await findWatchGroupByParam(req.params.id);
+    if (!group) {
+      return res.status(404).json({
+        success: false,
+        message: "Watch group not found.",
+      });
+    }
+
+    if (!(await userIsMember(group, req.user)) && req.user.role !== "admin") {
+      // Public groups: members-only for participant list once joined;
+      // allow access if user can see the group (public) for join preview
+      if (!(await userCanAccessWatchGroup(group, req.user))) {
+        return res.status(403).json({
+          success: false,
+          message: "You do not have access to this watch group.",
+        });
+      }
+    }
+
+    const members = await WatchGroupMember.find({
+      group: group._id,
+      status: "active",
+    })
+      .populate("user", "username name avatar")
+      .sort({ role: 1, createdAt: 1 });
+
+    return res.json({
       success: true,
-      message: "Member removed from watch group.",
-      userId: targetUserId,
+      participants: members.map(formatParticipant),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
+    return sendServerError(res, error, "Failed to list participants.");
+  }
+};
+
+export const removeParticipant = async (req, res) => {
+  try {
+    const group = await findWatchGroupByParam(req.params.id);
+    if (!group) {
+      return res.status(404).json({
+        success: false,
+        message: "Watch group not found.",
+      });
+    }
+
+    if (!(await userCanModerateWatchGroup(group, req.user))) {
+      return res.status(403).json({
+        success: false,
+        message: "Only owners and moderators can remove participants.",
+      });
+    }
+
+    const membership = await WatchGroupMember.findOne({
+      _id: req.params.memberId,
+      group: group._id,
+      status: "active",
     });
+
+    if (!membership) {
+      return res.status(404).json({
+        success: false,
+        message: "Participant not found.",
+      });
+    }
+
+    if (membership.role === "owner") {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot remove the group owner.",
+      });
+    }
+
+    const actorRole = await getViewerRole(group, req.user);
+    if (
+      membership.role === "moderator" &&
+      actorRole === "moderator" &&
+      req.user.role !== "admin"
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "Moderators cannot remove other moderators.",
+      });
+    }
+
+    membership.status = "removed";
+    membership.removedAt = new Date();
+    membership.removedBy = req.user._id;
+    await membership.save();
+
+    const userId = String(membership.user);
+    const count = await countActiveParticipants(group._id);
+
+    req.app.get("io")?.to(`watch:${group._id}`).emit("watch_participant_removed", {
+      groupId: String(group._id),
+      userId,
+      memberId: String(membership._id),
+      participantCount: count,
+    });
+
+    return res.json({
+      success: true,
+      message: "Participant removed.",
+      memberId: String(membership._id),
+      userId,
+    });
+  } catch (error) {
+    return sendServerError(res, error, "Failed to remove participant.");
+  }
+};
+
+export const addParticipant = async (req, res) => {
+  try {
+    const group = await findWatchGroupByParam(req.params.id);
+    if (!group) {
+      return res.status(404).json({
+        success: false,
+        message: "Watch group not found.",
+      });
+    }
+
+    if (!(await userCanModerateWatchGroup(group, req.user))) {
+      return res.status(403).json({
+        success: false,
+        message: "Only owners and moderators can add participants.",
+      });
+    }
+
+    const username = String(req.body.username || "")
+      .trim()
+      .toLowerCase();
+    if (!username) {
+      return res.status(400).json({
+        success: false,
+        message: "Username is required.",
+      });
+    }
+
+    const user = await User.findOne({
+      username: new RegExp(`^${username.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i"),
+    });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found.",
+      });
+    }
+
+    const count = await countActiveParticipants(group._id);
+    let membership = await WatchGroupMember.findOne({
+      group: group._id,
+      user: user._id,
+    });
+
+    if (membership?.status === "active") {
+      return res.status(400).json({
+        success: false,
+        message: "User is already a participant.",
+      });
+    }
+
+    if (!membership && count >= group.maxParticipants) {
+      return res.status(400).json({
+        success: false,
+        message: "This watch group is full.",
+      });
+    }
+
+    if (membership) {
+      membership.status = "active";
+      membership.role = "member";
+      membership.removedAt = null;
+      membership.removedBy = null;
+      await membership.save();
+    } else {
+      membership = await WatchGroupMember.create({
+        group: group._id,
+        user: user._id,
+        role: "member",
+        status: "active",
+      });
+    }
+
+    await membership.populate("user", "username name avatar");
+    const newCount = await countActiveParticipants(group._id);
+
+    req.app.get("io")?.to(`watch:${group._id}`).emit("watch_participant_joined", {
+      groupId: String(group._id),
+      participantCount: newCount,
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Participant added.",
+      participant: formatParticipant(membership),
+    });
+  } catch (error) {
+    return sendServerError(res, error, "Failed to add participant.");
+  }
+};
+
+export const setParticipantRole = async (req, res) => {
+  try {
+    const group = await findWatchGroupByParam(req.params.id);
+    if (!group) {
+      return res.status(404).json({
+        success: false,
+        message: "Watch group not found.",
+      });
+    }
+
+    if (!(await userCanDeleteWatchGroup(group, req.user))) {
+      return res.status(403).json({
+        success: false,
+        message: "Only the group owner can change roles.",
+      });
+    }
+
+    const role = String(req.body.role || "")
+      .toLowerCase()
+      .trim();
+    if (role !== "moderator" && role !== "member") {
+      return res.status(400).json({
+        success: false,
+        message: "Role must be moderator or member.",
+      });
+    }
+
+    const membership = await WatchGroupMember.findOne({
+      _id: req.params.memberId,
+      group: group._id,
+      status: "active",
+    }).populate("user", "username name avatar");
+
+    if (!membership) {
+      return res.status(404).json({
+        success: false,
+        message: "Participant not found.",
+      });
+    }
+    if (membership.role === "owner") {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot change the owner role.",
+      });
+    }
+
+    membership.role = role;
+    await membership.save();
+
+    return res.json({
+      success: true,
+      message: `Participant is now a ${role}.`,
+      participant: formatParticipant(membership),
+    });
+  } catch (error) {
+    return sendServerError(res, error, "Failed to update role.");
+  }
+};
+
+export const listWatchMessages = async (req, res) => {
+  try {
+    const group = await findWatchGroupByParam(req.params.id);
+    if (!group) {
+      return res.status(404).json({
+        success: false,
+        message: "Watch group not found.",
+      });
+    }
+
+    if (!(await userIsMember(group, req.user)) && req.user.role !== "admin") {
+      return res.status(403).json({
+        success: false,
+        message: "Join the watch group to view chat.",
+      });
+    }
+
+    const canModerate = await userCanModerateWatchGroup(group, req.user);
+    const limit = Math.min(Number(req.query.limit) || 100, 300);
+
+    const messages = await WatchGroupMessage.find({ group: group._id })
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .populate("author", "username name avatar");
+
+    return res.json({
+      success: true,
+      messages: messages
+        .reverse()
+        .map((m) => formatWatchMessage(m, { canDelete: canModerate })),
+    });
+  } catch (error) {
+    return sendServerError(res, error, "Failed to load messages.");
+  }
+};
+
+export const deleteWatchMessage = async (req, res) => {
+  try {
+    const group = await findWatchGroupByParam(req.params.id);
+    if (!group) {
+      return res.status(404).json({
+        success: false,
+        message: "Watch group not found.",
+      });
+    }
+
+    if (!(await userCanModerateWatchGroup(group, req.user))) {
+      return res.status(403).json({
+        success: false,
+        message: "Only owners and moderators can remove messages.",
+      });
+    }
+
+    const message = await WatchGroupMessage.findOne({
+      _id: req.params.messageId,
+      group: group._id,
+    });
+
+    if (!message) {
+      return res.status(404).json({
+        success: false,
+        message: "Message not found.",
+      });
+    }
+
+    const messageId = String(message._id);
+    await message.deleteOne();
+
+    req.app.get("io")?.to(`watch:${group._id}`).emit("watch_message_deleted", {
+      groupId: String(group._id),
+      messageId,
+    });
+
+    return res.json({
+      success: true,
+      message: "Message removed.",
+      messageId,
+    });
+  } catch (error) {
+    return sendServerError(res, error, "Failed to delete message.");
+  }
+};
+
+/** Admin overview list with message + participant counts. */
+export const adminListWatchGroups = async (req, res) => {
+  try {
+    const q = String(req.query.q || "").trim();
+    const type = String(req.query.type || "all").toLowerCase();
+
+    const filter = {};
+    if (type === "public" || type === "private") {
+      filter.type = type;
+    }
+
+    const groups = await WatchGroup.find(filter)
+      .sort({ createdAt: -1 })
+      .limit(200)
+      .populate("owner", "username name avatar");
+
+    const ids = groups.map((g) => g._id);
+    const [memberCounts, messageCounts] = await Promise.all([
+      WatchGroupMember.aggregate([
+        { $match: { group: { $in: ids }, status: "active" } },
+        { $group: { _id: "$group", count: { $sum: 1 } } },
+      ]),
+      WatchGroupMessage.aggregate([
+        { $match: { group: { $in: ids } } },
+        { $group: { _id: "$group", count: { $sum: 1 } } },
+      ]),
+    ]);
+
+    const memberMap = Object.fromEntries(
+      memberCounts.map((r) => [String(r._id), r.count])
+    );
+    const messageMap = Object.fromEntries(
+      messageCounts.map((r) => [String(r._id), r.count])
+    );
+
+    let formatted = groups.map((group) =>
+      formatWatchGroup(group, {
+        participantCount: memberMap[String(group._id)] || 0,
+        messageCount: messageMap[String(group._id)] || 0,
+        canModerate: true,
+        canDelete: true,
+        isMember: false,
+        canJoin: false,
+        viewerRole: "admin",
+      })
+    );
+
+    if (q) {
+      const needle = q.toLowerCase();
+      formatted = formatted.filter((g) => {
+        const hay = [
+          g.name,
+          g.type,
+          g.owner?.name,
+          g.owner?.username,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return hay.includes(needle);
+      });
+    }
+
+    return res.json({
+      success: true,
+      groups: formatted,
+      summary: {
+        all: formatted.length,
+        public: formatted.filter((g) => g.type === "public").length,
+        private: formatted.filter((g) => g.type === "private").length,
+      },
+    });
+  } catch (error) {
+    return sendServerError(res, error, "Failed to list watch groups.");
   }
 };

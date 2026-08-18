@@ -1,6 +1,5 @@
 import React from 'react';
 import { useLocation } from 'react-router-dom';
-import PublicLayout from './layouts/PublicLayout';
 import AppRoutes from './routes/AppRoutes';
 
 const ScrollToTop = () => {
@@ -16,9 +15,7 @@ const ScrollToTop = () => {
 const App = () => (
   <>
     <ScrollToTop />
-    <PublicLayout>
-      <AppRoutes />
-    </PublicLayout>
+    <AppRoutes />
   </>
 );
 

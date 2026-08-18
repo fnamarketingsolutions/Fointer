@@ -1,6 +1,9 @@
 // src/components/admin/GlobalAnnouncements.jsx
 import React, { useState } from 'react';
-import { Send, Megaphone } from 'lucide-react';
+import {
+  LuSend as Send,
+  LuMegaphone as Megaphone
+} from 'react-icons/lu';
 
 const GlobalAnnouncements = () => {
   const [title, setTitle] = useState('');

@@ -1,35 +1,41 @@
-import { useState, useEffect } from 'react';
-import { useNavigate, Link, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Suspense, lazy, useState, useEffect } from 'react';
+import { useNavigate, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import {
-  BarChart3,
-  Users,
-  UsersRound,
-  LifeBuoy,
-  X,
-  Crown,
-  Bell,
-  Mail,
-  LogOut,
-  Home,
-  Shield,
-  Radio,
-  MessageSquare,
-  UserRound,
-  Layers,
-  GitBranch,
-} from 'lucide-react';
+  LuChartColumn as BarChart3,
+  LuUsers as Users,
+  LuUsersRound as UsersRound,
+  LuLifeBuoy as LifeBuoy,
+  LuX as X,
+  LuCrown as Crown,
+  LuLogOut as LogOut,
+  LuShield as Shield,
+  LuRadio as Radio,
+  LuMessageSquare as MessageSquare,
+  LuUserRound as UserRound,
+  LuLayers as Layers
+} from 'react-icons/lu';
 
 import { useAuth } from '../../../context/AuthContext';
 import ComingSoon from '../../../shared/components/feedback/ComingSoon';
-import UserManagement from './menus/UserManagement';
-import CommunityManagement from './menus/CommunityManagement';
-import ChannelManagement from './menus/ChannelManagement';
-import SubchannelManagement from './menus/SubchannelManagement';
-import SupportTicketCenter from './menus/SupportTicketCenter';
-import UserDetail from './menus/UserDetail';
-import CommunityDetail from './menus/CommunityDetail';
-import AdminCommunityPostPage from './menus/AdminCommunityPostPage';
-import Profile from '../../profile/pages/Profile';
+
+const UserManagement = lazy(() => import('./menus/UserManagement'));
+const CommunityManagement = lazy(() => import('./menus/CommunityManagement'));
+const ChannelManagement = lazy(() => import('./menus/ChannelManagement'));
+const SupportTicketCenter = lazy(() => import('./menus/SupportTicketCenter'));
+const LiveEventManagement = lazy(() => import('./menus/LiveEventManagement'));
+const WatchGroupManagement = lazy(() => import('./menus/WatchGroupManagement'));
+const ContentModeration = lazy(() => import('./menus/ContentModeration'));
+const ReportingAnalytics = lazy(() => import('./menus/ReportingAnalytics'));
+const UserDetail = lazy(() => import('./menus/UserDetail'));
+const CommunityDetail = lazy(() => import('./menus/CommunityDetail'));
+const AdminCommunityPostPage = lazy(() => import('./menus/AdminCommunityPostPage'));
+const Profile = lazy(() => import('../../profile/pages/Profile'));
+
+const pageFallback = (
+  <div className="min-h-[30vh] flex items-center justify-center text-stone-400 text-sm">
+    Loading...
+  </div>
+);
 
 const DEFAULT_AVATAR =
   'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=100';
@@ -37,12 +43,11 @@ const DEFAULT_AVATAR =
 const navigationItems = [
   { id: 'users', label: 'User Management', icon: Users, type: 'users' },
   { id: 'communities', label: 'Community Management', icon: UsersRound, type: 'communities' },
-  { id: 'channels', label: 'Channels', icon: Layers, type: 'channels' },
-  { id: 'subchannels', label: 'Subchannels', icon: GitBranch, type: 'subchannels' },
-  { id: 'moderation', label: 'Content Moderation', icon: Shield, type: 'soon', title: 'Content Moderation' },
-  { id: 'commentary', label: 'Live Commentary', icon: MessageSquare, type: 'soon', title: 'Live Commentary' },
-  { id: 'watchgroups', label: 'Watch Groups', icon: Radio, type: 'soon', title: 'Watch Groups' },
-  { id: 'analytics', label: 'Reporting & Analytics', icon: BarChart3, type: 'soon', title: 'Reporting & Analytics' },
+  { id: 'channels', label: 'Channels Management', icon: Layers, type: 'channels' },
+  { id: 'commentary', label: 'Live Events Management', icon: MessageSquare, type: 'commentary' },
+  { id: 'watchgroups', label: 'Watch Groups Management', icon: Radio, type: 'watchgroups' }, 
+  { id: 'moderation', label: 'Content Moderation', icon: Shield, type: 'moderation' },
+  { id: 'analytics', label: 'Reporting & Analytics', icon: BarChart3, type: 'analytics' },
   { id: 'support', label: 'Support Tools', icon: LifeBuoy, type: 'support' },
   { id: 'profile', label: 'Profile', icon: UserRound, type: 'profile' },
 ];
@@ -166,14 +171,6 @@ const AdminDashboard = () => {
         </div>
 
         <nav className="flex-1 px-3 py-2 space-y-1 overflow-y-auto">
-          <Link
-            to="/"
-            className="w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-lg text-sm font-medium text-stone-400 hover:text-amber-400 hover:bg-[#181512] mb-2 border-b border-stone-800/40"
-          >
-            <Home className="w-4 h-4" />
-            <span>Go to Home</span>
-          </Link>
-
           {navigationItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
@@ -182,7 +179,7 @@ const AdminDashboard = () => {
                 key={item.id}
                 type="button"
                 onClick={() => handleNavClick(item.id)}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                className={`w-full flex items-center justify-between px-2.5 py-2.5 rounded-lg text-sm font-medium transition-all ${
                   isActive
                     ? 'bg-[#1e1b18] text-amber-400 border border-amber-500/40 shadow-sm'
                     : 'text-stone-400 hover:text-stone-200 hover:bg-[#181512]'
@@ -217,14 +214,8 @@ const AdminDashboard = () => {
       )}
 
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
-        <header className="hidden md:flex items-center justify-end px-8 py-4 bg-[#0c0a09] border-b border-stone-800/40 space-x-5">
-          <button type="button" className="p-2 text-stone-400 hover:text-amber-400 transition-colors relative">
-            <Bell className="w-5 h-5" />
-          </button>
-          <button type="button" className="p-2 text-stone-400 hover:text-amber-400 transition-colors">
-            <Mail className="w-5 h-5" />
-          </button>
-          <div className="flex items-center space-x-3 pl-3 border-l border-stone-800/60">
+        <header className="hidden md:flex items-center justify-end px-8 py-4 bg-[#0c0a09] border-b border-stone-800/40">
+          <div className="flex items-center space-x-3">
             <div className="text-right">
               <p className="text-xs font-semibold text-stone-200">
                 {user?.name || user?.username || 'Admin'}
@@ -250,7 +241,8 @@ const AdminDashboard = () => {
 
         <main className="flex-1 p-4 md:p-8 overflow-y-auto">
           <div className="max-w-7xl w-full mx-auto">
-            <Routes>
+            <Suspense fallback={pageFallback}>
+              <Routes>
               <Route path="/" element={<Navigate to="/admin/users" replace />} />
               <Route path="users" element={<UserManagement />} />
               <Route path="users/:id" element={<UserDetail />} />
@@ -261,7 +253,16 @@ const AdminDashboard = () => {
               />
               <Route path="communities/:id" element={<CommunityDetail />} />
               <Route path="channels" element={<ChannelManagement />} />
-              <Route path="subchannels" element={<SubchannelManagement />} />
+              <Route
+                path="subchannels"
+                element={
+                  <Navigate to="/admin/channels?tab=subchannels" replace />
+                }
+              />
+              <Route path="moderation" element={<ContentModeration />} />
+              <Route path="commentary" element={<LiveEventManagement />} />
+              <Route path="watchgroups" element={<WatchGroupManagement />} />
+              <Route path="analytics" element={<ReportingAnalytics />} />
               <Route path="support" element={<SupportTicketCenter />} />
               <Route path="profile" element={<Profile />} />
               {navigationItems
@@ -274,6 +275,7 @@ const AdminDashboard = () => {
                   />
                 ))}
             </Routes>
+            </Suspense>
           </div>
         </main>
       </div>

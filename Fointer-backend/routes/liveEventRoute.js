@@ -1,31 +1,27 @@
 import express from "express";
 import {
-  createLiveEvent,
   listLiveEvents,
-  getLiveEventCreateContext,
-  joinLiveEvent,
+  getLiveEvent,
+  createLiveEvent,
   endLiveEvent,
-  closeLiveEvent,
-  removeLiveEventMember,
+  deleteLiveEvent,
+  listLiveMessages,
+  deleteLiveMessage,
+  listHostableCommunities,
 } from "../controllers/liveEvent.controller.js";
 import { isAuthenticated } from "../middleware/auth.middleware.js";
-import liveEventMessageRoute from "./liveEventMessage.route.js";
 
 const router = express.Router();
 
-router.get("/create-context", isAuthenticated, getLiveEventCreateContext);
+router.get("/hostable-communities", isAuthenticated, listHostableCommunities);
 router.get("/", isAuthenticated, listLiveEvents);
 router.post("/", isAuthenticated, createLiveEvent);
 
-router.post("/:eventId/join", isAuthenticated, joinLiveEvent);
-router.patch("/:eventId/end", isAuthenticated, endLiveEvent);
-router.delete(
-  "/:eventId/members/:userId",
-  isAuthenticated,
-  removeLiveEventMember
-);
-router.delete("/:eventId", isAuthenticated, closeLiveEvent);
+router.get("/:id/messages", isAuthenticated, listLiveMessages);
+router.delete("/:id/messages/:messageId", isAuthenticated, deleteLiveMessage);
 
-router.use("/:eventId", liveEventMessageRoute);
+router.post("/:id/end", isAuthenticated, endLiveEvent);
+router.get("/:id", isAuthenticated, getLiveEvent);
+router.delete("/:id", isAuthenticated, deleteLiveEvent);
 
 export default router;

@@ -1,6 +1,12 @@
 import React from "react";
-import { Radio, Users, Play, MessageCircle } from "lucide-react";
+import {
+  LuRadio as Radio,
+  LuUsers as Users,
+  LuPlay as Play,
+  LuMessageCircle as MessageCircle
+} from "react-icons/lu";
 
+/** @deprecated Use LiveEvents.jsx — kept only if something still imports this mock. */
 export default function ActiveEvents() {
   const events = [
     {
@@ -22,6 +28,7 @@ export default function ActiveEvents() {
       thumbnail: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&q=80&w=800"
     }
   ];
+
   return (
     <div className="space-y-6">
       <div>

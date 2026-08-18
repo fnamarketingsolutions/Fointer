@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import Channel from "../models/channel.js";
 import Subchannel from "../models/subchannel.js";
+import { sendServerError } from "../utils/safeError.js";
 
 const formatSubchannel = (subchannel) => {
   const channel = subchannel.channel;
@@ -80,10 +81,7 @@ export const createSubchannel = async (req, res) => {
         message: "A subchannel with this name already exists in the selected channel.",
       });
     }
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };
 
@@ -117,10 +115,7 @@ export const listSubchannels = async (req, res) => {
       subchannels: subchannels.map(formatSubchannel),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };
 
@@ -205,9 +200,6 @@ export const updateSubchannel = async (req, res) => {
         message: "A subchannel with this name already exists in the selected channel.",
       });
     }
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };

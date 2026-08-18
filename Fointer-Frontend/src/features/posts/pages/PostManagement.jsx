@@ -1,23 +1,21 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Search,
-  Plus,
-  X,
-  Loader2,
-  Heart,
-  MessageCircle,
-  Image as ImageIcon,
-  RefreshCw,
-} from "lucide-react";
-import {
-  fetchPosts,
-  createPost,
-} from "../../../api/posts";
+  LuSearch as Search,
+  LuPlus as Plus,
+  LuLoaderCircle as Loader2,
+  LuHeart as Heart,
+  LuMessageCircle as MessageCircle,
+  LuImage as ImageIcon,
+  LuRefreshCw as RefreshCw,
+  LuFileText as FileText,
+} from "react-icons/lu";
+import { fetchPosts, createPost } from "../../../api/posts";
 import { fetchJoinedCommunities } from "../../../api/communities";
-import MediaPicker from "../../../shared/components/media/MediaPicker";
+import CreatePostForm from "../../../shared/components/forms/CreatePostForm";
 import { useToast } from "../../../shared/components/feedback/ToastContext";
 import { postSegment } from "../../../shared/services/entityLinks";
+import { timeAgo } from "../../../shared/utils/date";
 
 const PAGE_SIZE = 10;
 
@@ -158,90 +156,147 @@ export default function PostManagement() {
     }
   };
 
+  const openPost = (post) => {
+    navigate(`/post-management/${postSegment(post)}`);
+  };
+
+  if (showForm) {
+    return (
+      <div className="w-full max-w-3xl mx-auto space-y-5">
+        <CreatePostForm
+          title={form.title}
+          text={form.text}
+          media={form.media}
+          onTitleChange={(title) => setForm((p) => ({ ...p, title }))}
+          onTextChange={(text) => setForm((p) => ({ ...p, text }))}
+          onMediaChange={(media) => setForm((p) => ({ ...p, media }))}
+          onSubmit={handleSubmit}
+          onCancel={closeForm}
+          saving={saving}
+          showCommunitySelect
+          communities={communities}
+          communityId={form.communityId}
+          onCommunityChange={(communityId) =>
+            setForm((p) => ({ ...p, communityId }))
+          }
+          onError={showToast}
+        />
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h1 className="font-serif text-2xl md:text-3xl font-bold text-[#E5E0D8]">
-              Post Management
-            </h1>
-            <p className="text-xs text-[#A69B8D] mt-1">
-              Create and manage your posts. Community is optional.
-            </p>
-          </div>
+    <div className="w-full max-w-3xl mx-auto space-y-5">
+      <header className="flex items-start justify-between gap-3">
+        <div className="space-y-1 min-w-0">
+          <h1 className="text-xl sm:text-2xl font-semibold text-[#E5E0D8]">
+            Post Management
+          </h1>
+          <p className="text-sm text-[#8C8070]">
+            Create and manage your posts. Community is optional.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
             onClick={refreshAll}
             disabled={loading}
-            className="p-2 rounded-lg border border-[#2A241E] text-[#A69B8D] hover:text-[#D4AF37] hover:border-[#D4AF37]/40 transition-colors disabled:opacity-50 shrink-0"
+            className="p-2 rounded-lg border border-[#2A241E] text-[#A69B8D] hover:text-[#D4AF37] hover:border-[#D4AF37]/40 transition-colors disabled:opacity-50"
             title="Refresh"
           >
             <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
           </button>
-        </div>
-
-        <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
-          <form onSubmit={handleSearch} className="relative flex-1">
-            <Search className="w-4 h-4 absolute left-3 top-2.5 text-[#8C8070]" />
-            <input
-              type="text"
-              placeholder="Search posts..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-[#14100D] border border-[#2A241E] rounded-lg pl-9 pr-4 py-2 text-xs text-[#E5E0D8] focus:outline-none focus:border-[#D4AF37]/60 placeholder-[#8C8070]"
-            />
-          </form>
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            aria-label="Sort posts"
-            className="bg-[#14100D] border border-[#2A241E] rounded-lg px-3 py-2 text-xs text-[#E5E0D8] focus:outline-none focus:border-[#D4AF37]/60 shrink-0"
-          >
-            {SORT_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
           <button
             type="button"
             onClick={openCreate}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-[#D4AF37] text-[#0E0C0A] text-xs font-bold hover:bg-[#c4a030] transition-colors shrink-0"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#D4AF37] text-black text-xs font-semibold hover:bg-[#e0c04a] transition-colors"
           >
-            <Plus size={16} />
-            Create Post
+            <Plus size={14} /> Create
           </button>
         </div>
+      </header>
+
+      <div className="flex gap-1 p-1 rounded-xl bg-[#0E0C0A] border border-[#2A241E] overflow-x-auto">
+        {SORT_OPTIONS.map((opt) => {
+          const active = sortBy === opt.value;
+          return (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => setSortBy(opt.value)}
+              className={`flex-1 min-w-[4.5rem] py-2 px-3 rounded-lg text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap ${
+                active
+                  ? "bg-[#1A1510] text-[#D4AF37] border border-[#D4AF37]/35"
+                  : "text-[#8C8070] hover:text-[#E5E0D8] border border-transparent"
+              }`}
+            >
+              {opt.label}
+            </button>
+          );
+        })}
       </div>
 
+      <form onSubmit={handleSearch} className="relative">
+        <Search
+          size={14}
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8C8070] pointer-events-none"
+        />
+        <input
+          type="search"
+          placeholder="Search posts…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full bg-[#14100D] border border-[#2A241E] rounded-xl pl-9 pr-3 py-2.5 text-sm text-[#E5E0D8] placeholder:text-[#5C5348] focus:outline-none focus:border-[#D4AF37]/50"
+        />
+      </form>
+
       {loading ? (
-        <div className="flex items-center justify-center gap-2 py-16 text-[#A69B8D] text-sm">
-          <Loader2 className="w-4 h-4 animate-spin" />
-          Loading posts...
+        <div className="flex items-center justify-center gap-2 py-14 text-sm text-[#A69B8D]">
+          <Loader2 size={16} className="animate-spin text-[#D4AF37]" />
+          Loading posts…
         </div>
       ) : posts.length === 0 ? (
-        <div className="border border-dashed border-[#2A241E] rounded-xl py-16 text-center text-[#8C8070] text-sm">
-          No posts yet. Create your first post.
+        <div className="border border-dashed border-[#2A241E] rounded-xl py-14 text-center text-sm text-[#8C8070] px-4 space-y-3">
+          <FileText className="w-8 h-8 mx-auto text-[#D4AF37]/40" />
+          <p>
+            {query
+              ? "No posts match your search."
+              : "No posts yet. Create your first post."}
+          </p>
+          {!query ? (
+            <button
+              type="button"
+              onClick={openCreate}
+              className="inline-flex items-center gap-2 text-[#D4AF37] hover:text-[#e0c04a] font-medium"
+            >
+              <Plus size={14} /> Create Post
+            </button>
+          ) : null}
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+          <div className="space-y-2.5">
             {posts.map((post) => {
               const cover =
                 post.media?.find((m) => m.type === "image") ||
                 post.media?.[0] ||
                 null;
+
               return (
-                <button
+                <article
                   key={post.id}
-                  type="button"
-                  onClick={() =>
-                    navigate(`/dashboard/posts/${postSegment(post)}`)
-                  }
-                  className="text-left bg-[#14100D] border border-[#2A241E] rounded-xl overflow-hidden hover:border-[#D4AF37]/40 transition-all flex flex-col"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => openPost(post)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      openPost(post);
+                    }
+                  }}
+                  className="group flex items-center gap-3 bg-[#14100D] border border-[#2A241E] hover:border-[#D4AF37]/35 rounded-xl p-3.5 sm:p-4 transition-colors cursor-pointer"
                 >
-                  <div className="h-40 bg-[#0E0C0A] overflow-hidden">
+                  <div className="w-14 h-14 sm:w-16 sm:h-16 shrink-0 rounded-lg overflow-hidden bg-[#0E0C0A] border border-[#2A241E] flex items-center justify-center text-[#5A5046]">
                     {cover ? (
                       cover.type === "video" ? (
                         <video
@@ -257,24 +312,38 @@ export default function PostManagement() {
                         />
                       )
                     ) : (
-                      <div className="w-full h-full bg-gradient-to-br from-[#251E17] to-[#0E0C0A] flex items-center justify-center text-[#5A5046]">
-                        <ImageIcon size={28} />
-                      </div>
+                      <ImageIcon size={20} />
                     )}
                   </div>
-                  <div className="p-4 space-y-2 flex-1 flex flex-col">
-                    {post.community?.name && (
-                      <p className="text-[10px] uppercase tracking-wider text-[#D4AF37] font-mono truncate">
-                        {post.community.name}
-                      </p>
-                    )}
-                    <h3 className="font-serif font-bold text-base text-[#E5E0D8] line-clamp-2">
+
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap text-[11px] text-[#8C8070]">
+                      {post.community?.name ? (
+                        <span className="text-[#D4AF37]/90 truncate max-w-[12rem]">
+                          {post.community.name}
+                        </span>
+                      ) : (
+                        <span>Personal post</span>
+                      )}
+                      {post.createdAt ? (
+                        <>
+                          <span>·</span>
+                          <span>{timeAgo(post.createdAt)}</span>
+                        </>
+                      ) : null}
+                    </div>
+
+                    <h2 className="text-sm font-semibold text-[#E5E0D8] group-hover:text-[#D4AF37] transition-colors line-clamp-2 leading-snug">
                       {post.title || "Untitled"}
-                    </h3>
-                    <p className="text-xs text-[#A69B8D] line-clamp-3 flex-1">
-                      {post.text || "No description"}
-                    </p>
-                    <div className="flex items-center gap-3 pt-2 border-t border-[#2A241E]/40 text-[11px] text-[#8C8070]">
+                    </h2>
+
+                    {post.text ? (
+                      <p className="text-[11px] text-[#8C8070] line-clamp-1">
+                        {post.text}
+                      </p>
+                    ) : null}
+
+                    <div className="flex items-center gap-3 pt-0.5 text-[11px] text-[#8C8070]">
                       <span className="inline-flex items-center gap-1">
                         <Heart size={11} /> {post.likeCount || 0}
                       </span>
@@ -283,116 +352,27 @@ export default function PostManagement() {
                       </span>
                     </div>
                   </div>
-                </button>
+                </article>
               );
             })}
           </div>
 
-          {hasMore && (
-            <div className="flex justify-center pt-2">
+          {hasMore ? (
+            <div className="flex justify-center pt-1">
               <button
                 type="button"
                 onClick={handleLoadMore}
                 disabled={loadingMore}
                 className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg border border-[#2A241E] text-xs text-[#E5E0D8] hover:border-[#D4AF37]/50 hover:text-[#D4AF37] disabled:opacity-60 transition-colors"
               >
-                {loadingMore && (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                )}
+                {loadingMore ? (
+                  <Loader2 size={14} className="animate-spin text-[#D4AF37]" />
+                ) : null}
                 Load more
               </button>
             </div>
-          )}
+          ) : null}
         </>
-      )}
-
-      {showForm && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div
-            className="absolute inset-0 bg-black/75 backdrop-blur-sm"
-            onClick={closeForm}
-          />
-          <form
-            onSubmit={handleSubmit}
-            className="relative w-full sm:max-w-lg max-h-[90vh] overflow-y-auto bg-[#14100D] border border-[#2A241E] rounded-t-xl sm:rounded-xl p-5 space-y-4 shadow-2xl"
-          >
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-[#E5E0D8]">Create Post</h2>
-              <button
-                type="button"
-                onClick={closeForm}
-                className="p-1.5 text-[#A69B8D] hover:text-[#E5E0D8]"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            <div>
-              <label className="block text-[10px] uppercase tracking-wider text-[#8C8070] mb-1">
-                Community (optional)
-              </label>
-              <select
-                value={form.communityId}
-                onChange={(e) =>
-                  setForm((p) => ({ ...p, communityId: e.target.value }))
-                }
-                className="w-full bg-[#0E0C0A] border border-[#2A241E] rounded-lg px-3 py-2 text-xs text-[#E5E0D8] focus:outline-none focus:border-[#D4AF37]/60"
-              >
-                <option value="">No community</option>
-                {communities.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-[10px] uppercase tracking-wider text-[#8C8070] mb-1">
-                Title
-              </label>
-              <input
-                value={form.title}
-                onChange={(e) =>
-                  setForm((p) => ({ ...p, title: e.target.value }))
-                }
-                required
-                placeholder="Post title"
-                className="w-full bg-[#0E0C0A] border border-[#2A241E] rounded-lg px-3 py-2 text-xs text-[#E5E0D8] focus:outline-none focus:border-[#D4AF37]/60"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[10px] uppercase tracking-wider text-[#8C8070] mb-1">
-                Description
-              </label>
-              <textarea
-                value={form.text}
-                onChange={(e) =>
-                  setForm((p) => ({ ...p, text: e.target.value }))
-                }
-                rows={4}
-                placeholder="What do you want to share?"
-                className="w-full bg-[#0E0C0A] border border-[#2A241E] rounded-lg px-3 py-2 text-xs text-[#E5E0D8] focus:outline-none focus:border-[#D4AF37]/60 resize-y"
-              />
-            </div>
-
-            <MediaPicker
-              media={form.media}
-              onChange={(media) => setForm((p) => ({ ...p, media }))}
-              onError={showToast}
-            />
-
-            <button
-              type="submit"
-              disabled={saving}
-              className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[#D4AF37] text-[#0E0C0A] text-xs font-bold disabled:opacity-60"
-            >
-              {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-              Post
-            </button>
-          </form>
-        </div>
       )}
     </div>
   );

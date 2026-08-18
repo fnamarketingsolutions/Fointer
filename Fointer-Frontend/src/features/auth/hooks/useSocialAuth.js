@@ -24,7 +24,7 @@ export function useSocialAuth() {
       const response = await authApiCall(token);
       if (response?.success && response.user) {
         loginSuccess(response.user);
-        navigate(response.user.role === 'admin' ? '/admin' : '/dashboard');
+        navigate(response.user.role === 'admin' ? '/admin' : '/');
         return;
       }
       if (response?.requiresEmailVerification && response?.email) {

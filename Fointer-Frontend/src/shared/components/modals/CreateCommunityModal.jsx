@@ -1,15 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  Loader2,
-  Upload,
-  Globe,
-  Lock,
-  ShieldCheck,
-  X,
-  ImagePlus,
-  ChevronDown,
-  Check,
-} from 'lucide-react';
+  LuLoaderCircle as Loader2,
+  LuUpload as Upload,
+  LuGlobe as Globe,
+  LuLock as Lock,
+  LuShieldCheck as ShieldCheck,
+  LuX as X,
+  LuImagePlus as ImagePlus,
+  LuChevronDown as ChevronDown,
+  LuCheck as Check
+} from 'react-icons/lu';
 import { createCommunity } from '../../../api/communities';
 import { uploadMedia } from '../../../api/uploads';
 import { fetchChannels, fetchSubchannels } from '../../../api/channels';

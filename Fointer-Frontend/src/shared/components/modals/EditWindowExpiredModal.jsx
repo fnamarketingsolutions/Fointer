@@ -1,4 +1,7 @@
-import { Clock, X } from "lucide-react";
+import {
+  LuClock as Clock,
+  LuX as X
+} from "react-icons/lu";
 
 /**
  * Informational modal shown when an author tries to edit/delete

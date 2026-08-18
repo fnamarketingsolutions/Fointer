@@ -7,6 +7,7 @@ import { useSocialAuth } from '../hooks/useSocialAuth';
 import { useToast } from '../../../shared/components/feedback/ToastContext';
 import SocialAuthButtons from './SocialAuthButtons';
 import { getDashboardPathForRole } from '../../../shared/lib/roles';
+import { getSafeReturnPath } from '../../../shared/lib/safeRedirect';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -32,12 +33,12 @@ export default function Login() {
   const [resendLoading, setResendLoading] = useState(false);
 
   const redirectAfterLogin = (role) => {
-    const from = location.state?.from;
-    if (from && typeof from === 'string' && role !== 'admin') {
-      navigate(from, { replace: true });
+    if (role === 'admin') {
+      navigate(getDashboardPathForRole(role), { replace: true });
       return;
     }
-    navigate(getDashboardPathForRole(role), { replace: true });
+    const safe = getSafeReturnPath(location.state?.from);
+    navigate(safe || getDashboardPathForRole(role), { replace: true });
   };
 
   const activeVerificationEmail = verificationEmail || pendingVerification?.email || '';

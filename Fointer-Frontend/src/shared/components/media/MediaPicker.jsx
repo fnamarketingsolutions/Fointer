@@ -1,5 +1,10 @@
 import React, { useState } from "react";
-import { X, Loader2, Image as ImageIcon, Video } from "lucide-react";
+import {
+  LuX as X,
+  LuLoaderCircle as Loader2,
+  LuImage as ImageIcon,
+  LuVideo as Video
+} from "react-icons/lu";
 import { uploadMedia } from "../../../api/uploads";
 
 const MAX_MEDIA = 8;

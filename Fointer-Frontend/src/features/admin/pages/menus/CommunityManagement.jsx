@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  ArrowRight,
-  Loader2,
-  RefreshCw,
-  Search,
-  Trash2,
-  Users,
-} from "lucide-react";
+  LuArrowRight as ArrowRight,
+  LuLoaderCircle as Loader2,
+  LuRefreshCw as RefreshCw,
+  LuSearch as Search,
+  LuTrash2 as Trash2,
+  LuUsers as Users
+} from "react-icons/lu";
 import {
   deleteCommunity,
   fetchAllCommunities,

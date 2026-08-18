@@ -1,10 +1,11 @@
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { canAccessRoles, getDashboardPathForRole } from '../shared/lib/roles';
 
 export default function RoleRoute({ children, roles = [] }) {
   const { user, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -15,7 +16,7 @@ export default function RoleRoute({ children, roles = [] }) {
   }
 
   if (!user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
 
   if (!canAccessRoles(user.role, roles)) {

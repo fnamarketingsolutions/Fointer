@@ -1,14 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
-  Loader2,
-  Users,
-  Search,
-  Plus,
-  HelpCircle,
-  Folders,
-  RefreshCw,
-} from "lucide-react";
+  LuLoaderCircle as Loader2,
+  LuUsers as Users,
+  LuSearch as Search,
+  LuPlus as Plus,
+  LuCircleHelp as HelpCircle,
+  LuFolders as Folders,
+  LuRefreshCw as RefreshCw
+} from "react-icons/lu";
 import {
   fetchMyCommunities,
   fetchCommunityManage,
@@ -158,12 +158,12 @@ export default function ManageCommunities() {
   }, [selectedId, loadManage]);
 
   const openCommunity = (community) => {
-    navigate(`/dashboard/manage/${communitySegment(community)}`);
+    navigate(`/manage-community/${communitySegment(community)}`);
   };
 
   const backToList = () => {
     setManageData(null);
-    navigate("/dashboard/manage");
+    navigate("/manage-community");
     loadCommunities({ keepExisting: true });
   };
 

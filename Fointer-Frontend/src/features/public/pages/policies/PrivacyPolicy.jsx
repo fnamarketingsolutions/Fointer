@@ -1,17 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  ShieldCheck, 
-  Database, 
-  ListChecks, 
-  Share2, 
-  UserCheck, 
-  Clock, 
-  Baby, 
-  RefreshCw, 
-  Mail, 
-  MapPin,
-  Lock
-} from 'lucide-react';
+import {
+  LuShieldCheck as ShieldCheck,
+  LuDatabase as Database,
+  LuListChecks as ListChecks,
+  LuShare2 as Share2,
+  LuUserCheck as UserCheck,
+  LuClock as Clock,
+  LuBaby as Baby,
+  LuRefreshCw as RefreshCw,
+  LuMail as Mail,
+  LuMapPin as MapPin,
+  LuLock as Lock
+} from 'react-icons/lu';
 
 export default function PrivacyPolicy() {
   const [currentDate, setCurrentDate] = useState(new Date());

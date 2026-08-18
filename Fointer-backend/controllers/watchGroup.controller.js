@@ -7,6 +7,7 @@ import WatchGroupMember from "../models/watchGroupMember.js";
 import WatchGroupMessage from "../models/watchGroupMessage.js";
 import User from "../models/user.js";
 import { resolveDocumentId } from "../utils/shortCode.js";
+import { sendServerError } from "../utils/safeError.js";
 
 const formatUser = (user) => {
   if (!user || typeof user !== "object" || !user._id) {
@@ -180,10 +181,7 @@ export const listWatchGroups = async (req, res) => {
 
     return res.json({ success: true, groups: formatted });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Failed to list watch groups.",
-    });
+    return sendServerError(res, error, "Failed to list watch groups.");
   }
 };
 
@@ -209,10 +207,7 @@ export const getWatchGroup = async (req, res) => {
       group: await attachMeta(group, req.user),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Failed to load watch group.",
-    });
+    return sendServerError(res, error, "Failed to load watch group.");
   }
 };
 
@@ -269,10 +264,7 @@ export const createWatchGroup = async (req, res) => {
       group: await attachMeta(populated, req.user),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Failed to create watch group.",
-    });
+    return sendServerError(res, error, "Failed to create watch group.");
   }
 };
 
@@ -341,10 +333,7 @@ export const joinWatchGroup = async (req, res) => {
       group: payload,
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Failed to join watch group.",
-    });
+    return sendServerError(res, error, "Failed to join watch group.");
   }
 };
 
@@ -386,10 +375,7 @@ export const leaveWatchGroup = async (req, res) => {
 
     return res.json({ success: true, message: "Left watch group." });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Failed to leave watch group.",
-    });
+    return sendServerError(res, error, "Failed to leave watch group.");
   }
 };
 
@@ -421,10 +407,7 @@ export const deleteWatchGroup = async (req, res) => {
 
     return res.json({ success: true, message: "Watch group deleted." });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Failed to delete watch group.",
-    });
+    return sendServerError(res, error, "Failed to delete watch group.");
   }
 };
 
@@ -461,10 +444,7 @@ export const listParticipants = async (req, res) => {
       participants: members.map(formatParticipant),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Failed to list participants.",
-    });
+    return sendServerError(res, error, "Failed to list participants.");
   }
 };
 
@@ -539,10 +519,7 @@ export const removeParticipant = async (req, res) => {
       userId,
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Failed to remove participant.",
-    });
+    return sendServerError(res, error, "Failed to remove participant.");
   }
 };
 
@@ -632,10 +609,7 @@ export const addParticipant = async (req, res) => {
       participant: formatParticipant(membership),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Failed to add participant.",
-    });
+    return sendServerError(res, error, "Failed to add participant.");
   }
 };
 
@@ -694,10 +668,7 @@ export const setParticipantRole = async (req, res) => {
       participant: formatParticipant(membership),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Failed to update role.",
-    });
+    return sendServerError(res, error, "Failed to update role.");
   }
 };
 
@@ -733,10 +704,7 @@ export const listWatchMessages = async (req, res) => {
         .map((m) => formatWatchMessage(m, { canDelete: canModerate })),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Failed to load messages.",
-    });
+    return sendServerError(res, error, "Failed to load messages.");
   }
 };
 
@@ -783,10 +751,7 @@ export const deleteWatchMessage = async (req, res) => {
       messageId,
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Failed to delete message.",
-    });
+    return sendServerError(res, error, "Failed to delete message.");
   }
 };
 
@@ -863,9 +828,6 @@ export const adminListWatchGroups = async (req, res) => {
       },
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Failed to list watch groups.",
-    });
+    return sendServerError(res, error, "Failed to list watch groups.");
   }
 };

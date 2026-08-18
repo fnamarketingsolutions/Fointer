@@ -6,6 +6,7 @@ import {
   userCanModerateWatchGroup,
   userIsMember,
 } from "../controllers/watchGroup.controller.js";
+import { authenticateSocket } from "./socketAuth.js";
 
 const roomName = (groupId) => `watch:${groupId}`;
 
@@ -19,6 +20,18 @@ const emitParticipantPresence = (io, groupId) => {
 };
 
 export const initWatchGroupSocket = (io) => {
+  // Explicit auth — do not rely on liveSocket registering io.use first.
+  io.use(async (socket, next) => {
+    try {
+      if (!socket.user) {
+        socket.user = await authenticateSocket(socket);
+      }
+      next();
+    } catch (error) {
+      next(new Error(error.message || "Unauthorized"));
+    }
+  });
+
   io.on("connection", (socket) => {
     let joinedGroupId = null;
 

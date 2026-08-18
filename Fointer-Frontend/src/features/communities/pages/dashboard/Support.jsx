@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Clock, LifeBuoy, Loader2, RefreshCw, XCircle } from "lucide-react";
+import {
+  LuCircleCheck as CheckCircle2,
+  LuClock as Clock,
+  LuLifeBuoy as LifeBuoy,
+  LuLoaderCircle as Loader2,
+  LuRefreshCw as RefreshCw,
+  LuCircleX as XCircle
+} from "react-icons/lu";
 import { fetchMySupportTickets } from "../../../../api/channels";
 import { useToast } from "../../../../shared/components/feedback/ToastContext";
 import { getErrorMessage } from "../../../../shared/utils/errors";

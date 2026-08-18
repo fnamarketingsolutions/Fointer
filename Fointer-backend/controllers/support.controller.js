@@ -3,6 +3,7 @@ import {
   sendSupportRequestEmail,
   sendSupportStatusUpdateEmail,
 } from "../utils/sendVerificationEmail.js";
+import { sendServerError } from "../utils/safeError.js";
 
 const VALID_STATUSES = ["pending", "rejected", "approved"];
 
@@ -72,10 +73,7 @@ export const createSupportTicket = async (req, res) => {
       ticket: formatTicket(ticket),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };
 
@@ -90,10 +88,7 @@ export const listMySupportTickets = async (req, res) => {
       tickets: tickets.map(formatTicket),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };
 
@@ -115,10 +110,7 @@ export const listAdminSupportTickets = async (req, res) => {
       tickets: tickets.map(formatTicket),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };
 
@@ -174,9 +166,6 @@ export const updateSupportTicketStatus = async (req, res) => {
       ticket: formatTicket(ticket),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };

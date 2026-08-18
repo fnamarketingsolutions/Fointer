@@ -1,6 +1,6 @@
 import api from '../../../shared/services/http/client';
 
-export const sigupUser = async (data) => {
+export const signupUser = async (data) => {
   const response = await api.post(`/auth/signup`, data);
   return response.data;
 };

@@ -4,6 +4,7 @@ import Community from "../models/community.js";
 import CommunityMember from "../models/communityMember.js";
 import Post from "../models/post.js";
 import { getEffectiveMemberRole } from "../utils/communityPermissions.js";
+import { sendServerError } from "../utils/safeError.js";
 
 const normalizeInterests = (interests) => {
   if (!interests) return [];
@@ -151,10 +152,7 @@ export const getMyProfile = async (req, res) => {
       },
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };
 
@@ -231,10 +229,7 @@ export const updateMyProfile = async (req, res) => {
         message: "Username already exists.",
       });
     }
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };
 
@@ -295,9 +290,6 @@ export const updateMyPassword = async (req, res) => {
       message: "Password updated successfully.",
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };

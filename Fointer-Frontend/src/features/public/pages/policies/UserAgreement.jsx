@@ -1,19 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  FileText, 
-  ShieldCheck, 
-  UserCheck, 
-  FileCheck, 
-  ExternalLink, 
-  AlertOctagon, 
-  Sliders, 
-  UserX, 
-  AlertTriangle, 
-  Scale, 
-  RefreshCw, 
-  Mail, 
-  MapPin 
-} from 'lucide-react';
+import {
+  LuFileText as FileText,
+  LuShieldCheck as ShieldCheck,
+  LuUserCheck as UserCheck,
+  LuFileCheck as FileCheck,
+  LuExternalLink as ExternalLink,
+  LuOctagonAlert as AlertOctagon,
+  LuSlidersHorizontal as Sliders,
+  LuUserX as UserX,
+  LuTriangleAlert as AlertTriangle,
+  LuScale as Scale,
+  LuRefreshCw as RefreshCw,
+  LuMail as Mail,
+  LuMapPin as MapPin
+} from 'react-icons/lu';
 
 export default function UserAgreement() {
   const [currentDate, setCurrentDate] = useState(new Date());

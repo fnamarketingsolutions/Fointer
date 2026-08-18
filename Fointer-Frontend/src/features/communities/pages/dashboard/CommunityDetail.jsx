@@ -1,22 +1,22 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  ArrowLeft,
-  Pencil,
-  Trash2,
-  Users,
-  Loader2,
-  Heart,
-  MessageCircle,
-  RefreshCw,
-  UserPlus,
-  Plus,
-  Ban,
-  Lock,
-  Globe,
-  Layers,
-  Grid,
-} from "lucide-react";
+  LuArrowLeft as ArrowLeft,
+  LuPencil as Pencil,
+  LuTrash2 as Trash2,
+  LuUsers as Users,
+  LuLoaderCircle as Loader2,
+  LuHeart as Heart,
+  LuMessageCircle as MessageCircle,
+  LuRefreshCw as RefreshCw,
+  LuUserPlus as UserPlus,
+  LuPlus as Plus,
+  LuBan as Ban,
+  LuLock as Lock,
+  LuGlobe as Globe,
+  LuLayers as Layers,
+  LuLayoutGrid as Grid
+} from "react-icons/lu";
 import {
   inviteToCommunity,
   lookupInviteUser,
@@ -490,7 +490,7 @@ export default function CommunityDetail({
   const openPost = (post) => {
     if (!selectedId || !post?.id) return;
     const segment = communitySegment(community) || selectedId;
-    navigate(`/dashboard/manage/${segment}/posts/${postSegment(post)}`);
+    navigate(`/manage-community/${segment}/posts/${postSegment(post)}`);
   };
 
   const aboutSidebar = community ? (

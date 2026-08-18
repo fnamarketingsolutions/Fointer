@@ -1,18 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  Ban,
-  FileText,
-  Heart,
-  Image as ImageIcon,
-  Loader2,
-  MessageCircle,
-  RefreshCw,
-  Reply,
-  Search,
-  Trash2,
-  X,
-} from "lucide-react";
+  LuBan as Ban,
+  LuFileText as FileText,
+  LuHeart as Heart,
+  LuImage as ImageIcon,
+  LuLoaderCircle as Loader2,
+  LuMessageCircle as MessageCircle,
+  LuRefreshCw as RefreshCw,
+  LuReply as Reply,
+  LuSearch as Search,
+  LuTrash2 as Trash2,
+  LuX as X
+} from "react-icons/lu";
 import {
   deleteAdminModerationComment,
   deleteAdminModerationPost,

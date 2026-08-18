@@ -1,15 +1,15 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
-  ArrowLeft,
-  Loader2,
-  MessageCircle,
-  Radio,
-  Send,
-  Trash2,
-  Users,
-  XCircle,
-} from "lucide-react";
+  LuArrowLeft as ArrowLeft,
+  LuLoaderCircle as Loader2,
+  LuMessageCircle as MessageCircle,
+  LuRadio as Radio,
+  LuSend as Send,
+  LuTrash2 as Trash2,
+  LuUsers as Users,
+  LuCircleX as XCircle
+} from "react-icons/lu";
 import {
   deleteLiveEvent,
   deleteLiveMessage,
@@ -70,7 +70,7 @@ export default function LiveRoom() {
       scrollToBottom();
     } catch (err) {
       showToast(err?.response?.data?.message || "Failed to load live room.");
-      navigate("/dashboard/events");
+      navigate("/live-events");
     } finally {
       setLoading(false);
     }
@@ -137,7 +137,7 @@ export default function LiveRoom() {
 
     const onEventDeleted = () => {
       showToast("This live event was deleted.");
-      navigate("/dashboard/events");
+      navigate("/live-events");
     };
 
     socket.on("connect", onConnect);
@@ -229,7 +229,7 @@ export default function LiveRoom() {
     try {
       await deleteLiveEvent(eventId);
       showToast("Live event deleted.");
-      navigate("/dashboard/events");
+      navigate("/live-events");
     } catch (err) {
       showToast(err?.response?.data?.message || "Failed to delete event.");
       setActionBusy(false);
@@ -259,7 +259,7 @@ export default function LiveRoom() {
         <div className="min-w-0">
           <button
             type="button"
-            onClick={() => navigate("/dashboard/events")}
+            onClick={() => navigate("/live-events")}
             className="inline-flex items-center gap-1.5 text-xs text-[#A69B8D] hover:text-[#D4AF37] mb-2"
           >
             <ArrowLeft size={14} /> Back to Live Events

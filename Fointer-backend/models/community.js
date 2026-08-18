@@ -75,6 +75,10 @@ const communitySchema = new mongoose.Schema(
 
 withShortCode(communitySchema);
 
+communitySchema.index({ type: 1, createdAt: -1 });
+communitySchema.index({ owner: 1, createdAt: -1 });
+communitySchema.index({ channel: 1, type: 1 });
+
 const Community = mongoose.model("Community", communitySchema);
 
 export default Community;

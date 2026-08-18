@@ -4,11 +4,14 @@ import { OAuth2Client } from "google-auth-library";
 import User from "../models/user.js";
 import sendToken from "../utils/sendToken.js";
 import sendVerificationEmail from "../utils/sendVerificationEmail.js";
+import { sendServerError } from "../utils/safeError.js";
+import { getAuthCookieOptions } from "../utils/cookieOptions.js";
 
+const MAX_OTP_ATTEMPTS = 5;
 const getGoogleClient = () => new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 const createEmailVerificationFields = () => {
-  const otp = `${Math.floor(100000 + Math.random() * 900000)}`;
+  const otp = String(crypto.randomInt(100000, 1000000));
   const hashedOtp = crypto.createHash("sha256").update(otp).digest("hex");
 
   return {
@@ -18,31 +21,32 @@ const createEmailVerificationFields = () => {
   };
 };
 
+const randomUsernameSuffix = () => crypto.randomInt(1000, 10000);
+
+const clearEmailVerification = (user) => {
+  user.emailVerificationOtp = undefined;
+  user.emailVerificationOtpExpires = undefined;
+  user.emailVerificationOtpAttempts = 0;
+};
+
 export const signup = async (req, res) => {
   try {
-    const {
-      username,
-      name,
-      email,
-      password,
-      confirmPassword,
-    } = req.body;
+    const { username, name, email, password, confirmPassword } = req.body;
 
-   
-    if (
-      !username ||
-      !name ||
-      !email ||
-      !password ||
-      !confirmPassword
-    ) {
+    if (!username || !name || !email || !password || !confirmPassword) {
       return res.status(400).json({
         success: false,
         message: "All fields are required.",
       });
     }
 
-    // Check Password Match
+    if (String(password).length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: "Password must be at least 8 characters.",
+      });
+    }
+
     if (password !== confirmPassword) {
       return res.status(400).json({
         success: false,
@@ -50,9 +54,9 @@ export const signup = async (req, res) => {
       });
     }
 
-    // Check Existing Email
-    const emailExists = await User.findOne({ email });
+    const normalizedEmail = String(email).trim().toLowerCase();
 
+    const emailExists = await User.findOne({ email: normalizedEmail });
     if (emailExists) {
       return res.status(400).json({
         success: false,
@@ -60,9 +64,7 @@ export const signup = async (req, res) => {
       });
     }
 
-    // Check Existing Username
     const usernameExists = await User.findOne({ username });
-
     if (usernameExists) {
       return res.status(400).json({
         success: false,
@@ -70,19 +72,18 @@ export const signup = async (req, res) => {
       });
     }
 
-    // Hash Password
     const hashedPassword = await bcrypt.hash(password, 10);
     const { otp, hashedOtp, expiresAt } = createEmailVerificationFields();
 
-    // Create User
     const user = await User.create({
       username,
       name,
-      email,
+      email: normalizedEmail,
       password: hashedPassword,
       isEmailVerified: false,
       emailVerificationOtp: hashedOtp,
       emailVerificationOtpExpires: expiresAt,
+      emailVerificationOtpAttempts: 0,
       role: "user",
     });
 
@@ -103,21 +104,15 @@ export const signup = async (req, res) => {
       requiresEmailVerification: true,
       email: user.email,
     });
-
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error, "Signup failed. Please try again.");
   }
 };
-
 
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Validate Fields
     if (!email || !password) {
       return res.status(400).json({
         success: false,
@@ -125,11 +120,11 @@ export const login = async (req, res) => {
       });
     }
 
-    // Find User
-    const user = await User.findOne({ email });
+    const user = await User.findOne({
+      email: String(email).trim().toLowerCase(),
+    });
 
     if (!user) {
-      console.log('DEBUG: User not found for email:', email);
       return res.status(401).json({
         success: false,
         message: "Invalid email or password.",
@@ -146,7 +141,6 @@ export const login = async (req, res) => {
       });
     }
 
-    // OAuth-only accounts have no password
     if (!user.password) {
       const providers = [];
       if (user.googleId) providers.push("Google");
@@ -161,9 +155,7 @@ export const login = async (req, res) => {
       });
     }
 
-    // Compare Password
     const isMatch = await bcrypt.compare(password, user.password);
-
     if (!isMatch) {
       return res.status(401).json({
         success: false,
@@ -180,22 +172,12 @@ export const login = async (req, res) => {
 
     if (user.role) user.role = String(user.role).toLowerCase().trim();
 
-    // Generate JWT & Store in Cookie
     return sendToken(user, 200, res);
-
   } catch (error) {
-
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-
+    return sendServerError(res, error, "Login failed. Please try again.");
   }
 };
 
-// ==============================
-// Google OAuth Login / Signup
-// ==============================
 export const googleLogin = async (req, res) => {
   try {
     const { token } = req.body;
@@ -207,10 +189,13 @@ export const googleLogin = async (req, res) => {
       });
     }
 
-    let email, name, picture, googleId;
+    let email;
+    let name;
+    let picture;
+    let googleId;
+    let emailVerified = false;
 
     try {
-      // Try verifying as ID Token first
       const ticket = await getGoogleClient().verifyIdToken({
         idToken: token,
         audience: process.env.GOOGLE_CLIENT_ID,
@@ -220,8 +205,8 @@ export const googleLogin = async (req, res) => {
       email = payload.email;
       name = payload.name;
       picture = payload.picture;
+      emailVerified = payload.email_verified === true;
     } catch {
-      // Fallback: OAuth access token from useGoogleLogin
       const userInfoRes = await fetch(
         "https://www.googleapis.com/oauth2/v3/userinfo",
         {
@@ -241,6 +226,9 @@ export const googleLogin = async (req, res) => {
       email = googleUser.email;
       name = googleUser.name;
       picture = googleUser.picture;
+      emailVerified =
+        googleUser.email_verified === true ||
+        googleUser.verified_email === true;
     }
 
     if (!email || !googleId) {
@@ -250,24 +238,31 @@ export const googleLogin = async (req, res) => {
       });
     }
 
-    // Find user by email or googleId
+    if (!emailVerified) {
+      return res.status(401).json({
+        success: false,
+        message: "Google email is not verified.",
+      });
+    }
+
+    const normalizedEmail = email.toLowerCase();
     let user =
-      (await User.findOne({ email: email.toLowerCase() })) ||
+      (await User.findOne({ email: normalizedEmail })) ||
       (await User.findOne({ googleId }));
     let isNewUser = false;
 
     if (!user) {
-      const baseUsername = email
-        .split("@")[0]
-        .replace(/[^a-zA-Z0-9._]/g, "")
-        .slice(0, 20) || "user";
-      const randomNum = Math.floor(1000 + Math.random() * 9000);
-      const username = `${baseUsername}_${randomNum}`;
+      const baseUsername =
+        normalizedEmail
+          .split("@")[0]
+          .replace(/[^a-zA-Z0-9._]/g, "")
+          .slice(0, 20) || "user";
+      const username = `${baseUsername}_${randomUsernameSuffix()}`;
 
       user = await User.create({
         username,
         name: name || baseUsername,
-        email: email.toLowerCase(),
+        email: normalizedEmail,
         googleId,
         avatar: picture,
         isEmailVerified: false,
@@ -275,11 +270,9 @@ export const googleLogin = async (req, res) => {
       });
       isNewUser = true;
     } else {
-      // Link Google and always refresh Google profile details
       if (!user.googleId) user.googleId = googleId;
       if (picture) user.avatar = picture;
       if (name) user.name = name;
-      // Normalize role casing so admin promotion in Mongo always works
       if (user.role) user.role = String(user.role).toLowerCase().trim();
       await user.save();
     }
@@ -288,6 +281,7 @@ export const googleLogin = async (req, res) => {
       const { otp, hashedOtp, expiresAt } = createEmailVerificationFields();
       user.emailVerificationOtp = hashedOtp;
       user.emailVerificationOtpExpires = expiresAt;
+      user.emailVerificationOtpAttempts = 0;
       await user.save();
 
       try {
@@ -305,7 +299,8 @@ export const googleLogin = async (req, res) => {
 
       return res.status(200).json({
         success: true,
-        message: "Enter the 6-digit OTP sent to your email to finish Google sign-in.",
+        message:
+          "Enter the 6-digit OTP sent to your email to finish Google sign-in.",
         requiresEmailVerification: true,
         email: user.email,
       });
@@ -321,15 +316,10 @@ export const googleLogin = async (req, res) => {
     return sendToken(user, 200, res);
   } catch (error) {
     console.error("Google login error:", error);
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error, "Google login failed. Please try again.");
   }
 };
 
-
-// facebook login //
 export const facebookLogin = async (req, res) => {
   try {
     const { accessToken } = req.body;
@@ -341,12 +331,27 @@ export const facebookLogin = async (req, res) => {
       });
     }
 
-    // 1. Fetch user info directly from Facebook Graph API
-    const graphUrl = `https://graph.facebook.com/v19.0/me?fields=id,name,email,picture.type(large)&access_token=${accessToken}`;
-    const fbRes = await fetch(graphUrl);
+    const params = new URLSearchParams({
+      fields: "id,name,email,picture.type(large)",
+    });
+
+    const appSecret = String(process.env.FACEBOOK_APP_SECRET || "").trim();
+    if (appSecret) {
+      params.set(
+        "appsecret_proof",
+        crypto.createHmac("sha256", appSecret).update(accessToken).digest("hex")
+      );
+    }
+
+    const fbRes = await fetch(
+      `https://graph.facebook.com/v19.0/me?${params.toString()}`,
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }
+    );
     const fbData = await fbRes.json();
 
-    if (fbData.error) {
+    if (!fbRes.ok || fbData.error) {
       return res.status(401).json({
         success: false,
         message: "Invalid or expired Facebook token.",
@@ -356,38 +361,78 @@ export const facebookLogin = async (req, res) => {
     const { id: facebookId, name, email, picture } = fbData;
     const avatar = picture?.data?.url;
 
-    // Fallback: If Facebook user didn't attach an email to their FB account (e.g., registered via phone number)
-    const userEmail = email || `${facebookId}@facebook.com`;
+    if (!facebookId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unable to read Facebook account details.",
+      });
+    }
 
-    // 2. Query MongoDB by email or facebookId
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Facebook did not provide an email. Grant email permission or use another sign-in method.",
+      });
+    }
+
+    const normalizedEmail = String(email).toLowerCase();
     let user = await User.findOne({
-      $or: [{ email: userEmail.toLowerCase() }, { facebookId }],
+      $or: [{ email: normalizedEmail }, { facebookId }],
     });
+    let isNewUser = false;
 
     if (!user) {
-      const baseUsername = (name || "fb_user").toLowerCase().replace(/\s+/g, "");
-      const randomNum = Math.floor(1000 + Math.random() * 9000);
-      const username = `${baseUsername}_${randomNum}`;
+      const baseUsername = (name || "fb_user")
+        .toLowerCase()
+        .replace(/\s+/g, "")
+        .replace(/[^a-z0-9._]/g, "")
+        .slice(0, 20) || "fb_user";
+      const username = `${baseUsername}_${randomUsernameSuffix()}`;
 
       user = await User.create({
         username,
         name: name || "Facebook User",
-        email: userEmail.toLowerCase(),
+        email: normalizedEmail,
         facebookId,
         avatar,
-        isEmailVerified: true,
+        isEmailVerified: false,
         role: "user",
       });
-      console.log("✅ NEW USER SAVED TO MONGO DB:", user);
+      isNewUser = true;
     } else if (!user.facebookId) {
-      console.log("ℹ️ EXISTING USER FOUND IN DB:", user._id);
-      // Link facebookId if user already registered via regular email form
       user.facebookId = facebookId;
-      if (!user.avatar) user.avatar = avatar;
-      user.isEmailVerified = true;
-      user.emailVerificationOtp = undefined;
-      user.emailVerificationOtpExpires = undefined;
+      if (!user.avatar && avatar) user.avatar = avatar;
       await user.save();
+    }
+
+    if (!user.isEmailVerified) {
+      const { otp, hashedOtp, expiresAt } = createEmailVerificationFields();
+      user.emailVerificationOtp = hashedOtp;
+      user.emailVerificationOtpExpires = expiresAt;
+      user.emailVerificationOtpAttempts = 0;
+      await user.save();
+
+      try {
+        await sendVerificationEmail({
+          to: user.email,
+          name: user.name,
+          otp,
+        });
+      } catch (mailError) {
+        if (isNewUser) {
+          await User.deleteOne({ _id: user._id });
+        }
+        throw mailError;
+      }
+
+      return res.status(200).json({
+        success: true,
+        message:
+          "Enter the 6-digit OTP sent to your email to finish Facebook sign-in.",
+        requiresEmailVerification: true,
+        email: user.email,
+      });
     }
 
     if (user.status === "suspended" || user.status === "banned") {
@@ -398,28 +443,19 @@ export const facebookLogin = async (req, res) => {
     }
 
     return sendToken(user, 200, res);
-
   } catch (error) {
     console.error("Facebook login error:", error);
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(
+      res,
+      error,
+      "Facebook login failed. Please try again."
+    );
   }
 };
 
-// ==============================
-// Logout
-// ==============================
 export const logout = (req, res) => {
-  const isProduction = process.env.NODE_ENV === "production";
-  const useCrossSiteCookies =
-    process.env.COOKIE_SAME_SITE === "none" || isProduction;
-
   res.cookie("token", "", {
-    httpOnly: true,
-    secure: useCrossSiteCookies,
-    sameSite: useCrossSiteCookies ? "none" : "lax",
+    ...getAuthCookieOptions(),
     expires: new Date(0),
   });
 
@@ -440,14 +476,51 @@ export const verifyEmailOtp = async (req, res) => {
       });
     }
 
-    const hashedOtp = crypto.createHash("sha256").update(otp).digest("hex");
-    const user = await User.findOne({
-      email,
-      emailVerificationOtp: hashedOtp,
-      emailVerificationOtpExpires: { $gt: new Date() },
-    });
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const user = await User.findOne({ email: normalizedEmail });
 
-    if (!user) {
+    if (!user || !user.emailVerificationOtp || !user.emailVerificationOtpExpires) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid or expired OTP.",
+      });
+    }
+
+    if (user.emailVerificationOtpExpires <= new Date()) {
+      clearEmailVerification(user);
+      await user.save();
+      return res.status(400).json({
+        success: false,
+        message: "Invalid or expired OTP.",
+      });
+    }
+
+    if ((user.emailVerificationOtpAttempts || 0) >= MAX_OTP_ATTEMPTS) {
+      clearEmailVerification(user);
+      await user.save();
+      return res.status(429).json({
+        success: false,
+        message: "Too many invalid OTP attempts. Request a new code.",
+      });
+    }
+
+    const hashedOtp = crypto
+      .createHash("sha256")
+      .update(String(otp).trim())
+      .digest("hex");
+
+    if (hashedOtp !== user.emailVerificationOtp) {
+      user.emailVerificationOtpAttempts =
+        (user.emailVerificationOtpAttempts || 0) + 1;
+      if (user.emailVerificationOtpAttempts >= MAX_OTP_ATTEMPTS) {
+        clearEmailVerification(user);
+        await user.save();
+        return res.status(429).json({
+          success: false,
+          message: "Too many invalid OTP attempts. Request a new code.",
+        });
+      }
+      await user.save();
       return res.status(400).json({
         success: false,
         message: "Invalid or expired OTP.",
@@ -455,16 +528,16 @@ export const verifyEmailOtp = async (req, res) => {
     }
 
     user.isEmailVerified = true;
-    user.emailVerificationOtp = undefined;
-    user.emailVerificationOtpExpires = undefined;
+    clearEmailVerification(user);
     await user.save();
 
     return sendToken(user, 200, res);
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(
+      res,
+      error,
+      "Email verification failed. Please try again."
+    );
   }
 };
 
@@ -479,7 +552,9 @@ export const resendVerificationEmail = async (req, res) => {
       });
     }
 
-    const user = await User.findOne({ email });
+    const user = await User.findOne({
+      email: String(email).trim().toLowerCase(),
+    });
 
     if (!user) {
       return res.status(404).json({
@@ -498,6 +573,7 @@ export const resendVerificationEmail = async (req, res) => {
     const { otp, hashedOtp, expiresAt } = createEmailVerificationFields();
     user.emailVerificationOtp = hashedOtp;
     user.emailVerificationOtpExpires = expiresAt;
+    user.emailVerificationOtpAttempts = 0;
     await user.save();
 
     await sendVerificationEmail({
@@ -511,16 +587,14 @@ export const resendVerificationEmail = async (req, res) => {
       message: "A new OTP has been sent to your email.",
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(
+      res,
+      error,
+      "Could not resend verification email. Please try again."
+    );
   }
 };
 
-// ==============================
-// Get Logged In User
-// ==============================
 export const getMe = async (req, res) => {
   try {
     const user = await User.findById(req.user._id).select("-password");
@@ -547,10 +621,6 @@ export const getMe = async (req, res) => {
       },
     });
   } catch (error) {
-    console.log(error);
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error, "Could not load profile.");
   }
 };

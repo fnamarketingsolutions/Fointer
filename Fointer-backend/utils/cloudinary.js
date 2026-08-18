@@ -35,18 +35,45 @@ export const publicIdFromUrl = (url) => {
   }
 };
 
-export const destroyFromCloudinary = async (urlOrPublicId) => {
+const guessResourceType = (urlOrPublicId, explicitType) => {
+  if (explicitType === "video" || explicitType === "image" || explicitType === "raw") {
+    return explicitType;
+  }
+  const value = String(urlOrPublicId || "");
+  if (/\/video\/upload\//i.test(value) || /\.(mp4|webm|mov)(\?|$)/i.test(value)) {
+    return "video";
+  }
+  return "image";
+};
+
+export const destroyFromCloudinary = async (urlOrPublicId, options = {}) => {
   const publicId =
     urlOrPublicId?.includes?.("://") || urlOrPublicId?.includes?.("/upload/")
       ? publicIdFromUrl(urlOrPublicId)
       : urlOrPublicId;
   if (!publicId) return null;
+
+  const primary = guessResourceType(urlOrPublicId, options.resourceType);
+  const fallback = primary === "video" ? "image" : "video";
+
   try {
-    return await cloudinary.uploader.destroy(publicId, {
-      resource_type: "image",
+    const result = await cloudinary.uploader.destroy(publicId, {
+      resource_type: primary,
     });
+    if (result?.result === "not found") {
+      return cloudinary.uploader.destroy(publicId, {
+        resource_type: fallback,
+      });
+    }
+    return result;
   } catch {
-    return null;
+    try {
+      return await cloudinary.uploader.destroy(publicId, {
+        resource_type: fallback,
+      });
+    } catch {
+      return null;
+    }
   }
 };
 

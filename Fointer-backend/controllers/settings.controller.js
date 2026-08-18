@@ -3,6 +3,7 @@ import {
   getEditWindowMinutes,
   invalidateEditWindowCache,
 } from "../utils/communityPermissions.js";
+import { sendServerError } from "../utils/safeError.js";
 
 const getOrCreateGlobalSettings = async () => {
   let settings = await SystemSetting.findOne({ key: "global" });
@@ -29,7 +30,7 @@ export const getSystemSettings = async (req, res) => {
       },
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+    return sendServerError(res, error);
   }
 };
 
@@ -58,6 +59,6 @@ export const updateSystemSettings = async (req, res) => {
       },
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+    return sendServerError(res, error);
   }
 };

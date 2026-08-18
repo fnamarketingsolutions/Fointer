@@ -1,18 +1,18 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
-  ArrowLeft,
-  Loader2,
-  MessageCircle,
-  Radio,
-  Send,
-  Trash2,
-  UserMinus,
-  UserPlus,
-  Users,
-  Shield,
-  X,
-} from "lucide-react";
+  LuArrowLeft as ArrowLeft,
+  LuLoaderCircle as Loader2,
+  LuMessageCircle as MessageCircle,
+  LuRadio as Radio,
+  LuSend as Send,
+  LuTrash2 as Trash2,
+  LuUserMinus as UserMinus,
+  LuUserPlus as UserPlus,
+  LuUsers as Users,
+  LuShield as Shield,
+  LuX as X
+} from "react-icons/lu";
 import {
   addWatchParticipant,
   deleteWatchGroup,
@@ -76,7 +76,7 @@ export default function WatchGroupRoom() {
 
       if (!g.isMember && user?.role !== "admin") {
         showToast("Join this watch group first.");
-        navigate("/dashboard/watchgroups");
+        navigate("/watch-groups");
         return;
       }
 
@@ -91,7 +91,7 @@ export default function WatchGroupRoom() {
       scrollToBottom();
     } catch (err) {
       showToast(err?.response?.data?.message || "Failed to load watch group.");
-      navigate("/dashboard/watchgroups");
+      navigate("/watch-groups");
     } finally {
       setLoading(false);
     }
@@ -147,7 +147,7 @@ export default function WatchGroupRoom() {
     const onRemoved = ({ userId }) => {
       if (String(userId) === String(user?.id || user?._id)) {
         showToast("You were removed from this watch group.");
-        navigate("/dashboard/watchgroups");
+        navigate("/watch-groups");
         return;
       }
       loadParticipants();
@@ -172,7 +172,7 @@ export default function WatchGroupRoom() {
 
     const onDeleted = () => {
       showToast("This watch group was deleted.");
-      navigate("/dashboard/watchgroups");
+      navigate("/watch-groups");
     };
 
     socket.on("connect", onConnect);
@@ -307,7 +307,7 @@ export default function WatchGroupRoom() {
     setActionBusy(true);
     try {
       await leaveWatchGroup(groupId);
-      navigate("/dashboard/watchgroups");
+      navigate("/watch-groups");
     } catch (err) {
       showToast(err?.response?.data?.message || "Failed to leave group.");
       setActionBusy(false);
@@ -326,7 +326,7 @@ export default function WatchGroupRoom() {
     try {
       await deleteWatchGroup(groupId);
       showToast("Watch group deleted.");
-      navigate("/dashboard/watchgroups");
+      navigate("/watch-groups");
     } catch (err) {
       showToast(err?.response?.data?.message || "Failed to delete group.");
       setActionBusy(false);
@@ -357,7 +357,7 @@ export default function WatchGroupRoom() {
         <div className="min-w-0">
           <button
             type="button"
-            onClick={() => navigate("/dashboard/watchgroups")}
+            onClick={() => navigate("/watch-groups")}
             className="inline-flex items-center gap-1.5 text-xs text-[#A69B8D] hover:text-[#D4AF37] mb-2"
           >
             <ArrowLeft size={14} /> Back to Watch Groups

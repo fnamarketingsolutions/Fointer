@@ -1,5 +1,9 @@
 import React from 'react';
-import { Mail, ArrowRight, Sparkles } from 'lucide-react';
+import {
+  LuMail as Mail,
+  LuArrowRight as ArrowRight,
+  LuSparkles as Sparkles
+} from 'react-icons/lu';
 
 export default function CTASection() {
   return (

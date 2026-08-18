@@ -1,19 +1,19 @@
 import React from 'react';
-import { 
-  Cookie, 
-  HelpCircle, 
-  CheckCircle2, 
-  Settings, 
-  BarChart3, 
-  Target, 
-  Share2, 
-  Sliders, 
-  Monitor, 
-  Smartphone, 
-  ExternalLink, 
-  UserCheck, 
-  Mail 
-} from 'lucide-react';
+import {
+  LuCookie as Cookie,
+  LuCircleHelp as HelpCircle,
+  LuCircleCheck as CheckCircle2,
+  LuSettings as Settings,
+  LuChartColumn as BarChart3,
+  LuTarget as Target,
+  LuShare2 as Share2,
+  LuSlidersHorizontal as Sliders,
+  LuMonitor as Monitor,
+  LuSmartphone as Smartphone,
+  LuExternalLink as ExternalLink,
+  LuUserCheck as UserCheck,
+  LuMail as Mail
+} from 'react-icons/lu';
 
 export default function CookiePolicy() {
   const cookieTypes = [

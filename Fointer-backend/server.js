@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
 import dns from "dns";
 import http from "http";
 import { Server } from "socket.io";
@@ -20,32 +21,59 @@ import watchGroupRoute from "./routes/watchGroupRoute.js";
 import reportRoute from "./routes/reportRoute.js";
 import { initLiveSocket } from "./sockets/liveSocket.js";
 import { initWatchGroupSocket } from "./sockets/watchGroupSocket.js";
+import { safeErrorMessage } from "./utils/safeError.js";
 
 const app = express();
 const server = http.createServer(app);
 const PORT = process.env.PORT;
 app.set("trust proxy", 1);
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ limit: "10mb", extended: true }));
+
+app.use(
+  helmet({
+    // API serves JSON; Cross-Origin isolation not required for this app.
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    contentSecurityPolicy: false,
+  })
+);
+
+app.use(express.json({ limit: "1mb" }));
+app.use(express.urlencoded({ limit: "1mb", extended: true }));
 app.use(cookieParser());
 
+const envFrontendOrigin = String(process.env.FRONTEND_URL || "").replace(
+  /\/$/,
+  ""
+);
 const allowedOrigins = [
-  "http://localhost:5173",
-  "http://localhost:5174",
-  "https://fointer.vercel.app",
-  "https://punctual-droop-viper.ngrok-free.dev",
+  ...new Set(
+    [
+      "http://localhost:5173",
+      "http://localhost:5174",
+      "https://fointer.vercel.app",
+      "https://punctual-droop-viper.ngrok-free.dev",
+      envFrontendOrigin,
+    ].filter(Boolean)
+  ),
 ];
+
+const corsOrigin = (origin, callback) => {
+  // Non-browser clients (curl, server-to-server) may omit Origin.
+  if (!origin || allowedOrigins.includes(origin)) {
+    return callback(null, true);
+  }
+  return callback(null, false);
+};
 
 app.use(
   cors({
-    origin: true,
+    origin: corsOrigin,
     credentials: true,
   })
 );
 
 const io = new Server(server, {
   cors: {
-    origin: true,
+    origin: allowedOrigins,
     credentials: true,
   },
 });
@@ -64,6 +92,23 @@ app.use("/api/profile", profileRoute);
 app.use("/api/live-events", liveEventRoute);
 app.use("/api/watch-groups", watchGroupRoute);
 app.use("/api/reports", reportRoute);
+
+// Multer / unexpected errors — never leak internals
+app.use((err, _req, res, _next) => {
+  console.error(err);
+  const status = err.status || err.statusCode || 500;
+  const isClient =
+    status >= 400 &&
+    status < 500 &&
+    typeof err.message === "string" &&
+    err.message;
+  return res.status(status >= 400 && status < 600 ? status : 500).json({
+    success: false,
+    message: isClient
+      ? err.message
+      : safeErrorMessage(err, "Something went wrong. Please try again."),
+  });
+});
 
 connectDB();
 

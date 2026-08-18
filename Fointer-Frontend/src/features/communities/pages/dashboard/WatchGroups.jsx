@@ -1,16 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Loader2,
-  Lock,
-  MessageCircle,
-  Plus,
-  Radio,
-  RefreshCw,
-  Search,
-  Users,
-  X,
-} from "lucide-react";
+  LuLoaderCircle as Loader2,
+  LuLock as Lock,
+  LuMessageCircle as MessageCircle,
+  LuPlus as Plus,
+  LuRadio as Radio,
+  LuRefreshCw as RefreshCw,
+  LuSearch as Search,
+  LuUsers as Users,
+  LuX as X
+} from "react-icons/lu";
 import {
   createWatchGroup,
   fetchWatchGroups,
@@ -102,7 +102,7 @@ export default function WatchGroups() {
 
   const openModal = () => {
     if (!isAuthenticated) {
-      navigate("/login", { state: { from: "/dashboard/watchgroups" } });
+      navigate("/login", { state: { from: "/watch-groups" } });
       return;
     }
     setForm(emptyForm);
@@ -112,7 +112,7 @@ export default function WatchGroups() {
   const handleCreate = async (e) => {
     e.preventDefault();
     if (!isAuthenticated) {
-      navigate("/login", { state: { from: "/dashboard/watchgroups" } });
+      navigate("/login", { state: { from: "/watch-groups" } });
       return;
     }
     if (!form.name.trim()) {
@@ -130,7 +130,7 @@ export default function WatchGroups() {
       showToast("Watch group created.");
       setModalOpen(false);
       const id = res?.group?.id || res?.group?.shortCode;
-      if (id) navigate(`/dashboard/watchgroups/${id}`);
+      if (id) navigate(`/watch-groups/${id}`);
       else load();
     } catch (err) {
       showToast(
@@ -144,12 +144,12 @@ export default function WatchGroups() {
   const handleEnter = async (group) => {
     if (!isAuthenticated) {
       navigate("/login", {
-        state: { from: `/dashboard/watchgroups/${group.id}` },
+        state: { from: `/watch-groups/${group.id}` },
       });
       return;
     }
     if (group.isMember) {
-      navigate(`/dashboard/watchgroups/${group.id}`);
+      navigate(`/watch-groups/${group.id}`);
       return;
     }
     if (!group.canJoin) {
@@ -164,7 +164,7 @@ export default function WatchGroups() {
     setJoiningId(group.id);
     try {
       await joinWatchGroup(group.id);
-      navigate(`/dashboard/watchgroups/${group.id}`);
+      navigate(`/watch-groups/${group.id}`);
     } catch (err) {
       showToast(err?.response?.data?.message || "Failed to join watch group.");
     } finally {

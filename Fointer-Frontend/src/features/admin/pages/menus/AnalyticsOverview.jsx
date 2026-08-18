@@ -1,6 +1,12 @@
 // src/components/admin/AnalyticsOverview.jsx
 import React from 'react';
-import { Users, UsersRound, HardDrive, Activity, Server } from 'lucide-react';
+import {
+  LuUsers as Users,
+  LuUsersRound as UsersRound,
+  LuHardDrive as HardDrive,
+  LuActivity as Activity,
+  LuServer as Server
+} from 'react-icons/lu';
 
 const AnalyticsOverview = () => {
   const stats = [

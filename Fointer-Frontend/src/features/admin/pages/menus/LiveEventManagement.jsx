@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Loader2,
-  MessageSquare,
-  Radio,
-  RefreshCw,
-  Search,
-  Trash2,
-  Users,
-  X,
-  XCircle,
-} from "lucide-react";
+  LuLoaderCircle as Loader2,
+  LuMessageSquare as MessageSquare,
+  LuRadio as Radio,
+  LuRefreshCw as RefreshCw,
+  LuSearch as Search,
+  LuTrash2 as Trash2,
+  LuUsers as Users,
+  LuX as X,
+  LuCircleX as XCircle
+} from "react-icons/lu";
 import {
   deleteAdminLiveEvent,
   deleteAdminLiveMessage,

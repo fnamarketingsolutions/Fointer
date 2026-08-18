@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Loader2, Users } from 'lucide-react';
+import {
+  LuArrowLeft as ArrowLeft,
+  LuLoaderCircle as Loader2,
+  LuUsers as Users
+} from 'react-icons/lu';
 import { fetchAdminUserDetail } from '../../../../api/dashboard';
 import { useToast } from '../../../../shared/components/feedback/ToastContext';
 

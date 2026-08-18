@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Loader2,
-  Lock,
-  MessageSquare,
-  Radio,
-  RefreshCw,
-  Search,
-  Trash2,
-  UserMinus,
-  Users,
-  X,
-} from "lucide-react";
+  LuLoaderCircle as Loader2,
+  LuLock as Lock,
+  LuMessageSquare as MessageSquare,
+  LuRadio as Radio,
+  LuRefreshCw as RefreshCw,
+  LuSearch as Search,
+  LuTrash2 as Trash2,
+  LuUserMinus as UserMinus,
+  LuUsers as Users,
+  LuX as X
+} from "react-icons/lu";
 import {
   deleteAdminWatchGroup,
   deleteAdminWatchMessage,

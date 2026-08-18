@@ -1,7 +1,12 @@
 import User from "../models/user.js";
 import CommunityMember from "../models/communityMember.js";
 import Community from "../models/community.js";
-// import { logActivity } from "../utils/logActivity.js";
+import { sendServerError } from "../utils/safeError.js";
+import {
+  parsePagination,
+  buildPaginationMeta,
+} from "../utils/pagination.js";
+import { escapeRegex } from "../utils/validate.js";
 
 export const getOverview = async (req, res) => {
   try {
@@ -14,10 +19,7 @@ export const getOverview = async (req, res) => {
       },
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };
 
@@ -124,6 +126,14 @@ const getMemberCountMap = async (communityIds = []) => {
 export const listUsers = async (req, res) => {
   try {
     const { status, role, moderators, q } = req.query;
+    const { enabled, page, limit, skip } = parsePagination(req.query, {
+      defaultLimit: 25,
+      maxLimit: 100,
+    });
+    // Always paginate admin user lists (default page 1 when page omitted).
+    const pageNum = enabled ? page : 1;
+    const pageLimit = enabled ? limit : 25;
+    const pageSkip = enabled ? skip : 0;
     const filter = {};
 
     if (status && ["active", "suspended", "banned"].includes(String(status))) {
@@ -156,7 +166,7 @@ export const listUsers = async (req, res) => {
     }
 
     if (q && String(q).trim()) {
-      const term = String(q).trim();
+      const term = escapeRegex(String(q).trim());
       filter.$or = [
         { name: { $regex: term, $options: "i" } },
         { username: { $regex: term, $options: "i" } },
@@ -164,22 +174,29 @@ export const listUsers = async (req, res) => {
       ];
     }
 
-    const users = await User.find(filter)
-      .select(
-        "username name email role status avatar googleId facebookId createdAt updatedAt"
-      )
-      .sort({ createdAt: -1 })
-      .lean();
+    const [users, total] = await Promise.all([
+      User.find(filter)
+        .select(
+          "username name email role status avatar googleId facebookId createdAt updatedAt"
+        )
+        .sort({ createdAt: -1 })
+        .skip(pageSkip)
+        .limit(pageLimit)
+        .lean(),
+      User.countDocuments(filter),
+    ]);
 
     return res.status(200).json({
       success: true,
       users: users.map(formatAdminUser),
+      pagination: buildPaginationMeta({
+        page: pageNum,
+        limit: pageLimit,
+        total,
+      }),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };
 
@@ -216,24 +233,13 @@ export const updateUserStatus = async (req, res) => {
     target.status = status;
     await target.save();
 
-    // await logActivity({
-    //   actor: req.user._id,
-    //   action: "admin.user.status",
-    //   targetType: "user",
-    //   targetId: target._id,
-    //   meta: { status },
-    // });
-
     return res.status(200).json({
       success: true,
       message: "User status updated successfully.",
       user: formatAdminUser(target.toObject()),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };
 
@@ -284,10 +290,7 @@ export const getAdminUserDetail = async (req, res) => {
       ),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };
 
@@ -322,9 +325,6 @@ export const getAdminCommunityDetail = async (req, res) => {
       members: members.map(formatCommunityMember),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };

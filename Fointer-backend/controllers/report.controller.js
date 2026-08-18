@@ -10,6 +10,7 @@ import User from "../models/user.js";
 import LiveEvent from "../models/liveEvent.js";
 import WatchGroup from "../models/watchGroup.js";
 import Community from "../models/community.js";
+import { sendServerError } from "../utils/safeError.js";
 
 const formatUser = (user) => {
   if (!user || typeof user !== "object" || !user._id) {
@@ -115,11 +116,20 @@ const deleteTargetContent = async (targetType, targetId) => {
   if (!comment) return { deleted: false, message: "Comment already removed." };
   const replies = await Comment.find({ parent: comment._id }).select("_id");
   const ids = [comment._id, ...replies.map((r) => r._id)];
+  const postId = comment.post;
   await Reaction.deleteMany({
     targetType: "comment",
     targetId: { $in: ids },
   });
   await Comment.deleteMany({ _id: { $in: ids } });
+  await Post.updateOne(
+    { _id: postId },
+    { $inc: { commentCount: -ids.length } }
+  );
+  await Post.updateOne(
+    { _id: postId, commentCount: { $lt: 0 } },
+    { $set: { commentCount: 0 } }
+  );
   return { deleted: true, message: "Comment deleted." };
 };
 
@@ -233,10 +243,7 @@ export const createReport = async (req, res) => {
         message: "You already have a pending report on this content.",
       });
     }
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Failed to submit report.",
-    });
+    return sendServerError(res, error, "Failed to submit report.");
   }
 };
 
@@ -302,10 +309,7 @@ export const listAdminReports = async (req, res) => {
       })),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Failed to list reports.",
-    });
+    return sendServerError(res, error, "Failed to list reports.");
   }
 };
 
@@ -393,10 +397,7 @@ export const updateAdminReport = async (req, res) => {
       }),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Failed to update report.",
-    });
+    return sendServerError(res, error, "Failed to update report.");
   }
 };
 
@@ -474,10 +475,7 @@ export const getReportingAnalytics = async (req, res) => {
       },
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Failed to load analytics.",
-    });
+    return sendServerError(res, error, "Failed to load analytics.");
   }
 };
 

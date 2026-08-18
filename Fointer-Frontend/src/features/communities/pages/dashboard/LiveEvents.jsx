@@ -1,17 +1,17 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Loader2,
-  MessageCircle,
-  Plus,
-  Radio,
-  RefreshCw,
-  Search,
-  Trash2,
-  Users,
-  X,
-  XCircle,
-} from "lucide-react";
+  LuLoaderCircle as Loader2,
+  LuMessageCircle as MessageCircle,
+  LuPlus as Plus,
+  LuRadio as Radio,
+  LuRefreshCw as RefreshCw,
+  LuSearch as Search,
+  LuTrash2 as Trash2,
+  LuUsers as Users,
+  LuX as X,
+  LuCircleX as XCircle
+} from "react-icons/lu";
 import {
   createLiveEvent,
   deleteLiveEvent,
@@ -148,7 +148,7 @@ export default function LiveEvents() {
 
   const openModal = () => {
     if (!isAuthenticated) {
-      navigate("/login", { state: { from: "/dashboard/events" } });
+      navigate("/login", { state: { from: "/live-events" } });
       return;
     }
     setForm({
@@ -161,11 +161,11 @@ export default function LiveEvents() {
   const goToEvent = (eventId) => {
     if (!isAuthenticated) {
       navigate("/login", {
-        state: { from: `/dashboard/events/${eventId}` },
+        state: { from: `/live-events/${eventId}` },
       });
       return;
     }
-    navigate(`/dashboard/events/${eventId}`);
+    navigate(`/live-events/${eventId}`);
   };
 
   const handleEndEvent = async (event, e) => {
@@ -234,7 +234,7 @@ export default function LiveEvents() {
       setModalOpen(false);
       const id = res?.event?.id || res?.event?.shortCode;
       if (id) {
-        navigate(`/dashboard/events/${id}`);
+        navigate(`/live-events/${id}`);
       } else {
         load();
       }

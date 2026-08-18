@@ -1,16 +1,71 @@
+import React, { Suspense, lazy } from 'react';
 import { Routes, Route, Navigate, useParams, useSearchParams } from 'react-router-dom';
-import SignUp from '../../features/auth/components/SignUp';
-import Login from '../../features/auth/components/Login';
 import ProtectedRoute from '../../guards/ProtectedRoute';
 import RoleRoute from '../../guards/RoleRoute';
-import Dashboard from '../../features/communities/pages/dashboard/Dashboard';
-import UserNotifications from '../../features/communities/pages/dashboard/UserNotifications';
-import AdminDashboard from '../../features/admin/pages/AdminDashboard';
-import PublicPostPage from '../../features/posts/pages/public/PublicPostPage';
+import PublicSiteLayout from '../../shared/layouts/PublicSiteLayout';
+import { SITE_LINKS } from '../../shared/constants/siteLinks';
 
-const toDashboard = (path) => (
-  <Navigate to={`/dashboard${path}`} replace />
+const SignUp = lazy(() => import('../../features/auth/components/SignUp'));
+const Login = lazy(() => import('../../features/auth/components/Login'));
+const Dashboard = lazy(() =>
+  import('../../features/communities/pages/dashboard/Dashboard')
 );
+const AdminDashboard = lazy(() =>
+  import('../../features/admin/pages/AdminDashboard')
+);
+const PublicPostPage = lazy(() =>
+  import('../../features/posts/pages/public/PublicPostPage')
+);
+
+const AboutHero = lazy(() =>
+  import('../../features/public/pages/about/AboutHero')
+);
+const ContactHero = lazy(() =>
+  import('../../features/public/pages/contact/ContactHero')
+);
+const HowToUse = lazy(() =>
+  import('../../features/public/pages/policies/HowToUse')
+);
+const NetworkUseCase = lazy(() =>
+  import('../../features/public/pages/policies/NetworkUseCase')
+);
+const PrivacyPolicy = lazy(() =>
+  import('../../features/public/pages/policies/PrivacyPolicy')
+);
+const TermsAndConditions = lazy(() =>
+  import('../../features/public/pages/policies/TermsAndConditions')
+);
+const UserAgreement = lazy(() =>
+  import('../../features/public/pages/policies/UserAgreement')
+);
+const ContentPolicy = lazy(() =>
+  import('../../features/public/pages/policies/ContentPolicy')
+);
+const CookiePolicy = lazy(() =>
+  import('../../features/public/pages/policies/CookiePolicy')
+);
+const CodeOfConduct = lazy(() =>
+  import('../../features/public/pages/policies/CodeofConduct')
+);
+
+const routeFallback = (
+  <div className="min-h-[40vh] flex items-center justify-center bg-[#130D08] text-gray-300 text-sm">
+    Loading...
+  </div>
+);
+
+const PUBLIC_PAGE_ELEMENTS = {
+  about: <AboutHero />,
+  'contact-us': <ContactHero />,
+  'how-to-use': <HowToUse />,
+  'code-of-conduct': <CodeOfConduct />,
+  'network-use-cases': <NetworkUseCase />,
+  'privacy-policy': <PrivacyPolicy />,
+  'terms-and-conditions': <TermsAndConditions />,
+  'user-agreement': <UserAgreement />,
+  'content-policy': <ContentPolicy />,
+  'cookie-policy': <CookiePolicy />,
+};
 
 function LegacyFeedRedirect() {
   const { postSlug } = useParams();
@@ -22,64 +77,53 @@ function LegacyFeedRedirect() {
 
 export default function AppRoutes() {
   return (
-    <Routes>
-      <Route path="/signup" element={<SignUp />} />
-      <Route path="/login" element={<Login />} />
+    <Suspense fallback={routeFallback}>
+      <Routes>
+        <Route path="/signup" element={<SignUp />} />
+        <Route path="/login" element={<Login />} />
 
-      <Route path="/about" element={toDashboard('/about')} />
-      <Route path="/services" element={<Navigate to="/" replace />} />
-      <Route path="/contact-us" element={toDashboard('/contact-us')} />
-      <Route
-        path="/communities/*"
-        element={<Navigate to="/dashboard/communities" replace />}
-      />
-      <Route path="/posts" element={<Navigate to="/" replace />} />
-      <Route path="/posts/:postId" element={<PublicPostPage />} />
-      <Route path="/privacy-policy" element={toDashboard('/privacy-policy')} />
-      <Route
-        path="/terms-and-conditions"
-        element={toDashboard('/terms-and-conditions')}
-      />
-      <Route path="/how-to-use" element={toDashboard('/how-to-use')} />
-      <Route path="/code-of-conduct" element={toDashboard('/code-of-conduct')} />
-      <Route
-        path="/network-use-cases"
-        element={toDashboard('/network-use-cases')}
-      />
-      <Route path="/user-agreement" element={toDashboard('/user-agreement')} />
-      <Route path="/content-policy" element={toDashboard('/content-policy')} />
-      <Route path="/cookie-policy" element={toDashboard('/cookie-policy')} />
+        <Route element={<PublicSiteLayout />}>
+          {SITE_LINKS.map((link) => (
+            <Route
+              key={link.segment}
+              path={link.to}
+              element={PUBLIC_PAGE_ELEMENTS[link.segment]}
+            />
+          ))}
+        </Route>
 
-      <Route path="/admin-check" element={<Navigate to="/admin" replace />} />
+        {/* Old dashboard URLs → public paths */}
+        {SITE_LINKS.map((link) => (
+          <Route
+            key={`legacy-${link.segment}`}
+            path={`/dashboard/${link.segment}`}
+            element={<Navigate to={link.to} replace />}
+          />
+        ))}
 
-      <Route
-        path="/admin/*"
-        element={
-          <ProtectedRoute>
-            <RoleRoute roles={['admin']}>
-              <AdminDashboard />
-            </RoleRoute>
-          </ProtectedRoute>
-        }
-      />
+        <Route path="/services" element={<Navigate to="/" replace />} />
+        <Route path="/posts/:postId" element={<PublicPostPage />} />
 
-      <Route
-        path="/dashboard/notifications"
-        element={
-          <ProtectedRoute>
-            <RoleRoute roles={['user']}>
-              <UserNotifications />
-            </RoleRoute>
-          </ProtectedRoute>
-        }
-      />
+        <Route path="/admin-check" element={<Navigate to="/admin" replace />} />
 
-      <Route
-        path="/dashboard/postfeed/:postSlug?"
-        element={<LegacyFeedRedirect />}
-      />
+        <Route
+          path="/admin/*"
+          element={
+            <ProtectedRoute>
+              <RoleRoute roles={['admin']}>
+                <AdminDashboard />
+              </RoleRoute>
+            </ProtectedRoute>
+          }
+        />
 
-      <Route path="/*" element={<Dashboard />} />
-    </Routes>
+        <Route
+          path="/dashboard/postfeed/:postSlug?"
+          element={<LegacyFeedRedirect />}
+        />
+
+        <Route path="/*" element={<Dashboard />} />
+      </Routes>
+    </Suspense>
   );
 }

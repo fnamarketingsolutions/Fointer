@@ -10,19 +10,19 @@ import {
   getRequestsActionUrl,
   sendCommunityInviteEmail,
 } from "../utils/sendVerificationEmail.js";
+import { sendServerError } from "../utils/safeError.js";
+import { escapeRegex } from "../utils/validate.js";
 
-const escapeRegex = (value) =>
-  String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-const formatInviteUser = (user, fallbackId) => {
+const formatInviteUser = (user, fallbackId, { includeEmail = false } = {}) => {
   if (user && typeof user === "object" && user._id) {
-    return {
+    const ref = {
       id: user._id,
       username: user.username,
       name: user.name,
-      email: user.email,
       avatar: user.avatar || "",
     };
+    if (includeEmail && user.email) ref.email = user.email;
+    return ref;
   }
   return { id: fallbackId };
 };
@@ -102,6 +102,7 @@ export const lookupInviteUser = async (req, res) => {
       .select("username name email avatar")
       .limit(10);
 
+    // Owner invite lookup may include email so the owner can confirm the person.
     return res.status(200).json({
       success: true,
       users: users.map((user) => ({
@@ -113,10 +114,7 @@ export const lookupInviteUser = async (req, res) => {
       })),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };
 
@@ -246,9 +244,6 @@ export const inviteUserToCommunity = async (req, res) => {
       invite: formatInvite(invite),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };

@@ -1,24 +1,23 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  ArrowRight,
-  CheckCircle2,
-  Clock,
-  Loader2,
-  RefreshCw,
-  Search,
-  Users,
-  XCircle,
-} from "lucide-react";
+  LuArrowRight as ArrowRight,
+  LuCircleCheck as CheckCircle2,
+  LuClock as Clock,
+  LuLoaderCircle as Loader2,
+  LuRefreshCw as RefreshCw,
+  LuSearch as Search,
+  LuUsers as Users,
+  LuCircleX as XCircle
+} from "react-icons/lu";
 import {
   acceptInvite,
   approveJoinRequest,
   declineInvite,
   denyJoinRequest,
   fetchDiscoverCommunities,
+  fetchIncomingJoinRequests,
   fetchJoinedCommunities,
-  fetchJoinRequests,
-  fetchMyCommunities,
   fetchMyInvites,
   fetchMyJoinRequests,
   joinPublicCommunity,
@@ -155,44 +154,27 @@ export default function JoinedCommunities() {
   const openCommunity = (community, { inviteId } = {}) => {
     const segment = communitySegment(community) || community?.id;
     if (!segment) return;
-    const path = `/dashboard/communities/${segment}`;
+    const path = `/communities/${segment}`;
     navigate(inviteId ? `${path}?invite=${inviteId}` : path);
   };
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [discoverRes, joinedRes, inviteData, reqData, managedData] =
+      const [discoverRes, joinedRes, inviteData, reqData, incomingData] =
         await Promise.all([
           fetchDiscoverCommunities(),
           fetchJoinedCommunities(),
           fetchMyInvites(),
           fetchMyJoinRequests(),
-          fetchMyCommunities({ manage: true }),
+          fetchIncomingJoinRequests("all"),
         ]);
 
       setDiscover(discoverRes?.communities || []);
       setJoined(joinedRes?.communities || []);
       setInvites(inviteData?.invites || []);
       setRequests(reqData?.requests || []);
-
-      const managedCommunities = (managedData?.communities || []).filter(
-        (community) => community.type === "private_request"
-      );
-      const incomingResults = await Promise.all(
-        managedCommunities.map(async (community) => {
-          try {
-            const data = await fetchJoinRequests(community.id, "all");
-            return (data?.requests || []).map((request) => ({
-              ...request,
-              community,
-            }));
-          } catch {
-            return [];
-          }
-        })
-      );
-      setIncoming(incomingResults.flat());
+      setIncoming(incomingData?.requests || []);
     } catch (err) {
       showToast(
         err?.response?.data?.message || "Failed to load communities."

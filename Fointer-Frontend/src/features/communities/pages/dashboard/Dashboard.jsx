@@ -1,58 +1,164 @@
-import React, { useState, useEffect } from "react";
+import React, { Suspense, lazy, useState, useEffect } from "react";
 import {
   Link,
   useNavigate,
   useLocation,
+  useParams,
   Routes,
   Route,
   Navigate,
 } from "react-router-dom";
 import { useAuth } from "../../../../context/AuthContext";
 import {
-  Newspaper,
-  Users,
-  Video,
-  Radio,
-  History,
-  LogOut,
-  LogIn,
-  Crown,
-  X,
-  Folders,
-  FileText,
-  UserRound,
-  LifeBuoy,
-  UserPlus,
-  Menu,
-} from "lucide-react";
+  LuNewspaper as Newspaper,
+  LuUsers as Users,
+  LuVideo as Video,
+  LuRadio as Radio,
+  LuHistory as History,
+  LuLogOut as LogOut,
+  LuLogIn as LogIn,
+  LuCrown as Crown,
+  LuX as X,
+  LuFolders as Folders,
+  LuFileText as FileText,
+  LuUserRound as UserRound,
+  LuLifeBuoy as LifeBuoy,
+  LuUserPlus as UserPlus,
+  LuMenu as Menu,
+  LuBell as Bell,
+} from "react-icons/lu";
 
-import ManageCommunities from "./ManageCommunities";
-import ManagePostPage from "./ManagePostPage";
-import DashboardPostPage from "./DashboardPostPage";
-import DashboardFeed from "./DashboardFeed";
-import PostManagement from "../../../posts/pages/PostManagement";
-import JoinedCommunities from "./JoinedCommunities";
-import CommunityFeed from "./CommunityFeed";
-import ActivityHistory from "./ActivityHistory";
-import Support from "./Support";
-import Profile from "../../../profile/pages/Profile";
-import LiveEvents from "./LiveEvents";
-import LiveRoom from "./LiveRoom";
-import WatchGroups from "./WatchGroups";
-import WatchGroupRoom from "./WatchGroupRoom";
 import AuthOnly from "../../../../guards/AuthOnly";
-import AboutHero from "../../../public/pages/about/AboutHero";
-import ContactHero from "../../../public/pages/contact/ContactHero";
-import HowToUse from "../../../public/pages/policies/HowToUse";
-import NetworkUseCase from "../../../public/pages/policies/NetworkUseCase";
-import PrivacyPolicy from "../../../public/pages/policies/PrivacyPolicy";
-import TermsAndConditions from "../../../public/pages/policies/TermsAndConditions";
-import UserAgreement from "../../../public/pages/policies/UserAgreement";
-import ContentPolicy from "../../../public/pages/policies/ContentPolicy";
-import CookiePolicy from "../../../public/pages/policies/CookiePolicy";
-import CodeOfConduct from "../../../public/pages/policies/CodeofConduct";
-import { SITE_SEGMENTS } from "../../../../shared/constants/siteLinks";
-import SiteLinksFooter from "../../../../shared/components/SiteLinksFooter";
+
+const ManageCommunities = lazy(() => import("./ManageCommunities"));
+const ManagePostPage = lazy(() => import("./ManagePostPage"));
+const DashboardPostPage = lazy(() => import("./DashboardPostPage"));
+const DashboardFeed = lazy(() => import("./DashboardFeed"));
+const PostManagement = lazy(() => import("../../../posts/pages/PostManagement"));
+const JoinedCommunities = lazy(() => import("./JoinedCommunities"));
+const CommunityFeed = lazy(() => import("./CommunityFeed"));
+const ActivityHistory = lazy(() => import("./ActivityHistory"));
+const Support = lazy(() => import("./Support"));
+const Profile = lazy(() => import("../../../profile/pages/Profile"));
+const LiveEvents = lazy(() => import("./LiveEvents"));
+const LiveRoom = lazy(() => import("./LiveRoom"));
+const WatchGroups = lazy(() => import("./WatchGroups"));
+const WatchGroupRoom = lazy(() => import("./WatchGroupRoom"));
+const UserNotifications = lazy(() => import("./UserNotifications"));
+
+const pageFallback = (
+  <div className="min-h-[30vh] flex items-center justify-center text-[#A69B8D] text-sm">
+    Loading...
+  </div>
+);
+
+function LegacyCommunitiesRedirect() {
+  const { "*": rest } = useParams();
+  const location = useLocation();
+  const suffix = rest ? `/${rest}` : "";
+  return (
+    <Navigate
+      to={`/communities${suffix}${location.search}${location.hash}`}
+      replace
+    />
+  );
+}
+
+function LegacyManageRedirect() {
+  const { "*": rest } = useParams();
+  const location = useLocation();
+  const suffix = rest ? `/${rest}` : "";
+  return (
+    <Navigate
+      to={`/manage-community${suffix}${location.search}${location.hash}`}
+      replace
+    />
+  );
+}
+
+function LegacyPostsRedirect() {
+  const { "*": rest } = useParams();
+  const location = useLocation();
+  const suffix = rest ? `/${rest}` : "";
+  return (
+    <Navigate
+      to={`/post-management${suffix}${location.search}${location.hash}`}
+      replace
+    />
+  );
+}
+
+function LegacyEventsRedirect() {
+  const { "*": rest } = useParams();
+  const location = useLocation();
+  const suffix = rest ? `/${rest}` : "";
+  return (
+    <Navigate
+      to={`/live-events${suffix}${location.search}${location.hash}`}
+      replace
+    />
+  );
+}
+
+function LegacyWatchGroupsRedirect() {
+  const { "*": rest } = useParams();
+  const location = useLocation();
+  const suffix = rest ? `/${rest}` : "";
+  return (
+    <Navigate
+      to={`/watch-groups${suffix}${location.search}${location.hash}`}
+      replace
+    />
+  );
+}
+
+function LegacyActivityRedirect() {
+  const { "*": rest } = useParams();
+  const location = useLocation();
+  const suffix = rest ? `/${rest}` : "";
+  return (
+    <Navigate
+      to={`/my-activity${suffix}${location.search}${location.hash}`}
+      replace
+    />
+  );
+}
+
+function LegacySupportRedirect() {
+  const { "*": rest } = useParams();
+  const location = useLocation();
+  const suffix = rest ? `/${rest}` : "";
+  return (
+    <Navigate
+      to={`/support${suffix}${location.search}${location.hash}`}
+      replace
+    />
+  );
+}
+
+function LegacyProfileRedirect() {
+  const { "*": rest } = useParams();
+  const location = useLocation();
+  const suffix = rest ? `/${rest}` : "";
+  return (
+    <Navigate
+      to={`/profile${suffix}${location.search}${location.hash}`}
+      replace
+    />
+  );
+}
+
+function LegacyNotificationsRedirect() {
+  const { "*": rest } = useParams();
+  const location = useLocation();
+  const suffix = rest ? `/${rest}` : "";
+  return (
+    <Navigate
+      to={`/notifications${suffix}${location.search}${location.hash}`}
+      replace
+    />
+  );
+}
 
 const VALID_TABS = [
   "postfeed",
@@ -79,23 +185,58 @@ const Dashboard = () => {
   const defaultAvatar =
     "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200";
 
+  const isRootFeed =
+    location.pathname === "/" || location.pathname.startsWith("/post/");
+  const isCommunities =
+    location.pathname === "/communities" ||
+    location.pathname.startsWith("/communities/");
+  const isManage =
+    location.pathname === "/manage-community" ||
+    location.pathname.startsWith("/manage-community/");
+  const isPostManagement =
+    location.pathname === "/post-management" ||
+    location.pathname.startsWith("/post-management/");
+  const isLiveEvents =
+    location.pathname === "/live-events" ||
+    location.pathname.startsWith("/live-events/");
+  const isWatchGroups =
+    location.pathname === "/watch-groups" ||
+    location.pathname.startsWith("/watch-groups/");
+  const isMyActivity =
+    location.pathname === "/my-activity" ||
+    location.pathname.startsWith("/my-activity/");
+  const isSupport =
+    location.pathname === "/support" ||
+    location.pathname.startsWith("/support/");
+  const isProfile =
+    location.pathname === "/profile" ||
+    location.pathname.startsWith("/profile/");
   const pathAfterDashboard = location.pathname
     .replace(/^\/dashboard\/?/, "")
     .split("/")
     .filter(Boolean);
-  const isRootFeed =
-    location.pathname === "/" || location.pathname.startsWith("/post/");
   const firstSegment = isRootFeed
     ? "postfeed"
-    : pathAfterDashboard[0] || "postfeed";
-  const isStaticPage = SITE_SEGMENTS.has(firstSegment);
+    : isCommunities
+      ? "communities"
+      : isManage
+        ? "manage"
+        : isPostManagement
+          ? "posts"
+          : isLiveEvents
+            ? "events"
+            : isWatchGroups
+              ? "watchgroups"
+              : isMyActivity
+                ? "activity"
+                : isSupport
+                  ? "support"
+                  : isProfile
+                    ? "profile"
+                    : pathAfterDashboard[0] || "postfeed";
   const activeTab = VALID_TABS.includes(firstSegment)
     ? firstSegment
-    : isStaticPage
-      ? null
-      : "postfeed";
-
-  const isFeedRoute = isRootFeed || firstSegment === "postfeed";
+    : "postfeed";
 
   useEffect(() => {
     if (user?.role === "admin") {
@@ -127,12 +268,46 @@ const Dashboard = () => {
 
   const handleTabSelect = (tabId) => {
     if (isGuest && !GUEST_TABS.has(tabId)) {
-      requireLogin(`/dashboard/${tabId}`);
+      const loginFrom =
+        tabId === "communities"
+          ? "/communities"
+          : tabId === "manage"
+            ? "/manage-community"
+            : tabId === "posts"
+              ? "/post-management"
+              : tabId === "events"
+                ? "/live-events"
+                : tabId === "watchgroups"
+                  ? "/watch-groups"
+                  : tabId === "activity"
+                    ? "/my-activity"
+                    : tabId === "support"
+                      ? "/support"
+                      : tabId === "profile"
+                        ? "/profile"
+                        : `/dashboard/${tabId}`;
+      requireLogin(loginFrom);
       setIsMobileMenuOpen(false);
       return;
     }
     if (tabId === "postfeed") {
       navigate("/");
+    } else if (tabId === "communities") {
+      navigate("/communities");
+    } else if (tabId === "manage") {
+      navigate("/manage-community");
+    } else if (tabId === "posts") {
+      navigate("/post-management");
+    } else if (tabId === "events") {
+      navigate("/live-events");
+    } else if (tabId === "watchgroups") {
+      navigate("/watch-groups");
+    } else if (tabId === "activity") {
+      navigate("/my-activity");
+    } else if (tabId === "support") {
+      navigate("/support");
+    } else if (tabId === "profile") {
+      navigate("/profile");
     } else {
       navigate(`/dashboard/${tabId}`);
     }
@@ -141,18 +316,18 @@ const Dashboard = () => {
 
   const handleProfileOpen = () => {
     if (isGuest) {
-      requireLogin("/dashboard/profile");
+      requireLogin("/profile");
       setIsMobileMenuOpen(false);
       return;
     }
-    navigate("/dashboard/profile");
+    navigate("/profile");
     setIsMobileMenuOpen(false);
   };
 
   const handleAvatarClick = () => {
     if (window.matchMedia("(min-width: 768px)").matches) {
-      if (isGuest) requireLogin("/dashboard/profile");
-      else navigate("/dashboard/profile");
+      if (isGuest) requireLogin("/profile");
+      else navigate("/profile");
     } else {
       setIsMobileMenuOpen(true);
     }
@@ -257,6 +432,20 @@ const Dashboard = () => {
             </div>
           ) : (
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => navigate("/notifications")}
+                className={`p-2 rounded-lg border transition-colors ${
+                  location.pathname === "/notifications" ||
+                  location.pathname.startsWith("/notifications/")
+                    ? "border-[#D4AF37]/40 text-[#D4AF37] bg-[#D4AF37]/10"
+                    : "border-[#2A241E] text-[#A69B8D] hover:text-[#D4AF37] hover:border-[#D4AF37]/40"
+                }`}
+                aria-label="Notifications"
+                title="Notifications"
+              >
+                <Bell size={16} />
+              </button>
               <button
                 type="button"
                 onClick={handleAvatarClick}
@@ -412,13 +601,8 @@ const Dashboard = () => {
         )}
 
         <main className="flex-1 p-4 sm:p-6 md:p-8 overflow-y-auto max-h-[calc(100vh-4rem)] w-full">
-          <div
-            className={
-              isFeedRoute ? "" : "lg:flex lg:gap-5 lg:items-start"
-            }
-          >
-            <div className="min-w-0 flex-1">
-              <Routes>
+          <Suspense fallback={pageFallback}>
+            <Routes>
                 <Route path="/" element={<DashboardFeed />} />
                 <Route path="/post/:postSlug" element={<DashboardFeed />} />
                 <Route
@@ -429,20 +613,12 @@ const Dashboard = () => {
                   path="/dashboard/create"
                   element={
                     <AuthOnly>
-                      <Navigate to="/dashboard/manage" replace />
+                      <Navigate to="/manage-community" replace />
                     </AuthOnly>
                   }
                 />
                 <Route
-                  path="/dashboard/manage"
-                  element={
-                    <AuthOnly>
-                      <ManageCommunities />
-                    </AuthOnly>
-                  }
-                />
-                <Route
-                  path="/dashboard/manage/:communityId/posts/:postId"
+                  path="/manage-community/:communityId/posts/:postId"
                   element={
                     <AuthOnly>
                       <ManagePostPage />
@@ -450,7 +626,7 @@ const Dashboard = () => {
                   }
                 />
                 <Route
-                  path="/dashboard/manage/:communityId"
+                  path="/manage-community/:communityId"
                   element={
                     <AuthOnly>
                       <ManageCommunities />
@@ -458,7 +634,23 @@ const Dashboard = () => {
                   }
                 />
                 <Route
-                  path="/dashboard/posts/:postId"
+                  path="/manage-community"
+                  element={
+                    <AuthOnly>
+                      <ManageCommunities />
+                    </AuthOnly>
+                  }
+                />
+                <Route
+                  path="/dashboard/manage/*"
+                  element={<LegacyManageRedirect />}
+                />
+                <Route
+                  path="/dashboard/manage"
+                  element={<Navigate to="/manage-community" replace />}
+                />
+                <Route
+                  path="/post-management/:postId"
                   element={
                     <AuthOnly>
                       <DashboardPostPage />
@@ -466,12 +658,20 @@ const Dashboard = () => {
                   }
                 />
                 <Route
-                  path="/dashboard/posts"
+                  path="/post-management"
                   element={
                     <AuthOnly>
                       <PostManagement />
                     </AuthOnly>
                   }
+                />
+                <Route
+                  path="/dashboard/posts/*"
+                  element={<LegacyPostsRedirect />}
+                />
+                <Route
+                  path="/dashboard/posts"
+                  element={<Navigate to="/post-management" replace />}
                 />
                 <Route
                   path="/dashboard/feed/*"
@@ -480,7 +680,7 @@ const Dashboard = () => {
                   }
                 />
                 <Route
-                  path="/dashboard/communities/:communityId/posts/:postSlug"
+                  path="/communities/:communityId/posts/:postSlug"
                   element={
                     <AuthOnly>
                       <CommunityFeed />
@@ -488,7 +688,7 @@ const Dashboard = () => {
                   }
                 />
                 <Route
-                  path="/dashboard/communities/:communityId"
+                  path="/communities/:communityId"
                   element={
                     <AuthOnly>
                       <CommunityFeed />
@@ -496,7 +696,7 @@ const Dashboard = () => {
                   }
                 />
                 <Route
-                  path="/dashboard/communities"
+                  path="/communities"
                   element={
                     <AuthOnly>
                       <JoinedCommunities />
@@ -504,11 +704,19 @@ const Dashboard = () => {
                   }
                 />
                 <Route
-                  path="/dashboard/requests"
-                  element={<Navigate to="/dashboard/communities" replace />}
+                  path="/dashboard/communities/*"
+                  element={<LegacyCommunitiesRedirect />}
                 />
                 <Route
-                  path="/dashboard/support"
+                  path="/dashboard/communities"
+                  element={<Navigate to="/communities" replace />}
+                />
+                <Route
+                  path="/dashboard/requests"
+                  element={<Navigate to="/communities" replace />}
+                />
+                <Route
+                  path="/support"
                   element={
                     <AuthOnly>
                       <Support />
@@ -516,7 +724,31 @@ const Dashboard = () => {
                   }
                 />
                 <Route
-                  path="/dashboard/profile"
+                  path="/dashboard/support/*"
+                  element={<LegacySupportRedirect />}
+                />
+                <Route
+                  path="/dashboard/support"
+                  element={<Navigate to="/support" replace />}
+                />
+                <Route
+                  path="/notifications"
+                  element={
+                    <AuthOnly>
+                      <UserNotifications />
+                    </AuthOnly>
+                  }
+                />
+                <Route
+                  path="/dashboard/notifications/*"
+                  element={<LegacyNotificationsRedirect />}
+                />
+                <Route
+                  path="/dashboard/notifications"
+                  element={<Navigate to="/notifications" replace />}
+                />
+                <Route
+                  path="/profile"
                   element={
                     <AuthOnly>
                       <Profile />
@@ -524,78 +756,66 @@ const Dashboard = () => {
                   }
                 />
                 <Route
-                  path="/dashboard/events/:eventId"
+                  path="/dashboard/profile/*"
+                  element={<LegacyProfileRedirect />}
+                />
+                <Route
+                  path="/dashboard/profile"
+                  element={<Navigate to="/profile" replace />}
+                />
+                <Route
+                  path="/live-events/:eventId"
                   element={
                     <AuthOnly>
                       <LiveRoom />
                     </AuthOnly>
                   }
                 />
-                <Route path="/dashboard/events" element={<LiveEvents />} />
+                <Route path="/live-events" element={<LiveEvents />} />
                 <Route
-                  path="/dashboard/watchgroups/:groupId"
+                  path="/dashboard/events/*"
+                  element={<LegacyEventsRedirect />}
+                />
+                <Route
+                  path="/dashboard/events"
+                  element={<Navigate to="/live-events" replace />}
+                />
+                <Route
+                  path="/watch-groups/:groupId"
                   element={
                     <AuthOnly>
                       <WatchGroupRoom />
                     </AuthOnly>
                   }
                 />
-                <Route path="/dashboard/watchgroups" element={<WatchGroups />} />
+                <Route path="/watch-groups" element={<WatchGroups />} />
                 <Route
-                  path="/dashboard/activity"
+                  path="/dashboard/watchgroups/*"
+                  element={<LegacyWatchGroupsRedirect />}
+                />
+                <Route
+                  path="/dashboard/watchgroups"
+                  element={<Navigate to="/watch-groups" replace />}
+                />
+                <Route
+                  path="/my-activity"
                   element={
                     <AuthOnly>
                       <ActivityHistory />
                     </AuthOnly>
                   }
                 />
-                <Route path="/dashboard/about" element={<AboutHero />} />
-                <Route path="/dashboard/contact-us" element={<ContactHero />} />
-                <Route path="/dashboard/how-to-use" element={<HowToUse />} />
                 <Route
-                  path="/dashboard/code-of-conduct"
-                  element={<CodeOfConduct />}
+                  path="/dashboard/activity/*"
+                  element={<LegacyActivityRedirect />}
                 />
                 <Route
-                  path="/dashboard/network-use-cases"
-                  element={<NetworkUseCase />}
-                />
-                <Route
-                  path="/dashboard/privacy-policy"
-                  element={<PrivacyPolicy />}
-                />
-                <Route
-                  path="/dashboard/terms-and-conditions"
-                  element={<TermsAndConditions />}
-                />
-                <Route
-                  path="/dashboard/user-agreement"
-                  element={<UserAgreement />}
-                />
-                <Route
-                  path="/dashboard/content-policy"
-                  element={<ContentPolicy />}
-                />
-                <Route
-                  path="/dashboard/cookie-policy"
-                  element={<CookiePolicy />}
+                  path="/dashboard/activity"
+                  element={<Navigate to="/my-activity" replace />}
                 />
                 <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            </div>
-
-            {!isFeedRoute ? (
-              <aside className="hidden lg:block w-72 shrink-0 lg:sticky lg:top-4">
-                <SiteLinksFooter activeSegment={firstSegment} />
-              </aside>
-            ) : null}
-          </div>
-
-          {!isFeedRoute ? (
-            <div className="lg:hidden mt-8 pt-4 border-t border-[#2A241E]">
-              <SiteLinksFooter activeSegment={firstSegment} />
-            </div>
-          ) : null}
+            </Routes>
+          </Suspense>
         </main>
       </div>
     </div>

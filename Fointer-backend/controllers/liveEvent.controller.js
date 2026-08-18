@@ -12,7 +12,8 @@ import {
   getActorCommunityRole,
   getEffectiveMemberRole,
 } from "../utils/communityPermissions.js";
-import { resolveDocumentId } from "../utils/shortCode.js";
+import { parseObjectIdInput, resolveDocumentId } from "../utils/shortCode.js";
+import { sendServerError } from "../utils/safeError.js";
 
 const formatUser = (user) => {
   if (!user || typeof user !== "object" || !user._id) {
@@ -118,7 +119,7 @@ const attachPermissions = async (event, user, viewerCount = 0) => {
 export const listLiveEvents = async (req, res) => {
   try {
     const status = String(req.query.status || "live").toLowerCase();
-    const communityId = req.query.communityId || null;
+    const rawCommunityId = req.query.communityId;
 
     const filter = {};
     if (status === "live" || status === "ended") {
@@ -126,7 +127,18 @@ export const listLiveEvents = async (req, res) => {
     } else if (status !== "all") {
       filter.status = "live";
     }
-    if (communityId) {
+    if (
+      rawCommunityId !== undefined &&
+      rawCommunityId !== null &&
+      rawCommunityId !== ""
+    ) {
+      const communityId = parseObjectIdInput(rawCommunityId);
+      if (!communityId) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid community id.",
+        });
+      }
       filter.community = communityId;
     }
 
@@ -148,10 +160,7 @@ export const listLiveEvents = async (req, res) => {
       events: accessible,
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Failed to list live events.",
-    });
+    return sendServerError(res, error, "Failed to list live events.");
   }
 };
 
@@ -181,10 +190,7 @@ export const getLiveEvent = async (req, res) => {
       ),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Failed to load live event.",
-    });
+    return sendServerError(res, error, "Failed to load live event.");
   }
 };
 
@@ -267,10 +273,7 @@ export const createLiveEvent = async (req, res) => {
       event: await attachPermissions(populated, req.user),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Failed to start live event.",
-    });
+    return sendServerError(res, error, "Failed to start live event.");
   }
 };
 
@@ -315,10 +318,7 @@ export const endLiveEvent = async (req, res) => {
       event: payload,
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Failed to end live event.",
-    });
+    return sendServerError(res, error, "Failed to end live event.");
   }
 };
 
@@ -353,10 +353,7 @@ export const deleteLiveEvent = async (req, res) => {
       message: "Live event deleted.",
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Failed to delete live event.",
-    });
+    return sendServerError(res, error, "Failed to delete live event.");
   }
 };
 
@@ -392,10 +389,7 @@ export const listLiveMessages = async (req, res) => {
         .map((m) => formatLiveMessage(m, { canDelete: canModerate })),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Failed to load messages.",
-    });
+    return sendServerError(res, error, "Failed to load messages.");
   }
 };
 
@@ -442,10 +436,7 @@ export const deleteLiveMessage = async (req, res) => {
       messageId,
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Failed to delete message.",
-    });
+    return sendServerError(res, error, "Failed to delete message.");
   }
 };
 
@@ -491,10 +482,7 @@ export const listHostableCommunities = async (req, res) => {
 
     return res.json({ success: true, communities });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Failed to load communities.",
-    });
+    return sendServerError(res, error, "Failed to load communities.");
   }
 };
 
@@ -566,9 +554,6 @@ export const adminListLiveEvents = async (req, res) => {
       summary,
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Failed to list live events.",
-    });
+    return sendServerError(res, error, "Failed to list live events.");
   }
 };

@@ -1,5 +1,11 @@
 import React, { useEffect, useState } from "react";
-import { ArrowLeft, CheckCircle2, Flag, Loader2, X } from "lucide-react";
+import {
+  LuArrowLeft as ArrowLeft,
+  LuCircleCheck as CheckCircle2,
+  LuFlag as Flag,
+  LuLoaderCircle as Loader2,
+  LuX as X
+} from "react-icons/lu";
 import { createReport, fetchReportReasons } from "../../../api/reports";
 import { useToast } from "../feedback/ToastContext";
 

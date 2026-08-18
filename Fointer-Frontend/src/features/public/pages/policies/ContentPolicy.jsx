@@ -1,17 +1,17 @@
 import React from 'react';
-import { 
-  ShieldCheck, 
-  HeartHandshake, 
-  UserCheck, 
-  Lock, 
-  ShieldAlert, 
-  UserX, 
-  Tag, 
-  Scale, 
-  AlertOctagon, 
-  AlertTriangle, 
-  Mail 
-} from 'lucide-react';
+import {
+  LuShieldCheck as ShieldCheck,
+  LuHeartHandshake as HeartHandshake,
+  LuUserCheck as UserCheck,
+  LuLock as Lock,
+  LuShieldAlert as ShieldAlert,
+  LuUserX as UserX,
+  LuTag as Tag,
+  LuScale as Scale,
+  LuOctagonAlert as AlertOctagon,
+  LuTriangleAlert as AlertTriangle,
+  LuMail as Mail
+} from 'react-icons/lu';
 
 export default function ContentPolicy() {
   const rules = [

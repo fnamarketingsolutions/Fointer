@@ -1,34 +1,41 @@
-import { useState, useEffect } from 'react';
+import { Suspense, lazy, useState, useEffect } from 'react';
 import { useNavigate, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import {
-  BarChart3,
-  Users,
-  UsersRound,
-  LifeBuoy,
-  X,
-  Crown,
-  LogOut,
-  Shield,
-  Radio,
-  MessageSquare,
-  UserRound,
-  Layers,
-} from 'lucide-react';
+  LuChartColumn as BarChart3,
+  LuUsers as Users,
+  LuUsersRound as UsersRound,
+  LuLifeBuoy as LifeBuoy,
+  LuX as X,
+  LuCrown as Crown,
+  LuLogOut as LogOut,
+  LuShield as Shield,
+  LuRadio as Radio,
+  LuMessageSquare as MessageSquare,
+  LuUserRound as UserRound,
+  LuLayers as Layers
+} from 'react-icons/lu';
 
 import { useAuth } from '../../../context/AuthContext';
 import ComingSoon from '../../../shared/components/feedback/ComingSoon';
-import UserManagement from './menus/UserManagement';
-import CommunityManagement from './menus/CommunityManagement';
-import ChannelManagement from './menus/ChannelManagement';
-import SupportTicketCenter from './menus/SupportTicketCenter';
-import LiveEventManagement from './menus/LiveEventManagement';
-import WatchGroupManagement from './menus/WatchGroupManagement';
-import ContentModeration from './menus/ContentModeration';
-import ReportingAnalytics from './menus/ReportingAnalytics';
-import UserDetail from './menus/UserDetail';
-import CommunityDetail from './menus/CommunityDetail';
-import AdminCommunityPostPage from './menus/AdminCommunityPostPage';
-import Profile from '../../profile/pages/Profile';
+
+const UserManagement = lazy(() => import('./menus/UserManagement'));
+const CommunityManagement = lazy(() => import('./menus/CommunityManagement'));
+const ChannelManagement = lazy(() => import('./menus/ChannelManagement'));
+const SupportTicketCenter = lazy(() => import('./menus/SupportTicketCenter'));
+const LiveEventManagement = lazy(() => import('./menus/LiveEventManagement'));
+const WatchGroupManagement = lazy(() => import('./menus/WatchGroupManagement'));
+const ContentModeration = lazy(() => import('./menus/ContentModeration'));
+const ReportingAnalytics = lazy(() => import('./menus/ReportingAnalytics'));
+const UserDetail = lazy(() => import('./menus/UserDetail'));
+const CommunityDetail = lazy(() => import('./menus/CommunityDetail'));
+const AdminCommunityPostPage = lazy(() => import('./menus/AdminCommunityPostPage'));
+const Profile = lazy(() => import('../../profile/pages/Profile'));
+
+const pageFallback = (
+  <div className="min-h-[30vh] flex items-center justify-center text-stone-400 text-sm">
+    Loading...
+  </div>
+);
 
 const DEFAULT_AVATAR =
   'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=100';
@@ -234,7 +241,8 @@ const AdminDashboard = () => {
 
         <main className="flex-1 p-4 md:p-8 overflow-y-auto">
           <div className="max-w-7xl w-full mx-auto">
-            <Routes>
+            <Suspense fallback={pageFallback}>
+              <Routes>
               <Route path="/" element={<Navigate to="/admin/users" replace />} />
               <Route path="users" element={<UserManagement />} />
               <Route path="users/:id" element={<UserDetail />} />
@@ -267,6 +275,7 @@ const AdminDashboard = () => {
                   />
                 ))}
             </Routes>
+            </Suspense>
           </div>
         </main>
       </div>

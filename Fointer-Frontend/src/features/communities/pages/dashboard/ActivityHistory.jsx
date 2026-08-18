@@ -1,13 +1,13 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  Clock,
-  Edit3,
-  Heart,
-  Loader2,
-  MessageCircle,
-  Reply,
-  Trash2,
-} from "lucide-react";
+  LuClock as Clock,
+  LuSquarePen as Edit3,
+  LuHeart as Heart,
+  LuLoaderCircle as Loader2,
+  LuMessageCircle as MessageCircle,
+  LuReply as Reply,
+  LuTrash2 as Trash2
+} from "react-icons/lu";
 import {
   deleteComment,
   deletePost,

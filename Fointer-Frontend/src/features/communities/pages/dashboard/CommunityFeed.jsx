@@ -6,18 +6,18 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import {
-  ArrowLeft,
-  Globe,
-  Heart,
-  Loader2,
-  Lock,
-  MessageCircle,
-  Plus,
-  Radio,
-  Search,
-  Users,
-  Video,
-} from "lucide-react";
+  LuArrowLeft as ArrowLeft,
+  LuGlobe as Globe,
+  LuHeart as Heart,
+  LuLoaderCircle as Loader2,
+  LuLock as Lock,
+  LuMessageCircle as MessageCircle,
+  LuPlus as Plus,
+  LuRadio as Radio,
+  LuSearch as Search,
+  LuUsers as Users,
+  LuVideo as Video
+} from "react-icons/lu";
 import {
   acceptInvite,
   declineInvite,
@@ -207,7 +207,7 @@ function CommunitySidebar({
             {liveEvents.slice(0, 4).map((ev) => (
               <li key={ev.id}>
                 <Link
-                  to={`/dashboard/events/${ev.id}`}
+                  to={`/live-events/${ev.id}`}
                   className="block text-xs text-[#E5E0D8] hover:text-[#D4AF37] line-clamp-2"
                 >
                   {ev.title}
@@ -235,7 +235,7 @@ function CommunitySidebar({
             {watchGroups.slice(0, 4).map((g) => (
               <li key={g.id}>
                 <Link
-                  to={`/dashboard/watchgroups/${g.id}`}
+                  to={`/watch-groups/${g.id}`}
                   className="block text-xs text-[#E5E0D8] hover:text-[#D4AF37] line-clamp-2"
                 >
                   {g.name}
@@ -259,7 +259,8 @@ export default function CommunityFeed() {
     "community",
     communityParam
   );
-  const { id: openPostId } = useEntityId("post", postSlug);
+  const { id: openPostId, resolving: resolvingPost, notFound: postNotFound } =
+    useEntityId("post", postSlug);
 
   const inviteId = searchParams.get("invite") || null;
 
@@ -286,8 +287,8 @@ export default function CommunityFeed() {
 
   const viewingPost = Boolean(postSlug);
   const basePath = communityParam
-    ? `/dashboard/communities/${communityParam}`
-    : "/dashboard/communities";
+    ? `/communities/${communityParam}`
+    : "/communities";
 
   const loadCommunity = useCallback(async () => {
     if (!communityId) return;
@@ -465,7 +466,7 @@ export default function CommunityFeed() {
     try {
       await declineInvite(inviteId);
       showToast("Invite declined.");
-      navigate("/dashboard/communities");
+      navigate("/communities");
     } catch (err) {
       showToast(err?.response?.data?.message || "Failed to decline invite.");
     } finally {
@@ -536,7 +537,7 @@ export default function CommunityFeed() {
       <div className="max-w-3xl mx-auto text-center py-16 space-y-3">
         <p className="text-sm text-[#8C8070]">Community not found.</p>
         <Link
-          to="/dashboard/communities"
+          to="/communities"
           className="inline-flex items-center gap-1.5 text-sm text-[#D4AF37] hover:text-[#e0c04a]"
         >
           <ArrowLeft size={14} /> Back to Communities
@@ -582,26 +583,37 @@ export default function CommunityFeed() {
 
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px] gap-5 items-start">
           <div className="min-w-0 bg-[#14100D] border border-[#2A241E] rounded-xl overflow-hidden">
-            <PostDetail
-              key={postSlug}
-              postId={openPostId}
-              embedded
-              compact={false}
-              fetchPostFn={fetchPost}
-              onBack={closePost}
-              onDeleted={() => {
-                closePost();
-                loadPosts({
-                  q: query,
-                  pageNum: 1,
-                  append: false,
-                  sort: sortBy,
-                });
-              }}
-              postPathBuilder={(post) =>
-                `${basePath}/posts/${postSegment(post)}`
-              }
-            />
+            {resolvingPost ? (
+              <div className="flex items-center justify-center gap-2 py-20 text-sm text-[#A69B8D]">
+                <Loader2 size={16} className="animate-spin text-[#D4AF37]" />
+                Loading post…
+              </div>
+            ) : postNotFound || !openPostId ? (
+              <div className="border border-dashed border-[#2A241E] rounded-xl m-4 py-14 text-center text-sm text-[#8C8070]">
+                Post not found.
+              </div>
+            ) : (
+              <PostDetail
+                key={postSlug}
+                postId={openPostId}
+                embedded
+                compact={false}
+                fetchPostFn={fetchPost}
+                onBack={closePost}
+                onDeleted={() => {
+                  closePost();
+                  loadPosts({
+                    q: query,
+                    pageNum: 1,
+                    append: false,
+                    sort: sortBy,
+                  });
+                }}
+                postPathBuilder={(post) =>
+                  `${basePath}/posts/${postSegment(post)}`
+                }
+              />
+            )}
           </div>
           <div className="lg:sticky lg:top-4 space-y-4 order-first lg:order-none">
             {sidebar}
@@ -615,7 +627,7 @@ export default function CommunityFeed() {
     <div className="text-[#E5E0D8] w-full max-w-6xl mx-auto px-2 sm:px-4 lg:px-6 pb-10">
       <div className="mb-5 sm:mb-6 space-y-4">
         <Link
-          to="/dashboard/communities"
+          to="/communities"
           className="inline-flex items-center gap-1.5 text-xs text-[#A69B8D] hover:text-[#D4AF37]"
         >
           <ArrowLeft size={14} /> Communities

@@ -1,18 +1,18 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
-  ArrowLeft,
-  ArrowRight,
-  Hash,
-  Heart,
-  Loader2,
-  LogIn,
-  MessageCircle,
-  Search,
-  TrendingUp,
-  UserPlus,
-  Users,
-} from "lucide-react";
+  LuArrowLeft as ArrowLeft,
+  LuArrowRight as ArrowRight,
+  LuHash as Hash,
+  LuHeart as Heart,
+  LuLoaderCircle as Loader2,
+  LuLogIn as LogIn,
+  LuMessageCircle as MessageCircle,
+  LuSearch as Search,
+  LuTrendingUp as TrendingUp,
+  LuUserPlus as UserPlus,
+  LuUsers as Users
+} from "react-icons/lu";
 import {
   fetchPost,
   fetchPosts,
@@ -319,7 +319,8 @@ export default function DashboardFeed() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { showToast } = useToast();
   const { isAuthenticated } = useAuth();
-  const { id: openPostId } = useEntityId("post", postSlug);
+  const { id: openPostId, resolving: resolvingPost, notFound: postNotFound } =
+    useEntityId("post", postSlug);
   const isGuest = !isAuthenticated;
 
   const requestedMode =
@@ -512,28 +513,39 @@ export default function DashboardFeed() {
 
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px] gap-5 items-start">
           <div className="min-w-0 bg-[#14100D] border border-[#2A241E] rounded-xl overflow-hidden">
-            <PostDetail
-              key={`${postSlug}-${mode}`}
-              postId={openPostId}
-              embedded
-              compact={false}
-              fetchPostFn={isPersonalized ? fetchPost : fetchPublicPost}
-              onBack={closePost}
-              onDeleted={() => {
-                closePost();
-                load({
-                  q: query,
-                  pageNum: 1,
-                  append: false,
-                  sort: sortBy,
-                  feedMode: mode,
-                  channel: selectedChannel,
-                });
-              }}
-              postPathBuilder={(post) =>
-                `${FEED_POST_PATH}/${postSegment(post)}${feedQueryString}`
-              }
-            />
+            {resolvingPost ? (
+              <div className="flex items-center justify-center gap-2 py-20 text-sm text-[#A69B8D]">
+                <Loader2 size={16} className="animate-spin text-[#D4AF37]" />
+                Loading post…
+              </div>
+            ) : postNotFound || !openPostId ? (
+              <div className="border border-dashed border-[#2A241E] rounded-xl m-4 py-14 text-center text-sm text-[#8C8070]">
+                Post not found.
+              </div>
+            ) : (
+              <PostDetail
+                key={`${postSlug}-${mode}`}
+                postId={openPostId}
+                embedded
+                compact={false}
+                fetchPostFn={isPersonalized ? fetchPost : fetchPublicPost}
+                onBack={closePost}
+                onDeleted={() => {
+                  closePost();
+                  load({
+                    q: query,
+                    pageNum: 1,
+                    append: false,
+                    sort: sortBy,
+                    feedMode: mode,
+                    channel: selectedChannel,
+                  });
+                }}
+                postPathBuilder={(post) =>
+                  `${FEED_POST_PATH}/${postSegment(post)}${feedQueryString}`
+                }
+              />
+            )}
           </div>
 
           <div className="lg:sticky lg:top-4 space-y-4 order-first lg:order-none">
@@ -672,13 +684,13 @@ export default function DashboardFeed() {
                   </p>
                   <div className="flex flex-wrap items-center justify-center gap-3">
                     <Link
-                      to="/dashboard/communities"
+                      to="/communities"
                       className="inline-flex items-center gap-2 text-[#D4AF37] hover:text-[#e0c04a] font-medium"
                     >
                       Joined communities <ArrowRight size={14} />
                     </Link>
                     <Link
-                      to="/dashboard/manage"
+                      to="/manage-community"
                       className="inline-flex items-center gap-2 text-[#A69B8D] hover:text-[#D4AF37] font-medium"
                     >
                       Manage communities <ArrowRight size={14} />

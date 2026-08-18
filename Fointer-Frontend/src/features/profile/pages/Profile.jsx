@@ -1,17 +1,17 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Award,
-  Camera,
-  Eye,
-  EyeOff,
-  FileText,
-  Loader2,
-  RefreshCw,
-  Save,
-  Shield,
-  Users,
-  X,
-} from "lucide-react";
+  LuAward as Award,
+  LuCamera as Camera,
+  LuEye as Eye,
+  LuEyeOff as EyeOff,
+  LuFileText as FileText,
+  LuLoaderCircle as Loader2,
+  LuRefreshCw as RefreshCw,
+  LuSave as Save,
+  LuShield as Shield,
+  LuUsers as Users,
+  LuX as X
+} from "react-icons/lu";
 import {
   fetchMyProfile,
   updateMyPassword,

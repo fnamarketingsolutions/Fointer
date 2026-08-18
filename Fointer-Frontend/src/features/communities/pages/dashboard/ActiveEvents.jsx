@@ -1,5 +1,10 @@
 import React from "react";
-import { Radio, Users, Play, MessageCircle } from "lucide-react";
+import {
+  LuRadio as Radio,
+  LuUsers as Users,
+  LuPlay as Play,
+  LuMessageCircle as MessageCircle
+} from "react-icons/lu";
 
 /** @deprecated Use LiveEvents.jsx — kept only if something still imports this mock. */
 export default function ActiveEvents() {

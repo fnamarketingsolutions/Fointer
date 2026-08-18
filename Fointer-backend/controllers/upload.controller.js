@@ -1,4 +1,5 @@
 import { uploadToCloudinary } from "../utils/cloudinary.js";
+import { sendServerError } from "../utils/safeError.js";
 
 export const uploadMedia = async (req, res) => {
   try {
@@ -24,9 +25,6 @@ export const uploadMedia = async (req, res) => {
       },
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Upload failed.",
-    });
+    return sendServerError(res, error, "Upload failed.");
   }
 };

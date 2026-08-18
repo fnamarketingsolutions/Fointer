@@ -1,10 +1,10 @@
 import React from 'react';
-import { 
-  Building2, 
-  Users2, 
-  Landmark, 
-  User 
-} from 'lucide-react';
+import {
+  LuBuilding2 as Building2,
+  LuUsersRound as Users2,
+  LuLandmark as Landmark,
+  LuUser as User
+} from 'react-icons/lu';
 
 export default function NetworkUseCase() {
   const useCases = [

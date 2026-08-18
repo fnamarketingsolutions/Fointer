@@ -163,6 +163,13 @@ export const fetchJoinRequests = async (id, status = 'pending') => {
   return response.data;
 };
 
+export const fetchIncomingJoinRequests = async (status = 'all') => {
+  const response = await api.get('/communities/join-requests/incoming', {
+    params: { status },
+  });
+  return response.data;
+};
+
 export const approveJoinRequest = async (communityId, requestId) => {
   const response = await api.post(
     `/communities/${communityId}/join-requests/${requestId}/approve`

@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  CheckCircle2,
-  Clock3,
-  LifeBuoy,
-  Loader2,
-  RefreshCw,
-  Search,
-  XCircle,
-} from "lucide-react";
+  LuCircleCheck as CheckCircle2,
+  LuClock3 as Clock3,
+  LuLifeBuoy as LifeBuoy,
+  LuLoaderCircle as Loader2,
+  LuRefreshCw as RefreshCw,
+  LuSearch as Search,
+  LuCircleX as XCircle
+} from "react-icons/lu";
 import {
   fetchAdminSupportTickets,
   updateAdminSupportTicketStatus,

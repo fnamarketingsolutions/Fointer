@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Hash, Layers, Loader2, Plus, RefreshCw, Search } from "lucide-react";
+import {
+  LuHash as Hash,
+  LuLayers as Layers,
+  LuLoaderCircle as Loader2,
+  LuPlus as Plus,
+  LuRefreshCw as RefreshCw,
+  LuSearch as Search
+} from "react-icons/lu";
 import {
   createAdminChannel,
   createAdminSubchannel,

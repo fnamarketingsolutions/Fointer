@@ -1,17 +1,17 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Ban,
-  Building2,
-  CheckCircle2,
-  ChevronDown,
-  ChevronUp,
-  ExternalLink,
-  Loader2,
-  RefreshCw,
-  Search,
-  Users,
-} from "lucide-react";
+  LuBan as Ban,
+  LuBuilding2 as Building2,
+  LuCircleCheck as CheckCircle2,
+  LuChevronDown as ChevronDown,
+  LuChevronUp as ChevronUp,
+  LuExternalLink as ExternalLink,
+  LuLoaderCircle as Loader2,
+  LuRefreshCw as RefreshCw,
+  LuSearch as Search,
+  LuUsers as Users
+} from "react-icons/lu";
 import {
   fetchAdminUserDetail,
   fetchUsers,

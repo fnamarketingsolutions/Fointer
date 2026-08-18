@@ -1,21 +1,21 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  Ban,
-  BarChart3,
-  CheckCircle2,
-  Flag,
-  FileText,
-  Loader2,
-  MessageCircle,
-  RefreshCw,
-  Search,
-  Shield,
-  Trash2,
-  Users,
-  X,
-  XCircle,
-} from "lucide-react";
+  LuBan as Ban,
+  LuChartColumn as BarChart3,
+  LuCircleCheck as CheckCircle2,
+  LuFlag as Flag,
+  LuFileText as FileText,
+  LuLoaderCircle as Loader2,
+  LuMessageCircle as MessageCircle,
+  LuRefreshCw as RefreshCw,
+  LuSearch as Search,
+  LuShield as Shield,
+  LuTrash2 as Trash2,
+  LuUsers as Users,
+  LuX as X,
+  LuCircleX as XCircle
+} from "react-icons/lu";
 import {
   fetchAdminAnalytics,
   fetchAdminReports,

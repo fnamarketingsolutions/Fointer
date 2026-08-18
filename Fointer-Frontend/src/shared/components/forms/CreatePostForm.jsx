@@ -1,4 +1,7 @@
-import { ArrowLeft, Loader2 } from "lucide-react";
+import {
+  LuArrowLeft as ArrowLeft,
+  LuLoaderCircle as Loader2
+} from "react-icons/lu";
 import MediaPicker from "../media/MediaPicker";
 
 /**

@@ -1,5 +1,7 @@
 import React from "react";
-import { Clock } from "lucide-react";
+import {
+  LuClock as Clock
+} from "react-icons/lu";
 
 export default function ComingSoon({ title = "This feature", description }) {
   return (

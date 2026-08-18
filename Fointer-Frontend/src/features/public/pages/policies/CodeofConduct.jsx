@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  ShieldCheck, 
-  HeartHandshake, 
-  Eye, 
-  Lock, 
-  Activity, 
-  Scale, 
-  AlertTriangle, 
-  BookOpen, 
-  Mail, 
-  MapPin 
-} from 'lucide-react';
+import {
+  LuShieldCheck as ShieldCheck,
+  LuHeartHandshake as HeartHandshake,
+  LuEye as Eye,
+  LuLock as Lock,
+  LuActivity as Activity,
+  LuScale as Scale,
+  LuTriangleAlert as AlertTriangle,
+  LuBookOpen as BookOpen,
+  LuMail as Mail,
+  LuMapPin as MapPin
+} from 'react-icons/lu';
 
 export default function CodeOfConduct() {
   const [currentDate, setCurrentDate] = useState(new Date());

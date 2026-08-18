@@ -1,5 +1,12 @@
 import React, { useEffect, useState } from "react";
-import { Save, Clock, Users, UploadCloud, ShieldAlert, Loader2 } from "lucide-react";
+import {
+  LuSave as Save,
+  LuClock as Clock,
+  LuUsers as Users,
+  LuCloudUpload as UploadCloud,
+  LuShieldAlert as ShieldAlert,
+  LuLoaderCircle as Loader2
+} from "react-icons/lu";
 import {
   fetchSystemSettings,
   updateSystemSettings,

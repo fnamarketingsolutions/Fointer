@@ -28,15 +28,14 @@ api.interceptors.response.use(
     const status = error?.response?.status;
     const url = error?.config?.url || '';
 
-    // Check if the URL is an authentication probe or OAuth callback endpoint
     const isAuthProbe =
       url.includes('/auth/me') ||
       url.includes('/auth/login') ||
       url.includes('/auth/signup') ||
       url.includes('/auth/google') ||
       url.includes('/auth/facebook') ||
-      url.includes('/auth/callback') ||
-      url.includes('/dashboard/');
+      url.includes('/auth/verify-email-otp') ||
+      url.includes('/auth/resend-verification');
 
     if (status === 401 && !isAuthProbe && unauthorizedHandler) {
       unauthorizedHandler();

@@ -6,6 +6,12 @@ import CommunityInvite from "../models/communityInvite.js";
 import User from "../models/user.js";
 import Channel from "../models/channel.js";
 import Subchannel from "../models/subchannel.js";
+import Post from "../models/post.js";
+import Comment from "../models/comment.js";
+import Reaction from "../models/reaction.js";
+import LiveEvent from "../models/liveEvent.js";
+import LiveMessage from "../models/liveMessage.js";
+import Report from "../models/report.js";
 import { destroyManyFromCloudinary } from "../utils/cloudinary.js";
 import {
   getMembership,
@@ -29,6 +35,7 @@ import {
   sendCommunityInviteAcceptedEmail,
   sendCommunityInviteDeclinedEmail,
 } from "../utils/sendVerificationEmail.js";
+import { sendServerError } from "../utils/safeError.js";
 
 const COMMUNITY_SORT_MAP = {
   newest: { createdAt: -1 },
@@ -156,15 +163,18 @@ const normalizeGalleryImages = (images) => {
   ].slice(0, MAX_GALLERY_IMAGES);
 };
 
-const formatUserRef = (user, fallbackId) => {
+const formatUserRef = (user, fallbackId, { includeEmail = false } = {}) => {
   if (user && typeof user === "object" && user._id) {
-    return {
+    const ref = {
       id: user._id,
       username: user.username,
       name: user.name,
-      email: user.email,
       avatar: user.avatar || "",
     };
+    if (includeEmail && user.email) {
+      ref.email = user.email;
+    }
+    return ref;
   }
   return fallbackId ? { id: fallbackId } : null;
 };
@@ -231,7 +241,7 @@ const formatJoinRequest = (request) => ({
   message: request.message || "",
   createdAt: request.createdAt,
   updatedAt: request.updatedAt,
-  user: formatUserRef(request.user, request.user),
+  user: formatUserRef(request.user, request.user, { includeEmail: true }),
 });
 
 const formatInvite = (invite) => ({
@@ -363,10 +373,7 @@ export const createCommunity = async (req, res) => {
       community: formatCommunity(populatedCommunity, { memberCount: 1 }),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };
 
@@ -433,10 +440,7 @@ export const listMyCommunities = async (req, res) => {
       ),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };
 
@@ -457,10 +461,7 @@ export const listAllCommunities = async (req, res) => {
       ),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };
 
@@ -475,19 +476,43 @@ export const getCommunity = async (req, res) => {
       });
     }
 
+    const isAdmin = req.user.role === "admin";
+    const membership = await getMembership(community._id, req.user._id);
+    const isMember = Boolean(getEffectiveMemberRole(membership));
+    const isDiscoverable = ["public", "private_request"].includes(
+      community.type
+    );
+
+    // private_invite (and any future non-discoverable types) require membership
+    if (!isAdmin && !isMember && !isDiscoverable) {
+      return res.status(403).json({
+        success: false,
+        message: "You do not have access to this community.",
+      });
+    }
+
     const countMap = await getMemberCounts([community._id]);
+    const formatted = formatCommunity(community, {
+      memberCount: countMap[String(community._id)] || 0,
+      isMember,
+      membershipRole: membership ? getEffectiveMemberRole(membership) : null,
+    });
+
+    // Owner email only for community managers / platform admins
+    if (
+      formatted.owner &&
+      typeof formatted.owner === "object" &&
+      !canManageCommunity(community, req.user)
+    ) {
+      delete formatted.owner.email;
+    }
 
     return res.status(200).json({
       success: true,
-      community: formatCommunity(community, {
-        memberCount: countMap[String(community._id)] || 0,
-      }),
+      community: formatted,
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };
 
@@ -623,10 +648,7 @@ export const updateCommunity = async (req, res) => {
       }),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };
 
@@ -648,17 +670,63 @@ export const deleteCommunity = async (req, res) => {
       });
     }
 
+    const communityId = community._id;
     const mediaToRemove = [
       community.coverImage,
       ...(community.galleryImages || []),
     ].filter(Boolean);
 
-    await CommunityMember.deleteMany({ community: community._id });
-    await CommunityJoinRequest.deleteMany({ community: community._id });
-    await Community.findByIdAndDelete(req.params.id);
+    const posts = await Post.find({ community: communityId })
+      .select("_id media")
+      .lean();
+    const postIds = posts.map((p) => p._id);
+    const postMediaUrls = posts.flatMap((p) =>
+      (p.media || []).map((m) => m.url).filter(Boolean)
+    );
 
-    if (mediaToRemove.length) {
-      await destroyManyFromCloudinary(mediaToRemove);
+    const comments = postIds.length
+      ? await Comment.find({ post: { $in: postIds } }).select("_id").lean()
+      : [];
+    const commentIds = comments.map((c) => c._id);
+
+    const events = await LiveEvent.find({ community: communityId })
+      .select("_id")
+      .lean();
+    const eventIds = events.map((e) => e._id);
+
+    if (postIds.length || commentIds.length) {
+      await Reaction.deleteMany({
+        $or: [
+          { targetType: "post", targetId: { $in: postIds } },
+          { targetType: "comment", targetId: { $in: commentIds } },
+        ],
+      });
+    }
+    if (commentIds.length) {
+      await Comment.deleteMany({ _id: { $in: commentIds } });
+    }
+    if (postIds.length) {
+      await Post.deleteMany({ _id: { $in: postIds } });
+      await Report.deleteMany({
+        $or: [
+          { targetType: "post", targetId: { $in: postIds } },
+          { targetType: "comment", targetId: { $in: commentIds } },
+        ],
+      });
+    }
+    if (eventIds.length) {
+      await LiveMessage.deleteMany({ event: { $in: eventIds } });
+      await LiveEvent.deleteMany({ _id: { $in: eventIds } });
+    }
+
+    await CommunityInvite.deleteMany({ community: communityId });
+    await CommunityJoinRequest.deleteMany({ community: communityId });
+    await CommunityMember.deleteMany({ community: communityId });
+    await Community.findByIdAndDelete(communityId);
+
+    const allMedia = [...mediaToRemove, ...postMediaUrls];
+    if (allMedia.length) {
+      await destroyManyFromCloudinary(allMedia);
     }
 
     return res.status(200).json({
@@ -666,10 +734,7 @@ export const deleteCommunity = async (req, res) => {
       message: "Community deleted successfully.",
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };
 
@@ -723,10 +788,7 @@ export const getCommunityManage = async (req, res) => {
       },
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };
 
@@ -763,10 +825,7 @@ export const listJoinRequests = async (req, res) => {
       requests: requests.map(formatJoinRequest),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };
 
@@ -801,10 +860,7 @@ export const listJoinedCommunities = async (req, res) => {
       ),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };
 
@@ -963,10 +1019,7 @@ export const listBrowsableCommunities = async (req, res) => {
 
     return res.status(200).json(payload);
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };
 
@@ -1017,28 +1070,39 @@ export const getBrowsableCommunity = async (req, res) => {
       community: formatCommunity(community, extras),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };
 
 export const listDiscoverCommunities = async (req, res) => {
   try {
+    const { enabled, page, limit, skip } = parsePagination(req.query, {
+      defaultLimit: 20,
+      maxLimit: 100,
+    });
+    const pageNum = enabled ? page : 1;
+    const pageLimit = enabled ? limit : 20;
+    const pageSkip = enabled ? skip : 0;
+
     const memberships = await CommunityMember.find({
       user: req.user._id,
       status: "active",
     }).select("community");
 
     const memberIds = memberships.map((m) => m.community);
-
-    const communities = await Community.find({
+    const filter = {
       _id: { $nin: memberIds },
       type: { $in: ["public", "private_request"] },
-    })
-      .populate(COMMUNITY_POPULATE_STDLIB)
-      .sort({ createdAt: -1 });
+    };
+
+    const [communities, total] = await Promise.all([
+      Community.find(filter)
+        .populate(COMMUNITY_POPULATE_STDLIB)
+        .sort({ createdAt: -1 })
+        .skip(pageSkip)
+        .limit(pageLimit),
+      Community.countDocuments(filter),
+    ]);
 
     const pending = await CommunityJoinRequest.find({
       user: req.user._id,
@@ -1057,12 +1121,14 @@ export const listDiscoverCommunities = async (req, res) => {
           joinRequestPending: pendingSet.has(String(community._id)),
         })
       ),
+      pagination: buildPaginationMeta({
+        page: pageNum,
+        limit: pageLimit,
+        total,
+      }),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };
 
@@ -1093,10 +1159,78 @@ export const listMyJoinRequests = async (req, res) => {
       }),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
+    return sendServerError(res, error);
+  }
+};
+
+/** Join requests for private_request communities the user owns/moderates (batch). */
+export const listIncomingJoinRequests = async (req, res) => {
+  try {
+    const memberships = await CommunityMember.find({
+      user: req.user._id,
+      status: "active",
+      role: { $in: ["owner", "moderator"] },
     });
+
+    const now = new Date();
+    const managedIds = memberships
+      .filter((m) => {
+        if (m.role === "owner") return true;
+        return (
+          m.role === "moderator" &&
+          (!m.moderatorExpiresAt || new Date(m.moderatorExpiresAt) > now)
+        );
+      })
+      .map((m) => m.community);
+
+    if (!managedIds.length) {
+      return res.status(200).json({ success: true, requests: [] });
+    }
+
+    const communities = await Community.find({
+      _id: { $in: managedIds },
+      type: "private_request",
+    }).populate(COMMUNITY_POPULATE_STDLIB);
+
+    const communityIds = communities.map((c) => c._id);
+    if (!communityIds.length) {
+      return res.status(200).json({ success: true, requests: [] });
+    }
+
+    const communityById = communities.reduce((acc, community) => {
+      acc[String(community._id)] = community;
+      return acc;
+    }, {});
+
+    const status = req.query.status || "all";
+    const filter = { community: { $in: communityIds } };
+    if (status !== "all") {
+      filter.status = status;
+    }
+
+    const [requests, countMap] = await Promise.all([
+      CommunityJoinRequest.find(filter)
+        .populate("user", "username name email avatar")
+        .sort({ createdAt: -1 }),
+      getMemberCounts(communityIds),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      requests: requests.map((request) => {
+        const community = communityById[String(request.community)];
+        return {
+          ...formatJoinRequest(request),
+          community: community
+            ? formatCommunity(community, {
+                memberCount: countMap[String(community._id)] || 0,
+              })
+            : { id: request.community },
+        };
+      }),
+    });
+  } catch (error) {
+    return sendServerError(res, error);
   }
 };
 
@@ -1194,10 +1328,7 @@ export const createJoinRequest = async (req, res) => {
       request: formatJoinRequest(joinRequest),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };
 
@@ -1257,10 +1388,7 @@ export const joinPublicCommunity = async (req, res) => {
       }),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };
 
@@ -1304,10 +1432,7 @@ export const listBrowsableCommunityMembers = async (req, res) => {
       members: members.map(formatMember),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };
 
@@ -1449,10 +1574,7 @@ export const createCommunityInvite = async (req, res) => {
       invite: formatInvite(invite),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };
 
@@ -1472,10 +1594,7 @@ export const listMyInvites = async (req, res) => {
       invites: invites.map(formatInvite),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };
 
@@ -1517,10 +1636,7 @@ export const listCommunityInvites = async (req, res) => {
       invites: invites.map(formatInvite),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };
 
@@ -1658,10 +1774,7 @@ export const acceptCommunityInvite = async (req, res) => {
       invite: formatInvite(invite),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };
 
@@ -1750,10 +1863,7 @@ export const declineCommunityInvite = async (req, res) => {
       invite: formatInvite(invite),
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };
 
@@ -1772,9 +1882,6 @@ export const resolveCommunityCode = async (req, res) => {
     }
     return res.status(200).json({ success: true, id });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    return sendServerError(res, error);
   }
 };

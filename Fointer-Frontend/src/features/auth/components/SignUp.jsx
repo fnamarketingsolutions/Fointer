@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { FiEye, FiEyeOff } from 'react-icons/fi';
-import { ArrowLeft } from 'lucide-react';
+import {
+  LuArrowLeft as ArrowLeft
+} from 'react-icons/lu';
 import { Link, useNavigate } from 'react-router-dom';
-import { sigupUser, resendVerificationEmail, verifyEmailOtp } from '../services/authService';
+import { signupUser, resendVerificationEmail, verifyEmailOtp } from '../services/authService';
 import { useAuth } from '../../../context/AuthContext';
 import { useSocialAuth } from '../hooks/useSocialAuth';
 import { useToast } from '../../../shared/components/feedback/ToastContext';
@@ -54,7 +56,7 @@ export default function SignUp() {
     clearPendingVerification();
 
     try {
-      const response = await sigupUser(formData);
+      const response = await signupUser(formData);
       if (response?.success) {
         setVerificationEmail(response?.email || formData.email);
         setOtp('');

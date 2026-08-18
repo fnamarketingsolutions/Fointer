@@ -1,5 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import { X, Loader2, Upload, ImagePlus, ChevronDown, Layers, Grid } from 'lucide-react';
+import {
+  LuX as X,
+  LuLoaderCircle as Loader2,
+  LuUpload as Upload,
+  LuImagePlus as ImagePlus,
+  LuChevronDown as ChevronDown,
+  LuLayers as Layers,
+  LuLayoutGrid as Grid
+} from 'react-icons/lu';
 import { updateCommunity } from '../../../api/communities';
 import { uploadMedia } from '../../../api/uploads';
 import { fetchChannels, fetchSubchannels } from '../../../api/channels';

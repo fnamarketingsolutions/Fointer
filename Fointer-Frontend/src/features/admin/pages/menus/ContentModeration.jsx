@@ -607,12 +607,12 @@ export default function ContentModeration() {
       )}
 
       {preview ? (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
             className="absolute inset-0 bg-black/75 backdrop-blur-[2px]"
             onClick={() => setPreview(null)}
           />
-          <div className="relative w-full sm:max-w-lg max-h-[88vh] overflow-hidden flex flex-col bg-[#14100D] border border-[#2A241E] border-b-0 sm:border-b rounded-t-2xl sm:rounded-2xl shadow-2xl">
+          <div className="relative w-full max-w-lg max-h-[88vh] overflow-hidden flex flex-col bg-[#14100D] border border-[#2A241E] rounded-2xl shadow-2xl">
             <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-[#2A241E] shrink-0">
               <h2 className="text-sm font-semibold text-[#E5E0D8] capitalize">
                 {preview.kind} details

@@ -76,4 +76,4 @@ export default defineConfig(({ mode }) => {
       proxy: apiProxy,
     },
   }
-})
+});

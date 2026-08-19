@@ -12,11 +12,8 @@ import {
 } from "react-icons/lu";
 import {
   acceptInvite,
-  approveJoinRequest,
   declineInvite,
-  denyJoinRequest,
   fetchDiscoverCommunities,
-  fetchIncomingJoinRequests,
   fetchJoinedCommunities,
   fetchMyInvites,
   fetchMyJoinRequests,
@@ -35,7 +32,6 @@ const TABS = [
   { id: "joined", label: "Joined" },
   { id: "invites", label: "Invites" },
   { id: "requests", label: "Requests" },
-  { id: "incoming", label: "Incoming" },
 ];
 
 const STATUS_UI = {
@@ -71,28 +67,6 @@ function CommunityThumb({ community }) {
         {name.charAt(0).toUpperCase()}
       </span>
     </div>
-  );
-}
-
-function CommunityBadge({ community }) {
-  const name = community?.name || "Community";
-  return (
-    <span
-      title={name}
-      className="absolute -bottom-1 -right-1 w-5 h-5 rounded-md overflow-hidden bg-[#1C1712] border-2 border-[#14100D] flex items-center justify-center"
-    >
-      {community?.coverImage ? (
-        <img
-          src={community.coverImage}
-          alt={name}
-          className="w-full h-full object-cover"
-        />
-      ) : (
-        <span className="text-[9px] font-bold text-[#D4AF37]/70">
-          {name.charAt(0).toUpperCase()}
-        </span>
-      )}
-    </span>
   );
 }
 
@@ -145,10 +119,8 @@ export default function JoinedCommunities() {
   const [joined, setJoined] = useState([]);
   const [invites, setInvites] = useState([]);
   const [requests, setRequests] = useState([]);
-  const [incoming, setIncoming] = useState([]);
 
   const [actionId, setActionId] = useState(null);
-  const [actionRequestId, setActionRequestId] = useState(null);
   const [joiningId, setJoiningId] = useState(null);
 
   const openCommunity = (community, { inviteId } = {}) => {
@@ -161,20 +133,18 @@ export default function JoinedCommunities() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [discoverRes, joinedRes, inviteData, reqData, incomingData] =
+      const [discoverRes, joinedRes, inviteData, reqData] =
         await Promise.all([
           fetchDiscoverCommunities(),
           fetchJoinedCommunities(),
           fetchMyInvites(),
           fetchMyJoinRequests(),
-          fetchIncomingJoinRequests("all"),
         ]);
 
       setDiscover(discoverRes?.communities || []);
       setJoined(joinedRes?.communities || []);
       setInvites(inviteData?.invites || []);
       setRequests(reqData?.requests || []);
-      setIncoming(incomingData?.requests || []);
     } catch (err) {
       showToast(
         err?.response?.data?.message || "Failed to load communities."
@@ -210,11 +180,6 @@ export default function JoinedCommunities() {
     [requests, q]
   );
 
-  const filteredIncoming = useMemo(
-    () => incoming.filter((req) => matchesName(req.community, q)),
-    [incoming, q]
-  );
-
   const pendingInviteCount = useMemo(
     () => invites.filter((i) => i.status === "pending").length,
     [invites]
@@ -225,17 +190,11 @@ export default function JoinedCommunities() {
     [requests]
   );
 
-  const pendingIncomingCount = useMemo(
-    () => incoming.filter((r) => r.status === "pending").length,
-    [incoming]
-  );
-
   const tabCounts = {
     discover: discover.length,
     joined: joined.length,
     invites: pendingInviteCount,
     requests: pendingRequestCount,
-    incoming: pendingIncomingCount,
   };
 
   const handleJoinDiscover = async (e, community) => {
@@ -290,39 +249,6 @@ export default function JoinedCommunities() {
     }
   };
 
-  const handleApproveIncoming = async (communityId, requestId) => {
-    if (!communityId || !requestId) return;
-    setActionRequestId(requestId);
-    try {
-      await approveJoinRequest(communityId, requestId);
-      await load();
-      showToast("Request approved.");
-    } catch (err) {
-      showToast(err?.response?.data?.message || "Failed to approve request.");
-    } finally {
-      setActionRequestId(null);
-    }
-  };
-
-  const handleDenyIncoming = async (communityId, requestId) => {
-    if (!communityId || !requestId) return;
-    setActionRequestId(requestId);
-    try {
-      await denyJoinRequest(communityId, requestId);
-      await load();
-      showToast("Request denied.");
-    } catch (err) {
-      showToast(err?.response?.data?.message || "Failed to deny request.");
-    } finally {
-      setActionRequestId(null);
-    }
-  };
-
-  const searchPlaceholder =
-    tab === "incoming"
-      ? "Search by community name…"
-      : "Search by community name…";
-
   return (
     <div className="w-full max-w-3xl mx-auto space-y-5">
       <header className="flex items-start justify-between gap-3">
@@ -376,7 +302,7 @@ export default function JoinedCommunities() {
         />
         <input
           type="text"
-          placeholder={searchPlaceholder}
+          placeholder="Search by community name…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="w-full bg-[#14100D] border border-[#2A241E] rounded-xl pl-9 pr-3 py-2.5 text-sm text-[#E5E0D8] placeholder:text-[#5C5348] focus:outline-none focus:border-[#D4AF37]/50"
@@ -674,99 +600,6 @@ export default function JoinedCommunities() {
                       <div className="self-center">
                         <StatusText status={req.status} />
                       </div>
-                    </article>
-                  );
-                })}
-              </div>
-            ))}
-
-          {/* Incoming */}
-          {tab === "incoming" &&
-            (filteredIncoming.length === 0 ? (
-              <div className="border border-dashed border-[#2A241E] rounded-xl py-14 text-center text-sm text-[#8C8070] px-4">
-                {incoming.length === 0
-                  ? "No incoming applications for communities you manage."
-                  : "No applications match your search."}
-              </div>
-            ) : (
-              <div className="space-y-2.5">
-                {filteredIncoming.map((request) => {
-                  const name =
-                    request.user?.name || request.user?.username || "Member";
-                  const initial = name.charAt(0).toUpperCase();
-                  const community = request.community || {};
-                  const busy = actionRequestId === request.id;
-                  const isPending = request.status === "pending";
-
-                  return (
-                    <article
-                      key={`${community.id}-${request.id}`}
-                      className="flex gap-3 bg-[#14100D] border border-[#2A241E] hover:border-[#D4AF37]/35 rounded-xl p-3.5 sm:p-4 transition-colors"
-                    >
-                      <div className="flex items-center gap-3 min-w-0 flex-1">
-                        <div className="relative shrink-0">
-                          {request.user?.avatar ? (
-                            <img
-                              src={request.user.avatar}
-                              alt=""
-                              className="w-10 h-10 rounded-full object-cover border border-[#2A241E]"
-                            />
-                          ) : (
-                            <div className="w-10 h-10 rounded-full bg-[#1A1510] border border-[#2A241E] flex items-center justify-center text-[#D4AF37] text-sm font-semibold">
-                              {initial}
-                            </div>
-                          )}
-                          <CommunityBadge community={community} />
-                        </div>
-                        <div className="min-w-0 space-y-1">
-                          <p className="text-sm font-semibold text-[#E5E0D8] truncate">
-                            {name}
-                          </p>
-                          <p className="text-[11px] text-[#8C8070] truncate">
-                            {community.name || "Community"}
-                            {community.type
-                              ? ` · ${TYPE_LABELS[community.type] || community.type}`
-                              : ""}
-                            {request.createdAt
-                              ? ` · ${timeAgo(request.createdAt)}`
-                              : ""}
-                          </p>
-                          {request.message ? (
-                            <p className="text-xs text-[#A69B8D] line-clamp-2">
-                              “{request.message}”
-                            </p>
-                          ) : null}
-                        </div>
-                      </div>
-
-                      {isPending ? (
-                        <div className="flex items-center gap-1.5 shrink-0 self-center">
-                          <ActionBtn
-                            disabled={busy}
-                            onClick={() =>
-                              handleDenyIncoming(community.id, request.id)
-                            }
-                          >
-                            Deny
-                          </ActionBtn>
-                          <ActionBtn
-                            tone="primary"
-                            disabled={busy}
-                            onClick={() =>
-                              handleApproveIncoming(community.id, request.id)
-                            }
-                          >
-                            {busy ? (
-                              <Loader2 size={12} className="animate-spin" />
-                            ) : null}
-                            Approve
-                          </ActionBtn>
-                        </div>
-                      ) : (
-                        <div className="self-center">
-                          <StatusText status={request.status} />
-                        </div>
-                      )}
                     </article>
                   );
                 })}

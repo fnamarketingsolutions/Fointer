@@ -600,7 +600,7 @@ const Dashboard = () => {
           </div>
         )}
 
-        <main className="flex-1 p-4 sm:p-6 md:p-8 overflow-y-auto max-h-[calc(100vh-4rem)] w-full">
+        <main className="flex-1 px-3 py-3 sm:p-6 md:p-8 overflow-y-auto max-h-[calc(100vh-4rem)] w-full">
           <Suspense fallback={pageFallback}>
             <Routes>
                 <Route path="/" element={<DashboardFeed />} />

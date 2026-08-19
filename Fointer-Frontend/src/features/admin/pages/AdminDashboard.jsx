@@ -125,7 +125,7 @@ const AdminDashboard = () => {
       </div>
 
       <aside
-        className={`fixed inset-y-0 right-0 z-50 w-[70%] max-w-[300px] bg-[#12100e] border-l border-stone-800/50 flex flex-col transform transition-transform duration-300 ease-in-out md:static md:right-auto md:w-64 md:max-w-none md:translate-x-0 md:border-l-0 md:border-r md:h-screen ${
+        className={`fixed inset-y-0 right-0 z-50 w-[85%] max-w-[340px] bg-[#12100e] border-l border-stone-800/50 flex flex-col transform transition-transform duration-300 ease-in-out md:static md:right-auto md:w-64 md:max-w-none md:translate-x-0 md:border-l-0 md:border-r md:h-screen ${
           isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
       >
@@ -179,16 +179,16 @@ const AdminDashboard = () => {
                 key={item.id}
                 type="button"
                 onClick={() => handleNavClick(item.id)}
-                className={`w-full flex items-center justify-between px-2.5 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                className={`w-full flex items-center gap-3 px-2.5 h-10 rounded-lg text-left text-[13px] md:text-sm font-medium transition-all ${
                   isActive
                     ? 'bg-[#1e1b18] text-amber-400 border border-amber-500/40 shadow-sm'
                     : 'text-stone-400 hover:text-stone-200 hover:bg-[#181512]'
                 }`}
               >
-                <div className="flex items-center space-x-3">
-                  <Icon className={`w-4 h-4 ${isActive ? 'text-amber-400' : 'text-stone-400'}`} />
-                  <span>{item.label}</span>
-                </div>
+                <Icon
+                  className={`w-4 h-4 shrink-0 ${isActive ? 'text-amber-400' : 'text-stone-400'}`}
+                />
+                <span className="whitespace-nowrap leading-none">{item.label}</span>
               </button>
             );
           })}
@@ -198,7 +198,7 @@ const AdminDashboard = () => {
           <button
             type="button"
             onClick={handleLogout}
-            className="w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-lg text-xs font-medium text-red-400/90 hover:bg-red-500/10 hover:text-red-300 transition-colors"
+            className="w-full flex items-center space-x-3 px-2.5 h-10 rounded-lg text-left text-[13px] md:text-sm font-medium text-red-400/90 hover:bg-red-500/10 hover:text-red-300 transition-colors"
           >
             <LogOut className="w-4 h-4" />
             <span>Logout</span>

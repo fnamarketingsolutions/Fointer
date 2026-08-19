@@ -11,7 +11,6 @@ import {
 } from "react-icons/lu";
 import {
   fetchPost,
-  fetchPosts,
   updatePost,
   deletePost,
   fetchComments,
@@ -32,7 +31,6 @@ import ReportContentModal from "../../../shared/components/modals/ReportContentM
 import PostAuthorAvatar from "../components/PostAuthorAvatar";
 import PostCommentsSection from "../components/PostCommentsSection";
 import PostEditModal from "../components/PostEditModal";
-import RecentPostsSidebar from "../components/RecentPostsSidebar";
 import { useToast } from "../../../shared/components/feedback/ToastContext";
 import { useAuth } from "../../../context/AuthContext";
 import { communitySegment } from "../../../shared/services/entityLinks";
@@ -44,8 +42,6 @@ export default function PostDetail({
   onDeleted,
   embedded = false,
   compact = false,
-  // backLabel = "Back",
-  postPathBuilder,
   fetchPostFn = fetchPost,
 }) {
   const navigate = useNavigate();
@@ -60,8 +56,6 @@ export default function PostDetail({
   const [commentsExpanded, setCommentsExpanded] = useState(false);
   // In compact mode the discussion stays collapsed until the comment count is tapped
   const [commentsOpen, setCommentsOpen] = useState(!compact);
-  const [recentPosts, setRecentPosts] = useState([]);
-  const [recentPostsLoading, setRecentPostsLoading] = useState(false);
 
   // Active reply box target ID (null = main post input, ID = target comment ID)
   const [replyTargetId, setReplyTargetId] = useState(null);
@@ -126,36 +120,6 @@ export default function PostDetail({
     setCommentsOpen(!compact);
     loadComments();
   }, [loadPost, loadComments, compact, postId]);
-
-  useEffect(() => {
-    const communityId = post?.community?.id || post?.community;
-    if (!communityId) {
-      setRecentPosts([]);
-      return;
-    }
-
-    let cancelled = false;
-    setRecentPostsLoading(true);
-
-    fetchPosts({ communityId })
-      .then((data) => {
-        if (cancelled) return;
-        const sorted = [...(data?.posts || [])]
-          .filter((p) => String(p.id) !== String(postId))
-          .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-        setRecentPosts(sorted.slice(0, 4));
-      })
-      .catch(() => {
-        if (!cancelled) setRecentPosts([]);
-      })
-      .finally(() => {
-        if (!cancelled) setRecentPostsLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [post?.community?.id, post?.community, postId]);
 
   // Derived Top-Level Comments
   const topLevel = useMemo(
@@ -504,17 +468,6 @@ export default function PostDetail({
   }
 
   const communityId = post.community?.id || post.community;
-  const hasCommunity = Boolean(communityId);
-
-  const sidebarCard = hasCommunity ? (
-    <RecentPostsSidebar
-      recentPosts={recentPosts}
-      recentPostsLoading={recentPostsLoading}
-      communityId={communityId}
-      postPathBuilder={postPathBuilder}
-      navigate={navigate}
-    />
-  ) : null;
 
   const postActions = showPostActions ? (
     <div className="shrink-0 flex items-center gap-2 rounded-lg border border-[#2A241E] bg-[#0E0C0A] p-1.5">
@@ -624,7 +577,13 @@ export default function PostDetail({
             compact ? "rounded-lg" : "rounded-xl"
           }`}
         >
-          <div className={compact ? "p-4 space-y-3" : "p-5 sm:p-8 space-y-6"}>
+          <div
+            className={
+              compact || embedded
+                ? "p-3 sm:p-5 space-y-3 sm:space-y-4"
+                : "p-5 sm:p-8 space-y-6"
+            }
+          >
             {compact ? (
               <>
                 <div className="flex items-start justify-between gap-3">
@@ -810,28 +769,18 @@ export default function PostDetail({
         setReportTarget={setReportTarget}
         setCommentsOpen={setCommentsOpen}
       />
-      {!embedded && sidebarCard && <div className="lg:hidden">{sidebarCard}</div>}
     </>
   );
 
   return (
     <div
       className={
-        compact
-          ? "w-full p-3 sm:p-4"
+        compact || embedded
+          ? "w-full"
           : "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6"
       }
     >
-      {embedded || !sidebarCard ? (
-        <div className={compact ? "space-y-3" : "space-y-6"}>{mainContent}</div>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-[7fr_3fr] gap-6 items-start">
-          <div className="min-w-0 space-y-6">{mainContent}</div>
-          <aside className="hidden lg:block lg:sticky lg:top-6">
-            {sidebarCard}
-          </aside>
-        </div>
-      )}
+      <div className={compact || embedded ? "space-y-3" : "space-y-6"}>{mainContent}</div>
 
       <PostEditModal
         open={showEdit}

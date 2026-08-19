@@ -9,7 +9,6 @@ import {
   getBrowsableCommunity,
   listBrowsableCommunityMembers,
   listMyJoinRequests,
-  listIncomingJoinRequests,
   getCommunity,
   updateCommunity,
   deleteCommunity,
@@ -56,7 +55,6 @@ router.get("/mine", isAuthenticated, listMyCommunities);
 router.get("/joined", isAuthenticated, listJoinedCommunities);
 router.get("/discover", isAuthenticated, listDiscoverCommunities);
 router.get("/join-requests/mine", isAuthenticated, listMyJoinRequests);
-router.get("/join-requests/incoming", isAuthenticated, listIncomingJoinRequests);
 router.get("/invites/mine", isAuthenticated, listMyInvites);
 router.post("/invites/:inviteId/accept", isAuthenticated, acceptCommunityInvite);
 router.post("/invites/:inviteId/decline", isAuthenticated, declineCommunityInvite);

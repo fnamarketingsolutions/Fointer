@@ -27,6 +27,9 @@ import {
   removeCommunityMember,
   banCommunityMember,
   unbanCommunityMember,
+  fetchJoinRequests,
+  approveJoinRequest,
+  denyJoinRequest,
 } from "../../../../api/communities";
 import { fetchPosts, createPost, togglePostLike } from "../../../../api/posts";
 import CreatePostForm from "../../../../shared/components/forms/CreatePostForm";
@@ -202,6 +205,9 @@ export default function CommunityDetail({
   const [savingMemberId, setSavingMemberId] = useState(null);
   const inviteLookupSeq = useRef(0);
   const [section, setSection] = useState("posts");
+  const [joinRequests, setJoinRequests] = useState([]);
+  const [joinRequestsLoading, setJoinRequestsLoading] = useState(false);
+  const [actionRequestId, setActionRequestId] = useState(null);
 
   const community = manageData?.community;
   const viewerRole = manageData?.viewerRole || "member";
@@ -211,6 +217,8 @@ export default function CommunityDetail({
   const canInvite = ["private_request", "private_invite"].includes(
     community?.type
   );
+  const canShowIncoming =
+    canModerate && community?.type === "private_request";
   const galleryImages = community?.galleryImages || [];
   const heroImage =
     heroPreview || community?.coverImage || galleryImages[0] || "";
@@ -252,9 +260,17 @@ export default function CommunityDetail({
       { id: "overview", label: "About" },
     ];
     if (canModerate) tabs.push({ id: "members", label: "Members" });
+    if (canShowIncoming) {
+      const pendingCount = joinRequests.filter((r) => r.status === "pending")
+        .length;
+      tabs.push({
+        id: "incoming",
+        label: pendingCount ? `Incoming (${pendingCount})` : "Incoming",
+      });
+    }
     if (canInvite) tabs.push({ id: "invite", label: "Invite" });
     return tabs;
-  }, [canModerate, canInvite]);
+  }, [canModerate, canShowIncoming, canInvite, joinRequests]);
 
   const loadMembers = useCallback(async () => {
     if (!selectedId) return;
@@ -268,6 +284,22 @@ export default function CommunityDetail({
       setMembersLoading(false);
     }
   }, [selectedId, memberStatusFilter]);
+
+  const loadJoinRequests = useCallback(async () => {
+    if (!selectedId || !canShowIncoming) {
+      setJoinRequests([]);
+      return;
+    }
+    setJoinRequestsLoading(true);
+    try {
+      const data = await fetchJoinRequests(selectedId, "pending");
+      setJoinRequests(data?.requests || []);
+    } catch {
+      setJoinRequests([]);
+    } finally {
+      setJoinRequestsLoading(false);
+    }
+  }, [selectedId, canShowIncoming]);
 
   const loadPosts = useCallback(async () => {
     if (!selectedId) return;
@@ -290,6 +322,10 @@ export default function CommunityDetail({
     setSection("posts");
     loadPosts();
   }, [selectedId, loadPosts]);
+
+  useEffect(() => {
+    loadJoinRequests();
+  }, [loadJoinRequests]);
 
   useEffect(() => {
     loadMembers();
@@ -422,6 +458,40 @@ export default function CommunityDetail({
       showToast(err?.response?.data?.message || "Failed to send invite.");
     } finally {
       setInviteBusy(false);
+    }
+  };
+
+  const handleApproveIncoming = async (requestId) => {
+    if (!selectedId || !requestId) return;
+    setActionRequestId(requestId);
+    try {
+      await approveJoinRequest(selectedId, requestId);
+      setJoinRequests((prev) =>
+        prev.filter((r) => String(r.id) !== String(requestId))
+      );
+      showToast("Join request approved.");
+      loadMembers();
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      showToast(err?.response?.data?.message || "Failed to approve request.");
+    } finally {
+      setActionRequestId(null);
+    }
+  };
+
+  const handleDenyIncoming = async (requestId) => {
+    if (!selectedId || !requestId) return;
+    setActionRequestId(requestId);
+    try {
+      await denyJoinRequest(selectedId, requestId);
+      setJoinRequests((prev) =>
+        prev.filter((r) => String(r.id) !== String(requestId))
+      );
+      showToast("Join request denied.");
+    } catch (err) {
+      showToast(err?.response?.data?.message || "Failed to deny request.");
+    } finally {
+      setActionRequestId(null);
     }
   };
 
@@ -886,6 +956,106 @@ export default function CommunityDetail({
                 <div className="space-y-4">{aboutSidebar}</div>
               ) : null}
 
+              {section === "incoming" && canShowIncoming ? (
+                <>
+                  <div className="space-y-1">
+                    <h2 className="text-base font-semibold text-[#E5E0D8]">
+                      Incoming requests
+                    </h2>
+                    <p className="text-xs text-[#8C8070]">
+                      People asking to join this private community.
+                    </p>
+                  </div>
+
+                  {joinRequestsLoading ? (
+                    <div className="flex items-center justify-center py-14 text-[#A69B8D] text-sm gap-2">
+                      <Loader2
+                        size={16}
+                        className="animate-spin text-[#D4AF37]"
+                      />
+                      Loading requests…
+                    </div>
+                  ) : joinRequests.length === 0 ? (
+                    <div className="border border-dashed border-[#2A241E] rounded-xl py-14 text-center text-sm text-[#8C8070] px-4">
+                      No pending join requests.
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5">
+                      {joinRequests.map((request) => {
+                        const name =
+                          request.user?.name ||
+                          request.user?.username ||
+                          "Member";
+                        const initial = name.charAt(0).toUpperCase();
+                        const busy = actionRequestId === request.id;
+                        return (
+                          <article
+                            key={request.id}
+                            className="flex flex-col gap-3 bg-[#14100D] border border-[#2A241E] rounded-xl p-3.5 sm:p-4 sm:flex-row sm:items-center sm:justify-between"
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              {request.user?.avatar ? (
+                                <img
+                                  src={request.user.avatar}
+                                  alt=""
+                                  className="w-10 h-10 rounded-full object-cover border border-[#2A241E] shrink-0"
+                                />
+                              ) : (
+                                <div className="w-10 h-10 rounded-full bg-[#1A1510] border border-[#2A241E] flex items-center justify-center text-[#D4AF37] text-sm font-semibold shrink-0">
+                                  {initial}
+                                </div>
+                              )}
+                              <div className="min-w-0">
+                                <p className="text-sm font-semibold text-[#E5E0D8] truncate">
+                                  {name}
+                                </p>
+                                <p className="text-[11px] text-[#8C8070] truncate">
+                                  @{request.user?.username || "user"}
+                                  {request.createdAt
+                                    ? ` · ${timeAgo(request.createdAt)}`
+                                    : ""}
+                                </p>
+                                {request.message ? (
+                                  <p className="text-xs text-[#A69B8D] mt-1 line-clamp-2">
+                                    “{request.message}”
+                                  </p>
+                                ) : null}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => handleDenyIncoming(request.id)}
+                                className="rounded-lg border border-[#2A241E] px-3 py-1.5 text-[11px] text-[#A69B8D] hover:text-red-400 hover:border-red-500/30 disabled:opacity-60"
+                              >
+                                Deny
+                              </button>
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() =>
+                                  handleApproveIncoming(request.id)
+                                }
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-3 py-1.5 text-[11px] text-[#D4AF37] disabled:opacity-60"
+                              >
+                                {busy ? (
+                                  <Loader2
+                                    size={12}
+                                    className="animate-spin"
+                                  />
+                                ) : null}
+                                Approve
+                              </button>
+                            </div>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              ) : null}
+
               {section === "members" && canModerate ? (
                 <>
                   <div className="space-y-1">
@@ -1173,7 +1343,10 @@ export default function CommunityDetail({
           </div>
 
           <div className="lg:hidden mt-2">
-            {section === "posts" || section === "members" || section === "invite"
+            {section === "posts" ||
+            section === "members" ||
+            section === "invite" ||
+            section === "incoming"
               ? aboutSidebar
               : null}
           </div>

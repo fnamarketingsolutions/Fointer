@@ -6,11 +6,8 @@ import {
   LuHash as Hash,
   LuHeart as Heart,
   LuLoaderCircle as Loader2,
-  LuLogIn as LogIn,
   LuMessageCircle as MessageCircle,
   LuSearch as Search,
-  LuTrendingUp as TrendingUp,
-  LuUserPlus as UserPlus,
   LuUsers as Users
 } from "react-icons/lu";
 import {
@@ -26,7 +23,12 @@ import { useToast } from "../../../../shared/components/feedback/ToastContext";
 import { postSegment } from "../../../../shared/services/entityLinks";
 import useEntityId from "../../../../shared/hooks/useEntityId";
 import { timeAgo } from "../../../../shared/utils/date";
-import SiteLinksFooter from "../../../../shared/components/SiteLinksFooter";
+import {
+  CategoryList,
+  FeedDesktopRail,
+  FeedFilterToggle,
+  FeedFooterRail,
+} from "./FeedRail";
 
 const FEED_PATH = "/";
 const FEED_POST_PATH = "/post";
@@ -52,13 +54,13 @@ function FeedPostRow({ post, onClick, active, showCommunity }) {
   return (
     <article
       onClick={onClick}
-      className={`group flex gap-3 bg-[#14100D] border rounded-xl overflow-hidden cursor-pointer transition-colors p-3 sm:p-4 ${
+      className={`group flex gap-3 bg-[#14100D] border rounded-xl overflow-hidden cursor-pointer transition-colors p-2.5 sm:p-4 ${
         active
           ? "border-[#D4AF37]/50"
           : "border-[#2A241E] hover:border-[#D4AF37]/35"
       }`}
     >
-      <div className="flex-1 min-w-0 space-y-2">
+      <div className="flex-1 min-w-0 space-y-1.5">
         <div className="flex items-center gap-2 text-[11px] text-[#8C8070] flex-wrap">
           <span className="font-semibold text-[#A69B8D] group-hover:text-[#D4AF37] transition-colors">
             {authorName}
@@ -86,7 +88,7 @@ function FeedPostRow({ post, onClick, active, showCommunity }) {
           </p>
         ) : null}
 
-        <div className="flex items-center gap-4 pt-1 text-xs text-[#8C8070]">
+        <div className="flex items-center gap-4 text-xs text-[#8C8070]">
           <span className="inline-flex items-center gap-1.5">
             <MessageCircle size={14} />
             {post?.commentCount || 0} comments
@@ -111,205 +113,6 @@ function FeedPostRow({ post, onClick, active, showCommunity }) {
         </div>
       ) : null}
     </article>
-  );
-}
-
-function FeedSidebar({
-  channels,
-  channelsLoading,
-  currentPostId,
-  onOpenPost,
-  sortBy,
-  mode,
-  isGuest,
-  selectedChannel,
-  onSelectChannel,
-  isAuthenticated,
-}) {
-  const [otherPosts, setOtherPosts] = useState([]);
-  const [otherLoading, setOtherLoading] = useState(false);
-  const isPersonalized = mode === "personalized";
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setOtherLoading(true);
-      try {
-        const params = {
-          page: 1,
-          limit: 10,
-          sortBy: sortBy === "likes" ? "likes" : "newest",
-        };
-        if (selectedChannel) params.channel = selectedChannel;
-        const data =
-          isPersonalized && isAuthenticated
-            ? await fetchPosts(params)
-            : await fetchPublicPosts(params);
-        if (cancelled) return;
-        const list = (data?.posts || []).filter(
-          (p) => String(p.id) !== String(currentPostId)
-        );
-        setOtherPosts(list.slice(0, 8));
-      } catch {
-        if (!cancelled) setOtherPosts([]);
-      } finally {
-        if (!cancelled) setOtherLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    selectedChannel,
-    sortBy,
-    mode,
-    isPersonalized,
-    isAuthenticated,
-    currentPostId,
-  ]);
-
-  return (
-    <aside className="space-y-4">
-      {isGuest ? (
-        <div className="bg-[#14100D] border border-[#2A241E] rounded-xl p-4 space-y-3">
-          <h3 className="text-sm font-semibold text-[#E5E0D8] leading-snug">
-            Join the conversation on Fointer
-          </h3>
-          <p className="text-xs text-[#8C8070] leading-relaxed">
-            Log in to like, comment, join communities, and create live events or
-            watch groups.
-          </p>
-          <Link
-            to="/signup"
-            className="w-full inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-[#D4AF37] text-black text-xs font-semibold hover:bg-[#e0c04a]"
-          >
-            <UserPlus size={14} /> Sign up
-          </Link>
-          <Link
-            to="/login"
-            state={{ from: FEED_PATH }}
-            className="w-full inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border border-[#2A241E] text-[#E5E0D8] text-xs font-semibold hover:border-[#D4AF37]/40 hover:text-[#D4AF37]"
-          >
-            <LogIn size={14} /> Log in
-          </Link>
-        </div>
-      ) : null}
-
-      <div className="bg-[#14100D] border border-[#2A241E] rounded-xl p-4 space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 text-sm font-semibold text-[#E5E0D8]">
-            <Hash size={15} className="text-[#D4AF37]" />
-            Categories
-          </div>
-          {selectedChannel ? (
-            <button
-              type="button"
-              onClick={() => onSelectChannel("")}
-              className="text-[10px] text-[#8C8070] hover:text-[#D4AF37]"
-            >
-              Clear
-            </button>
-          ) : null}
-        </div>
-        {channelsLoading ? (
-          <div className="flex items-center gap-2 text-xs text-[#8C8070] py-2">
-            <Loader2 size={12} className="animate-spin text-[#D4AF37]" />
-            Loading...
-          </div>
-        ) : channels.length === 0 ? (
-          <p className="text-xs text-[#8C8070]">No categories yet.</p>
-        ) : (
-          <ul className="space-y-1">
-            {channels.slice(0, 12).map((ch) => {
-              const name = ch.name || "";
-              const active =
-                selectedChannel.toLowerCase() === name.toLowerCase();
-              return (
-                <li key={ch.id || name}>
-                  <button
-                    type="button"
-                    onClick={() => onSelectChannel(active ? "" : name)}
-                    className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs transition-colors text-left ${
-                      active
-                        ? "bg-[#D4AF37]/15 text-[#D4AF37]"
-                        : "text-[#A69B8D] hover:text-[#D4AF37] hover:bg-[#1C1612]"
-                    }`}
-                  >
-                    <span className="w-6 h-6 rounded-full bg-[#D4AF37]/10 border border-[#D4AF37]/25 flex items-center justify-center text-[10px] text-[#D4AF37] font-bold shrink-0">
-                      {(name || "?")[0].toUpperCase()}
-                    </span>
-                    <span className="truncate">{name}</span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
-
-      <div className="bg-[#14100D] border border-[#2A241E] rounded-xl p-4 space-y-3">
-        <div className="flex items-center gap-2 text-sm font-semibold text-[#E5E0D8] min-w-0">
-          <TrendingUp size={15} className="text-[#D4AF37] shrink-0" />
-          <span className="truncate">
-            {selectedChannel
-              ? sortBy === "likes"
-                ? `Top in ${selectedChannel}`
-                : `More in ${selectedChannel}`
-              : sortBy === "likes"
-                ? "Top posts"
-                : "Other posts"}
-          </span>
-        </div>
-        {otherLoading ? (
-          <div className="flex items-center gap-2 text-xs text-[#8C8070] py-2">
-            <Loader2 size={12} className="animate-spin text-[#D4AF37]" />
-            Loading...
-          </div>
-        ) : otherPosts.length === 0 ? (
-          <p className="text-xs text-[#8C8070]">
-            {selectedChannel
-              ? `No other posts in ${selectedChannel}.`
-              : "No other posts to show."}
-          </p>
-        ) : (
-          <ul className="space-y-2">
-            {otherPosts.map((p) => (
-              <li key={p.id}>
-                <button
-                  type="button"
-                  onClick={() => onOpenPost(p)}
-                  className="w-full text-left px-2.5 py-2 rounded-lg hover:bg-[#1C1612] transition-colors group"
-                >
-                  <p className="text-xs font-medium text-[#E5E0D8] line-clamp-2 group-hover:text-[#D4AF37]">
-                    {p.title || "Untitled"}
-                  </p>
-                  <p className="text-[10px] text-[#8C8070] mt-0.5 flex items-center gap-2">
-                    <span>
-                      {p.author?.name || p.author?.username || "Member"}
-                    </span>
-                    <span>·</span>
-                    <span className="inline-flex items-center gap-0.5">
-                      <MessageCircle size={10} /> {p.commentCount || 0}
-                    </span>
-                  </p>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      <div className="bg-[#14100D] border border-[#2A241E] rounded-xl p-4 text-[11px] text-[#8C8070] leading-relaxed">
-        <p className="font-semibold text-[#A69B8D] mb-1">About this feed</p>
-        {isGuest
-          ? "Public posts from communities and across Fointer. Log in to like, comment, and join communities."
-          : isPersonalized
-            ? "Posts from communities you have joined. Switch to Discover for all public posts."
-            : "All public posts — inside communities and outside. Join a community to like or comment there."}
-      </div>
-
-      <SiteLinksFooter className="pt-1" />
-    </aside>
   );
 }
 
@@ -339,6 +142,7 @@ export default function DashboardFeed() {
   const [hasMore, setHasMore] = useState(false);
   const [channels, setChannels] = useState([]);
   const [channelsLoading, setChannelsLoading] = useState(true);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const viewingPost = Boolean(postSlug);
 
@@ -485,71 +289,86 @@ export default function DashboardFeed() {
     });
   };
 
-  const sidebar = (
-    <FeedSidebar
-      channels={channels}
-      channelsLoading={channelsLoading}
-      currentPostId={openPostId}
-      onOpenPost={openPost}
-      sortBy={sortBy}
-      mode={mode}
-      isGuest={isGuest}
-      isAuthenticated={isAuthenticated}
-      selectedChannel={selectedChannel}
-      onSelectChannel={setChannel}
+  const categoryProps = {
+    channels,
+    channelsLoading,
+    selectedChannel,
+    onSelectChannel: (name) => {
+      setChannel(name);
+      setFiltersOpen(false);
+    },
+  };
+
+  const postBody = resolvingPost ? (
+    <div className="flex items-center justify-center gap-2 py-16 text-sm text-[#A69B8D]">
+      <Loader2 size={16} className="animate-spin text-[#D4AF37]" />
+      Loading post…
+    </div>
+  ) : postNotFound || !openPostId ? (
+    <div className="border border-dashed border-[#2A241E] rounded-xl m-3 py-12 text-center text-sm text-[#8C8070]">
+      Post not found.
+    </div>
+  ) : (
+    <PostDetail
+      key={`${postSlug}-${mode}`}
+      postId={openPostId}
+      embedded
+      compact={false}
+      fetchPostFn={isPersonalized ? fetchPost : fetchPublicPost}
+      onBack={closePost}
+      onDeleted={() => {
+        closePost();
+        load({
+          q: query,
+          pageNum: 1,
+          append: false,
+          sort: sortBy,
+          feedMode: mode,
+          channel: selectedChannel,
+        });
+      }}
+      postPathBuilder={(post) =>
+        `${FEED_POST_PATH}/${postSegment(post)}${feedQueryString}`
+      }
     />
   );
 
   if (viewingPost) {
     return (
-      <div className="text-[#E5E0D8] w-full max-w-6xl mx-auto px-2 sm:px-4 lg:px-6 pb-10">
-        <button
-          type="button"
-          onClick={closePost}
-          className="inline-flex items-center gap-1.5 text-xs text-[#A69B8D] hover:text-[#D4AF37] mb-4"
-        >
-          <ArrowLeft size={14} /> Back to Feed
-        </button>
+      <div className="text-[#E5E0D8] w-full max-w-6xl mx-auto pb-6 sm:pb-10">
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <button
+            type="button"
+            onClick={closePost}
+            className="inline-flex items-center gap-1.5 text-xs text-[#A69B8D] hover:text-[#D4AF37]"
+          >
+            <ArrowLeft size={14} /> Back to Feed
+          </button>
+          <FeedFilterToggle
+            open={filtersOpen}
+            active={Boolean(selectedChannel)}
+            onClick={() => setFiltersOpen((v) => !v)}
+          />
+        </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px] gap-5 items-start">
-          <div className="min-w-0 bg-[#14100D] border border-[#2A241E] rounded-xl overflow-hidden">
-            {resolvingPost ? (
-              <div className="flex items-center justify-center gap-2 py-20 text-sm text-[#A69B8D]">
-                <Loader2 size={16} className="animate-spin text-[#D4AF37]" />
-                Loading post…
-              </div>
-            ) : postNotFound || !openPostId ? (
-              <div className="border border-dashed border-[#2A241E] rounded-xl m-4 py-14 text-center text-sm text-[#8C8070]">
-                Post not found.
-              </div>
-            ) : (
-              <PostDetail
-                key={`${postSlug}-${mode}`}
-                postId={openPostId}
-                embedded
-                compact={false}
-                fetchPostFn={isPersonalized ? fetchPost : fetchPublicPost}
-                onBack={closePost}
-                onDeleted={() => {
-                  closePost();
-                  load({
-                    q: query,
-                    pageNum: 1,
-                    append: false,
-                    sort: sortBy,
-                    feedMode: mode,
-                    channel: selectedChannel,
-                  });
-                }}
-                postPathBuilder={(post) =>
-                  `${FEED_POST_PATH}/${postSegment(post)}${feedQueryString}`
-                }
-              />
-            )}
+        {filtersOpen ? (
+          <div className="lg:hidden mb-3">
+            <CategoryList {...categoryProps} />
+          </div>
+        ) : null}
+
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px] gap-3 lg:gap-5 items-start">
+          <div className="min-w-0 space-y-3">
+            <div className="bg-[#14100D] border border-[#2A241E] rounded-xl overflow-hidden">
+              {postBody}
+            </div>
+            <div className="lg:hidden">
+              <FeedFooterRail isGuest={isGuest} />
+            </div>
           </div>
 
-          <div className="lg:sticky lg:top-4 space-y-4 order-first lg:order-none">
-            {sidebar}
+          <div className="hidden lg:block lg:sticky lg:top-4">
+            <FeedDesktopRail {...categoryProps} isGuest={isGuest} />
           </div>
         </div>
       </div>
@@ -557,31 +376,44 @@ export default function DashboardFeed() {
   }
 
   return (
-    <div className="text-[#E5E0D8] w-full max-w-6xl mx-auto px-2 sm:px-4 lg:px-6 pb-10">
-      <div className="mb-5 sm:mb-6 space-y-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-semibold text-[#E5E0D8] leading-tight">
-            Feed
-          </h1>
-          <p className="mt-1.5 text-sm text-[#8C8070] max-w-xl">
-            {selectedChannel
-              ? `Showing posts in ${selectedChannel}.`
-              : isPersonalized
-                ? "Posts from communities you have joined."
-                : "Public posts from across Fointer."}
-          </p>
-          {selectedChannel ? (
-            <button
-              type="button"
-              onClick={() => setChannel("")}
-              className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] bg-[#D4AF37]/15 text-[#D4AF37] hover:bg-[#D4AF37]/25"
-            >
-              <Hash size={11} />
-              {selectedChannel}
-              <span className="opacity-70">×</span>
-            </button>
-          ) : null}
+    <div className="text-[#E5E0D8] w-full max-w-6xl mx-auto pb-6 sm:pb-10">
+      <div className="mb-3 sm:mb-6 space-y-3 sm:space-y-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="text-2xl sm:text-3xl font-semibold text-[#E5E0D8] leading-tight">
+              Feed
+            </h1>
+            <p className="mt-1 text-sm text-[#8C8070] max-w-xl">
+              {selectedChannel
+                ? `Showing posts in ${selectedChannel}.`
+                : isPersonalized
+                  ? "Posts from communities you have joined."
+                  : "Public posts from across Fointer."}
+            </p>
+            {selectedChannel ? (
+              <button
+                type="button"
+                onClick={() => setChannel("")}
+                className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] bg-[#D4AF37]/15 text-[#D4AF37] hover:bg-[#D4AF37]/25"
+              >
+                <Hash size={11} />
+                {selectedChannel}
+                <span className="opacity-70">×</span>
+              </button>
+            ) : null}
+          </div>
+          <FeedFilterToggle
+            open={filtersOpen}
+            active={Boolean(selectedChannel)}
+            onClick={() => setFiltersOpen((v) => !v)}
+          />
         </div>
+
+        {filtersOpen ? (
+          <div className="lg:hidden">
+            <CategoryList {...categoryProps} />
+          </div>
+        ) : null}
 
         <div className="flex gap-1 p-1 rounded-xl bg-[#0E0C0A] border border-[#2A241E] max-w-md">
           {FEED_MODES.map((m) => {
@@ -604,11 +436,11 @@ export default function DashboardFeed() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px] gap-5 items-start">
-        <div className="min-w-0 space-y-4">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px] gap-3 lg:gap-5 items-start">
+        <div className="min-w-0 space-y-3 sm:space-y-4">
           <form
             onSubmit={handleSearch}
-            className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2"
+            className="flex items-center gap-2"
           >
             <div className="relative flex-1 min-w-0">
               <Search
@@ -635,7 +467,7 @@ export default function DashboardFeed() {
             </button>
           </form>
 
-          <div className="flex flex-wrap items-center gap-1.5 border-b border-[#2A241E] pb-3">
+          <div className="flex flex-wrap items-center gap-1.5 border-b border-[#2A241E] pb-2 sm:pb-3">
             {SORT_OPTIONS.map((opt) => {
               const active = sortBy === opt.id;
               return (
@@ -703,7 +535,7 @@ export default function DashboardFeed() {
             </div>
           ) : (
             <>
-              <div className="space-y-3">
+              <div className="space-y-2 sm:space-y-3">
                 {posts.map((post) => (
                   <FeedPostRow
                     key={post.id}
@@ -736,10 +568,14 @@ export default function DashboardFeed() {
           )}
         </div>
 
-        <div className="hidden lg:block lg:sticky lg:top-4">{sidebar}</div>
+        <div className="hidden lg:block lg:sticky lg:top-4">
+          <FeedDesktopRail {...categoryProps} isGuest={isGuest} />
+        </div>
       </div>
 
-      <div className="lg:hidden mt-8">{sidebar}</div>
+      <div className="lg:hidden mt-4">
+        <FeedFooterRail isGuest={isGuest} />
+      </div>
     </div>
   );
 }

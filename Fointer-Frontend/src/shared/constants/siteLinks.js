@@ -41,3 +41,12 @@ export const SITE_LINKS = [
 ];
 
 export const SITE_SEGMENTS = new Set(SITE_LINKS.map((l) => l.segment));
+
+/** Placeholder social profiles — replace `href` when accounts are live. */
+export const SOCIAL_LINKS = [
+  { id: "instagram", label: "Instagram", href: "" },
+  { id: "facebook", label: "Facebook", href: "" },
+  { id: "linkedin", label: "LinkedIn", href: "" },
+  { id: "x", label: "X (Twitter)", href: "" },
+  { id: "youtube", label: "YouTube", href: "" },
+];

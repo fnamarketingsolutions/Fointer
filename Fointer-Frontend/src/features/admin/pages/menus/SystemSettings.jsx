@@ -5,17 +5,23 @@ import {
   LuUsers as Users,
   LuCloudUpload as UploadCloud,
   LuShieldAlert as ShieldAlert,
-  LuLoaderCircle as Loader2
+  LuLoaderCircle as Loader2,
+  LuMail as Mail,
+  LuPhone as Phone,
 } from "react-icons/lu";
 import {
   fetchSystemSettings,
   updateSystemSettings,
 } from "../../services/adminService";
 import { useToast } from "../../../../shared/components/feedback/ToastContext";
+import { useSiteContact } from "../../../../context/SiteContactContext";
 
 export default function SystemSettings() {
   const { showToast } = useToast();
+  const { refresh: refreshPublicContact } = useSiteContact();
   const [editLimit, setEditLimit] = useState(60);
+  const [contactEmail, setContactEmail] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
   const [watchLimit, setWatchLimit] = useState(50);
   const [s3Limit, setS3Limit] = useState(25);
   const [bannedKeywords, setBannedKeywords] = useState(
@@ -30,8 +36,12 @@ export default function SystemSettings() {
       setLoading(true);
       try {
         const data = await fetchSystemSettings();
-        if (!cancelled && data?.settings?.postEditWindowMinutes != null) {
-          setEditLimit(data.settings.postEditWindowMinutes);
+        if (!cancelled && data?.settings) {
+          if (data.settings.postEditWindowMinutes != null) {
+            setEditLimit(data.settings.postEditWindowMinutes);
+          }
+          setContactEmail(data.settings.contactEmail || "");
+          setContactPhone(data.settings.contactPhone || "");
         }
       } catch (err) {
         if (!cancelled) {
@@ -60,8 +70,14 @@ export default function SystemSettings() {
     try {
       const data = await updateSystemSettings({
         postEditWindowMinutes: Math.floor(minutes),
+        contactEmail: contactEmail.trim(),
+        contactPhone: contactPhone.trim(),
       });
-      setEditLimit(data?.settings?.postEditWindowMinutes ?? Math.floor(minutes));
+      const next = data?.settings || {};
+      setEditLimit(next.postEditWindowMinutes ?? Math.floor(minutes));
+      setContactEmail(next.contactEmail ?? contactEmail.trim());
+      setContactPhone(next.contactPhone ?? contactPhone.trim());
+      await refreshPublicContact();
       showToast("Settings saved.");
     } catch (err) {
       showToast(err?.response?.data?.message || "Failed to save settings.");
@@ -78,7 +94,7 @@ export default function SystemSettings() {
             Global System Settings
           </h1>
           <p className="text-xs text-stone-400 mt-1">
-            Configure limits, upload constraints, and automated content controls.
+            Configure the public contact details, edit window, and other platform controls.
           </p>
         </div>
         <button
@@ -97,6 +113,40 @@ export default function SystemSettings() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div className="bg-[#141210] border border-stone-800/60 p-5 rounded-xl space-y-3">
+          <label className="text-xs font-semibold text-stone-300 flex items-center gap-2">
+            <Mail className="w-4 h-4 text-amber-500" /> Main site email
+          </label>
+          <input
+            type="email"
+            value={contactEmail}
+            disabled={loading || saving}
+            onChange={(e) => setContactEmail(e.target.value)}
+            placeholder="e.g. userservices@fointer.net"
+            className="w-full bg-[#0c0a09] border border-stone-800/80 rounded-lg p-2.5 text-xs text-amber-100 focus:outline-none focus:border-amber-500/60 disabled:opacity-60"
+          />
+          <p className="text-[11px] text-stone-500">
+            Shown on Contact Us, About, footer, and policy pages. Leave blank until you have the live address.
+          </p>
+        </div>
+
+        <div className="bg-[#141210] border border-stone-800/60 p-5 rounded-xl space-y-3">
+          <label className="text-xs font-semibold text-stone-300 flex items-center gap-2">
+            <Phone className="w-4 h-4 text-amber-500" /> Main site phone
+          </label>
+          <input
+            type="tel"
+            value={contactPhone}
+            disabled={loading || saving}
+            onChange={(e) => setContactPhone(e.target.value)}
+            placeholder="e.g. +1 (555) 010-1234"
+            className="w-full bg-[#0c0a09] border border-stone-800/80 rounded-lg p-2.5 text-xs text-amber-100 focus:outline-none focus:border-amber-500/60 disabled:opacity-60"
+          />
+          <p className="text-[11px] text-stone-500">
+            Public support number. Leave blank if the client has not provided one yet.
+          </p>
+        </div>
+
         <div className="bg-[#141210] border border-stone-800/60 p-5 rounded-xl space-y-3">
           <label className="text-xs font-semibold text-stone-300 flex items-center gap-2">
             <Clock className="w-4 h-4 text-amber-500" /> Self-Deletion Limit

@@ -12,6 +12,7 @@ import {
   LuTriangleAlert as AlertTriangle,
   LuMail as Mail
 } from 'react-icons/lu';
+import { SiteEmail } from '../../../../context/SiteContactContext';
 
 export default function ContentPolicy() {
   const rules = [
@@ -192,7 +193,7 @@ export default function ContentPolicy() {
           </div>
 
           <p className="text-xs sm:text-sm text-gray-300 font-light leading-relaxed">
-            If you have any questions or concerns about our content policy, please feel free to contact us at: <a href="mailto:userservices@fointer.net" className="text-[#F8A201] font-mono hover:underline">userservices@fointer.net</a>. We are here to help and ensure that your experience on Fointer is positive and enriching.
+            If you have any questions or concerns about our content policy, please feel free to contact us at: <SiteEmail />. We are here to help and ensure that your experience on Fointer is positive and enriching.
           </p>
         </div>
 

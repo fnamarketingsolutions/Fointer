@@ -7,6 +7,7 @@ import {
   getAdminCommunityDetail,
 } from "../controllers/dashboard.controller.js";
 import {
+  getPublicSiteContact,
   getSystemSettings,
   updateSystemSettings,
 } from "../controllers/settings.controller.js";
@@ -43,6 +44,8 @@ import { isAuthenticated, authorize } from "../middleware/auth.middleware.js";
 const router = express.Router();
 
 router.get("/dashboard/overview", isAuthenticated, getOverview);
+
+router.get("/site/contact", getPublicSiteContact);
 
 router.get(
   "/admin/settings",

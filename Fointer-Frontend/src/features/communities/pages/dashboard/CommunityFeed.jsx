@@ -8,10 +8,8 @@ import {
 import {
   LuArrowLeft as ArrowLeft,
   LuGlobe as Globe,
-  LuHeart as Heart,
   LuLoaderCircle as Loader2,
   LuLock as Lock,
-  LuMessageCircle as MessageCircle,
   LuPlus as Plus,
   LuRadio as Radio,
   LuSearch as Search,
@@ -25,7 +23,7 @@ import {
   joinPublicCommunity,
   requestToJoin,
 } from "../../../../api/communities";
-import { createPost, fetchPost, fetchPosts } from "../../../../api/posts";
+import { createPost, fetchPost, fetchPosts, togglePostLike, togglePostReshare } from "../../../../api/posts";
 import { fetchLiveEvents } from "../../../../api/liveEvents";
 import { fetchWatchGroups } from "../../../../api/watchGroups";
 import PostDetail from "../../../posts/pages/PostDetail";
@@ -36,8 +34,10 @@ import useEntityId from "../../../../shared/hooks/useEntityId";
 import {
   postSegment,
 } from "../../../../shared/services/entityLinks";
+import { useAuth } from "../../../../context/AuthContext";
 import { timeAgo } from "../../../../shared/utils/date";
 import { formatCount } from "../../../../shared/utils/format";
+import PostActions from "../../../../shared/components/PostActions";
 
 const PAGE_SIZE = 15;
 
@@ -53,7 +53,7 @@ const TYPE_ICONS = {
   private_request: Lock,
 };
 
-function FeedPostRow({ post, onClick, active }) {
+function FeedPostRow({ post, onClick, active, onLike, onReshare, onComment }) {
   const authorName =
     post?.author?.name || post?.author?.username || "Anonymous";
   const coverImage = post?.media?.find((m) => m.type === "image");
@@ -86,18 +86,14 @@ function FeedPostRow({ post, onClick, active }) {
           </p>
         ) : null}
 
-        <div className="flex items-center gap-4 pt-1 text-xs text-[#8C8070]">
-          <span className="inline-flex items-center gap-1.5">
-            <MessageCircle size={14} />
-            {post?.commentCount || 0} comments
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <Heart
-              size={14}
-              className={post?.likedByMe ? "fill-current text-[#D4AF37]" : ""}
-            />
-            {post?.likeCount || 0}
-          </span>
+        <div className="pt-1" onClick={(e) => e.stopPropagation()}>
+          <PostActions
+            post={post}
+            compact
+            onLike={onLike}
+            onReshare={onReshare}
+            onComment={onComment}
+          />
         </div>
       </div>
 
@@ -254,6 +250,7 @@ export default function CommunityFeed() {
   const { communityId: communityParam, postSlug } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const { showToast } = useToast();
+  const { isAuthenticated } = useAuth();
 
   const { id: communityId, resolving: resolvingCommunity } = useEntityId(
     "community",
@@ -422,6 +419,66 @@ export default function CommunityFeed() {
       append: true,
       sort: sortBy,
     });
+  };
+
+  const patchFeedPost = (postId, patch) => {
+    setPosts((list) =>
+      list.map((p) => (p.id === postId ? { ...p, ...patch } : p))
+    );
+  };
+
+  const requireEngage = (post) => {
+    if (!isAuthenticated) {
+      navigate("/login", { state: { from: window.location.pathname } });
+      return false;
+    }
+    if (post?.canEngage === false) {
+      showToast("Join this community to interact with posts.");
+      return false;
+    }
+    return true;
+  };
+
+  const handleLikePost = async (post) => {
+    if (!requireEngage(post)) return;
+    const prev = posts;
+    patchFeedPost(post.id, {
+      likedByMe: !post.likedByMe,
+      likeCount: post.likedByMe
+        ? Math.max(0, (post.likeCount || 0) - 1)
+        : (post.likeCount || 0) + 1,
+    });
+    try {
+      const data = await togglePostLike(post.id);
+      patchFeedPost(post.id, {
+        likedByMe: data.likedByMe,
+        likeCount: data.likeCount,
+      });
+    } catch (err) {
+      setPosts(prev);
+      showToast(err?.response?.data?.message || "Failed to like post.");
+    }
+  };
+
+  const handleResharePost = async (post) => {
+    if (!requireEngage(post)) return;
+    const prev = posts;
+    patchFeedPost(post.id, {
+      resharedByMe: !post.resharedByMe,
+      reshareCount: post.resharedByMe
+        ? Math.max(0, (post.reshareCount || 0) - 1)
+        : (post.reshareCount || 0) + 1,
+    });
+    try {
+      const data = await togglePostReshare(post.id);
+      patchFeedPost(post.id, {
+        resharedByMe: data.resharedByMe,
+        reshareCount: data.reshareCount,
+      });
+    } catch (err) {
+      setPosts(prev);
+      showToast(err?.response?.data?.message || "Failed to repost.");
+    }
   };
 
   const handleJoin = async () => {
@@ -812,6 +869,9 @@ export default function CommunityFeed() {
                         post={post}
                         onClick={() => openPost(post)}
                         active={String(post.id) === String(openPostId)}
+                        onLike={() => handleLikePost(post)}
+                        onReshare={() => handleResharePost(post)}
+                        onComment={() => openPost(post)}
                       />
                     ))}
                   </div>

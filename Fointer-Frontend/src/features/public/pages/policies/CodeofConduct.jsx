@@ -11,6 +11,7 @@ import {
   LuMail as Mail,
   LuMapPin as MapPin
 } from 'react-icons/lu';
+import { SiteEmail, SiteEmailPlain } from '../../../../context/SiteContactContext';
 
 export default function CodeOfConduct() {
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -263,7 +264,7 @@ export default function CodeOfConduct() {
           </div>
 
           <p className="text-xs sm:text-sm text-gray-300 font-light leading-relaxed">
-            For further inquiries or to report conduct violations, please contact us by email at <a href="mailto:userservices@fointer.net" className="text-[#F8A201] font-mono hover:underline">userservices@fointer.net</a> or by mail using the details provided below:
+            For further inquiries or to report conduct violations, please contact us by email at <SiteEmail /> or by mail using the details provided below:
           </p>
 
           <div className="bg-[#130D08]/90 border border-[#F8A201]/30 rounded-2xl p-6 space-y-3">
@@ -276,7 +277,7 @@ export default function CodeOfConduct() {
               Valley Stream, NY 11581
             </p>
             <div className="pt-3 border-t border-white/10 pl-6">
-              <span className="text-xs text-gray-400 font-mono">Email Inquiry: userservices@fointer.net</span>
+              <SiteEmailPlain />
             </div>
           </div>
         </div>

@@ -9,6 +9,7 @@ import Subchannel from "../models/subchannel.js";
 import Post from "../models/post.js";
 import Comment from "../models/comment.js";
 import Reaction from "../models/reaction.js";
+import Reshare from "../models/reshare.js";
 import LiveEvent from "../models/liveEvent.js";
 import LiveMessage from "../models/liveMessage.js";
 import Report from "../models/report.js";
@@ -706,6 +707,7 @@ export const deleteCommunity = async (req, res) => {
       await Comment.deleteMany({ _id: { $in: commentIds } });
     }
     if (postIds.length) {
+      await Reshare.deleteMany({ post: { $in: postIds } });
       await Post.deleteMany({ _id: { $in: postIds } });
       await Report.deleteMany({
         $or: [

@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { useSiteContact } from '../../../../context/SiteContactContext';
 
 const sections = [
   { id: 'acceptance', title: '1. Acceptance of Terms' },
@@ -13,6 +15,8 @@ const sections = [
 
 export default function TermsAndConditions() {
   const [activeSection, setActiveSection] = useState('acceptance');
+  const { contactEmail } = useSiteContact();
+  const emailReady = Boolean(contactEmail);
 
   const scrollToSection = (id) => {
     setActiveSection(id);
@@ -196,12 +200,21 @@ export default function TermsAndConditions() {
                     Reach out to our community support team anytime.
                   </p>
                 </div>
-                <a
-                  href="mailto:support@community.com"
-                  className="mt-4 sm:mt-0 inline-block bg-[#F8A201] hover:bg-[#F8A201]/90 text-[#110C08] font-bold text-xs uppercase tracking-wider px-6 py-3 rounded-lg transition-colors duration-200 shadow-md shrink-0"
-                >
-                  Contact Support
-                </a>
+                {emailReady ? (
+                  <a
+                    href={`mailto:${contactEmail}`}
+                    className="mt-4 sm:mt-0 inline-block bg-[#F8A201] hover:bg-[#F8A201]/90 text-[#110C08] font-bold text-xs uppercase tracking-wider px-6 py-3 rounded-lg transition-colors duration-200 shadow-md shrink-0"
+                  >
+                    Contact Support
+                  </a>
+                ) : (
+                  <Link
+                    to="/contact-us"
+                    className="mt-4 sm:mt-0 inline-block bg-[#F8A201] hover:bg-[#F8A201]/90 text-[#110C08] font-bold text-xs uppercase tracking-wider px-6 py-3 rounded-lg transition-colors duration-200 shadow-md shrink-0"
+                  >
+                    Contact Support
+                  </Link>
+                )}
               </div>
             </section>
 

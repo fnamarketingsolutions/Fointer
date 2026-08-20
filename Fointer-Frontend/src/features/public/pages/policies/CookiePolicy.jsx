@@ -14,6 +14,7 @@ import {
   LuUserCheck as UserCheck,
   LuMail as Mail
 } from 'react-icons/lu';
+import { SiteEmail } from '../../../../context/SiteContactContext';
 
 export default function CookiePolicy() {
   const cookieTypes = [
@@ -206,7 +207,7 @@ export default function CookiePolicy() {
           </div>
 
           <p className="text-xs sm:text-sm text-gray-300 font-light leading-relaxed">
-            For more detailed information on how we use, store, and keep your personal data secure, refer to our Privacy Policy. If you have any questions about our use of cookies or other technologies, please email us at <a href="mailto:userservices@fointer.net" className="text-[#F8A201] font-mono hover:underline">userservices@fointer.net</a>.
+            For more detailed information on how we use, store, and keep your personal data secure, refer to our Privacy Policy. If you have any questions about our use of cookies or other technologies, please email us at <SiteEmail />.
           </p>
 
           <p className="text-xs sm:text-sm text-gray-300 font-light leading-relaxed pt-2">

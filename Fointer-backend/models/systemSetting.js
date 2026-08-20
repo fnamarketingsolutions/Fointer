@@ -14,6 +14,18 @@ const systemSettingSchema = new mongoose.Schema(
       min: 1,
       max: 10080,
     },
+    contactEmail: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: 254,
+    },
+    contactPhone: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: 32,
+    },
   },
   {
     timestamps: true,

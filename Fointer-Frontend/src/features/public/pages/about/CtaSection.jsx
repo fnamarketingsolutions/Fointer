@@ -1,11 +1,20 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import {
   LuMail as Mail,
   LuArrowRight as ArrowRight,
   LuSparkles as Sparkles
 } from 'react-icons/lu';
+import { useSiteContact } from '../../../../context/SiteContactContext';
 
 export default function CTASection() {
+  const { contactEmail } = useSiteContact();
+  const emailReady = Boolean(contactEmail);
+  const ActionTag = emailReady ? 'a' : Link;
+  const actionProps = emailReady
+    ? { href: `mailto:${contactEmail}` }
+    : { to: '/contact-us' };
+
   return (
     <section className="bg-[#130D08] text-white py-20 border-t border-amber-900/20 font-sans relative overflow-hidden">
       
@@ -50,8 +59,8 @@ export default function CTASection() {
 
           {/* Direct Email Action Card / Button */}
           <div className="relative z-10 w-full max-w-md">
-            <a 
-              href="mailto:userservices@fointer.net"
+            <ActionTag
+              {...actionProps}
               className="group flex items-center justify-between bg-[#130D08]/90 hover:bg-[#24180f] border border-[#F8A201]/40 hover:border-[#F8A201] rounded-2xl p-4 sm:p-5 transition-all duration-300 shadow-lg hover:shadow-[#F8A201]/10 backdrop-blur-sm"
             >
               <div className="flex items-center gap-3 sm:gap-4 overflow-hidden">
@@ -59,14 +68,16 @@ export default function CTASection() {
                   <Mail className="w-5 h-5 sm:w-6 sm:h-6" />
                 </div>
                 <div className="text-left truncate">
-                  <p className="text-[10px] text-gray-400 font-mono uppercase tracking-wider">Email Us Direct</p>
+                  <p className="text-[10px] text-gray-400 font-mono uppercase tracking-wider">
+                    {emailReady ? "Email Us Direct" : "Get in Touch"}
+                  </p>
                   <p className="text-sm sm:text-base font-semibold text-white group-hover:text-[#F8A201] transition-colors truncate">
-                    userservices@fointer.net
+                    {contactEmail || "Contact Us"}
                   </p>
                 </div>
               </div>
               <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-[#F8A201] group-hover:translate-x-1 transition-all flex-shrink-0 ml-2" />
-            </a>
+            </ActionTag>
           </div>
 
           {/* Closing Tagline / Mission Message */}

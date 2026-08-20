@@ -2,6 +2,7 @@ import express from "express";
 import {
   createChannel,
   listChannels,
+  updateChannel,
 } from "../controllers/channel.controller.js";
 import {
   createSubchannel,
@@ -34,6 +35,12 @@ router.get(
   isAuthenticated,
   authorize("admin"),
   listChannels
+);
+router.put(
+  "/admin/channels/:id",
+  isAuthenticated,
+  authorize("admin"),
+  updateChannel
 );
 
 // Admin subchannel CRUD

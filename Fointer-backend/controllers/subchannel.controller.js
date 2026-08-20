@@ -1,7 +1,9 @@
 import mongoose from "mongoose";
 import Channel from "../models/channel.js";
 import Subchannel from "../models/subchannel.js";
+import Community from "../models/community.js";
 import { sendServerError } from "../utils/safeError.js";
+import { escapeRegex } from "../utils/validate.js";
 
 const formatSubchannel = (subchannel) => {
   const channel = subchannel.channel;
@@ -102,8 +104,7 @@ export const listSubchannels = async (req, res) => {
     }
 
     if (q) {
-      const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      filter.name = new RegExp(escaped, "i");
+      filter.name = new RegExp(escapeRegex(q), "i");
     }
 
     const subchannels = await Subchannel.find(filter)
@@ -157,13 +158,33 @@ export const updateSubchannel = async (req, res) => {
       });
     }
 
-    if (String(subchannel.channel) !== channelId) {
+    const oldChannelId = String(subchannel.channel);
+    const parentChanging = oldChannelId !== channelId;
+    const oldParent = await Channel.findById(oldChannelId).select("name");
+    const oldParentName = oldParent?.name || "";
+    const oldName = subchannel.name;
+
+    if (parentChanging) {
       const channelExists = await Channel.findById(channelId);
       if (!channelExists) {
         return res.status(404).json({
           success: false,
           message: "Parent channel not found.",
         });
+      }
+
+      if (oldParentName) {
+        const inUse = await Community.countDocuments({
+          channel: new RegExp(`^${escapeRegex(oldParentName)}$`, "i"),
+          subchannels: new RegExp(`^${escapeRegex(oldName)}$`, "i"),
+        });
+        if (inUse > 0) {
+          return res.status(400).json({
+            success: false,
+            message:
+              "This subchannel is used by existing communities. Rename it in place, or move those communities first.",
+          });
+        }
       }
     }
 
@@ -188,6 +209,21 @@ export const updateSubchannel = async (req, res) => {
 
     await subchannel.save();
     await subchannel.populate("channel", "name");
+
+    if (!parentChanging && oldParentName && oldName !== name) {
+      await Community.updateMany(
+        {
+          channel: new RegExp(`^${escapeRegex(oldParentName)}$`, "i"),
+          subchannels: new RegExp(`^${escapeRegex(oldName)}$`, "i"),
+        },
+        { $set: { "subchannels.$[elem]": name } },
+        {
+          arrayFilters: [
+            { elem: new RegExp(`^${escapeRegex(oldName)}$`, "i") },
+          ],
+        }
+      );
+    }
 
     return res.status(200).json({
       success: true,

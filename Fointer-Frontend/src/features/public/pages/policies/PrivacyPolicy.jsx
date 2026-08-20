@@ -12,6 +12,7 @@ import {
   LuMapPin as MapPin,
   LuLock as Lock
 } from 'react-icons/lu';
+import { SiteEmail, SiteEmailPlain } from '../../../../context/SiteContactContext';
 
 export default function PrivacyPolicy() {
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -291,7 +292,7 @@ export default function PrivacyPolicy() {
             </div>
 
             <p className="text-xs sm:text-sm text-gray-300 font-light leading-relaxed">
-              For more information about our privacy practices, if you have questions, or if you would like to make a complaint, please contact us by email at <a href="mailto:userservices@fointer.net" className="text-[#F8A201] font-mono hover:underline">userservices@fointer.net</a> or by mail using the details provided below:
+              For more information about our privacy practices, if you have questions, or if you would like to make a complaint, please contact us by email at <SiteEmail /> or by mail using the details provided below:
             </p>
 
             <div className="bg-[#130D08]/90 border border-[#F8A201]/30 rounded-2xl p-6 space-y-3">
@@ -304,7 +305,7 @@ export default function PrivacyPolicy() {
                 Valley Stream, NY 11581
               </p>
               <div className="pt-3 border-t border-white/10 pl-6">
-                <span className="text-xs text-gray-400 font-mono">Email Inquiry: userservices@fointer.net</span>
+                <SiteEmailPlain />
               </div>
             </div>
 

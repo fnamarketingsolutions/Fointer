@@ -1,7 +1,13 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import { useSiteContact } from '../../../../context/SiteContactContext';
 
 const ContactInfo = () => {
+  const { contactEmail, contactPhone } = useSiteContact();
+  const telHref = contactPhone
+    ? `tel:${contactPhone.replace(/[^\d+]/g, "")}`
+    : "";
+
   return (
     <>
       <section className="relative min-h-[85vh] w-full bg-[#130D08] text-white flex items-center justify-center py-12 md:py-20 overflow-hidden">
@@ -51,8 +57,21 @@ const ContactInfo = () => {
                   Get in Touch
                 </h4>
                 <p className="text-xs md:text-sm text-gray-400 leading-snug">
-                  support@community.org<br />
-                  +1 (555) 019-2834
+                  {contactEmail ? (
+                    <a href={`mailto:${contactEmail}`} className="hover:text-[#F8A201] transition-colors">
+                      {contactEmail}
+                    </a>
+                  ) : (
+                    "Email coming soon"
+                  )}
+                  <br />
+                  {contactPhone ? (
+                    <a href={telHref} className="hover:text-[#F8A201] transition-colors">
+                      {contactPhone}
+                    </a>
+                  ) : (
+                    "Phone coming soon"
+                  )}
                 </p>
               </div>
 

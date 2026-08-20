@@ -1,12 +1,16 @@
 import { Link } from "react-router-dom";
 import {
+  LuArrowRight as ArrowRight,
   LuFilter as Filter,
   LuHash as Hash,
   LuLoaderCircle as Loader2,
   LuLogIn as LogIn,
   LuUserPlus as UserPlus,
+  LuUsers as Users,
 } from "react-icons/lu";
 import SiteLinksFooter from "../../../../shared/components/SiteLinksFooter";
+import { communitySegment } from "../../../../shared/services/entityLinks";
+import { formatCount } from "../../../../shared/utils/format";
 
 const FEED_PATH = "/";
 
@@ -74,6 +78,84 @@ export function CategoryList({
   );
 }
 
+function CommunityThumb({ community }) {
+  const name = community?.name || "Community";
+  if (community?.coverImage) {
+    return (
+      <img
+        src={community.coverImage}
+        alt=""
+        className="w-8 h-8 rounded-lg object-cover border border-[#2A241E] shrink-0"
+      />
+    );
+  }
+  return (
+    <div className="w-8 h-8 rounded-lg bg-[#1A1510] border border-[#2A241E] flex items-center justify-center shrink-0">
+      <span className="text-[11px] font-semibold text-[#D4AF37]/70">
+        {name.charAt(0).toUpperCase()}
+      </span>
+    </div>
+  );
+}
+
+export function OtherCommunitiesCard({
+  communities = [],
+  loading = false,
+}) {
+  return (
+    <div className={SIDE_CARD}>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-sm font-semibold text-[#E5E0D8]">
+          <Users size={15} className="text-[#D4AF37]" />
+          Other communities
+        </div>
+        <Link
+          to="/communities"
+          className="text-[10px] text-[#8C8070] hover:text-[#D4AF37] shrink-0"
+        >
+          See all
+        </Link>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center gap-2 text-xs text-[#8C8070] py-1">
+          <Loader2 size={12} className="animate-spin text-[#D4AF37]" />
+          Loading...
+        </div>
+      ) : communities.length === 0 ? (
+        <p className="text-xs text-[#8C8070]">No other communities yet.</p>
+      ) : (
+        <ul className="space-y-0.5">
+          {communities.map((community) => {
+            const segment = communitySegment(community) || community.id;
+            return (
+              <li key={community.id || segment}>
+                <Link
+                  to={`/communities/${segment}`}
+                  className="flex items-center gap-2 px-1.5 py-1.5 rounded-lg text-xs text-[#A69B8D] hover:text-[#D4AF37] hover:bg-[#1C1612] transition-colors"
+                >
+                  <CommunityThumb community={community} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[#E5E0D8]">
+                      {community.name || "Community"}
+                    </span>
+                    {typeof community.memberCount === "number" ? (
+                      <span className="block text-[10px] text-[#8C8070]">
+                        {formatCount(community.memberCount)} members
+                      </span>
+                    ) : null}
+                  </span>
+                  <ArrowRight size={12} className="shrink-0 text-[#5C5348]" />
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export function FeedFilterToggle({ open, active, onClick }) {
   return (
     <button
@@ -132,6 +214,10 @@ export function FeedDesktopRail(props) {
   return (
     <aside className="space-y-3">
       <CategoryList {...props} />
+      <OtherCommunitiesCard
+        communities={props.communities}
+        loading={props.communitiesLoading}
+      />
       <FeedFooterRail isGuest={props.isGuest} />
     </aside>
   );

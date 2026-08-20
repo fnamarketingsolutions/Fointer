@@ -1,10 +1,9 @@
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import SiteLinksFooter from '../components/SiteLinksFooter';
+import BrandLogo from '../components/BrandLogo';
 import { SITE_LINKS } from '../constants/siteLinks';
+import { DEFAULT_AVATAR } from '../constants/avatars';
 import { useAuth } from '../../context/AuthContext';
-
-const defaultAvatar =
-  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200';
 
 /** Minimal chrome for public/legal pages (outside the dashboard shell). */
 export default function PublicSiteLayout() {
@@ -17,13 +16,8 @@ export default function PublicSiteLayout() {
   return (
     <div className="min-h-screen bg-[#130D08] text-[#E5E0D8] flex flex-col">
       <header className="sticky top-0 z-40 border-b border-[#2A241E]/80 bg-[#130D08]/95 backdrop-blur-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between gap-3">
-          <Link
-            to="/"
-            className="font-serif text-lg sm:text-xl text-[#D4AF37] tracking-wide hover:text-[#e0c04a] transition-colors"
-          >
-            Fointer
-          </Link>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between gap-3">
+          <BrandLogo />
           <div className="flex items-center gap-2 sm:gap-3">
             <Link
               to="/"
@@ -62,14 +56,14 @@ export default function PublicSiteLayout() {
                   </p>
                 </div>
                 <img
-                  src={user?.avatar || defaultAvatar}
+                  src={user?.avatar || DEFAULT_AVATAR}
                   alt={user?.name || 'Avatar'}
                   referrerPolicy="no-referrer"
                   onError={(e) => {
                     e.currentTarget.onerror = null;
-                    e.currentTarget.src = defaultAvatar;
+                    e.currentTarget.src = DEFAULT_AVATAR;
                   }}
-                  className="w-8 h-8 rounded-full object-cover border border-[#D4AF37]/50 shrink-0"
+                  className="w-9 h-9 rounded-full object-cover border border-[#D4AF37]/50 shrink-0"
                 />
               </Link>
             )}

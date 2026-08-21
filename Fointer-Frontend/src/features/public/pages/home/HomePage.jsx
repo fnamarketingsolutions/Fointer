@@ -74,7 +74,7 @@ function PrimaryButton({ to, children }) {
   return (
     <Link
       to={to}
-      className="inline-flex items-center justify-center gap-2 h-12 px-6 rounded-lg bg-[#D4AF37] text-black text-sm font-semibold hover:bg-[#e0c04a] transition-colors"
+      className="inline-flex items-center justify-center gap-2 w-full sm:w-auto h-12 px-6 rounded-lg bg-[#D4AF37] text-black text-sm font-semibold hover:bg-[#e0c04a] transition-colors"
     >
       {children}
     </Link>
@@ -85,7 +85,7 @@ function SecondaryButton({ to, children }) {
   return (
     <Link
       to={to}
-      className="inline-flex items-center justify-center gap-2 h-12 px-6 rounded-lg border border-[#2A241E] text-[#E5E0D8] text-sm font-semibold hover:border-[#D4AF37]/40 hover:text-[#D4AF37] transition-colors"
+      className="inline-flex items-center justify-center gap-2 w-full sm:w-auto h-12 px-6 rounded-lg border border-[#2A241E] text-[#E5E0D8] text-sm font-semibold hover:border-[#D4AF37]/40 hover:text-[#D4AF37] transition-colors"
     >
       {children}
     </Link>
@@ -123,8 +123,8 @@ function HeroPreview({ communities, loading }) {
   ].slice(0, 4);
 
   return (
-    <div className="relative rounded-xl border border-[#2A241E] bg-[#14100D] p-5 sm:p-6">
-        <div className="flex items-center justify-between mb-5">
+    <div className="relative rounded-xl border border-[#2A241E] bg-[#14100D] p-4 sm:p-6 min-w-0">
+        <div className="flex items-center justify-between gap-3 mb-5">
           <div>
             <p className="text-sm font-semibold text-[#E5E0D8]">Communities</p>
             <p className="text-xs text-[#8C8070] mt-0.5">
@@ -133,7 +133,7 @@ function HeroPreview({ communities, loading }) {
           </div>
           <Link
             to={EXPLORE_PATH}
-            className="text-[11px] font-medium text-[#D4AF37] bg-[#D4AF37]/10 border border-[#D4AF37]/20 px-2.5 py-1 rounded-full hover:bg-[#D4AF37]/15"
+            className="text-[11px] font-medium text-[#D4AF37] bg-[#D4AF37]/10 border border-[#D4AF37]/20 px-2.5 py-1 rounded-full hover:bg-[#D4AF37]/15 shrink-0"
           >
             Explore
           </Link>
@@ -259,33 +259,33 @@ export default function HomePage() {
   }, []);
 
   return (
-    <div className="bg-[#0E0C0A] text-[#E5E0D8]">
-      <section className="pt-10 sm:pt-16 lg:pt-20 pb-16 lg:pb-24">
-        <div className={`${SHELL} grid lg:grid-cols-2 gap-12 lg:gap-16 items-center`}>
+    <div className="bg-[#0E0C0A] text-[#E5E0D8] overflow-x-hidden">
+      <section className="pt-8 sm:pt-16 lg:pt-20 pb-12 sm:pb-16 lg:pb-24">
+        <div className={`${SHELL} grid lg:grid-cols-2 gap-8 lg:gap-16 items-center`}>
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
+            className="min-w-0"
           >
-            <h1 className="text-[2.35rem] sm:text-5xl lg:text-[64px] font-semibold tracking-tight leading-[1.08] text-white">
-              Find Your Interests.
-              <br />
-              Find Your Community.
+            <h1 className="text-[1.75rem] sm:text-5xl lg:text-[64px] font-semibold tracking-tight leading-[1.15] sm:leading-[1.08] text-white">
+              Find Your Interests.{' '}
+              <span className="sm:block">Find Your Community.</span>
             </h1>
-            <p className="mt-5 text-base sm:text-lg text-[#A69B8D] max-w-xl leading-relaxed">
+            <p className="mt-4 sm:mt-5 text-[15px] sm:text-lg text-[#A69B8D] max-w-xl leading-relaxed">
               Fointer - from FOcused INTERests - brings people together around
               the things they care about.
             </p>
-            <p className="mt-4 text-base text-[#A69B8D] max-w-xl leading-relaxed">
+            <p className="mt-3 sm:mt-4 text-[15px] sm:text-base text-[#A69B8D] max-w-xl leading-relaxed">
               Discover communities built around your interests, hobbies and
               passions. Share ideas, join conversations, follow live events,
               connect with people who share your interests, or create a
               community of your own.
             </p>
-            <p className="mt-4 text-sm sm:text-base text-[#8C8070] max-w-xl">
+            <p className="mt-3 sm:mt-4 text-sm sm:text-base text-[#8C8070] max-w-xl">
               Whatever you&apos;re into, there&apos;s a place for you on Fointer.
             </p>
-            <div className="mt-8 flex flex-col sm:flex-row gap-3">
+            <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row gap-3">
               <PrimaryButton to="/signup">
                 Join Fointer <ArrowRight size={16} />
               </PrimaryButton>
@@ -303,6 +303,7 @@ export default function HomePage() {
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.1 }}
+            className="min-w-0"
           >
             <HeroPreview
               communities={communities}
@@ -312,10 +313,10 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="py-16 lg:py-24 border-t border-[#2A241E]">
+      <section className="py-12 sm:py-16 lg:py-24 border-t border-[#2A241E]">
         <div className={SHELL}>
-          <div className="max-w-3xl">
-            <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-white leading-tight">
+          <div className="max-w-3xl min-w-0">
+            <h2 className="text-2xl sm:text-4xl font-semibold tracking-tight text-white leading-tight">
               What are you into?
             </h2>
             <p className="mt-4 text-base sm:text-lg text-[#A69B8D] leading-relaxed">
@@ -370,10 +371,10 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="py-16 lg:py-24 border-t border-[#2A241E]">
+      <section className="py-12 sm:py-16 lg:py-24 border-t border-[#2A241E]">
         <div className={SHELL}>
-          <div className="max-w-3xl">
-            <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-white leading-tight">
+          <div className="max-w-3xl min-w-0">
+            <h2 className="text-2xl sm:text-4xl font-semibold tracking-tight text-white leading-tight">
               More than a social feed
             </h2>
             <p className="mt-4 text-[#A69B8D] leading-relaxed">
@@ -388,7 +389,7 @@ export default function HomePage() {
               return (
                 <div
                   key={item.text}
-                  className="rounded-2xl border border-[#2A241E] bg-[#14100D] p-6"
+                  className="rounded-2xl border border-[#2A241E] bg-[#14100D] p-5 sm:p-6"
                 >
                   <div className="w-10 h-10 rounded-xl bg-[#D4AF37]/10 text-[#D4AF37] flex items-center justify-center mb-4">
                     <Icon size={20} />
@@ -402,12 +403,12 @@ export default function HomePage() {
       </section>
 
       {!communitiesLoading && communities.length > 0 ? (
-        <section className="py-16 lg:py-24 border-t border-[#2A241E]">
+        <section className="py-12 sm:py-16 lg:py-24 border-t border-[#2A241E]">
           <div className={SHELL}>
             <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-              <div>
+              <div className="min-w-0">
                 <p className="text-sm font-medium text-[#D4AF37]">Active communities</p>
-                <h2 className="mt-3 text-3xl sm:text-4xl font-semibold tracking-tight text-white leading-tight">
+                <h2 className="mt-3 text-2xl sm:text-4xl font-semibold tracking-tight text-white leading-tight">
                   Find the people who share it.
                 </h2>
               </div>
@@ -462,13 +463,13 @@ export default function HomePage() {
         </section>
       ) : null}
 
-      <section className="py-16 lg:py-24 border-t border-[#2A241E]">
-        <div className={`${SHELL} grid lg:grid-cols-2 gap-10 lg:gap-20 items-center`}>
-          <div>
+      <section className="py-12 sm:py-16 lg:py-24 border-t border-[#2A241E]">
+        <div className={`${SHELL} grid lg:grid-cols-2 gap-8 lg:gap-20 items-center`}>
+          <div className="min-w-0">
             <p className="text-sm font-medium text-[#D4AF37] inline-flex items-center gap-2">
               <ShoppingBag size={14} /> Fointer Marketplace
             </p>
-            <h2 className="mt-3 text-3xl sm:text-4xl font-semibold tracking-tight text-white leading-tight">
+            <h2 className="mt-3 text-2xl sm:text-4xl font-semibold tracking-tight text-white leading-tight">
               Discover and sell — without losing the community.
             </h2>
             <p className="mt-4 text-[#A69B8D] leading-relaxed max-w-lg">
@@ -480,7 +481,7 @@ export default function HomePage() {
               <PrimaryButton to="/signup">Join Fointer</PrimaryButton>
             </div>
           </div>
-          <div className="rounded-3xl border border-[#2A241E] bg-[#14100D] p-6 sm:p-8">
+          <div className="rounded-2xl sm:rounded-3xl border border-[#2A241E] bg-[#14100D] p-5 sm:p-8 min-w-0">
             <p className="text-sm font-semibold text-white">Around your interests</p>
             <div className="mt-5 space-y-3">
               {[
@@ -501,11 +502,11 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="py-16 lg:py-24 border-t border-[#2A241E]">
-        <div className={`${SHELL} grid lg:grid-cols-2 gap-10 lg:gap-20`}>
-          <div>
+      <section className="py-12 sm:py-16 lg:py-24 border-t border-[#2A241E]">
+        <div className={`${SHELL} grid lg:grid-cols-2 gap-8 lg:gap-20`}>
+          <div className="min-w-0">
             <p className="text-sm font-medium text-[#D4AF37]">FOINTER</p>
-            <h2 className="mt-3 text-3xl sm:text-4xl font-semibold tracking-tight text-white leading-tight">
+            <h2 className="mt-3 text-2xl sm:text-4xl font-semibold tracking-tight text-white leading-tight">
               <span className="text-[#D4AF37]">FO</span>cused +{" "}
               <span className="text-[#D4AF37]">INTER</span>ests
             </h2>
@@ -513,7 +514,7 @@ export default function HomePage() {
               Your interests. Your communities. Your conversations.
             </p>
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-sm font-medium text-[#D4AF37]">Our mission</p>
             <p className="mt-4 text-lg text-[#C9C0B4] leading-relaxed">
               To bring community, belonging and empowerment to everyone by
@@ -528,28 +529,28 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="pb-20 lg:pb-28">
+      <section className="pb-16 sm:pb-20 lg:pb-28">
         <div className={SHELL}>
-          <div className="rounded-3xl bg-[#D4AF37] px-6 py-10 sm:px-12 sm:py-14 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8">
-            <div>
-              <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-[#0E0C0A] leading-tight">
+          <div className="rounded-2xl sm:rounded-3xl bg-[#D4AF37] px-5 py-8 sm:px-12 sm:py-14 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6 sm:gap-8">
+            <div className="min-w-0">
+              <h2 className="text-2xl sm:text-4xl font-semibold tracking-tight text-[#0E0C0A] leading-tight">
                 Find your place on Fointer.
               </h2>
-              <p className="mt-3 text-[#0E0C0A]/75 max-w-md">
+              <p className="mt-3 text-[#0E0C0A]/75 max-w-md text-sm sm:text-base">
                 Join communities built around what you care about — or start one
                 of your own.
               </p>
             </div>
-            <div className="flex flex-col sm:flex-row gap-3 shrink-0">
+            <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto shrink-0">
               <Link
                 to="/signup"
-                className="inline-flex items-center justify-center h-12 px-6 rounded-lg bg-[#0E0C0A] text-[#D4AF37] text-sm font-semibold hover:bg-[#1C1612] transition-colors"
+                className="inline-flex items-center justify-center w-full sm:w-auto h-12 px-6 rounded-lg bg-[#0E0C0A] text-[#D4AF37] text-sm font-semibold hover:bg-[#1C1612] transition-colors"
               >
                 Join Fointer
               </Link>
               <Link
                 to={EXPLORE_PATH}
-                className="inline-flex items-center justify-center h-12 px-6 rounded-lg border border-[#0E0C0A]/20 text-[#0E0C0A] text-sm font-semibold hover:bg-[#0E0C0A]/5 transition-colors"
+                className="inline-flex items-center justify-center w-full sm:w-auto h-12 px-6 rounded-lg border border-[#0E0C0A]/20 text-[#0E0C0A] text-sm font-semibold hover:bg-[#0E0C0A]/5 transition-colors"
               >
                 Explore communities
               </Link>

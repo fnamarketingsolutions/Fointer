@@ -1,4 +1,6 @@
+import mongoose from "mongoose";
 import Channel from "../models/channel.js";
+import Community from "../models/community.js";
 import { sendServerError } from "../utils/safeError.js";
 import { escapeRegex } from "../utils/validate.js";
 
@@ -59,6 +61,72 @@ export const listChannels = async (req, res) => {
       channels: channels.map(formatChannel),
     });
   } catch (error) {
+    return sendServerError(res, error);
+  }
+};
+
+export const updateChannel = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid channel id.",
+      });
+    }
+
+    const channel = await Channel.findById(id);
+    if (!channel) {
+      return res.status(404).json({
+        success: false,
+        message: "Channel not found.",
+      });
+    }
+
+    const name = String(req.body?.name ?? channel.name).trim();
+    if (!name) {
+      return res.status(400).json({
+        success: false,
+        message: "Channel name cannot be empty.",
+      });
+    }
+
+    const nameNormalized = name.toLowerCase();
+    const duplicate = await Channel.findOne({
+      _id: { $ne: id },
+      nameNormalized,
+    });
+    if (duplicate) {
+      return res.status(400).json({
+        success: false,
+        message: "A channel with this name already exists.",
+      });
+    }
+
+    const oldName = channel.name;
+    channel.name = name;
+    channel.nameNormalized = nameNormalized;
+    await channel.save();
+
+    if (oldName !== name) {
+      await Community.updateMany(
+        { channel: new RegExp(`^${escapeRegex(oldName)}$`, "i") },
+        { $set: { channel: name } }
+      );
+    }
+
+    return res.status(200).json({
+      success: true,
+      channel: formatChannel(channel),
+    });
+  } catch (error) {
+    if (error?.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        message: "A channel with this name already exists.",
+      });
+    }
     return sendServerError(res, error);
   }
 };

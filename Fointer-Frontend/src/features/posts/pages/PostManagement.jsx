@@ -6,6 +6,7 @@ import {
   LuLoaderCircle as Loader2,
   LuHeart as Heart,
   LuMessageCircle as MessageCircle,
+  LuRepeat2 as Repeat2,
   LuImage as ImageIcon,
   LuRefreshCw as RefreshCw,
   LuFileText as FileText,
@@ -346,6 +347,9 @@ export default function PostManagement() {
                     <div className="flex items-center gap-3 pt-0.5 text-[11px] text-[#8C8070]">
                       <span className="inline-flex items-center gap-1">
                         <Heart size={11} /> {post.likeCount || 0}
+                      </span>
+                      <span className="inline-flex items-center gap-1">
+                        <Repeat2 size={11} /> {post.reshareCount || 0}
                       </span>
                       <span className="inline-flex items-center gap-1">
                         <MessageCircle size={11} /> {post.commentCount || 0}

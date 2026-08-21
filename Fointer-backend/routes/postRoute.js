@@ -12,10 +12,12 @@ import {
   updateComment,
   deleteComment,
   togglePostLike,
+  togglePostReshare,
   toggleCommentLike,
   resolvePostCode,
   listMyComments,
   listMyLikedPosts,
+  listMyResharedPosts,
 } from "../controllers/post.controller.js";
 import {
   isAuthenticated,
@@ -37,6 +39,7 @@ router.get("/public/:id", optionalAuthenticate, getPublicPost);
 // Activity history — before /:id
 router.get("/activity/comments", isAuthenticated, listMyComments);
 router.get("/activity/likes", isAuthenticated, listMyLikedPosts);
+router.get("/activity/reshares", isAuthenticated, listMyResharedPosts);
 
 // Comment mutations must be registered before /:id
 router.patch("/comments/:id", isAuthenticated, updateComment);
@@ -46,6 +49,7 @@ router.post("/comments/:id/like", isAuthenticated, toggleCommentLike);
 router.get("/:id/comments", optionalAuthenticate, listComments);
 router.post("/:id/comments", isAuthenticated, createComment);
 router.post("/:id/like", isAuthenticated, togglePostLike);
+router.post("/:id/reshare", isAuthenticated, togglePostReshare);
 
 router.get("/:id", isAuthenticated, getPost);
 router.patch("/:id", isAuthenticated, updatePost);

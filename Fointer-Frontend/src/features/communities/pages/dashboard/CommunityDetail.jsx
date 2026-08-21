@@ -6,8 +6,6 @@ import {
   LuTrash2 as Trash2,
   LuUsers as Users,
   LuLoaderCircle as Loader2,
-  LuHeart as Heart,
-  LuMessageCircle as MessageCircle,
   LuRefreshCw as RefreshCw,
   LuUserPlus as UserPlus,
   LuPlus as Plus,
@@ -31,11 +29,12 @@ import {
   approveJoinRequest,
   denyJoinRequest,
 } from "../../../../api/communities";
-import { fetchPosts, createPost, togglePostLike } from "../../../../api/posts";
+import { fetchPosts, createPost, togglePostLike, togglePostReshare } from "../../../../api/posts";
 import CreatePostForm from "../../../../shared/components/forms/CreatePostForm";
 import { COMMUNITY_TYPE_LABELS } from "../../../../shared/constants/community";
 import { formatLongDate, timeAgo } from "../../../../shared/utils/date";
 import { formatCount } from "../../../../shared/utils/format";
+import PostActions from "../../../../shared/components/PostActions";
 import {
   communitySegment,
   postSegment,
@@ -114,7 +113,7 @@ function RuleItem({ index, rule }) {
   );
 }
 
-function FeedPostRow({ post, onOpen, onToggleLike }) {
+function FeedPostRow({ post, onOpen, onLike, onReshare, onComment }) {
   const authorName = post?.author?.name || post?.author?.username || "Anonymous";
   const coverImage = post?.media?.find((m) => m.type === "image");
 
@@ -139,24 +138,14 @@ function FeedPostRow({ post, onOpen, onToggleLike }) {
             {post.text}
           </p>
         ) : null}
-        <div className="flex items-center gap-4 pt-1 text-xs text-[#8C8070]">
-          <button
-            type="button"
-            onClick={(e) => onToggleLike(post, e)}
-            className={`inline-flex items-center gap-1.5 ${
-              post?.likedByMe ? "text-[#D4AF37]" : ""
-            }`}
-          >
-            <Heart
-              size={14}
-              className={post?.likedByMe ? "fill-current text-[#D4AF37]" : ""}
-            />
-            {formatCount(post?.likeCount)}
-          </button>
-          <span className="inline-flex items-center gap-1.5">
-            <MessageCircle size={14} />
-            {formatCount(post?.commentCount)} comments
-          </span>
+        <div className="pt-1" onClick={(e) => e.stopPropagation()}>
+          <PostActions
+            post={post}
+            compact
+            onLike={onLike}
+            onReshare={onReshare}
+            onComment={onComment}
+          />
         </div>
       </div>
       {coverImage ? (
@@ -520,33 +509,49 @@ export default function CommunityDetail({
     }
   };
 
-  const handleToggleLike = async (post, e) => {
-    e?.stopPropagation?.();
-    const prev = posts;
+  const patchPost = (postId, patch) => {
     setPosts((list) =>
-      list.map((p) =>
-        p.id === post.id
-          ? {
-              ...p,
-              likedByMe: !p.likedByMe,
-              likeCount: p.likedByMe
-                ? Math.max(0, (p.likeCount || 0) - 1)
-                : (p.likeCount || 0) + 1,
-            }
-          : p
-      )
+      list.map((p) => (p.id === postId ? { ...p, ...patch } : p))
     );
+  };
+
+  const handleToggleLike = async (post) => {
+    const prev = posts;
+    patchPost(post.id, {
+      likedByMe: !post.likedByMe,
+      likeCount: post.likedByMe
+        ? Math.max(0, (post.likeCount || 0) - 1)
+        : (post.likeCount || 0) + 1,
+    });
     try {
       const data = await togglePostLike(post.id);
-      setPosts((list) =>
-        list.map((p) =>
-          p.id === post.id
-            ? { ...p, likedByMe: data.likedByMe, likeCount: data.likeCount }
-            : p
-        )
-      );
-    } catch {
+      patchPost(post.id, {
+        likedByMe: data.likedByMe,
+        likeCount: data.likeCount,
+      });
+    } catch (err) {
       setPosts(prev);
+      showToast(err?.response?.data?.message || "Failed to like post.");
+    }
+  };
+
+  const handleToggleReshare = async (post) => {
+    const prev = posts;
+    patchPost(post.id, {
+      resharedByMe: !post.resharedByMe,
+      reshareCount: post.resharedByMe
+        ? Math.max(0, (post.reshareCount || 0) - 1)
+        : (post.reshareCount || 0) + 1,
+    });
+    try {
+      const data = await togglePostReshare(post.id);
+      patchPost(post.id, {
+        resharedByMe: data.resharedByMe,
+        reshareCount: data.reshareCount,
+      });
+    } catch (err) {
+      setPosts(prev);
+      showToast(err?.response?.data?.message || "Failed to repost.");
     }
   };
 
@@ -944,7 +949,9 @@ export default function CommunityDetail({
                           key={post.id}
                           post={post}
                           onOpen={openPost}
-                          onToggleLike={handleToggleLike}
+                          onLike={() => handleToggleLike(post)}
+                          onReshare={() => handleToggleReshare(post)}
+                          onComment={() => openPost(post)}
                         />
                       ))}
                     </div>

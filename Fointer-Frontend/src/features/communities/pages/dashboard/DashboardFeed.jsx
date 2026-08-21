@@ -4,9 +4,7 @@ import {
   LuArrowLeft as ArrowLeft,
   LuArrowRight as ArrowRight,
   LuHash as Hash,
-  LuHeart as Heart,
   LuLoaderCircle as Loader2,
-  LuMessageCircle as MessageCircle,
   LuSearch as Search,
   LuUsers as Users
 } from "react-icons/lu";
@@ -15,7 +13,10 @@ import {
   fetchPosts,
   fetchPublicPost,
   fetchPublicPosts,
+  togglePostLike,
+  togglePostReshare,
 } from "../../../../api/posts";
+import { fetchBrowsableCommunities } from "../../../../api/communities";
 import { fetchChannels } from "../../../../api/channels";
 import PostDetail from "../../../posts/pages/PostDetail";
 import { useAuth } from "../../../../context/AuthContext";
@@ -23,14 +24,18 @@ import { useToast } from "../../../../shared/components/feedback/ToastContext";
 import { postSegment } from "../../../../shared/services/entityLinks";
 import useEntityId from "../../../../shared/hooks/useEntityId";
 import { timeAgo } from "../../../../shared/utils/date";
+import PostMediaGallery from "../../../../shared/components/media/PostMediaGallery";
+import PostActions from "../../../../shared/components/PostActions";
+import { EXPLORE_PATH } from "../../../../shared/constants/paths";
 import {
   CategoryList,
   FeedDesktopRail,
   FeedFilterToggle,
   FeedFooterRail,
+  OtherCommunitiesCard,
 } from "./FeedRail";
 
-const FEED_PATH = "/";
+const HOME_FEED_PATH = "/";
 const FEED_POST_PATH = "/post";
 const PAGE_SIZE = 15;
 
@@ -45,22 +50,30 @@ const SORT_OPTIONS = [
   { id: "comments", label: "Discussed" },
 ];
 
-function FeedPostRow({ post, onClick, active, showCommunity }) {
+function FeedPostRow({
+  post,
+  onClick,
+  active,
+  showCommunity,
+  onLike,
+  onReshare,
+  onComment,
+}) {
   const authorName =
     post?.author?.name || post?.author?.username || "Anonymous";
-  const coverImage = post?.media?.find((m) => m.type === "image");
   const communityName = post?.community?.name;
+  const media = post?.media || [];
 
   return (
     <article
       onClick={onClick}
-      className={`group flex gap-3 bg-[#14100D] border rounded-xl overflow-hidden cursor-pointer transition-colors p-2.5 sm:p-4 ${
+      className={`group bg-[#14100D] border rounded-xl overflow-hidden cursor-pointer transition-colors ${
         active
           ? "border-[#D4AF37]/50"
           : "border-[#2A241E] hover:border-[#D4AF37]/35"
       }`}
     >
-      <div className="flex-1 min-w-0 space-y-1.5">
+      <div className="p-3 sm:p-4 space-y-1.5">
         <div className="flex items-center gap-2 text-[11px] text-[#8C8070] flex-wrap">
           <span className="font-semibold text-[#A69B8D] group-hover:text-[#D4AF37] transition-colors">
             {authorName}
@@ -87,31 +100,30 @@ function FeedPostRow({ post, onClick, active, showCommunity }) {
             {post.text}
           </p>
         ) : null}
-
-        <div className="flex items-center gap-4 text-xs text-[#8C8070]">
-          <span className="inline-flex items-center gap-1.5">
-            <MessageCircle size={14} />
-            {post?.commentCount || 0} comments
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <Heart
-              size={14}
-              className={post?.likedByMe ? "fill-current text-[#D4AF37]" : ""}
-            />
-            {post?.likeCount || 0}
-          </span>
-        </div>
       </div>
 
-      {coverImage ? (
-        <div className="hidden sm:block w-24 h-20 shrink-0 rounded-lg overflow-hidden bg-[#0A0806] border border-[#2A241E]">
-          <img
-            src={coverImage.url}
-            alt=""
-            className="w-full h-full object-cover"
+      {media.length > 0 ? (
+        <div
+          className="bg-[#0A0806] border-t border-[#2A241E]"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <PostMediaGallery
+            media={media}
+            counterOverlay={media.length > 1}
+            heightClass="h-56 sm:h-80 w-full object-cover"
           />
         </div>
       ) : null}
+
+      <div className="px-3 sm:px-4 py-2.5 border-t border-[#2A241E]">
+        <PostActions
+          post={post}
+          compact
+          onLike={onLike}
+          onReshare={onReshare}
+          onComment={onComment}
+        />
+      </div>
     </article>
   );
 }
@@ -125,6 +137,7 @@ export default function DashboardFeed() {
   const { id: openPostId, resolving: resolvingPost, notFound: postNotFound } =
     useEntityId("post", postSlug);
   const isGuest = !isAuthenticated;
+  const FEED_PATH = isGuest ? EXPLORE_PATH : HOME_FEED_PATH;
 
   const requestedMode =
     searchParams.get("mode") === "personalized" ? "personalized" : "discover";
@@ -142,6 +155,8 @@ export default function DashboardFeed() {
   const [hasMore, setHasMore] = useState(false);
   const [channels, setChannels] = useState([]);
   const [channelsLoading, setChannelsLoading] = useState(true);
+  const [otherCommunities, setOtherCommunities] = useState([]);
+  const [otherCommunitiesLoading, setOtherCommunitiesLoading] = useState(true);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   const viewingPost = Boolean(postSlug);
@@ -154,7 +169,7 @@ export default function DashboardFeed() {
     return s ? `?${s}` : "";
   }, [isPersonalized, selectedChannel]);
 
-  const feedBase = feedQueryString ? `/${feedQueryString}` : FEED_PATH;
+  const feedBase = feedQueryString ? `${FEED_PATH}${feedQueryString}` : FEED_PATH;
 
   const setMode = (nextMode) => {
     if (isGuest && nextMode === "personalized") {
@@ -263,6 +278,30 @@ export default function DashboardFeed() {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setOtherCommunitiesLoading(true);
+      try {
+        const data = await fetchBrowsableCommunities({
+          page: 1,
+          limit: 6,
+          sortBy: "members",
+        });
+        if (!cancelled) {
+          setOtherCommunities(data?.communities || []);
+        }
+      } catch {
+        if (!cancelled) setOtherCommunities([]);
+      } finally {
+        if (!cancelled) setOtherCommunitiesLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated]);
+
   const openPost = (post) => {
     navigate(`${FEED_POST_PATH}/${postSegment(post)}${feedQueryString}`);
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -289,6 +328,73 @@ export default function DashboardFeed() {
     });
   };
 
+  const requireEngage = (post) => {
+    if (!isAuthenticated) {
+      navigate("/login", { state: { from: locationPath() } });
+      return false;
+    }
+    if (post?.canEngage === false) {
+      showToast(
+        post.community
+          ? "Join this community to interact with posts."
+          : "You cannot interact with this post."
+      );
+      return false;
+    }
+    return true;
+  };
+
+  const locationPath = () =>
+    `${window.location.pathname}${window.location.search}`;
+
+  const patchFeedPost = (postId, patch) => {
+    setPosts((list) =>
+      list.map((p) => (p.id === postId ? { ...p, ...patch } : p))
+    );
+  };
+
+  const handleLikePost = async (post) => {
+    if (!requireEngage(post)) return;
+    const prev = posts;
+    patchFeedPost(post.id, {
+      likedByMe: !post.likedByMe,
+      likeCount: post.likedByMe
+        ? Math.max(0, (post.likeCount || 0) - 1)
+        : (post.likeCount || 0) + 1,
+    });
+    try {
+      const data = await togglePostLike(post.id);
+      patchFeedPost(post.id, {
+        likedByMe: data.likedByMe,
+        likeCount: data.likeCount,
+      });
+    } catch (err) {
+      setPosts(prev);
+      showToast(err?.response?.data?.message || "Failed to like post.");
+    }
+  };
+
+  const handleResharePost = async (post) => {
+    if (!requireEngage(post)) return;
+    const prev = posts;
+    patchFeedPost(post.id, {
+      resharedByMe: !post.resharedByMe,
+      reshareCount: post.resharedByMe
+        ? Math.max(0, (post.reshareCount || 0) - 1)
+        : (post.reshareCount || 0) + 1,
+    });
+    try {
+      const data = await togglePostReshare(post.id);
+      patchFeedPost(post.id, {
+        resharedByMe: data.resharedByMe,
+        reshareCount: data.reshareCount,
+      });
+    } catch (err) {
+      setPosts(prev);
+      showToast(err?.response?.data?.message || "Failed to repost.");
+    }
+  };
+
   const categoryProps = {
     channels,
     channelsLoading,
@@ -297,6 +403,8 @@ export default function DashboardFeed() {
       setChannel(name);
       setFiltersOpen(false);
     },
+    communities: otherCommunities,
+    communitiesLoading: otherCommunitiesLoading,
   };
 
   const postBody = resolvingPost ? (
@@ -363,6 +471,12 @@ export default function DashboardFeed() {
               {postBody}
             </div>
             <div className="lg:hidden">
+              <OtherCommunitiesCard
+                communities={otherCommunities}
+                loading={otherCommunitiesLoading}
+              />
+            </div>
+            <div className="lg:hidden">
               <FeedFooterRail isGuest={isGuest} />
             </div>
           </div>
@@ -380,21 +494,11 @@ export default function DashboardFeed() {
       <div className="mb-3 sm:mb-6 space-y-3 sm:space-y-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="text-2xl sm:text-3xl font-semibold text-[#E5E0D8] leading-tight">
-              Feed
-            </h1>
-            <p className="mt-1 text-sm text-[#8C8070] max-w-xl">
-              {selectedChannel
-                ? `Showing posts in ${selectedChannel}.`
-                : isPersonalized
-                  ? "Posts from communities you have joined."
-                  : "Public posts from across Fointer."}
-            </p>
             {selectedChannel ? (
               <button
                 type="button"
                 onClick={() => setChannel("")}
-                className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] bg-[#D4AF37]/15 text-[#D4AF37] hover:bg-[#D4AF37]/25"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] bg-[#D4AF37]/15 text-[#D4AF37] hover:bg-[#D4AF37]/25"
               >
                 <Hash size={11} />
                 {selectedChannel}
@@ -542,6 +646,9 @@ export default function DashboardFeed() {
                     post={post}
                     onClick={() => openPost(post)}
                     showCommunity
+                    onLike={() => handleLikePost(post)}
+                    onReshare={() => handleResharePost(post)}
+                    onComment={() => openPost(post)}
                   />
                 ))}
               </div>
@@ -566,6 +673,13 @@ export default function DashboardFeed() {
               ) : null}
             </>
           )}
+
+          <div className="lg:hidden pt-1">
+            <OtherCommunitiesCard
+              communities={otherCommunities}
+              loading={otherCommunitiesLoading}
+            />
+          </div>
         </div>
 
         <div className="hidden lg:block lg:sticky lg:top-4">

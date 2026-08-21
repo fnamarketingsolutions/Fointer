@@ -124,22 +124,22 @@ export default function HowToUse() {
   ];
 
   return (
-    <div className="bg-[#130D08] text-white min-h-screen py-16 font-sans relative overflow-hidden">
+    <div className="bg-[#0E0C0A] text-white min-h-screen py-16 font-sans relative overflow-hidden">
       
       {/* Radial Ambient Theme Glows */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-[#F8A201]/10 rounded-full blur-[180px] pointer-events-none z-0" />
-      <div className="absolute bottom-10 right-0 w-[500px] h-[500px] bg-[#F8A201]/5 rounded-full blur-[160px] pointer-events-none z-0" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-[#D4AF37]/10 rounded-full blur-[180px] pointer-events-none z-0" />
+      <div className="absolute bottom-10 right-0 w-[500px] h-[500px] bg-[#D4AF37]/5 rounded-full blur-[160px] pointer-events-none z-0" />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 space-y-16">
         
         {/* Page Header */}
         <div className="text-center space-y-4 max-w-3xl mx-auto pt-8">
-          <span className="text-[11px] font-semibold tracking-[0.25em] text-[#F8A201] uppercase px-4 py-1.5 rounded-full border border-[#F8A201]/30 bg-[#1A130C]/80 inline-block backdrop-blur-md">
+          <span className="text-[11px] font-semibold tracking-[0.25em] text-[#D4AF37] uppercase px-4 py-1.5 rounded-full border border-[#D4AF37]/30 bg-[#14100D]/80 inline-block backdrop-blur-md">
             New User Guide
           </span>
           
           <h1 className="text-4xl sm:text-6xl font-serif text-amber-50 leading-tight">
-            How to Use <span className="italic font-normal text-[#F8A201]">Fointer</span>
+            How to Use <span className="italic font-normal text-[#D4AF37]">Fointer</span>
           </h1>
           
           <p className="text-gray-300 text-sm sm:text-base md:text-lg font-light leading-relaxed pt-2">
@@ -154,18 +154,18 @@ export default function HowToUse() {
             return (
               <div 
                 key={idx}
-                className="bg-[#1A130C]/90 border border-[#F8A201]/25 hover:border-[#F8A201]/50 rounded-3xl p-6 sm:p-10 backdrop-blur-md shadow-2xl relative overflow-hidden transition-all duration-300"
+                className="bg-[#14100D]/90 border border-[#D4AF37]/25 hover:border-[#D4AF37]/50 rounded-3xl p-6 sm:p-10 backdrop-blur-md shadow-2xl relative overflow-hidden transition-all duration-300"
               >
                 {/* Subtle Card Accent Glow */}
-                <div className="absolute top-0 right-0 w-32 h-32 bg-[#F8A201]/5 rounded-full blur-2xl pointer-events-none" />
+                <div className="absolute top-0 right-0 w-32 h-32 bg-[#D4AF37]/5 rounded-full blur-2xl pointer-events-none" />
 
                 {/* Card Title Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center gap-4 border-b border-white/10 pb-6 mb-6">
-                  <div className="p-3 rounded-2xl bg-[#F8A201]/10 text-[#F8A201] border border-[#F8A201]/30 w-fit">
+                  <div className="p-3 rounded-2xl bg-[#D4AF37]/10 text-[#D4AF37] border border-[#D4AF37]/30 w-fit">
                     <IconComponent className="w-6 h-6 sm:w-8 sm:h-8" />
                   </div>
                   <div>
-                    <span className="text-xs font-mono tracking-widest text-[#F8A201] uppercase font-bold">
+                    <span className="text-xs font-mono tracking-widest text-[#D4AF37] uppercase font-bold">
                       {step.stepNumber}
                     </span>
                     <h2 className="text-2xl sm:text-3xl font-serif text-amber-50">
@@ -178,13 +178,13 @@ export default function HowToUse() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   {step.subsections.map((sub, subIdx) => (
                     <div key={subIdx} className="space-y-3">
-                      <h3 className="text-base sm:text-lg font-medium text-[#F8A201] font-serif">
+                      <h3 className="text-base sm:text-lg font-medium text-[#D4AF37] font-serif">
                         {sub.heading}
                       </h3>
                       <ul className="space-y-2.5">
                         {sub.points.map((point, ptIdx) => (
                           <li key={ptIdx} className="flex items-start gap-3 text-xs sm:text-sm text-gray-300 font-light leading-relaxed">
-                            <CheckCircle2 className="w-4 h-4 text-[#F8A201]/70 flex-shrink-0 mt-1" />
+                            <CheckCircle2 className="w-4 h-4 text-[#D4AF37]/70 flex-shrink-0 mt-1" />
                             <span>{point}</span>
                           </li>
                         ))}
@@ -199,8 +199,8 @@ export default function HowToUse() {
         </div>
 
         {/* Need Help Box */}
-        <div className="bg-[#1A130C]/80 border border-white/10 rounded-2xl p-6 sm:p-8 text-center flex flex-col items-center space-y-4">
-          <div className="p-3 rounded-full bg-[#F8A201]/10 text-[#F8A201] border border-[#F8A201]/30">
+        <div className="bg-[#14100D]/80 border border-white/10 rounded-2xl p-6 sm:p-8 text-center flex flex-col items-center space-y-4">
+          <div className="p-3 rounded-full bg-[#D4AF37]/10 text-[#D4AF37] border border-[#D4AF37]/30">
             <HelpCircle className="w-6 h-6" />
           </div>
           <h3 className="text-2xl font-serif text-amber-50">

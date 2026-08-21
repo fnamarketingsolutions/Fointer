@@ -4,6 +4,7 @@ import {
   sendSupportStatusUpdateEmail,
 } from "../utils/sendVerificationEmail.js";
 import { sendServerError } from "../utils/safeError.js";
+import { respondIfBanned } from "../utils/bannedKeywords.js";
 
 const VALID_STATUSES = ["pending", "rejected", "approved"];
 
@@ -52,6 +53,8 @@ export const createSupportTicket = async (req, res) => {
         message: "Description must be 5000 characters or fewer.",
       });
     }
+
+    if (await respondIfBanned(res, description)) return;
 
     const ticket = await SupportTicket.create({
       user: req.user._id,

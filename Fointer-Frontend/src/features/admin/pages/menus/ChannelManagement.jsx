@@ -4,6 +4,7 @@ import {
   LuHash as Hash,
   LuLayers as Layers,
   LuLoaderCircle as Loader2,
+  LuPencil as Pencil,
   LuPlus as Plus,
   LuRefreshCw as RefreshCw,
   LuSearch as Search
@@ -13,6 +14,8 @@ import {
   createAdminSubchannel,
   fetchAdminChannels,
   fetchAdminSubchannels,
+  updateAdminChannel,
+  updateAdminSubchannel,
 } from "../../services/adminService";
 import CreateChannelModal from "../../../../shared/components/modals/CreateChannelModal";
 import CreateSubchannelModal from "../../../../shared/components/modals/CreateSubchannelModal";
@@ -38,6 +41,8 @@ export default function ChannelManagement() {
   const [search, setSearch] = useState(() => searchParams.get("q") || "");
   const [createChannelOpen, setCreateChannelOpen] = useState(false);
   const [createSubOpen, setCreateSubOpen] = useState(false);
+  const [editingChannel, setEditingChannel] = useState(null);
+  const [editingSub, setEditingSub] = useState(null);
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
@@ -107,6 +112,21 @@ export default function ChannelManagement() {
     }
   };
 
+  const handleUpdateChannel = async ({ name }) => {
+    if (!editingChannel?.id) return;
+    setCreating(true);
+    try {
+      await updateAdminChannel(editingChannel.id, { name });
+      setEditingChannel(null);
+      showToast("Channel updated.");
+      await loadData();
+    } catch (err) {
+      showToast(getErrorMessage(err, "Failed to update channel."));
+    } finally {
+      setCreating(false);
+    }
+  };
+
   const handleCreateSubchannel = async ({ name, channelId }) => {
     setCreating(true);
     try {
@@ -116,6 +136,21 @@ export default function ChannelManagement() {
       await loadData();
     } catch (err) {
       showToast(getErrorMessage(err, "Failed to create subchannel."));
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleUpdateSubchannel = async ({ name, channelId }) => {
+    if (!editingSub?.id) return;
+    setCreating(true);
+    try {
+      await updateAdminSubchannel(editingSub.id, { name, channelId });
+      setEditingSub(null);
+      showToast("Subchannel updated.");
+      await loadData();
+    } catch (err) {
+      showToast(getErrorMessage(err, "Failed to update subchannel."));
     } finally {
       setCreating(false);
     }
@@ -256,6 +291,14 @@ export default function ChannelManagement() {
                       : "Channel"}
                   </p>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setEditingChannel(channel)}
+                  className="p-2 rounded-lg border border-[#2A241E] text-[#A69B8D] hover:text-[#D4AF37] hover:border-[#D4AF37]/40 transition-colors shrink-0"
+                  title="Edit channel"
+                >
+                  <Pencil size={14} />
+                </button>
               </article>
             ))}
           </div>
@@ -298,22 +341,40 @@ export default function ChannelManagement() {
                   {sub.createdAt ? ` · ${timeAgo(sub.createdAt)}` : ""}
                 </p>
               </div>
+              <button
+                type="button"
+                onClick={() => setEditingSub(sub)}
+                className="p-2 rounded-lg border border-[#2A241E] text-[#A69B8D] hover:text-[#D4AF37] hover:border-[#D4AF37]/40 transition-colors shrink-0"
+                title="Edit subchannel"
+              >
+                <Pencil size={14} />
+              </button>
             </article>
           ))}
         </div>
       )}
 
       <CreateChannelModal
-        open={createChannelOpen}
-        onClose={() => !creating && setCreateChannelOpen(false)}
-        onSubmit={handleCreateChannel}
+        open={createChannelOpen || Boolean(editingChannel)}
+        channel={editingChannel}
+        onClose={() => {
+          if (creating) return;
+          setCreateChannelOpen(false);
+          setEditingChannel(null);
+        }}
+        onSubmit={editingChannel ? handleUpdateChannel : handleCreateChannel}
         loading={creating}
       />
 
       <CreateSubchannelModal
-        open={createSubOpen}
-        onClose={() => !creating && setCreateSubOpen(false)}
-        onSubmit={handleCreateSubchannel}
+        open={createSubOpen || Boolean(editingSub)}
+        subchannel={editingSub}
+        onClose={() => {
+          if (creating) return;
+          setCreateSubOpen(false);
+          setEditingSub(null);
+        }}
+        onSubmit={editingSub ? handleUpdateSubchannel : handleCreateSubchannel}
         channels={channels}
         loading={creating}
       />

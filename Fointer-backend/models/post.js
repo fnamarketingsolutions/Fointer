@@ -56,6 +56,12 @@ const postSchema = new mongoose.Schema(
       min: 0,
       index: true,
     },
+    reshareCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+      index: true,
+    },
   },
   {
     timestamps: true,

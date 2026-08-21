@@ -5,6 +5,7 @@ import {
   LuHeart as Heart,
   LuLoaderCircle as Loader2,
   LuMessageCircle as MessageCircle,
+  LuRepeat2 as Repeat2,
   LuReply as Reply,
   LuTrash2 as Trash2
 } from "react-icons/lu";
@@ -13,8 +14,10 @@ import {
   deletePost,
   fetchMyComments,
   fetchMyLikedPosts,
+  fetchMyResharedPosts,
   fetchPosts,
   togglePostLike,
+  togglePostReshare,
 } from "../../../../api/posts";
 import PostDetail from "../../../posts/pages/PostDetail";
 import ConfirmDeleteModal from "../../../../shared/components/modals/ConfirmDeleteModal";
@@ -26,6 +29,7 @@ const TABS = [
   { id: "posts", label: "My Posts" },
   { id: "comments", label: "Comments" },
   { id: "likes", label: "Liked" },
+  { id: "reposts", label: "Reposts" },
 ];
 
 const getEditWindowLabel = (createdAt, canEdit, editWindowMinutes = 60) => {
@@ -91,6 +95,7 @@ export default function ActivityHistory() {
   const [posts, setPosts] = useState([]);
   const [myComments, setMyComments] = useState([]);
   const [likedPosts, setLikedPosts] = useState([]);
+  const [repostedPosts, setRepostedPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deletePostId, setDeletePostId] = useState(null);
   const [deleteCommentId, setDeleteCommentId] = useState(null);
@@ -99,6 +104,7 @@ export default function ActivityHistory() {
   const [viewingPostId, setViewingPostId] = useState(null);
   const [lockModal, setLockModal] = useState(null);
   const [unlikingId, setUnlikingId] = useState(null);
+  const [unrepostingId, setUnrepostingId] = useState(null);
 
   const loadPosts = useCallback(async () => {
     setLoading(true);
@@ -139,16 +145,31 @@ export default function ActivityHistory() {
     }
   }, [showToast]);
 
+  const loadReshares = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await fetchMyResharedPosts();
+      setRepostedPosts(data?.posts || []);
+    } catch (err) {
+      showToast(err?.response?.data?.message || "Failed to load your reposts.");
+      setRepostedPosts([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [showToast]);
+
   useEffect(() => {
     if (subTab === "posts") loadPosts();
     else if (subTab === "comments") loadComments();
-    else loadLikes();
-  }, [subTab, loadPosts, loadComments, loadLikes]);
+    else if (subTab === "likes") loadLikes();
+    else loadReshares();
+  }, [subTab, loadPosts, loadComments, loadLikes, loadReshares]);
 
   const reloadCurrent = () => {
     if (subTab === "posts") loadPosts();
     else if (subTab === "comments") loadComments();
-    else loadLikes();
+    else if (subTab === "likes") loadLikes();
+    else loadReshares();
   };
 
   const showLockModal = (item, kind = "post") => {
@@ -234,6 +255,21 @@ export default function ActivityHistory() {
     }
   };
 
+  const handleUndoReshare = async (postId) => {
+    setUnrepostingId(postId);
+    try {
+      await togglePostReshare(postId);
+      setRepostedPosts((prev) =>
+        prev.filter((p) => String(p.id) !== String(postId))
+      );
+      showToast("Removed from your reposts.");
+    } catch (err) {
+      showToast(err?.response?.data?.message || "Failed to undo repost.");
+    } finally {
+      setUnrepostingId(null);
+    }
+  };
+
   if (editingPostId || viewingPostId) {
     const postId = editingPostId || viewingPostId;
     return (
@@ -261,12 +297,12 @@ export default function ActivityHistory() {
           Activity
         </h1>
         <p className="text-sm text-[#8C8070]">
-          Your posts, comments, and likes in one place.
+          Your posts, comments, likes, and reposts in one place.
         </p>
       </header>
 
       {/* Tabs */}
-      <div className="flex gap-1 p-1 rounded-xl bg-[#0E0C0A] border border-[#2A241E]">
+      <div className="flex gap-1 p-1 rounded-xl bg-[#0E0C0A] border border-[#2A241E] overflow-x-auto">
         {TABS.map((tab) => {
           const active = subTab === tab.id;
           return (
@@ -274,7 +310,7 @@ export default function ActivityHistory() {
               key={tab.id}
               type="button"
               onClick={() => setSubTab(tab.id)}
-              className={`flex-1 py-2 px-3 rounded-lg text-xs sm:text-sm font-semibold transition-colors ${
+              className={`flex-1 min-w-[4.75rem] py-2 px-3 rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap transition-colors ${
                 active
                   ? "bg-[#1A1510] text-[#D4AF37] border border-[#D4AF37]/35"
                   : "text-[#8C8070] hover:text-[#E5E0D8] border border-transparent"
@@ -318,7 +354,7 @@ export default function ActivityHistory() {
                   >
                     <MetaLine>
                       <span className="text-[#A69B8D] group-hover:text-[#D4AF37] transition-colors">
-                        {post.community?.name || "Community"}
+                        {post.community?.name || "Personal post"}
                       </span>
                       <span>·</span>
                       <span>{timeAgo(post.createdAt)}</span>
@@ -338,6 +374,10 @@ export default function ActivityHistory() {
                       <span className="inline-flex items-center gap-1.5">
                         <Heart size={13} />
                         {post.likeCount || 0}
+                      </span>
+                      <span className="inline-flex items-center gap-1.5">
+                        <Repeat2 size={13} />
+                        {post.reshareCount || 0}
                       </span>
                       <span className="inline-flex items-center gap-1.5">
                         <MessageCircle size={13} />
@@ -501,7 +541,7 @@ export default function ActivityHistory() {
                   >
                     <MetaLine>
                       <span className="text-[#A69B8D] group-hover:text-[#D4AF37] transition-colors">
-                        {post.community?.name || "Community"}
+                        {post.community?.name || "Personal post"}
                       </span>
                       <span>·</span>
                       <span>{author}</span>
@@ -527,6 +567,10 @@ export default function ActivityHistory() {
                       <span className="inline-flex items-center gap-1.5 text-[#D4AF37]">
                         <Heart size={13} className="fill-current" />
                         {post.likeCount || 0}
+                      </span>
+                      <span className="inline-flex items-center gap-1.5">
+                        <Repeat2 size={13} />
+                        {post.reshareCount || 0}
                       </span>
                       <span className="inline-flex items-center gap-1.5">
                         <MessageCircle size={13} />
@@ -557,6 +601,100 @@ export default function ActivityHistory() {
                         <Heart size={12} className="fill-current text-[#D4AF37]" />
                       )}
                       <span className="hidden sm:inline">Unlike</span>
+                    </ActionButton>
+                  </div>
+                </article>
+              );
+            })
+          )}
+        </div>
+      )}
+
+      {/* Reposts */}
+      {subTab === "reposts" && (
+        <div className="space-y-2.5">
+          {loading ? (
+            <LoadingState label="Loading your reposts…" />
+          ) : repostedPosts.length === 0 ? (
+            <EmptyState>You haven’t reposted anything yet.</EmptyState>
+          ) : (
+            repostedPosts.map((post) => {
+              const cover = post?.media?.find((m) => m.type === "image");
+              const author =
+                post.author?.name || post.author?.username || "Unknown";
+
+              return (
+                <article
+                  key={post.id}
+                  className="group flex gap-3 bg-[#14100D] border border-[#2A241E] hover:border-[#D4AF37]/35 rounded-xl p-3.5 sm:p-4 transition-colors"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setViewingPostId(post.id)}
+                    className="flex-1 min-w-0 text-left space-y-2"
+                  >
+                    <MetaLine>
+                      <span className="text-[#A69B8D] group-hover:text-[#D4AF37] transition-colors">
+                        {post.community?.name || "Personal post"}
+                      </span>
+                      <span>·</span>
+                      <span>{author}</span>
+                      {post.resharedAt ? (
+                        <>
+                          <span>·</span>
+                          <span>Reposted {timeAgo(post.resharedAt)}</span>
+                        </>
+                      ) : null}
+                    </MetaLine>
+
+                    <h2 className="text-sm sm:text-base font-semibold text-[#E5E0D8] leading-snug group-hover:text-[#D4AF37] transition-colors line-clamp-2">
+                      {post.title || "Untitled"}
+                    </h2>
+
+                    {post.text ? (
+                      <p className="text-xs sm:text-sm text-[#A69B8D] line-clamp-2 leading-relaxed">
+                        {post.text}
+                      </p>
+                    ) : null}
+
+                    <div className="flex items-center gap-4 pt-0.5 text-xs text-[#8C8070]">
+                      <span className="inline-flex items-center gap-1.5">
+                        <Heart size={13} />
+                        {post.likeCount || 0}
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 text-[#D4AF37]">
+                        <Repeat2 size={13} />
+                        {post.reshareCount || 0}
+                      </span>
+                      <span className="inline-flex items-center gap-1.5">
+                        <MessageCircle size={13} />
+                        {post.commentCount || 0}
+                      </span>
+                    </div>
+                  </button>
+
+                  {cover ? (
+                    <div className="hidden sm:block w-20 h-16 shrink-0 rounded-lg overflow-hidden bg-[#0A0806] border border-[#2A241E]">
+                      <img
+                        src={cover.url}
+                        alt=""
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  ) : null}
+
+                  <div className="shrink-0">
+                    <ActionButton
+                      tone="danger"
+                      disabled={unrepostingId === post.id}
+                      onClick={() => handleUndoReshare(post.id)}
+                    >
+                      {unrepostingId === post.id ? (
+                        <Loader2 size={12} className="animate-spin" />
+                      ) : (
+                        <Repeat2 size={12} className="text-[#D4AF37]" />
+                      )}
+                      <span className="hidden sm:inline">Undo</span>
                     </ActionButton>
                   </div>
                 </article>

@@ -60,6 +60,11 @@ export const togglePostLike = async (postId) => {
   return response.data;
 };
 
+export const togglePostReshare = async (postId) => {
+  const response = await api.post(`/posts/${postId}/reshare`);
+  return response.data;
+};
+
 export const toggleCommentLike = async (commentId) => {
   const response = await api.post(`/posts/comments/${commentId}/like`);
   return response.data;
@@ -72,6 +77,11 @@ export const fetchMyComments = async (params = {}) => {
 
 export const fetchMyLikedPosts = async (params = {}) => {
   const response = await api.get('/posts/activity/likes', { params });
+  return response.data;
+};
+
+export const fetchMyResharedPosts = async (params = {}) => {
+  const response = await api.get('/posts/activity/reshares', { params });
   return response.data;
 };
 

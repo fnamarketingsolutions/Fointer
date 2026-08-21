@@ -7,6 +7,7 @@ import {
   userIsMember,
 } from "../controllers/watchGroup.controller.js";
 import { authenticateSocket } from "./socketAuth.js";
+import { assertNoBannedKeywords } from "../utils/bannedKeywords.js";
 
 const roomName = (groupId) => `watch:${groupId}`;
 
@@ -97,6 +98,8 @@ export const initWatchGroupSocket = (io) => {
         if (text.length > 1000) {
           throw new Error("Message is too long (max 1000 characters).");
         }
+
+        await assertNoBannedKeywords(text);
 
         const group = await findWatchGroupByParam(groupIdParam);
         if (!group) throw new Error("Watch group not found.");

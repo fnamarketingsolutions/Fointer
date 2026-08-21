@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import Post from "../models/post.js";
 import Comment from "../models/comment.js";
 import Reaction from "../models/reaction.js";
+import Reshare from "../models/reshare.js";
 import Community from "../models/community.js";
 import CommunityMember from "../models/communityMember.js";
 import {
@@ -20,6 +21,7 @@ import {
 import { parseObjectIdInput, resolveDocumentId } from "../utils/shortCode.js";
 import { sendServerError } from "../utils/safeError.js";
 import { escapeRegex } from "../utils/validate.js";
+import { respondIfBanned } from "../utils/bannedKeywords.js";
 
 const POST_SORT_MAP = {
   newest: { createdAt: -1 },
@@ -72,6 +74,38 @@ const getLikeMeta = async (targetType, targetIds, userId) => {
   return { liked };
 };
 
+const getReshareMeta = async (postIds, userId) => {
+  const reshared = {};
+  for (const id of postIds) {
+    reshared[String(id)] = false;
+  }
+
+  if (!postIds.length || !userId) {
+    return { reshared };
+  }
+
+  const mine = await Reshare.find({
+    post: { $in: postIds },
+    user: userId,
+  })
+    .select("post")
+    .lean();
+
+  for (const row of mine) {
+    reshared[String(row.post)] = true;
+  }
+
+  return { reshared };
+};
+
+const getViewerEngagement = async (postIds, userId) => {
+  const [likeMeta, reshareMeta] = await Promise.all([
+    getLikeMeta("post", postIds, userId),
+    getReshareMeta(postIds, userId),
+  ]);
+  return { liked: likeMeta.liked, reshared: reshareMeta.reshared };
+};
+
 const clampNonNegative = async (Model, id, field) => {
   await Model.updateOne(
     { _id: id, [field]: { $lt: 0 } },
@@ -103,9 +137,11 @@ const formatPost = (post, extras = {}) => {
     media: formatMedia(post.media),
     community: communityPayload,
     author: formatUser(post.author),
-    likeCount: extras.likeCount ?? 0,
+    likeCount: extras.likeCount ?? post.likeCount ?? 0,
     likedByMe: extras.likedByMe ?? false,
-    commentCount: extras.commentCount ?? 0,
+    commentCount: extras.commentCount ?? post.commentCount ?? 0,
+    reshareCount: extras.reshareCount ?? post.reshareCount ?? 0,
+    resharedByMe: extras.resharedByMe ?? false,
     canEdit: extras.canEdit ?? false,
     canDelete: extras.canDelete ?? false,
     canEngage: extras.canEngage ?? false,
@@ -359,7 +395,7 @@ export const listPosts = async (req, res) => {
     posts = await query;
 
     const postIds = posts.map((p) => p._id);
-    const { liked } = await getLikeMeta("post", postIds, req.user._id);
+    const { liked, reshared } = await getViewerEngagement(postIds, req.user._id);
 
     const editWindowMinutes = await getEditWindowMinutes();
     const postsWithPermission = await Promise.all(
@@ -382,6 +418,8 @@ export const listPosts = async (req, res) => {
               likeCount: p.likeCount ?? 0,
               likedByMe: liked[String(p._id)] || false,
               commentCount: p.commentCount ?? 0,
+              reshareCount: p.reshareCount ?? 0,
+              resharedByMe: reshared[String(p._id)] || false,
               canEdit,
               canDelete,
               canEngage: await canEngageWithPost(p, req.user),
@@ -421,7 +459,7 @@ export const getPost = async (req, res) => {
       });
     }
 
-    const { liked } = await getLikeMeta("post", [post._id], req.user._id);
+    const { liked, reshared } = await getViewerEngagement([post._id], req.user._id);
 
     const canDelete = await userCanDeletePost(post, req.user);
     const flags = await buildOwnContentFlags(post, req.user);
@@ -431,6 +469,8 @@ export const getPost = async (req, res) => {
         likeCount: post.likeCount ?? 0,
         likedByMe: liked[String(post._id)] || false,
         commentCount: post.commentCount ?? 0,
+        reshareCount: post.reshareCount ?? 0,
+        resharedByMe: reshared[String(post._id)] || false,
         canDelete,
         canEngage: await canEngageWithPost(post, req.user),
         ...flags,
@@ -516,7 +556,7 @@ export const listPublicPosts = async (req, res) => {
 
     const postIds = posts.map((p) => p._id);
     const userId = req.user?._id;
-    const { liked } = await getLikeMeta("post", postIds, userId);
+    const { liked, reshared } = await getViewerEngagement(postIds, userId);
 
     const editWindowMinutes = req.user ? await getEditWindowMinutes() : null;
     const postsFormatted = await Promise.all(
@@ -526,6 +566,8 @@ export const listPublicPosts = async (req, res) => {
             likeCount: p.likeCount ?? 0,
             likedByMe: false,
             commentCount: p.commentCount ?? 0,
+            reshareCount: p.reshareCount ?? 0,
+            resharedByMe: false,
             canEngage: false,
           });
         }
@@ -534,6 +576,8 @@ export const listPublicPosts = async (req, res) => {
           likeCount: p.likeCount ?? 0,
           likedByMe: liked[String(p._id)] || false,
           commentCount: p.commentCount ?? 0,
+          reshareCount: p.reshareCount ?? 0,
+          resharedByMe: reshared[String(p._id)] || false,
           canDelete: await userCanDeletePost(p, req.user),
           canEngage: await canEngageWithPost(p, req.user),
           ...flags,
@@ -577,7 +621,7 @@ export const getPublicPost = async (req, res) => {
     }
 
     const userId = req.user?._id;
-    const { liked } = await getLikeMeta("post", [post._id], userId);
+    const { liked, reshared } = await getViewerEngagement([post._id], userId);
 
     if (!req.user) {
       return res.status(200).json({
@@ -586,6 +630,8 @@ export const getPublicPost = async (req, res) => {
           likeCount: post.likeCount ?? 0,
           likedByMe: false,
           commentCount: post.commentCount ?? 0,
+          reshareCount: post.reshareCount ?? 0,
+          resharedByMe: false,
           canEngage: false,
         }),
       });
@@ -599,6 +645,8 @@ export const getPublicPost = async (req, res) => {
         likeCount: post.likeCount ?? 0,
         likedByMe: liked[String(post._id)] || false,
         commentCount: post.commentCount ?? 0,
+        reshareCount: post.reshareCount ?? 0,
+        resharedByMe: reshared[String(post._id)] || false,
         canDelete,
         canEngage: await canEngageWithPost(post, req.user),
         ...flags,
@@ -649,12 +697,15 @@ export const createPost = async (req, res) => {
       });
     }
 
+    if (await respondIfBanned(res, cleanTitle, cleanText)) return;
+
     const postData = {
       author: req.user._id,
       title: cleanTitle,
       text: cleanText,
       likeCount: 0,
       commentCount: 0,
+      reshareCount: 0,
       media: mediaList.map((m) => ({
         url: m.url,
         publicId: m.publicId || "",
@@ -679,6 +730,8 @@ export const createPost = async (req, res) => {
         likeCount: 0,
         likedByMe: false,
         commentCount: 0,
+        reshareCount: 0,
+        resharedByMe: false,
         canEdit: true,
         canDelete: true,
         isAuthor: true,
@@ -727,11 +780,13 @@ export const updatePost = async (req, res) => {
       }));
     }
 
+    if (await respondIfBanned(res, post.title, post.text)) return;
+
     await post.save();
     await post.populate("author", "username name avatar role");
     await post.populate("community", "name coverImage shortCode");
 
-    const { liked } = await getLikeMeta("post", [post._id], req.user._id);
+    const { liked, reshared } = await getViewerEngagement([post._id], req.user._id);
     const flags = await buildOwnContentFlags(post, req.user);
     const postObj = post.toObject();
 
@@ -742,6 +797,8 @@ export const updatePost = async (req, res) => {
         likeCount: postObj.likeCount ?? 0,
         likedByMe: liked[String(post._id)] || false,
         commentCount: postObj.commentCount ?? 0,
+        reshareCount: postObj.reshareCount ?? 0,
+        resharedByMe: reshared[String(post._id)] || false,
         canDelete: await userCanDeletePost(post, req.user),
         ...flags,
       }),
@@ -777,6 +834,7 @@ export const deletePost = async (req, res) => {
         { targetType: "comment", targetId: { $in: commentIds } },
       ],
     });
+    await Reshare.deleteMany({ post: post._id });
     await Comment.deleteMany({ post: post._id });
     await Post.findByIdAndDelete(post._id);
 
@@ -880,6 +938,8 @@ export const createComment = async (req, res) => {
       });
     }
 
+    if (await respondIfBanned(res, text)) return;
+
     let parent = null;
     if (req.body.parentId) {
       parent = await Comment.findOne({
@@ -948,6 +1008,8 @@ export const updateComment = async (req, res) => {
         message: "Comment text is required.",
       });
     }
+
+    if (await respondIfBanned(res, text)) return;
 
     comment.text = text;
     await comment.save();
@@ -1065,6 +1127,61 @@ export const togglePostLike = async (req, res) => {
     const result = await toggleLike("post", post._id, req.user);
     return res.status(200).json({ success: true, ...result });
   } catch (error) {
+    return sendServerError(res, error);
+  }
+};
+
+export const togglePostReshare = async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id);
+    if (!post) {
+      return res.status(404).json({ success: false, message: "Post not found." });
+    }
+
+    if (!(await canEngageWithPost(post, req.user))) {
+      return res.status(403).json({
+        success: false,
+        message: "Only community members can repost.",
+      });
+    }
+
+    const existing = await Reshare.findOne({
+      post: post._id,
+      user: req.user._id,
+    });
+
+    const delta = existing ? -1 : 1;
+    if (existing) {
+      await existing.deleteOne();
+    } else {
+      await Reshare.create({ post: post._id, user: req.user._id });
+    }
+
+    const updated = await Post.findByIdAndUpdate(
+      post._id,
+      { $inc: { reshareCount: delta } },
+      { new: true }
+    ).select("reshareCount");
+
+    if (updated && updated.reshareCount < 0) {
+      updated.reshareCount = 0;
+      await updated.save();
+    }
+
+    return res.status(200).json({
+      success: true,
+      reshareCount: updated?.reshareCount ?? 0,
+      resharedByMe: !existing,
+    });
+  } catch (error) {
+    if (error?.code === 11000) {
+      const updated = await Post.findById(req.params.id).select("reshareCount");
+      return res.status(200).json({
+        success: true,
+        reshareCount: updated?.reshareCount ?? 0,
+        resharedByMe: true,
+      });
+    }
     return sendServerError(res, error);
   }
 };
@@ -1212,6 +1329,7 @@ export const listMyLikedPosts = async (req, res) => {
       .lean();
 
     const postMap = Object.fromEntries(posts.map((p) => [String(p._id), p]));
+    const { reshared } = await getViewerEngagement(postIds, req.user._id);
     const editWindowMinutes = await getEditWindowMinutes();
     const likedAtMap = Object.fromEntries(
       reactions.map((r) => [String(r.targetId), r.createdAt])
@@ -1227,6 +1345,8 @@ export const listMyLikedPosts = async (req, res) => {
           likeCount: p.likeCount ?? 0,
           likedByMe: true,
           commentCount: p.commentCount ?? 0,
+          reshareCount: p.reshareCount ?? 0,
+          resharedByMe: reshared[String(p._id)] || false,
           canEdit: flags.canEdit,
           canDelete: await userCanDeletePost(p, req.user),
           isAuthor: flags.isAuthor,
@@ -1240,6 +1360,59 @@ export const listMyLikedPosts = async (req, res) => {
     return res.json({ success: true, posts: ordered });
   } catch (error) {
     return sendServerError(res, error, "Failed to load liked posts.");
+  }
+};
+
+/** Posts the authenticated user has reposted (activity history). */
+export const listMyResharedPosts = async (req, res) => {
+  try {
+    const reshares = await Reshare.find({ user: req.user._id })
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .lean();
+
+    const postIds = reshares.map((row) => row.post);
+    if (!postIds.length) {
+      return res.json({ success: true, posts: [] });
+    }
+
+    const posts = await Post.find({ _id: { $in: postIds } })
+      .populate("author", "username name avatar role")
+      .populate("community", "name shortCode coverImage")
+      .lean();
+
+    const postMap = Object.fromEntries(posts.map((p) => [String(p._id), p]));
+    const { liked } = await getViewerEngagement(postIds, req.user._id);
+    const editWindowMinutes = await getEditWindowMinutes();
+    const resharedAtMap = Object.fromEntries(
+      reshares.map((row) => [String(row.post), row.createdAt])
+    );
+
+    const ordered = [];
+    for (const id of postIds) {
+      const p = postMap[String(id)];
+      if (!p) continue;
+      const flags = await buildOwnContentFlags(p, req.user);
+      ordered.push({
+        ...formatPost(p, {
+          likeCount: p.likeCount ?? 0,
+          likedByMe: liked[String(p._id)] || false,
+          commentCount: p.commentCount ?? 0,
+          reshareCount: p.reshareCount ?? 0,
+          resharedByMe: true,
+          canEdit: flags.canEdit,
+          canDelete: await userCanDeletePost(p, req.user),
+          isAuthor: flags.isAuthor,
+          isLocked: flags.isLocked,
+          editWindowMinutes,
+        }),
+        resharedAt: resharedAtMap[String(id)] || null,
+      });
+    }
+
+    return res.json({ success: true, posts: ordered });
+  } catch (error) {
+    return sendServerError(res, error, "Failed to load reposts.");
   }
 };
 

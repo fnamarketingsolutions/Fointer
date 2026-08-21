@@ -47,6 +47,11 @@ export const createAdminChannel = async (payload) => {
   return response.data;
 };
 
+export const updateAdminChannel = async (channelId, payload) => {
+  const response = await api.put(`/admin/channels/${channelId}`, payload);
+  return response.data;
+};
+
 export const fetchAdminSubchannels = async (params = {}) => {
   const response = await api.get('/admin/subchannels', { params });
   return response.data;
@@ -54,6 +59,11 @@ export const fetchAdminSubchannels = async (params = {}) => {
 
 export const createAdminSubchannel = async (payload) => {
   const response = await api.post('/admin/subchannels', payload);
+  return response.data;
+};
+
+export const updateAdminSubchannel = async (subchannelId, payload) => {
+  const response = await api.put(`/admin/subchannels/${subchannelId}`, payload);
   return response.data;
 };
 

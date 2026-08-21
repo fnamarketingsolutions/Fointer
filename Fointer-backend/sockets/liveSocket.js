@@ -6,6 +6,7 @@ import {
   userCanModerateLiveEvent,
 } from "../controllers/liveEvent.controller.js";
 import { authenticateSocket } from "./socketAuth.js";
+import { assertNoBannedKeywords } from "../utils/bannedKeywords.js";
 
 const roomName = (eventId) => `live:${eventId}`;
 
@@ -91,6 +92,8 @@ export const initLiveSocket = (io) => {
         if (text.length > 1000) {
           throw new Error("Message is too long (max 1000 characters).");
         }
+
+        await assertNoBannedKeywords(text);
 
         const event = await findLiveEventByParam(eventIdParam);
         if (!event) throw new Error("Live event not found.");

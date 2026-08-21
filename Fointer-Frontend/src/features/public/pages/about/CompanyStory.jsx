@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 
 const CompanyStory = () => {
   return (
-    <section className="bg-[#130D08] text-white py-24 border-t border-amber-900/20 font-sans">
+    <section className="bg-[#0E0C0A] text-white py-24 border-t border-amber-900/20 font-sans">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-16">
         
         {/* Top Equal-Height Row: Mission Heading & Visual (Left) + Mission Narrative (Right) */}
@@ -19,26 +19,26 @@ const CompanyStory = () => {
           >
             {/* Top Left Heading */}
             <div className="space-y-2 mb-6">
-              <p className="text-xs uppercase tracking-[0.25em] text-[#F8A201] font-bold">
+              <p className="text-xs uppercase tracking-[0.25em] text-[#D4AF37] font-bold">
                 THE PURPOSE
               </p>
               <h2 className="text-3xl sm:text-5xl font-serif text-amber-50 leading-[1.2]">
-                Our <span className="text-[#F8A201] italic font-normal">Mission</span>
+                Our <span className="text-[#D4AF37] italic font-normal">Mission</span>
               </h2>
             </div>
 
             {/* Left Image Visual Card */}
-            <div className="relative rounded-2xl overflow-hidden border border-[#F8A201]/20 bg-[#1c140d] shadow-2xl group flex-1 min-h-[380px]">
+            <div className="relative rounded-2xl overflow-hidden border border-[#D4AF37]/20 bg-[#14100D] shadow-2xl group flex-1 min-h-[380px]">
               <img
                 src="https://images.unsplash.com/photo-1511578314322-379afb476865?q=80&w=1000&auto=format&fit=crop"
                 alt="Our Origin Story"
                 className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#130D08] via-[#130D08]/40 to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#0E0C0A] via-[#0E0C0A]/40 to-transparent" />
 
               {/* Floating Counter Badge */}
-              <div className="absolute bottom-6 left-6 right-6 p-4 rounded-xl bg-[#130D08]/90 backdrop-blur-md border border-[#F8A201]/30">
-                <p className="text-xs font-semibold text-[#F8A201] uppercase tracking-wider">
+              <div className="absolute bottom-6 left-6 right-6 p-4 rounded-xl bg-[#0E0C0A]/90 backdrop-blur-md border border-[#D4AF37]/30">
+                <p className="text-xs font-semibold text-[#D4AF37] uppercase tracking-wider">
                   ESTABLISHED 2021
                 </p>
                 <p className="text-xs text-gray-300 font-light mt-1">
@@ -58,7 +58,7 @@ const CompanyStory = () => {
           >
             <div className="space-y-4">
               <h3 className="text-xl sm:text-2xl font-serif text-amber-50 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-[#F8A201]"></span>
+                <span className="w-2 h-2 rounded-full bg-[#D4AF37]"></span>
                 Empowering Passions & Belonging
               </h3>
               <p className="text-gray-300 text-sm sm:text-base md:text-lg font-light leading-relaxed">
@@ -79,11 +79,11 @@ const CompanyStory = () => {
         >
           {/* Vision & Innovation Header */}
           <div className="space-y-2">
-            <p className="text-xs uppercase tracking-[0.25em] text-[#F8A201] font-bold">
+            <p className="text-xs uppercase tracking-[0.25em] text-[#D4AF37] font-bold">
               THE ORIGIN & EVOLUTION
             </p>
             <h2 className="text-2xl sm:text-4xl font-serif text-amber-50 leading-[1.2]">
-              Our Vision & <span className="text-[#F8A201] italic font-normal">Innovation</span>
+              Our Vision & <span className="text-[#D4AF37] italic font-normal">Innovation</span>
             </h2>
           </div>
 
@@ -91,7 +91,7 @@ const CompanyStory = () => {
             {/* Our Vision */}
             <div className="space-y-2">
               <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#F8A201]"></span>
+                <span className="w-1.5 h-1.5 rounded-full bg-[#D4AF37]"></span>
                 Our Vision
               </h3>
               <p>
@@ -102,7 +102,7 @@ const CompanyStory = () => {
             {/* Innovation at Fointer */}
             <div className="space-y-2">
               <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#F8A201]"></span>
+                <span className="w-1.5 h-1.5 rounded-full bg-[#D4AF37]"></span>
                 Innovation at Fointer
               </h3>
               <p>
@@ -114,7 +114,7 @@ const CompanyStory = () => {
           {/* Core Milestones / Stats Row */}
           <div className="pt-8 border-t border-white/10 grid grid-cols-2 sm:grid-cols-3 gap-6">
             <div>
-              <p className="text-2xl sm:text-3xl font-serif text-[#F8A201]">100%</p>
+              <p className="text-2xl sm:text-3xl font-serif text-[#D4AF37]">100%</p>
               <p className="text-xs text-gray-400 font-light mt-1">Authentic Connections</p>
             </div>
             <div>

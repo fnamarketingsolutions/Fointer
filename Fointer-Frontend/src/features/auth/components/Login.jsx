@@ -6,6 +6,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { useSocialAuth } from '../hooks/useSocialAuth';
 import { useToast } from '../../../shared/components/feedback/ToastContext';
 import SocialAuthButtons from './SocialAuthButtons';
+import BrandLogo from '../../../shared/components/BrandLogo';
 import { getDashboardPathForRole } from '../../../shared/lib/roles';
 import { getSafeReturnPath } from '../../../shared/lib/safeRedirect';
 
@@ -155,9 +156,7 @@ export default function Login() {
         }}
       >
         <div>
-          <p className="text-xs uppercase tracking-[0.25em] text-[#F8A201] font-bold">
-            Fointer
-          </p>
+          <BrandLogo />
           <h1 className="text-4xl md:text-6xl font-serif text-amber-50/90 leading-tight mt-6">
             Connect. Engage.<br />
             <span className="italic font-normal">Grow.</span>

@@ -4,8 +4,6 @@ import {
   LuPencil as Pencil,
   LuTrash2 as Trash2,
   LuLoaderCircle as Loader2,
-  LuHeart as Heart,
-  LuMessageCircle as MessageCircle,
   LuFlag as Flag,
   LuUsers as Users
 } from "react-icons/lu";
@@ -18,6 +16,7 @@ import {
   updateComment,
   deleteComment,
   togglePostLike,
+  togglePostReshare,
   toggleCommentLike,
 } from "../../../api/posts";
 import {
@@ -25,6 +24,7 @@ import {
   requestToJoin,
 } from "../../../api/communities";
 import PostMediaGallery from "../../../shared/components/media/PostMediaGallery";
+import PostActions from "../../../shared/components/PostActions";
 import ConfirmDeleteModal from "../../../shared/components/modals/ConfirmDeleteModal";
 import EditWindowExpiredModal from "../../../shared/components/modals/EditWindowExpiredModal";
 import ReportContentModal from "../../../shared/components/modals/ReportContentModal";
@@ -271,6 +271,41 @@ export default function PostDetail({
     } catch (err) {
       setPost(prev);
       showToast(err?.response?.data?.message || "Failed to like post.");
+    }
+  };
+
+  const handleResharePost = async () => {
+    if (!post) return;
+    if (!isAuthenticated) {
+      navigate("/login");
+      return;
+    }
+    if (!post.canEngage) {
+      showToast(
+        post.community
+          ? "Join this community to repost."
+          : "You cannot repost this."
+      );
+      return;
+    }
+    const prev = { ...post };
+    setPost({
+      ...post,
+      resharedByMe: !post.resharedByMe,
+      reshareCount: post.resharedByMe
+        ? Math.max(0, (post.reshareCount || 0) - 1)
+        : (post.reshareCount || 0) + 1,
+    });
+    try {
+      const data = await togglePostReshare(post.id);
+      setPost((p) => ({
+        ...p,
+        resharedByMe: data.resharedByMe,
+        reshareCount: data.reshareCount,
+      }));
+    } catch (err) {
+      setPost(prev);
+      showToast(err?.response?.data?.message || "Failed to repost.");
     }
   };
 
@@ -672,29 +707,15 @@ export default function PostDetail({
             ) : null}
 
             <div
-              className={`flex items-center gap-6 border-t border-[#2A241E]/60 ${
+              className={`flex items-center gap-4 border-t border-[#2A241E]/60 ${
                 compact ? "pt-3" : "pt-4"
               }`}
             >
-              <button
-                type="button"
-                onClick={handleLikePost}
-                className={`inline-flex items-center gap-2 text-xs font-medium transition-colors ${
-                  post.likedByMe
-                    ? "text-[#D4AF37]"
-                    : "text-[#A69B8D] hover:text-[#E5E0D8]"
-                }`}
-              >
-                <Heart
-                  size={16}
-                  className={post.likedByMe ? "fill-current" : ""}
-                />
-                <span>{post.likeCount || 0} Likes</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
+              <PostActions
+                post={post}
+                onLike={handleLikePost}
+                onReshare={handleResharePost}
+                onComment={() => {
                   setReplyTargetId(null);
                   setCommentText("");
                   if (compact) {
@@ -703,16 +724,7 @@ export default function PostDetail({
                     setShowMainCommentInput((prev) => !prev);
                   }
                 }}
-                aria-expanded={compact ? commentsOpen : showMainCommentInput}
-                className={`inline-flex items-center gap-2 text-xs font-medium transition-colors ${
-                  (compact ? commentsOpen : showMainCommentInput)
-                    ? "text-[#D4AF37]"
-                    : "text-[#A69B8D] hover:text-[#E5E0D8]"
-                }`}
-              >
-                <MessageCircle size={16} />
-                <span>{post.commentCount || comments.length || 0} Comments</span>
-              </button>
+              />
 
               {canReportPost ? (
                 <button

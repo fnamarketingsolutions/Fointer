@@ -13,6 +13,7 @@ import {
 import {
   acceptInvite,
   declineInvite,
+  fetchBrowsableCommunities,
   fetchDiscoverCommunities,
   fetchJoinedCommunities,
   fetchMyInvites,
@@ -24,6 +25,7 @@ import { COMMUNITY_TYPE_LABELS } from "../../../../shared/constants/community";
 import { useToast } from "../../../../shared/components/feedback/ToastContext";
 import { communitySegment } from "../../../../shared/services/entityLinks";
 import { timeAgo } from "../../../../shared/utils/date";
+import { useAuth } from "../../../../context/AuthContext";
 
 const TYPE_LABELS = COMMUNITY_TYPE_LABELS;
 
@@ -111,6 +113,7 @@ const matchesName = (community, query) => {
 export default function JoinedCommunities() {
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const { isAuthenticated } = useAuth();
   const [tab, setTab] = useState("discover");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -133,6 +136,19 @@ export default function JoinedCommunities() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
+      if (!isAuthenticated) {
+        const browseRes = await fetchBrowsableCommunities({
+          page: 1,
+          limit: 48,
+          sortBy: "members",
+        });
+        setDiscover(browseRes?.communities || []);
+        setJoined([]);
+        setInvites([]);
+        setRequests([]);
+        return;
+      }
+
       const [discoverRes, joinedRes, inviteData, reqData] =
         await Promise.all([
           fetchDiscoverCommunities(),
@@ -152,7 +168,7 @@ export default function JoinedCommunities() {
     } finally {
       setLoading(false);
     }
-  }, [showToast]);
+  }, [isAuthenticated, showToast]);
 
   useEffect(() => {
     load();
@@ -200,6 +216,10 @@ export default function JoinedCommunities() {
   const handleJoinDiscover = async (e, community) => {
     e.stopPropagation();
     if (!community?.id || joiningId) return;
+    if (!isAuthenticated) {
+      navigate("/login", { state: { from: `/communities/${communitySegment(community) || community.id}` } });
+      return;
+    }
     setJoiningId(community.id);
     try {
       if (community.type === "public") {
@@ -257,7 +277,9 @@ export default function JoinedCommunities() {
             Communities
           </h1>
           <p className="text-sm text-[#8C8070]">
-            Discover communities to join, plus your invites and requests.
+            {isAuthenticated
+              ? "Discover communities to join, plus your invites and requests."
+              : "Browse public communities. Log in to join and participate."}
           </p>
         </div>
         <button
@@ -271,6 +293,7 @@ export default function JoinedCommunities() {
         </button>
       </header>
 
+      {isAuthenticated ? (
       <div className="flex gap-1 p-1 rounded-xl bg-[#0E0C0A] border border-[#2A241E] overflow-x-auto">
         {TABS.map((t) => {
           const active = tab === t.id;
@@ -294,6 +317,7 @@ export default function JoinedCommunities() {
           );
         })}
       </div>
+      ) : null}
 
       <div className="relative">
         <Search
@@ -321,9 +345,11 @@ export default function JoinedCommunities() {
             (discover.length === 0 ? (
               <div className="border border-dashed border-[#2A241E] rounded-xl py-14 text-center px-4 space-y-3">
                 <p className="text-sm text-[#8C8070]">
-                  No more communities to discover right now. You’ve joined
-                  everything available, or none have been created yet.
+                  {isAuthenticated
+                    ? "No more communities to discover right now. You’ve joined everything available, or none have been created yet."
+                    : "No public communities to browse yet."}
                 </p>
+                {isAuthenticated ? (
                 <button
                   type="button"
                   onClick={() => setTab("joined")}
@@ -331,6 +357,7 @@ export default function JoinedCommunities() {
                 >
                   View joined <ArrowRight size={14} />
                 </button>
+                ) : null}
               </div>
             ) : filteredDiscover.length === 0 ? (
               <div className="border border-dashed border-[#2A241E] rounded-xl py-14 text-center text-sm text-[#8C8070]">

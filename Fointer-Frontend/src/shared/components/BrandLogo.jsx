@@ -6,7 +6,7 @@ export default function BrandLogo({ to = '/' }) {
     <img
       src={logoSrc}
       alt="Fointer"
-      className="h-12 w-10 sm:h-16 sm:w-14 object-contain rounded shrink-0"
+      className="h-10 w-8 sm:h-16 sm:w-14 object-contain rounded shrink-0"
     />
   );
 

@@ -14,6 +14,7 @@ import {
 } from "../utils/communityPermissions.js";
 import { parseObjectIdInput, resolveDocumentId } from "../utils/shortCode.js";
 import { sendServerError } from "../utils/safeError.js";
+import { respondIfBanned } from "../utils/bannedKeywords.js";
 
 const formatUser = (user) => {
   if (!user || typeof user !== "object" || !user._id) {
@@ -212,6 +213,8 @@ export const createLiveEvent = async (req, res) => {
         message: "Event title is required.",
       });
     }
+
+    if (await respondIfBanned(res, title, customCategory)) return;
     if (!LIVE_EVENT_CATEGORIES.includes(category)) {
       return res.status(400).json({
         success: false,

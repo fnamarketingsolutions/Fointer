@@ -1,13 +1,13 @@
 import WatchGroup, {
   WATCH_GROUP_TYPES,
-  WATCH_GROUP_DEFAULT_MAX,
-  WATCH_GROUP_ABSOLUTE_MAX,
 } from "../models/watchGroup.js";
 import WatchGroupMember from "../models/watchGroupMember.js";
 import WatchGroupMessage from "../models/watchGroupMessage.js";
 import User from "../models/user.js";
 import { resolveDocumentId } from "../utils/shortCode.js";
 import { sendServerError } from "../utils/safeError.js";
+import { respondIfBanned } from "../utils/bannedKeywords.js";
+import { getWatchGroupCreateLimits } from "../utils/watchGroupLimits.js";
 
 const formatUser = (user) => {
   if (!user || typeof user !== "object" || !user._id) {
@@ -179,7 +179,11 @@ export const listWatchGroups = async (req, res) => {
       }
     }
 
-    return res.json({ success: true, groups: formatted });
+    return res.json({
+      success: true,
+      groups: formatted,
+      limits: await getWatchGroupCreateLimits(),
+    });
   } catch (error) {
     return sendServerError(res, error, "Failed to list watch groups.");
   }
@@ -225,19 +229,27 @@ export const createWatchGroup = async (req, res) => {
         message: "Group name is required.",
       });
     }
+
+    if (await respondIfBanned(res, name)) return;
     if (!WATCH_GROUP_TYPES.includes(type)) {
       return res.status(400).json({
         success: false,
         message: "Type must be public or private.",
       });
     }
+
+    const limits = await getWatchGroupCreateLimits();
     if (!Number.isFinite(maxParticipants) || maxParticipants <= 0) {
-      maxParticipants = WATCH_GROUP_DEFAULT_MAX;
+      maxParticipants = limits.defaultValue;
+    } else {
+      maxParticipants = Math.floor(maxParticipants);
     }
-    maxParticipants = Math.min(
-      WATCH_GROUP_ABSOLUTE_MAX,
-      Math.max(2, Math.floor(maxParticipants))
-    );
+    if (maxParticipants < limits.min || maxParticipants > limits.max) {
+      return res.status(400).json({
+        success: false,
+        message: `Max participants must be between ${limits.min} and ${limits.max}.`,
+      });
+    }
 
     const group = await WatchGroup.create({
       name,

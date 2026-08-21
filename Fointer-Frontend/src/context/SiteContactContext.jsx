@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { Link } from "react-router-dom";
 import { fetchPublicSiteContact } from "../shared/services/siteContact";
 
-const EMPTY = { contactEmail: "", contactPhone: "" };
+const EMPTY = { contactEmail: "", contactPhone: "", contactAddress: "" };
 
 const SiteContactContext = createContext({
   ...EMPTY,
@@ -18,6 +18,7 @@ export function SiteContactProvider({ children }) {
       setContact({
         contactEmail: data?.contact?.contactEmail || "",
         contactPhone: data?.contact?.contactPhone || "",
+        contactAddress: data?.contact?.contactAddress || "",
       });
     } catch {
       setContact(EMPTY);

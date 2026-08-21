@@ -15,12 +15,11 @@ import {
   listAdminSupportTickets,
   updateSupportTicketStatus,
 } from "../controllers/support.controller.js";
-import { isAuthenticated, authorize } from "../middleware/auth.middleware.js";
+import { isAuthenticated, authorize, optionalAuthenticate } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
 
-// Authenticated lists (users creating communities)
-router.get("/channels", isAuthenticated, listChannels);
+router.get("/channels", optionalAuthenticate, listChannels);
 router.get("/subchannels", isAuthenticated, listSubchannels);
 
 // Admin channel CRUD

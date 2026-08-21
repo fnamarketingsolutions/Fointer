@@ -352,7 +352,7 @@ export default function CommunityFeed() {
   }, [communityId, community?.isMember, query, sortBy, loadPosts]);
 
   useEffect(() => {
-    if (!communityId) return;
+    if (!isAuthenticated || !communityId) return;
     let cancelled = false;
     (async () => {
       setLiveLoading(true);
@@ -371,9 +371,14 @@ export default function CommunityFeed() {
     return () => {
       cancelled = true;
     };
-  }, [communityId]);
+  }, [communityId, isAuthenticated]);
 
   useEffect(() => {
+    if (!isAuthenticated) {
+      setWatchGroups([]);
+      setWatchLoading(false);
+      return undefined;
+    }
     let cancelled = false;
     (async () => {
       setWatchLoading(true);
@@ -395,7 +400,7 @@ export default function CommunityFeed() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [isAuthenticated]);
 
   const openPost = (post) => {
     navigate(`${basePath}/posts/${postSegment(post)}`);
@@ -483,6 +488,10 @@ export default function CommunityFeed() {
 
   const handleJoin = async () => {
     if (!community) return;
+    if (!isAuthenticated) {
+      navigate("/login", { state: { from: window.location.pathname } });
+      return;
+    }
     setJoining(true);
     try {
       if (community.type === "public") {

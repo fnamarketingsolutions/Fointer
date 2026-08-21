@@ -26,6 +26,7 @@ import useEntityId from "../../../../shared/hooks/useEntityId";
 import { timeAgo } from "../../../../shared/utils/date";
 import PostMediaGallery from "../../../../shared/components/media/PostMediaGallery";
 import PostActions from "../../../../shared/components/PostActions";
+import { EXPLORE_PATH } from "../../../../shared/constants/paths";
 import {
   CategoryList,
   FeedDesktopRail,
@@ -34,7 +35,7 @@ import {
   OtherCommunitiesCard,
 } from "./FeedRail";
 
-const FEED_PATH = "/";
+const HOME_FEED_PATH = "/";
 const FEED_POST_PATH = "/post";
 const PAGE_SIZE = 15;
 
@@ -136,6 +137,7 @@ export default function DashboardFeed() {
   const { id: openPostId, resolving: resolvingPost, notFound: postNotFound } =
     useEntityId("post", postSlug);
   const isGuest = !isAuthenticated;
+  const FEED_PATH = isGuest ? EXPLORE_PATH : HOME_FEED_PATH;
 
   const requestedMode =
     searchParams.get("mode") === "personalized" ? "personalized" : "discover";
@@ -167,7 +169,7 @@ export default function DashboardFeed() {
     return s ? `?${s}` : "";
   }, [isPersonalized, selectedChannel]);
 
-  const feedBase = feedQueryString ? `/${feedQueryString}` : FEED_PATH;
+  const feedBase = feedQueryString ? `${FEED_PATH}${feedQueryString}` : FEED_PATH;
 
   const setMode = (nextMode) => {
     if (isGuest && nextMode === "personalized") {

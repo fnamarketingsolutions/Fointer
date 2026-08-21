@@ -3,6 +3,11 @@ import {
   getEditWindowMinutes,
   invalidateEditWindowCache,
 } from "../utils/communityPermissions.js";
+import {
+  invalidateBannedKeywordsCache,
+  parseBannedKeywords,
+} from "../utils/bannedKeywords.js";
+import { invalidateWatchGroupMaxCache } from "../utils/watchGroupLimits.js";
 import { sendServerError } from "../utils/safeError.js";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -11,12 +16,15 @@ const PHONE_RE = /^[+\d][\d\s().-]{6,30}$/;
 const formatContact = (settings) => ({
   contactEmail: String(settings?.contactEmail || "").trim(),
   contactPhone: String(settings?.contactPhone || "").trim(),
+  contactAddress: String(settings?.contactAddress || "").trim(),
 });
 
 const formatAdminSettings = (settings, postEditWindowMinutes) => ({
   postEditWindowMinutes:
     settings.postEditWindowMinutes ?? postEditWindowMinutes,
   ...formatContact(settings),
+  bannedKeywords: parseBannedKeywords(settings?.bannedKeywords || []),
+  watchGroupMaxCapacity: Number(settings?.watchGroupMaxCapacity) || 50,
 });
 
 const getOrCreateGlobalSettings = async () => {
@@ -28,6 +36,9 @@ const getOrCreateGlobalSettings = async () => {
       postEditWindowMinutes: minutes,
       contactEmail: "",
       contactPhone: "",
+      contactAddress: "",
+      bannedKeywords: [],
+      watchGroupMaxCapacity: 50,
     });
   }
   return settings;
@@ -68,8 +79,27 @@ export const updateSystemSettings = async (req, res) => {
     );
     const hasEmail = Object.prototype.hasOwnProperty.call(body, "contactEmail");
     const hasPhone = Object.prototype.hasOwnProperty.call(body, "contactPhone");
+    const hasAddress = Object.prototype.hasOwnProperty.call(
+      body,
+      "contactAddress"
+    );
+    const hasBanned = Object.prototype.hasOwnProperty.call(
+      body,
+      "bannedKeywords"
+    );
+    const hasWatchMax = Object.prototype.hasOwnProperty.call(
+      body,
+      "watchGroupMaxCapacity"
+    );
 
-    if (!hasMinutes && !hasEmail && !hasPhone) {
+    if (
+      !hasMinutes &&
+      !hasEmail &&
+      !hasPhone &&
+      !hasAddress &&
+      !hasBanned &&
+      !hasWatchMax
+    ) {
       return res.status(400).json({
         success: false,
         message: "No settings provided.",
@@ -111,8 +141,36 @@ export const updateSystemSettings = async (req, res) => {
       settings.contactPhone = phone;
     }
 
+    if (hasAddress) {
+      const address = String(body.contactAddress || "").trim();
+      if (address.length > 240) {
+        return res.status(400).json({
+          success: false,
+          message: "Contact address must be 240 characters or fewer.",
+        });
+      }
+      settings.contactAddress = address;
+    }
+
+    if (hasBanned) {
+      settings.bannedKeywords = parseBannedKeywords(body.bannedKeywords);
+    }
+
+    if (hasWatchMax) {
+      const max = Number(body.watchGroupMaxCapacity);
+      if (!Number.isFinite(max) || max < 2 || max > 200) {
+        return res.status(400).json({
+          success: false,
+          message: "Watch group max capacity must be between 2 and 200.",
+        });
+      }
+      settings.watchGroupMaxCapacity = Math.floor(max);
+    }
+
     await settings.save();
     if (hasMinutes) invalidateEditWindowCache();
+    if (hasBanned) invalidateBannedKeywordsCache();
+    if (hasWatchMax) invalidateWatchGroupMaxCache();
 
     const postEditWindowMinutes = await getEditWindowMinutes();
     return res.status(200).json({

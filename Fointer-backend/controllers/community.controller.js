@@ -37,6 +37,7 @@ import {
   sendCommunityInviteDeclinedEmail,
 } from "../utils/sendVerificationEmail.js";
 import { sendServerError } from "../utils/safeError.js";
+import { respondIfBanned } from "../utils/bannedKeywords.js";
 
 const COMMUNITY_SORT_MAP = {
   newest: { createdAt: -1 },
@@ -318,6 +319,18 @@ export const createCommunity = async (req, res) => {
       });
     }
 
+    if (
+      await respondIfBanned(
+        res,
+        name,
+        description,
+        rules,
+        ...(Array.isArray(tags) ? tags : [tags])
+      )
+    ) {
+      return;
+    }
+
     const channelId = String(channelInput || "").trim();
     const resolved = await resolveChannelAndSubchannelNames(
       channelId,
@@ -565,6 +578,18 @@ export const updateCommunity = async (req, res) => {
     }
     if (tags !== undefined) {
       community.tags = normalizeTags(tags);
+    }
+
+    if (
+      await respondIfBanned(
+        res,
+        name !== undefined ? community.name : undefined,
+        description !== undefined ? community.description : undefined,
+        rules !== undefined ? community.rules : undefined,
+        ...(tags !== undefined ? community.tags || [] : [])
+      )
+    ) {
+      return;
     }
     if (nextCover !== undefined) {
       const prevCover = community.coverImage || "";

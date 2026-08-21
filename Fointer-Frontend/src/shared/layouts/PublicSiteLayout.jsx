@@ -1,46 +1,55 @@
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import SiteLinksFooter from '../components/SiteLinksFooter';
 import BrandLogo from '../components/BrandLogo';
+import GuestAuthButtons from '../components/GuestAuthButtons';
 import { SITE_LINKS } from '../constants/siteLinks';
 import { DEFAULT_AVATAR } from '../constants/avatars';
+import { EXPLORE_PATH } from '../constants/paths';
 import { useAuth } from '../../context/AuthContext';
 
-/** Minimal chrome for public/legal pages (outside the dashboard shell). */
-export default function PublicSiteLayout() {
+/** Public/legal chrome — same theme and auth buttons as the explore panel. */
+export default function PublicSiteLayout({ children }) {
   const { pathname } = useLocation();
   const { user, loading } = useAuth();
   const isGuest = !loading && !user;
   const activeSegment =
     SITE_LINKS.find((l) => l.to === pathname)?.segment || null;
+  const exploreTo = isGuest ? EXPLORE_PATH : '/';
+  const exploreActive =
+    pathname === EXPLORE_PATH || (!isGuest && pathname === '/');
 
   return (
-    <div className="min-h-screen bg-[#130D08] text-[#E5E0D8] flex flex-col">
-      <header className="sticky top-0 z-40 border-b border-[#2A241E]/80 bg-[#130D08]/95 backdrop-blur-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between gap-3">
-          <BrandLogo />
-          <div className="flex items-center gap-2 sm:gap-3">
+    <div className="min-h-screen bg-[#0E0C0A] text-[#E5E0D8] font-sans flex flex-col antialiased selection:bg-[#D4AF37] selection:text-black">
+      <header className="sticky top-0 z-40 border-b border-[#2A241E] bg-[#14100D]/80 backdrop-blur-md">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-20 grid grid-cols-3 items-center gap-3">
+          <div className="justify-self-start min-w-0">
+            <BrandLogo />
+          </div>
+          <nav className="flex items-center justify-center gap-5 sm:gap-8">
             <Link
-              to="/"
-              className="text-xs text-[#A69B8D] hover:text-[#E5E0D8] transition-colors px-2 py-1"
+              to={exploreTo}
+              className={`text-xs font-medium transition-colors ${
+                exploreActive
+                  ? 'text-[#D4AF37]'
+                  : 'text-[#A69B8D] hover:text-[#E5E0D8]'
+              }`}
             >
-              Feed
+              Explore
             </Link>
+            <Link
+              to="/about"
+              className={`text-xs font-medium transition-colors ${
+                pathname === '/about'
+                  ? 'text-[#D4AF37]'
+                  : 'text-[#A69B8D] hover:text-[#E5E0D8]'
+              }`}
+            >
+              About
+            </Link>
+          </nav>
+          <div className="justify-self-end flex items-center gap-2 sm:gap-3">
             {loading ? null : isGuest ? (
-              <>
-                <Link
-                  to="/login"
-                  state={{ from: pathname }}
-                  className="text-xs font-semibold text-[#E5E0D8] border border-[#2A241E] hover:border-[#D4AF37]/40 hover:text-[#D4AF37] px-3 py-1.5 rounded-lg transition-colors"
-                >
-                  Log in
-                </Link>
-                <Link
-                  to="/signup"
-                  className="text-xs font-semibold text-[#0E0C0A] bg-[#D4AF37] hover:bg-[#e0c04a] px-3 py-1.5 rounded-lg transition-colors"
-                >
-                  Sign up
-                </Link>
-              </>
+              <GuestAuthButtons />
             ) : (
               <Link
                 to={user?.role === 'admin' ? '/admin/profile' : '/profile'}
@@ -72,12 +81,12 @@ export default function PublicSiteLayout() {
       </header>
 
       <main className="flex-1 w-full">
-        <Outlet />
+        {children ?? <Outlet />}
       </main>
 
       <footer className="border-t border-[#2A241E] bg-[#0E0C0A]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <SiteLinksFooter activeSegment={activeSegment} />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+          <SiteLinksFooter variant="site" activeSegment={activeSegment} />
         </div>
       </footer>
     </div>

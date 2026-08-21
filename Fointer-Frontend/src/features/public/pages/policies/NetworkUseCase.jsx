@@ -27,18 +27,18 @@ export default function NetworkUseCase() {
   ];
 
   return (
-    <div className="bg-[#130D08] text-white min-h-screen py-16 font-sans relative overflow-hidden">
+    <div className="bg-[#0E0C0A] text-white min-h-screen py-16 font-sans relative overflow-hidden">
       
       {/* Background Radial Ambient Glows */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-[#F8A201]/10 rounded-full blur-[180px] pointer-events-none z-0" />
-      <div className="absolute bottom-10 right-0 w-[500px] h-[500px] bg-[#F8A201]/5 rounded-full blur-[160px] pointer-events-none z-0" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-[#D4AF37]/10 rounded-full blur-[180px] pointer-events-none z-0" />
+      <div className="absolute bottom-10 right-0 w-[500px] h-[500px] bg-[#D4AF37]/5 rounded-full blur-[160px] pointer-events-none z-0" />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 space-y-12">
         
         {/* Header Section */}
         <div className="text-center space-y-4 max-w-3xl mx-auto pt-8">
           <h1 className="text-4xl sm:text-6xl font-serif text-amber-50 leading-tight">
-            Fointer Platform’s <span className="italic font-normal text-[#F8A201]">Use Cases</span>
+            Fointer Platform’s <span className="italic font-normal text-[#D4AF37]">Use Cases</span>
           </h1>
           
           <p className="text-gray-300 text-sm sm:text-base md:text-lg font-light leading-relaxed pt-2">
@@ -53,9 +53,9 @@ export default function NetworkUseCase() {
             return (
               <div 
                 key={idx}
-                className="bg-[#1A130C]/90 border border-[#F8A201]/25 hover:border-[#F8A201]/50 rounded-3xl p-6 sm:p-8 backdrop-blur-md shadow-2xl transition-all duration-300 flex items-start gap-5"
+                className="bg-[#14100D]/90 border border-[#D4AF37]/25 hover:border-[#D4AF37]/50 rounded-3xl p-6 sm:p-8 backdrop-blur-md shadow-2xl transition-all duration-300 flex items-start gap-5"
               >
-                <div className="p-3.5 rounded-2xl bg-[#F8A201]/10 text-[#F8A201] border border-[#F8A201]/30 flex-shrink-0">
+                <div className="p-3.5 rounded-2xl bg-[#D4AF37]/10 text-[#D4AF37] border border-[#D4AF37]/30 flex-shrink-0">
                   <IconComponent className="w-6 h-6 sm:w-8 sm:h-8" />
                 </div>
                 <p className="text-xs sm:text-sm text-gray-300 font-light leading-relaxed pt-1.5">

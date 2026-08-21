@@ -11,8 +11,7 @@ import {
 import SiteLinksFooter from "../../../../shared/components/SiteLinksFooter";
 import { communitySegment } from "../../../../shared/services/entityLinks";
 import { formatCount } from "../../../../shared/utils/format";
-
-const FEED_PATH = "/";
+import { EXPLORE_PATH } from "../../../../shared/constants/paths";
 
 const SIDE_CARD =
   "bg-[#14100D] border border-[#2A241E] rounded-xl p-3 space-y-2";
@@ -178,6 +177,7 @@ export function FeedFilterToggle({ open, active, onClick }) {
 }
 
 export function FeedFooterRail({ isGuest }) {
+  const loginFrom = isGuest ? EXPLORE_PATH : "/";
   return (
     <div className="space-y-3">
       {isGuest ? (
@@ -197,7 +197,7 @@ export function FeedFooterRail({ isGuest }) {
           </Link>
           <Link
             to="/login"
-            state={{ from: FEED_PATH }}
+            state={{ from: loginFrom }}
             className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-[#2A241E] text-[#E5E0D8] text-xs font-semibold hover:border-[#D4AF37]/40 hover:text-[#D4AF37]"
           >
             <LogIn size={14} /> Log in

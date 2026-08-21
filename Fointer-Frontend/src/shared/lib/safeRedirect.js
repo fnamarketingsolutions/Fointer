@@ -50,6 +50,8 @@ export const getSafeReturnPath = (from) => {
 
     bare === '/' ||
 
+    bare === '/explore' ||
+
     bare.startsWith('/admin') ||
 
     bare.startsWith('/communities') ||

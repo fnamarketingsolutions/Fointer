@@ -79,21 +79,21 @@ export default function CookiePolicy() {
   ];
 
   return (
-    <div className="bg-[#130D08] text-white min-h-screen py-16 font-sans relative overflow-hidden">
+    <div className="bg-[#0E0C0A] text-white min-h-screen py-16 font-sans relative overflow-hidden">
       
       {/* Background Ambient Glows */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-[#F8A201]/10 rounded-full blur-[180px] pointer-events-none z-0" />
-      <div className="absolute bottom-10 right-0 w-[500px] h-[500px] bg-[#F8A201]/5 rounded-full blur-[160px] pointer-events-none z-0" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-[#D4AF37]/10 rounded-full blur-[180px] pointer-events-none z-0" />
+      <div className="absolute bottom-10 right-0 w-[500px] h-[500px] bg-[#D4AF37]/5 rounded-full blur-[160px] pointer-events-none z-0" />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 space-y-12">
         
         {/* Header Section */}
         <div className="text-center space-y-4 max-w-3xl mx-auto pt-8">
           <h1 className="text-4xl sm:text-6xl font-serif text-amber-50 leading-tight">
-            Fointer <span className="italic font-normal text-[#F8A201]">Cookie Notice</span>
+            Fointer <span className="italic font-normal text-[#D4AF37]">Cookie Notice</span>
           </h1>
           
-          <p className="text-xs sm:text-sm font-mono text-[#F8A201]">
+          <p className="text-xs sm:text-sm font-mono text-[#D4AF37]">
             Last Updated: {new Date().getFullYear()}-{new Date().getMonth() + 1}-{new Date().getDate()}
           </p>
 
@@ -103,9 +103,9 @@ export default function CookiePolicy() {
         </div>
 
         {/* Overview Box */}
-        <div className="bg-[#1A130C]/90 border border-[#F8A201]/30 rounded-3xl p-6 sm:p-10 backdrop-blur-md shadow-2xl space-y-4">
+        <div className="bg-[#14100D]/90 border border-[#D4AF37]/30 rounded-3xl p-6 sm:p-10 backdrop-blur-md shadow-2xl space-y-4">
           <div className="flex items-center gap-4 border-b border-white/10 pb-6">
-            <div className="p-3 rounded-2xl bg-[#F8A201]/10 text-[#F8A201] border border-[#F8A201]/30 flex-shrink-0">
+            <div className="p-3 rounded-2xl bg-[#D4AF37]/10 text-[#D4AF37] border border-[#D4AF37]/30 flex-shrink-0">
               <HelpCircle className="w-6 h-6 sm:w-8 sm:h-8" />
             </div>
             <h2 className="text-2xl sm:text-3xl font-serif text-amber-50">
@@ -120,7 +120,7 @@ export default function CookiePolicy() {
         {/* Cookie Types Section */}
         <div className="space-y-6">
           <div className="flex items-center gap-3 justify-center">
-            <Cookie className="w-7 h-7 text-[#F8A201]" />
+            <Cookie className="w-7 h-7 text-[#D4AF37]" />
             <h2 className="text-2xl sm:text-3xl font-serif text-amber-50 text-center">
               Types of Cookies We Use
             </h2>
@@ -132,10 +132,10 @@ export default function CookiePolicy() {
               return (
                 <div 
                   key={idx}
-                  className="bg-[#1A130C]/90 border border-[#F8A201]/25 hover:border-[#F8A201]/50 rounded-3xl p-6 sm:p-8 backdrop-blur-md shadow-2xl transition-all duration-300 relative overflow-hidden space-y-4"
+                  className="bg-[#14100D]/90 border border-[#D4AF37]/25 hover:border-[#D4AF37]/50 rounded-3xl p-6 sm:p-8 backdrop-blur-md shadow-2xl transition-all duration-300 relative overflow-hidden space-y-4"
                 >
                   <div className="flex items-center gap-4 border-b border-white/10 pb-4">
-                    <div className="p-3 rounded-2xl bg-[#F8A201]/10 text-[#F8A201] border border-[#F8A201]/30 flex-shrink-0">
+                    <div className="p-3 rounded-2xl bg-[#D4AF37]/10 text-[#D4AF37] border border-[#D4AF37]/30 flex-shrink-0">
                       <IconComponent className="w-6 h-6 sm:w-7 sm:h-7" />
                     </div>
                     <h3 className="text-xl sm:text-2xl font-serif text-amber-50">
@@ -148,8 +148,8 @@ export default function CookiePolicy() {
                   </p>
 
                   {/* Example Highlight Box */}
-                  <div className="bg-[#130D08]/80 border border-white/10 rounded-2xl p-4 space-y-1">
-                    <span className="text-xs font-mono text-[#F8A201] font-semibold uppercase tracking-wider">
+                  <div className="bg-[#0E0C0A]/80 border border-white/10 rounded-2xl p-4 space-y-1">
+                    <span className="text-xs font-mono text-[#D4AF37] font-semibold uppercase tracking-wider">
                       Example: {item.exampleTitle}
                     </span>
                     <p className="text-xs text-gray-300 font-light leading-relaxed">
@@ -163,9 +163,9 @@ export default function CookiePolicy() {
         </div>
 
         {/* Managing Cookie Preferences Section */}
-        <div className="bg-[#1A130C]/90 border border-[#F8A201]/30 rounded-3xl p-6 sm:p-10 backdrop-blur-md shadow-2xl space-y-6">
+        <div className="bg-[#14100D]/90 border border-[#D4AF37]/30 rounded-3xl p-6 sm:p-10 backdrop-blur-md shadow-2xl space-y-6">
           <div className="flex items-center gap-4 border-b border-white/10 pb-6">
-            <div className="p-3 rounded-2xl bg-[#F8A201]/10 text-[#F8A201] border border-[#F8A201]/30 flex-shrink-0">
+            <div className="p-3 rounded-2xl bg-[#D4AF37]/10 text-[#D4AF37] border border-[#D4AF37]/30 flex-shrink-0">
               <Sliders className="w-6 h-6 sm:w-8 sm:h-8" />
             </div>
             <h2 className="text-2xl sm:text-3xl font-serif text-amber-50">
@@ -177,9 +177,9 @@ export default function CookiePolicy() {
             {managementOptions.map((opt, oIdx) => {
               const IconComponent = opt.icon;
               return (
-                <div key={oIdx} className="bg-[#130D08]/80 border border-white/10 rounded-2xl p-5 space-y-3">
+                <div key={oIdx} className="bg-[#0E0C0A]/80 border border-white/10 rounded-2xl p-5 space-y-3">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-xl bg-[#F8A201]/10 text-[#F8A201] border border-[#F8A201]/20">
+                    <div className="p-2 rounded-xl bg-[#D4AF37]/10 text-[#D4AF37] border border-[#D4AF37]/20">
                       <IconComponent className="w-5 h-5" />
                     </div>
                     <h3 className="text-sm sm:text-base font-serif text-amber-50 font-semibold">
@@ -196,9 +196,9 @@ export default function CookiePolicy() {
         </div>
 
         {/* Footer / Contact Information Box */}
-        <div className="bg-[#1A130C]/90 border border-[#F8A201]/30 rounded-3xl p-6 sm:p-10 backdrop-blur-md shadow-2xl space-y-4">
+        <div className="bg-[#14100D]/90 border border-[#D4AF37]/30 rounded-3xl p-6 sm:p-10 backdrop-blur-md shadow-2xl space-y-4">
           <div className="flex items-center gap-4 border-b border-white/10 pb-6">
-            <div className="p-3 rounded-2xl bg-[#F8A201]/10 text-[#F8A201] border border-[#F8A201]/30 flex-shrink-0">
+            <div className="p-3 rounded-2xl bg-[#D4AF37]/10 text-[#D4AF37] border border-[#D4AF37]/30 flex-shrink-0">
               <Mail className="w-6 h-6 sm:w-8 sm:h-8" />
             </div>
             <h2 className="text-2xl sm:text-3xl font-serif text-amber-50">

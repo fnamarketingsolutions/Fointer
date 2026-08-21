@@ -21,6 +21,7 @@ import {
 import { parseObjectIdInput, resolveDocumentId } from "../utils/shortCode.js";
 import { sendServerError } from "../utils/safeError.js";
 import { escapeRegex } from "../utils/validate.js";
+import { respondIfBanned } from "../utils/bannedKeywords.js";
 
 const POST_SORT_MAP = {
   newest: { createdAt: -1 },
@@ -696,6 +697,8 @@ export const createPost = async (req, res) => {
       });
     }
 
+    if (await respondIfBanned(res, cleanTitle, cleanText)) return;
+
     const postData = {
       author: req.user._id,
       title: cleanTitle,
@@ -776,6 +779,8 @@ export const updatePost = async (req, res) => {
         type: m.type === "video" ? "video" : "image",
       }));
     }
+
+    if (await respondIfBanned(res, post.title, post.text)) return;
 
     await post.save();
     await post.populate("author", "username name avatar role");
@@ -933,6 +938,8 @@ export const createComment = async (req, res) => {
       });
     }
 
+    if (await respondIfBanned(res, text)) return;
+
     let parent = null;
     if (req.body.parentId) {
       parent = await Comment.findOne({
@@ -1001,6 +1008,8 @@ export const updateComment = async (req, res) => {
         message: "Comment text is required.",
       });
     }
+
+    if (await respondIfBanned(res, text)) return;
 
     comment.text = text;
     await comment.save();

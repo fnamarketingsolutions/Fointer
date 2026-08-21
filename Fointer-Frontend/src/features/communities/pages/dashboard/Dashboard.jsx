@@ -22,6 +22,7 @@ import {
 
 import AuthOnly from "../../../../guards/AuthOnly";
 import PanelShell from "../../../../shared/layouts/PanelShell";
+import { EXPLORE_PATH } from "../../../../shared/constants/paths";
 
 const ManageCommunities = lazy(() => import("./ManageCommunities"));
 const ManagePostPage = lazy(() => import("./ManagePostPage"));
@@ -166,7 +167,7 @@ const VALID_TABS = [
 ];
 
 /** Tabs guests may open without logging in (view-only where noted). */
-const GUEST_TABS = new Set(["postfeed", "events", "watchgroups"]);
+const GUEST_TABS = new Set(["postfeed", "communities", "events", "watchgroups"]);
 
 const Dashboard = () => {
   const { user, loading } = useAuth();
@@ -175,7 +176,9 @@ const Dashboard = () => {
   const isGuest = !loading && !user;
 
   const isRootFeed =
-    location.pathname === "/" || location.pathname.startsWith("/post/");
+    location.pathname === "/" ||
+    location.pathname === EXPLORE_PATH ||
+    location.pathname.startsWith("/post/");
   const isCommunities =
     location.pathname === "/communities" ||
     location.pathname.startsWith("/communities/");
@@ -263,7 +266,7 @@ const Dashboard = () => {
       return;
     }
     if (tabId === "postfeed") {
-      navigate("/");
+      navigate(isGuest ? EXPLORE_PATH : "/");
     } else if (tabId === "communities") {
       navigate("/communities");
     } else if (tabId === "manage") {
@@ -322,6 +325,7 @@ const Dashboard = () => {
           <Suspense fallback={pageFallback}>
             <Routes>
                 <Route path="/" element={<DashboardFeed />} />
+                <Route path={EXPLORE_PATH} element={<DashboardFeed />} />
                 <Route path="/post/:postSlug" element={<DashboardFeed />} />
                 <Route
                   path="/dashboard"
@@ -399,28 +403,13 @@ const Dashboard = () => {
                 />
                 <Route
                   path="/communities/:communityId/posts/:postSlug"
-                  element={
-                    <AuthOnly>
-                      <CommunityFeed />
-                    </AuthOnly>
-                  }
+                  element={<CommunityFeed />}
                 />
                 <Route
                   path="/communities/:communityId"
-                  element={
-                    <AuthOnly>
-                      <CommunityFeed />
-                    </AuthOnly>
-                  }
+                  element={<CommunityFeed />}
                 />
-                <Route
-                  path="/communities"
-                  element={
-                    <AuthOnly>
-                      <JoinedCommunities />
-                    </AuthOnly>
-                  }
-                />
+                <Route path="/communities" element={<JoinedCommunities />} />
                 <Route
                   path="/dashboard/communities/*"
                   element={<LegacyCommunitiesRedirect />}

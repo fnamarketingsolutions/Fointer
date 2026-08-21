@@ -7,6 +7,7 @@ import {
   LuShieldAlert as ShieldAlert,
   LuLoaderCircle as Loader2,
   LuMail as Mail,
+  LuMapPin as MapPin,
   LuPhone as Phone,
 } from "react-icons/lu";
 import {
@@ -22,11 +23,10 @@ export default function SystemSettings() {
   const [editLimit, setEditLimit] = useState(60);
   const [contactEmail, setContactEmail] = useState("");
   const [contactPhone, setContactPhone] = useState("");
+  const [contactAddress, setContactAddress] = useState("");
   const [watchLimit, setWatchLimit] = useState(50);
   const [s3Limit, setS3Limit] = useState(25);
-  const [bannedKeywords, setBannedKeywords] = useState(
-    "crypto_spam, scam_link, free_tokens"
-  );
+  const [bannedKeywords, setBannedKeywords] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -40,8 +40,17 @@ export default function SystemSettings() {
           if (data.settings.postEditWindowMinutes != null) {
             setEditLimit(data.settings.postEditWindowMinutes);
           }
+          if (data.settings.watchGroupMaxCapacity != null) {
+            setWatchLimit(data.settings.watchGroupMaxCapacity);
+          }
           setContactEmail(data.settings.contactEmail || "");
           setContactPhone(data.settings.contactPhone || "");
+          setContactAddress(data.settings.contactAddress || "");
+          setBannedKeywords(
+            Array.isArray(data.settings.bannedKeywords)
+              ? data.settings.bannedKeywords.join(", ")
+              : data.settings.bannedKeywords || ""
+          );
         }
       } catch (err) {
         if (!cancelled) {
@@ -65,6 +74,11 @@ export default function SystemSettings() {
       showToast("Self-deletion limit must be between 1 and 10080 minutes.");
       return;
     }
+    const watchMax = Number(watchLimit);
+    if (!Number.isFinite(watchMax) || watchMax < 2 || watchMax > 200) {
+      showToast("Watch group max capacity must be between 2 and 200.");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -72,11 +86,21 @@ export default function SystemSettings() {
         postEditWindowMinutes: Math.floor(minutes),
         contactEmail: contactEmail.trim(),
         contactPhone: contactPhone.trim(),
+        contactAddress: contactAddress.trim(),
+        bannedKeywords,
+        watchGroupMaxCapacity: Math.floor(watchMax),
       });
       const next = data?.settings || {};
       setEditLimit(next.postEditWindowMinutes ?? Math.floor(minutes));
       setContactEmail(next.contactEmail ?? contactEmail.trim());
       setContactPhone(next.contactPhone ?? contactPhone.trim());
+      setContactAddress(next.contactAddress ?? contactAddress.trim());
+      if (Array.isArray(next.bannedKeywords)) {
+        setBannedKeywords(next.bannedKeywords.join(", "));
+      }
+      if (next.watchGroupMaxCapacity != null) {
+        setWatchLimit(next.watchGroupMaxCapacity);
+      }
       await refreshPublicContact();
       showToast("Settings saved.");
     } catch (err) {
@@ -149,6 +173,23 @@ export default function SystemSettings() {
 
         <div className="bg-[#141210] border border-stone-800/60 p-5 rounded-xl space-y-3">
           <label className="text-xs font-semibold text-stone-300 flex items-center gap-2">
+            <MapPin className="w-4 h-4 text-amber-500" /> Main site location
+          </label>
+          <textarea
+            rows={3}
+            value={contactAddress}
+            disabled={loading || saving}
+            onChange={(e) => setContactAddress(e.target.value)}
+            placeholder="e.g. 123 Unity Street, Suite 4, Civic Center, NY 10001"
+            className="w-full bg-[#0c0a09] border border-stone-800/80 rounded-lg p-2.5 text-xs text-amber-100 focus:outline-none focus:border-amber-500/60 disabled:opacity-60 resize-none"
+          />
+          <p className="text-[11px] text-stone-500">
+            Shown in the public footer and Contact Us. Leave blank until an address is confirmed.
+          </p>
+        </div>
+
+        <div className="bg-[#141210] border border-stone-800/60 p-5 rounded-xl space-y-3">
+          <label className="text-xs font-semibold text-stone-300 flex items-center gap-2">
             <Clock className="w-4 h-4 text-amber-500" /> Self-Deletion Limit
             (Minutes)
           </label>
@@ -173,10 +214,16 @@ export default function SystemSettings() {
           </label>
           <input
             type="number"
+            min={2}
+            max={200}
             value={watchLimit}
+            disabled={loading || saving}
             onChange={(e) => setWatchLimit(e.target.value)}
-            className="w-full bg-[#0c0a09] border border-stone-800/80 rounded-lg p-2.5 text-xs text-amber-100 focus:outline-none focus:border-amber-500/60"
+            className="w-full bg-[#0c0a09] border border-stone-800/80 rounded-lg p-2.5 text-xs text-amber-100 focus:outline-none focus:border-amber-500/60 disabled:opacity-60"
           />
+          <p className="text-[11px] text-stone-500">
+            Highest number of members a user can set when creating a watch group (2–200).
+          </p>
         </div>
 
         <div className="bg-[#141210] border border-stone-800/60 p-5 rounded-xl space-y-3">
@@ -199,9 +246,14 @@ export default function SystemSettings() {
           <input
             type="text"
             value={bannedKeywords}
+            disabled={loading || saving}
             onChange={(e) => setBannedKeywords(e.target.value)}
-            className="w-full bg-[#0c0a09] border border-stone-800/80 rounded-lg p-2.5 text-xs text-amber-100 focus:outline-none focus:border-amber-500/60"
+            placeholder="e.g. scam, spam link, free tokens"
+            className="w-full bg-[#0c0a09] border border-stone-800/80 rounded-lg p-2.5 text-xs text-amber-100 focus:outline-none focus:border-amber-500/60 disabled:opacity-60"
           />
+          <p className="text-[11px] text-stone-500">
+            Comma-separated words that cannot appear in posts, comments, communities, or chat. Save this list to apply it.
+          </p>
         </div>
       </div>
     </div>

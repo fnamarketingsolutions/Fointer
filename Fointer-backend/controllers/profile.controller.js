@@ -5,6 +5,7 @@ import CommunityMember from "../models/communityMember.js";
 import Post from "../models/post.js";
 import { getEffectiveMemberRole } from "../utils/communityPermissions.js";
 import { sendServerError } from "../utils/safeError.js";
+import { respondIfBanned } from "../utils/bannedKeywords.js";
 
 const normalizeInterests = (interests) => {
   if (!interests) return [];
@@ -213,6 +214,18 @@ export const updateMyProfile = async (req, res) => {
 
     if (req.body.avatar !== undefined) {
       user.avatar = String(req.body.avatar || "").trim();
+    }
+
+    if (
+      await respondIfBanned(
+        res,
+        req.body.name !== undefined ? user.name : undefined,
+        req.body.username !== undefined ? user.username : undefined,
+        req.body.bio !== undefined ? user.bio : undefined,
+        ...(req.body.interests !== undefined ? user.interests || [] : [])
+      )
+    ) {
+      return;
     }
 
     await user.save();

@@ -6,6 +6,7 @@ import sendToken from "../utils/sendToken.js";
 import sendVerificationEmail from "../utils/sendVerificationEmail.js";
 import { sendServerError } from "../utils/safeError.js";
 import { getAuthCookieOptions } from "../utils/cookieOptions.js";
+import { respondIfBanned } from "../utils/bannedKeywords.js";
 
 const MAX_OTP_ATTEMPTS = 5;
 const getGoogleClient = () => new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
@@ -53,6 +54,8 @@ export const signup = async (req, res) => {
         message: "Passwords do not match.",
       });
     }
+
+    if (await respondIfBanned(res, username, name)) return;
 
     const normalizedEmail = String(email).trim().toLowerCase();
 

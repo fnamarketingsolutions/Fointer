@@ -26,6 +26,22 @@ const systemSettingSchema = new mongoose.Schema(
       trim: true,
       maxlength: 32,
     },
+    contactAddress: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: 240,
+    },
+    bannedKeywords: {
+      type: [String],
+      default: [],
+    },
+    watchGroupMaxCapacity: {
+      type: Number,
+      default: 50,
+      min: 2,
+      max: 200,
+    },
   },
   {
     timestamps: true,

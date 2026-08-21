@@ -10,6 +10,7 @@ import {
 } from 'react-icons/lu';
 import { useAuth } from '../../context/AuthContext';
 import BrandLogo from '../components/BrandLogo';
+import GuestAuthButtons from '../components/GuestAuthButtons';
 import { DEFAULT_AVATAR } from '../constants/avatars';
 
 function AvatarImage({ src, alt }) {
@@ -166,19 +167,7 @@ export default function PanelShell({
         <div className="flex items-center gap-2 sm:gap-4">
           {isGuest ? (
             <div className="flex items-center gap-2">
-              <Link
-                to="/login"
-                state={{ from: location.pathname }}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#2A241E] text-xs font-semibold text-[#E5E0D8] hover:border-[#D4AF37]/40 hover:text-[#D4AF37]"
-              >
-                <LogIn size={14} /> Log in
-              </Link>
-              <Link
-                to="/signup"
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#D4AF37] text-black text-xs font-semibold hover:bg-[#e0c04a]"
-              >
-                <UserPlus size={14} /> Sign up
-              </Link>
+              <GuestAuthButtons />
               <button
                 type="button"
                 onClick={() => setIsMobileMenuOpen(true)}

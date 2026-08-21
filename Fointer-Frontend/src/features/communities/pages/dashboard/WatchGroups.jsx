@@ -36,11 +36,13 @@ const TYPE_OPTIONS = [
   },
 ];
 
-const emptyForm = {
+const FALLBACK_LIMITS = { min: 2, max: 50, defaultValue: 50 };
+
+const emptyForm = (limits = FALLBACK_LIMITS) => ({
   name: "",
   type: "public",
-  maxParticipants: 50,
-};
+  maxParticipants: limits.defaultValue,
+});
 
 export default function WatchGroups() {
   const navigate = useNavigate();
@@ -52,7 +54,8 @@ export default function WatchGroups() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
   const [modalOpen, setModalOpen] = useState(false);
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState(() => emptyForm());
+  const [limits, setLimits] = useState(FALLBACK_LIMITS);
   const [submitting, setSubmitting] = useState(false);
   const [joiningId, setJoiningId] = useState(null);
 
@@ -61,6 +64,14 @@ export default function WatchGroups() {
     try {
       const res = await fetchWatchGroups();
       setGroups(res?.groups || []);
+      if (res?.limits?.max) {
+        setLimits({
+          min: Number(res.limits.min) || 2,
+          max: Number(res.limits.max),
+          defaultValue:
+            Number(res.limits.defaultValue) || Number(res.limits.max),
+        });
+      }
     } catch (err) {
       showToast(err?.response?.data?.message || "Failed to load watch groups.");
     } finally {
@@ -105,7 +116,7 @@ export default function WatchGroups() {
       navigate("/login", { state: { from: "/watch-groups" } });
       return;
     }
-    setForm(emptyForm);
+    setForm(emptyForm(limits));
     setModalOpen(true);
   };
 
@@ -120,12 +131,24 @@ export default function WatchGroups() {
       return;
     }
 
+    const requested = Number(form.maxParticipants);
+    if (
+      !Number.isFinite(requested) ||
+      requested < limits.min ||
+      requested > limits.max
+    ) {
+      showToast(
+        `Max participants must be between ${limits.min} and ${limits.max}.`
+      );
+      return;
+    }
+
     setSubmitting(true);
     try {
       const res = await createWatchGroup({
         name: form.name.trim(),
         type: form.type,
-        maxParticipants: Number(form.maxParticipants) || 50,
+        maxParticipants: Math.floor(requested),
       });
       showToast("Watch group created.");
       setModalOpen(false);
@@ -419,8 +442,8 @@ export default function WatchGroups() {
                 </label>
                 <input
                   type="number"
-                  min={2}
-                  max={200}
+                  min={limits.min}
+                  max={limits.max}
                   value={form.maxParticipants}
                   onChange={(e) =>
                     setForm((f) => ({
@@ -431,7 +454,7 @@ export default function WatchGroups() {
                   className="w-full bg-[#0E0C0A] border border-[#2A241E] rounded-xl px-3 py-2.5 text-sm text-[#E5E0D8] focus:outline-none focus:border-[#D4AF37]/50"
                 />
                 <p className="text-[10px] text-[#5C5348] mt-1">
-                  Default 50 · maximum 200
+                  Default {limits.defaultValue} · maximum {limits.max}
                 </p>
               </div>
 

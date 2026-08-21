@@ -244,9 +244,9 @@ export default function Login() {
             </form>
           )}
 
-          <p className="text-center text-xs text-gray-400 mt-6">
+          <p className="text-center text-sm text-gray-400 mt-6">
             Don't have an account?{' '}
-            <Link to="/signup" className="text-[#F8A201] hover:underline font-medium">
+            <Link to="/signup" className="text-[#F8A201] hover:underline font-semibold">
               Sign up
             </Link>
           </p>

@@ -167,7 +167,7 @@ const VALID_TABS = [
 ];
 
 /** Tabs guests may open without logging in (view-only where noted). */
-const GUEST_TABS = new Set(["postfeed", "communities", "events", "watchgroups"]);
+const GUEST_TABS = new Set(["postfeed", "communities"]);
 
 const Dashboard = () => {
   const { user, loading } = useAuth();
@@ -298,7 +298,9 @@ const Dashboard = () => {
     { id: "activity", label: "My Activity History", icon: History },
     { id: "support", label: "Support", icon: LifeBuoy },
     { id: "profile", label: "Profile", icon: UserRound },
-  ].map((item) => ({ ...item, isActive: activeTab === item.id }));
+  ]
+    .filter((item) => !isGuest || GUEST_TABS.has(item.id))
+    .map((item) => ({ ...item, isActive: activeTab === item.id }));
 
   if (loading) {
     return (
@@ -316,7 +318,7 @@ const Dashboard = () => {
     <PanelShell
       navItems={navItems}
       onSelectNav={handleTabSelect}
-      homeTo="/"
+      homeTo={isGuest ? EXPLORE_PATH : "/"}
       profileTo="/profile"
       notificationsTo="/notifications"
       logoutTo="/"

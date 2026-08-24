@@ -110,7 +110,7 @@ export const getMyProfile = async (req, res) => {
     }
 
     const posts = await Post.find({ author: user._id })
-      .populate("community", "name")
+      .populate("community", "name shortCode")
       .sort({ createdAt: -1 })
       .limit(12)
       .lean();
@@ -132,6 +132,7 @@ export const getMyProfile = async (req, res) => {
           id: c._id,
           name: c.name,
           type: c.type,
+          shortCode: c.shortCode || "",
           coverImage: c.coverImage || "",
           membershipRole: roleMap[String(c._id)] || "member",
         })),
@@ -139,9 +140,14 @@ export const getMyProfile = async (req, res) => {
           id: p._id,
           title: p.title,
           text: p.text,
+          shortCode: p.shortCode || "",
           createdAt: p.createdAt,
           community: p.community
-            ? { id: p.community._id, name: p.community.name }
+            ? {
+                id: p.community._id,
+                name: p.community.name,
+                shortCode: p.community.shortCode || "",
+              }
             : null,
         })),
         achievements,

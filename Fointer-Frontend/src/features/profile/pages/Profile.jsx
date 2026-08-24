@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   LuAward as Award,
   LuCamera as Camera,
@@ -21,6 +22,10 @@ import { uploadMedia } from "../../../api/uploads";
 import { useAuth } from "../../../context/AuthContext";
 import { MAX_FILE_SIZE } from "../../../shared/constants/uploads";
 import { useToast } from "../../../shared/components/feedback/ToastContext";
+import {
+  communitySegment,
+  postSegment,
+} from "../../../shared/services/entityLinks";
 import { timeAgo } from "../../../shared/utils/date";
 
 const TABS = [
@@ -582,21 +587,25 @@ export default function Profile() {
               No communities joined yet.
             </div>
           ) : (
-            profile.communities.map((c) => (
-              <article
-                key={c.id}
-                className="flex items-center justify-between gap-3 bg-[#14100D] border border-[#2A241E] hover:border-[#D4AF37]/35 rounded-xl p-3.5 sm:p-4 transition-colors"
-              >
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-[#E5E0D8] truncate">
-                    {c.name}
-                  </p>
-                  <p className="text-[11px] text-[#8C8070] capitalize mt-0.5">
-                    {c.membershipRole || "member"}
-                  </p>
-                </div>
-              </article>
-            ))
+            profile.communities.map((c) => {
+              const to = `/communities/${communitySegment(c) || c.id}`;
+              return (
+                <Link
+                  key={c.id}
+                  to={to}
+                  className="group flex items-center justify-between gap-3 bg-[#14100D] border border-[#2A241E] hover:border-[#D4AF37]/35 rounded-xl p-3.5 sm:p-4 transition-colors"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-[#E5E0D8] group-hover:text-[#D4AF37] transition-colors truncate">
+                      {c.name}
+                    </p>
+                    <p className="text-[11px] text-[#8C8070] capitalize mt-0.5">
+                      {c.membershipRole || "member"}
+                    </p>
+                  </div>
+                </Link>
+              );
+            })
           )}
         </section>
       )}
@@ -615,20 +624,30 @@ export default function Profile() {
               No posts yet.
             </div>
           ) : (
-            profile.posts.map((p) => (
-              <article
-                key={p.id}
-                className="bg-[#14100D] border border-[#2A241E] hover:border-[#D4AF37]/35 rounded-xl p-3.5 sm:p-4 transition-colors space-y-1"
-              >
-                <p className="text-sm font-medium text-[#E5E0D8] line-clamp-2">
-                  {p.title || "Untitled"}
-                </p>
-                <p className="text-[11px] text-[#8C8070]">
-                  {p.community?.name || "Community"}
-                  {p.createdAt ? ` · ${timeAgo(p.createdAt)}` : ""}
-                </p>
-              </article>
-            ))
+            profile.posts.map((p) => {
+              const postSeg = postSegment(p) || p.id;
+              const communitySeg = p.community
+                ? communitySegment(p.community) || p.community.id
+                : null;
+              const to = communitySeg
+                ? `/communities/${communitySeg}/posts/${postSeg}`
+                : `/post/${postSeg}`;
+              return (
+                <Link
+                  key={p.id}
+                  to={to}
+                  className="group block bg-[#14100D] border border-[#2A241E] hover:border-[#D4AF37]/35 rounded-xl p-3.5 sm:p-4 transition-colors space-y-1"
+                >
+                  <p className="text-sm font-medium text-[#E5E0D8] group-hover:text-[#D4AF37] transition-colors line-clamp-2">
+                    {p.title || "Untitled"}
+                  </p>
+                  <p className="text-[11px] text-[#8C8070]">
+                    {p.community?.name || "Community"}
+                    {p.createdAt ? ` · ${timeAgo(p.createdAt)}` : ""}
+                  </p>
+                </Link>
+              );
+            })
           )}
         </section>
       )}

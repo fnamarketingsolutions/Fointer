@@ -166,8 +166,8 @@ const VALID_TABS = [
   "profile",
 ];
 
-/** Tabs guests may open without logging in (view-only where noted). */
-const GUEST_TABS = new Set(["postfeed", "communities"]);
+/** Guests get an empty sidebar; these tabs stay gated behind login. */
+const GUEST_TABS = new Set();
 
 const Dashboard = () => {
   const { user, loading } = useAuth();

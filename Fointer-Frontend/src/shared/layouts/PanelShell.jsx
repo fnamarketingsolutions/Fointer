@@ -12,6 +12,23 @@ import { useAuth } from '../../context/AuthContext';
 import BrandLogo from '../components/BrandLogo';
 import GuestAuthButtons from '../components/GuestAuthButtons';
 import { DEFAULT_AVATAR } from '../constants/avatars';
+import guestJoinSrc from '../../assets/guest-join-fointer.png';
+
+function GuestJoinPromo({ onClose }) {
+  return (
+    <Link
+      to="/signup"
+      onClick={onClose}
+      className="block overflow-hidden bg-white"
+    >
+      <img
+        src={guestJoinSrc}
+        alt="Join Fointer. Be part of something meaningful."
+        className="block w-full h-auto"
+      />
+    </Link>
+  );
+}
 
 function AvatarImage({ src, alt }) {
   return (
@@ -108,6 +125,7 @@ export default function PanelShell({
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const isGuest = allowGuest && !loading && !user;
+  const showGuestPromo = isGuest && !navItems?.length;
 
   useEffect(() => {
     if (!isMobileMenuOpen) return undefined;
@@ -224,14 +242,18 @@ export default function PanelShell({
       </header>
 
       <div className="flex-1 flex max-w-[1600px] w-full mx-auto relative">
-        <aside className="w-64 border-r border-[#2A241E] bg-[#14100D] p-4 flex-col justify-between shrink-0 hidden md:flex max-h-[calc(100vh-5rem)] overflow-y-auto">
-          <div className="space-y-6">
-            <nav className="space-y-1">
-              <NavList items={navItems} onSelect={handleSelectNav} />
-            </nav>
+        <aside className={`w-64 border-r border-[#2A241E] bg-[#14100D] flex-col justify-between shrink-0 hidden md:flex max-h-[calc(100vh-5rem)] overflow-y-auto ${showGuestPromo ? 'p-0' : 'p-4'}`}>
+          <div className={showGuestPromo ? '' : 'space-y-6'}>
+            {navItems?.length ? (
+              <nav className="space-y-1">
+                <NavList items={navItems} onSelect={handleSelectNav} />
+              </nav>
+            ) : isGuest ? (
+              <GuestJoinPromo />
+            ) : null}
           </div>
 
-          <div className="space-y-4 pt-4 border-t border-[#2A241E] mt-4">
+          <div className={`space-y-4 border-t border-[#2A241E] ${showGuestPromo ? 'p-4' : 'pt-4 mt-4'}`}>
             <AuthFooter
               isGuest={isGuest}
               onLogout={handleLogout}
@@ -274,9 +296,11 @@ export default function PanelShell({
                   </button>
                 </div>
 
-                <nav className="space-y-1">
-                  <NavList items={navItems} onSelect={handleSelectNav} mobile />
-                </nav>
+                {navItems?.length ? (
+                  <nav className="space-y-1">
+                    <NavList items={navItems} onSelect={handleSelectNav} mobile />
+                  </nav>
+                ) : null}
               </div>
 
               <div className="space-y-3 pt-4 border-t border-[#2A241E] mt-auto">

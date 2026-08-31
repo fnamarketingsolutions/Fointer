@@ -15,6 +15,7 @@ const sendToken = (user, statusCode, res) => {
   res.status(statusCode).json({
     success: true,
     message: "Success",
+    token,
     user: {
       id: user._id,
       username: user.username,

@@ -1,5 +1,6 @@
 import jwt from "jsonwebtoken";
 import User from "../models/user.js";
+import { getRequestToken } from "../utils/authToken.js";
 
 const normalizeRole = (role) =>
   String(role || "")
@@ -8,7 +9,7 @@ const normalizeRole = (role) =>
 
 export const isAuthenticated = async (req, res, next) => {
   try {
-    const token = req.cookies.token;
+    const token = getRequestToken(req);
 
     if (!token) {
       return res.status(401).json({
@@ -52,7 +53,7 @@ export const isAuthenticated = async (req, res, next) => {
 
 export const optionalAuthenticate = async (req, res, next) => {
   try {
-    const token = req.cookies.token;
+    const token = getRequestToken(req);
     if (!token) {
       return next();
     }

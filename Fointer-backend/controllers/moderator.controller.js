@@ -14,6 +14,7 @@ import {
   sendJoinRequestDeniedEmail,
 } from "../utils/sendVerificationEmail.js";
 import { sendServerError } from "../utils/safeError.js";
+import { notify } from "../utils/notify.js";
 
 const formatJoinRequest = (request) => {
   const user = request.user;
@@ -163,6 +164,7 @@ export const assignModerator = async (req, res) => {
       });
     }
 
+    const previousRole = membership.role;
     membership.role = "moderator";
     membership.moderatorExpiresAt = expiresAt ? new Date(expiresAt) : null;
     membership.status = "active";
@@ -170,6 +172,23 @@ export const assignModerator = async (req, res) => {
     membership.bannedBy = null;
     await membership.save();
     await membership.populate("user", "username name email avatar");
+
+    if (previousRole !== "moderator") {
+      await notify({
+        io: req.app.get("io"),
+        recipientId: userId,
+        actor: req.user,
+        type: "moderator_assigned",
+        title: `You were made a moderator of ${community.name}`,
+        entity: {
+          kind: "community",
+          id: community._id,
+          shortCode: community.shortCode,
+          title: community.name,
+        },
+        community,
+      });
+    }
 
     return res.status(200).json({
       success: true,
@@ -216,6 +235,21 @@ export const revokeModerator = async (req, res) => {
     membership.role = "member";
     membership.moderatorExpiresAt = null;
     await membership.save();
+
+    await notify({
+      io: req.app.get("io"),
+      recipientId: membership.user?._id || membership.user,
+      actor: req.user,
+      type: "moderator_revoked",
+      title: `Your moderator role in ${community.name} was removed`,
+      entity: {
+        kind: "community",
+        id: community._id,
+        shortCode: community.shortCode,
+        title: community.name,
+      },
+      community,
+    });
 
     return res.status(200).json({
       success: true,
@@ -290,8 +324,24 @@ export const removeMemberRole = async (req, res) => {
     }
 
     const removeEntirely = Boolean(req.body?.removeEntirely);
+    const targetUserId = membership.user?._id || membership.user;
+    const previousRole = membership.role;
     if (removeEntirely) {
       await membership.deleteOne();
+      await notify({
+        io: req.app.get("io"),
+        recipientId: targetUserId,
+        actor: req.user,
+        type: "member_removed",
+        title: `You were removed from ${community.name}`,
+        entity: {
+          kind: "community",
+          id: community._id,
+          shortCode: community.shortCode,
+          title: community.name,
+        },
+        community,
+      });
       return res.status(200).json({
         success: true,
         message: "Member removed from community.",
@@ -301,6 +351,23 @@ export const removeMemberRole = async (req, res) => {
     membership.role = "member";
     membership.moderatorExpiresAt = null;
     await membership.save();
+
+    if (previousRole === "moderator") {
+      await notify({
+        io: req.app.get("io"),
+        recipientId: targetUserId,
+        actor: req.user,
+        type: "moderator_revoked",
+        title: `Your moderator role in ${community.name} was removed`,
+        entity: {
+          kind: "community",
+          id: community._id,
+          shortCode: community.shortCode,
+          title: community.name,
+        },
+        community,
+      });
+    }
 
     return res.status(200).json({
       success: true,
@@ -365,6 +432,21 @@ export const banMember = async (req, res) => {
     membership.bannedBy = req.user._id;
     await membership.save();
 
+    await notify({
+      io: req.app.get("io"),
+      recipientId: membership.user?._id || membership.user,
+      actor: req.user,
+      type: "member_banned",
+      title: `You were banned from ${community.name}`,
+      entity: {
+        kind: "community",
+        id: community._id,
+        shortCode: community.shortCode,
+        title: community.name,
+      },
+      community,
+    });
+
     return res.status(200).json({
       success: true,
       message: "Member banned from community.",
@@ -407,6 +489,21 @@ export const unbanMember = async (req, res) => {
     membership.bannedAt = null;
     membership.bannedBy = null;
     await membership.save();
+
+    await notify({
+      io: req.app.get("io"),
+      recipientId: membership.user?._id || membership.user,
+      actor: req.user,
+      type: "member_unbanned",
+      title: `You were unbanned from ${community.name}`,
+      entity: {
+        kind: "community",
+        id: community._id,
+        shortCode: community.shortCode,
+        title: community.name,
+      },
+      community,
+    });
 
     return res.status(200).json({
       success: true,
@@ -531,6 +628,17 @@ export const approveJoinRequest = async (req, res) => {
       });
     }
 
+    await notify({
+      io: req.app.get("io"),
+      recipientId: userId,
+      actor: req.user,
+      type: "join_request_approved",
+      title: `Your request to join ${community.name} was approved`,
+      body: "You are now a member.",
+      entity: { kind: "join_request", id: joinRequest._id },
+      community,
+    });
+
     return res.status(200).json({
       success: true,
       message: "Join request approved.",
@@ -603,6 +711,16 @@ export const denyJoinRequest = async (req, res) => {
           "Failed to send rejection email. Please try again.",
       });
     }
+
+    await notify({
+      io: req.app.get("io"),
+      recipientId: joinRequest.user?._id || joinRequest.user,
+      actor: req.user,
+      type: "join_request_denied",
+      title: `Your request to join ${community.name} was rejected`,
+      entity: { kind: "join_request", id: joinRequest._id },
+      community,
+    });
 
     return res.status(200).json({
       success: true,

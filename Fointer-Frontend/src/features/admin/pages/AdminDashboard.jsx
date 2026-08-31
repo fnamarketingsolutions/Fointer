@@ -29,6 +29,10 @@ const AdminCommunityPostPage = lazy(() => import('./menus/AdminCommunityPostPage
 const SystemSettings = lazy(() => import('./menus/SystemSettings'));
 const Profile = lazy(() => import('../../profile/pages/Profile'));
 
+const UserNotifications = lazy(() =>
+  import('../../communities/pages/dashboard/UserNotifications')
+);
+
 const pageFallback = (
   <div className="min-h-[30vh] flex items-center justify-center text-[#A69B8D] text-sm">
     Loading...
@@ -69,11 +73,16 @@ const AdminDashboard = () => {
       onSelectNav={(id) => navigate(`/admin/${id}`)}
       homeTo="/admin"
       profileTo="/admin/profile"
+      notificationsTo="/admin/notifications"
       logoutTo="/login"
     >
       <Suspense fallback={pageFallback}>
         <Routes>
           <Route path="/" element={<Navigate to="/admin/users" replace />} />
+          <Route
+            path="notifications"
+            element={<UserNotifications onBack={() => navigate("/admin")} />}
+          />
           <Route path="users" element={<UserManagement />} />
           <Route path="users/:id" element={<UserDetail />} />
           <Route path="communities" element={<CommunityManagement />} />

@@ -13,6 +13,7 @@ import BrandLogo from '../components/BrandLogo';
 import GuestAuthButtons from '../components/GuestAuthButtons';
 import { DEFAULT_AVATAR } from '../constants/avatars';
 import guestJoinSrc from '../../assets/guest-join-fointer.png';
+import { useNotifications } from '../../context/NotificationContext';
 
 function GuestJoinPromo({ onClose }) {
   return (
@@ -121,6 +122,7 @@ export default function PanelShell({
   children,
 }) {
   const { user, loading, logout } = useAuth();
+  const { unreadCount } = useNotifications();
   const navigate = useNavigate();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -209,7 +211,14 @@ export default function PanelShell({
                   aria-label="Notifications"
                   title="Notifications"
                 >
-                  <Bell size={16} />
+                  <span className="relative inline-flex">
+                    <Bell size={16} />
+                    {unreadCount > 0 ? (
+                      <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-[#D4AF37] text-black text-[9px] font-bold leading-4 text-center">
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                      </span>
+                    ) : null}
+                  </span>
                 </button>
               ) : null}
               <button

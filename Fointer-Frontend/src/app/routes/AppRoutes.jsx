@@ -52,12 +52,6 @@ const CodeOfConduct = lazy(() =>
   import('../../features/public/pages/policies/CodeofConduct')
 );
 
-const routeFallback = (
-  <div className="min-h-[40vh] flex items-center justify-center bg-[#130D08] text-gray-300 text-sm">
-    Loading...
-  </div>
-);
-
 const PUBLIC_PAGE_ELEMENTS = {
   about: <AboutHero />,
   'contact-us': <ContactHero />,
@@ -82,7 +76,7 @@ function LegacyFeedRedirect() {
 function RootHome() {
   const { user, loading } = useAuth();
 
-  if (loading) return routeFallback;
+  if (loading) return null;
   if (user) return <Dashboard />;
 
   return (
@@ -94,7 +88,7 @@ function RootHome() {
 
 export default function AppRoutes() {
   return (
-    <Suspense fallback={routeFallback}>
+    <Suspense>
       <Routes>
         <Route path="/signup" element={<SignUp />} />
         <Route path="/login" element={<Login />} />

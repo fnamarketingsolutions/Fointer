@@ -5,6 +5,7 @@ import {
 } from "../utils/sendVerificationEmail.js";
 import { sendServerError } from "../utils/safeError.js";
 import { respondIfBanned } from "../utils/bannedKeywords.js";
+import { notify } from "../utils/notify.js";
 
 const VALID_STATUSES = ["pending", "rejected", "approved"];
 
@@ -162,6 +163,20 @@ export const updateSupportTicketStatus = async (req, res) => {
       } catch (emailError) {
         console.error("Support status email failed:", emailError.message);
       }
+    }
+
+    if (status === "approved" || status === "rejected") {
+      await notify({
+        io: req.app.get("io"),
+        recipientId: user?._id || ticket.user,
+        actor: req.user,
+        type: "support_ticket",
+        title:
+          status === "approved"
+            ? "Your channel request was approved"
+            : "Your channel request was rejected",
+        entity: { kind: "support_ticket", id: ticket._id },
+      });
     }
 
     return res.status(200).json({

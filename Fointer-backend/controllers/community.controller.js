@@ -38,6 +38,12 @@ import {
 } from "../utils/sendVerificationEmail.js";
 import { sendServerError } from "../utils/safeError.js";
 import { respondIfBanned } from "../utils/bannedKeywords.js";
+import {
+  notify,
+  notifyMany,
+  getCommunityStewardIds,
+  personName,
+} from "../utils/notify.js";
 
 const COMMUNITY_SORT_MAP = {
   newest: { createdAt: -1 },
@@ -1278,6 +1284,17 @@ export const createJoinRequest = async (req, res) => {
       });
     }
 
+    const stewards = await getCommunityStewardIds(community._id);
+    await notifyMany(stewards, {
+      io: req.app.get("io"),
+      actor: req.user,
+      type: "join_request",
+      title: `${personName(req.user)} requested to join ${community.name}`,
+      body: joinRequest.message || "",
+      entity: { kind: "join_request", id: joinRequest._id },
+      community,
+    });
+
     return res.status(201).json({
       success: true,
       message: "Join request submitted. Waiting for creator approval.",
@@ -1524,6 +1541,17 @@ export const createCommunityInvite = async (req, res) => {
       });
     }
 
+    await notify({
+      io: req.app.get("io"),
+      recipientId: invitee._id,
+      actor: req.user,
+      type: "invite",
+      title: `${personName(req.user)} invited you to join ${community.name}`,
+      body: invite.message || "",
+      entity: { kind: "invite", id: invite._id },
+      community,
+    });
+
     return res.status(201).json({
       success: true,
       message: "Invite sent.",
@@ -1724,6 +1752,16 @@ export const acceptCommunityInvite = async (req, res) => {
       });
     }
 
+    await notify({
+      io: req.app.get("io"),
+      recipientId: invite.inviter?._id || invite.inviter,
+      actor: req.user,
+      type: "invite_accepted",
+      title: `${personName(req.user)} accepted your invite to ${communityName}`,
+      entity: { kind: "invite", id: invite._id },
+      community: invite.community,
+    });
+
     return res.status(200).json({
       success: true,
       message: "Invite accepted. You are now a member.",
@@ -1812,6 +1850,16 @@ export const declineCommunityInvite = async (req, res) => {
           "Failed to send invite decline email. Please try again.",
       });
     }
+
+    await notify({
+      io: req.app.get("io"),
+      recipientId: invite.inviter?._id || invite.inviter,
+      actor: req.user,
+      type: "invite_declined",
+      title: `${personName(req.user)} declined your invite to ${communityName}`,
+      entity: { kind: "invite", id: invite._id },
+      community: invite.community,
+    });
 
     return res.status(200).json({
       success: true,

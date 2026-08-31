@@ -22,6 +22,7 @@ import { parseObjectIdInput, resolveDocumentId } from "../utils/shortCode.js";
 import { sendServerError } from "../utils/safeError.js";
 import { escapeRegex } from "../utils/validate.js";
 import { respondIfBanned } from "../utils/bannedKeywords.js";
+import { notify, personName, snippet } from "../utils/notify.js";
 
 const POST_SORT_MAP = {
   newest: { createdAt: -1 },
@@ -965,6 +966,47 @@ export const createComment = async (req, res) => {
     await Post.updateOne({ _id: post._id }, { $inc: { commentCount: 1 } });
     await comment.populate("author", "username name avatar role");
 
+    const io = req.app.get("io");
+    const commenterId = String(req.user._id);
+    const postAuthorId = String(post.author);
+    const parentAuthorId = parent ? String(parent.author) : null;
+    const postEntity = {
+      kind: "post",
+      id: post._id,
+      shortCode: post.shortCode,
+      title: post.title || "",
+    };
+
+    if (parent && parentAuthorId && parentAuthorId !== commenterId) {
+      await notify({
+        io,
+        recipientId: parent.author,
+        actor: req.user,
+        type: "reply",
+        title: `${personName(req.user)} replied to your comment`,
+        body: snippet(text),
+        entity: postEntity,
+        community: post.community,
+      });
+    }
+
+    if (
+      postAuthorId &&
+      postAuthorId !== commenterId &&
+      postAuthorId !== parentAuthorId
+    ) {
+      await notify({
+        io,
+        recipientId: post.author,
+        actor: req.user,
+        type: "comment",
+        title: `${personName(req.user)} commented on your post`,
+        body: snippet(text),
+        entity: postEntity,
+        community: post.community,
+      });
+    }
+
     return res.status(201).json({
       success: true,
       comment: formatComment(comment.toObject(), {
@@ -1125,6 +1167,23 @@ export const togglePostLike = async (req, res) => {
     }
 
     const result = await toggleLike("post", post._id, req.user);
+    if (result.likedByMe) {
+      await notify({
+        io: req.app.get("io"),
+        recipientId: post.author,
+        actor: req.user,
+        type: "like",
+        title: `${personName(req.user)} liked your post`,
+        entity: {
+          kind: "post",
+          id: post._id,
+          shortCode: post.shortCode,
+          title: post.title || "",
+        },
+        community: post.community,
+        collapse: true,
+      });
+    }
     return res.status(200).json({ success: true, ...result });
   } catch (error) {
     return sendServerError(res, error);
@@ -1168,6 +1227,24 @@ export const togglePostReshare = async (req, res) => {
       await updated.save();
     }
 
+    if (!existing) {
+      await notify({
+        io: req.app.get("io"),
+        recipientId: post.author,
+        actor: req.user,
+        type: "reshare",
+        title: `${personName(req.user)} reshared your post`,
+        entity: {
+          kind: "post",
+          id: post._id,
+          shortCode: post.shortCode,
+          title: post.title || "",
+        },
+        community: post.community,
+        collapse: true,
+      });
+    }
+
     return res.status(200).json({
       success: true,
       reshareCount: updated?.reshareCount ?? 0,
@@ -1209,6 +1286,23 @@ export const toggleCommentLike = async (req, res) => {
     }
 
     const result = await toggleLike("comment", comment._id, req.user);
+    if (result.likedByMe) {
+      await notify({
+        io: req.app.get("io"),
+        recipientId: comment.author,
+        actor: req.user,
+        type: "like",
+        title: `${personName(req.user)} liked your comment`,
+        body: snippet(comment.text),
+        entity: {
+          kind: "post",
+          id: post._id,
+          shortCode: post.shortCode,
+          title: post.title || "",
+        },
+        community: post.community,
+      });
+    }
     return res.status(200).json({ success: true, ...result });
   } catch (error) {
     return sendServerError(res, error);

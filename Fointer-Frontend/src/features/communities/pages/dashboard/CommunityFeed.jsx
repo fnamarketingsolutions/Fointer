@@ -404,7 +404,6 @@ export default function CommunityFeed() {
 
   const openPost = (post) => {
     navigate(`${basePath}/posts/${postSegment(post)}`);
-    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const closePost = useCallback(() => {

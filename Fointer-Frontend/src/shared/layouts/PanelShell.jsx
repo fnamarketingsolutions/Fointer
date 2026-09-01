@@ -9,6 +9,7 @@ import {
   LuX as X,
 } from 'react-icons/lu';
 import { useAuth } from '../../context/AuthContext';
+import { APP_SCROLL_ID } from '../utils/scroll';
 import BrandLogo from '../components/BrandLogo';
 import GuestAuthButtons from '../components/GuestAuthButtons';
 import { DEFAULT_AVATAR } from '../constants/avatars';
@@ -187,7 +188,9 @@ export default function PanelShell({
         <div className="flex items-center gap-2 sm:gap-4">
           {isGuest ? (
             <div className="flex items-center gap-2">
-              <GuestAuthButtons />
+              <div className="hidden md:block">
+                <GuestAuthButtons />
+              </div>
               <button
                 type="button"
                 onClick={() => setIsMobileMenuOpen(true)}
@@ -225,7 +228,7 @@ export default function PanelShell({
                 type="button"
                 onClick={handleAvatarClick}
                 className="flex items-center gap-3 pl-3 border-l border-[#2A241E] focus:outline-none hover:opacity-80 transition-opacity"
-                title="Open menu"
+                title="Profile"
               >
                 <div className="text-right hidden sm:block">
                   <p className="text-xs font-semibold text-[#E5E0D8]">
@@ -236,14 +239,6 @@ export default function PanelShell({
                   </p>
                 </div>
                 <AvatarImage src={user?.avatar} alt={user?.name} />
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsMobileMenuOpen(true)}
-                className="md:hidden p-2 rounded-lg border border-[#2A241E] text-[#A69B8D] hover:text-[#D4AF37]"
-                aria-label="Open menu"
-              >
-                <Menu size={18} />
               </button>
             </div>
           )}
@@ -324,7 +319,10 @@ export default function PanelShell({
           </div>
         ) : null}
 
-        <main className="flex-1 px-3 py-3 sm:p-6 md:p-8 overflow-y-auto max-h-[calc(100vh-4rem)] sm:max-h-[calc(100vh-5rem)] w-full">
+        <main
+          id={APP_SCROLL_ID}
+          className="flex-1 px-3 py-3 sm:p-6 md:p-8 overflow-y-auto max-h-[calc(100vh-4rem)] sm:max-h-[calc(100vh-5rem)] w-full"
+        >
           {children}
         </main>
       </div>

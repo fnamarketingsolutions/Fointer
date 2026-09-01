@@ -1,5 +1,12 @@
 @import "tailwindcss";
 
+html,
+body,
+#root {
+  min-height: 100%;
+  background-color: #0e0c0a;
+}
+
 .fointer-scrollbar {
   scrollbar-width: thin;
   scrollbar-color: rgba(212, 175, 55, 0.55) #1a1714;

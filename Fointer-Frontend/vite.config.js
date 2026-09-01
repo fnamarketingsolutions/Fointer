@@ -2,19 +2,27 @@ import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'node:path'
+import { setDefaultResultOrder } from 'node:dns'
+
+// Node 17+ resolves `localhost` to ::1 first; the WS proxy then hits
+// ECONNREFUSED if the backend is on IPv4. Pin to IPv4 for local proxying.
+setDefaultResultOrder('ipv4first')
+
+const backendOrigin = 'http://127.0.0.1:5001'
 
 // Shared between dev (`server`) and production preview (`preview`).
 const apiProxy = {
   '/api': {
-    target: 'http://localhost:5001',
+    target: backendOrigin,
     changeOrigin: true,
     secure: false,
   },
   '/socket.io': {
-    target: 'http://localhost:5001',
+    target: backendOrigin,
     changeOrigin: true,
     secure: false,
     ws: true,
+    rewriteWsOrigin: true,
   },
 }
 

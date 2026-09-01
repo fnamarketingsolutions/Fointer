@@ -42,6 +42,8 @@ const communityMemberSchema = new mongoose.Schema(
 );
 
 communityMemberSchema.index({ community: 1, user: 1 }, { unique: true });
+communityMemberSchema.index({ community: 1, status: 1 });
+communityMemberSchema.index({ user: 1, status: 1 });
 
 /** Effective role after temp-moderator expiry */
 communityMemberSchema.methods.getEffectiveRole = function () {

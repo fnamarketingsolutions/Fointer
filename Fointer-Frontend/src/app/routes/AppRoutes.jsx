@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useParams, useSearchParams } from 'react-route
 import ProtectedRoute from '../../guards/ProtectedRoute';
 import RoleRoute from '../../guards/RoleRoute';
 import PublicSiteLayout from '../../shared/layouts/PublicSiteLayout';
+import HomePage from '../../features/public/pages/home/HomePage';
 import { SITE_LINKS } from '../../shared/constants/siteLinks';
 import { useAuth } from '../../context/AuthContext';
 
@@ -18,9 +19,6 @@ const PublicPostPage = lazy(() =>
   import('../../features/posts/pages/public/PublicPostPage')
 );
 
-const HomePage = lazy(() =>
-  import('../../features/public/pages/home/HomePage')
-);
 const AboutHero = lazy(() =>
   import('../../features/public/pages/about/AboutHero')
 );
@@ -74,9 +72,8 @@ function LegacyFeedRedirect() {
 }
 
 function RootHome() {
-  const { user, loading } = useAuth();
+  const { user } = useAuth();
 
-  if (loading) return null;
   if (user) return <Dashboard />;
 
   return (

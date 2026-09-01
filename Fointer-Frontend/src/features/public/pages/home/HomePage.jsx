@@ -224,7 +224,6 @@ export default function HomePage() {
       setCommunitiesLoading(true);
       try {
         const data = await fetchBrowsableCommunities({
-          page: 1,
           limit: 6,
           sortBy: "members",
         });

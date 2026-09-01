@@ -284,7 +284,6 @@ export default function DashboardFeed() {
       setOtherCommunitiesLoading(true);
       try {
         const data = await fetchBrowsableCommunities({
-          page: 1,
           limit: 6,
           sortBy: "members",
         });
@@ -304,7 +303,6 @@ export default function DashboardFeed() {
 
   const openPost = (post) => {
     navigate(`${FEED_POST_PATH}/${postSegment(post)}${feedQueryString}`);
-    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const closePost = useCallback(() => {

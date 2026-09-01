@@ -24,8 +24,8 @@ export const resolveSort = (sortBy, sortMap, fallback) => {
   return fallback;
 };
 
-export const buildPaginationMeta = ({ page, limit, total }) => {
-  const safeTotal = Math.max(0, Number(total) || 0);
+export const buildPaginationMeta = ({ page, limit, total, hasMore } = {}) => {
+  const safeTotal = total == null ? 0 : Math.max(0, Number(total) || 0);
   const totalPages = limit > 0 ? Math.ceil(safeTotal / limit) : 0;
 
   return {
@@ -33,6 +33,16 @@ export const buildPaginationMeta = ({ page, limit, total }) => {
     limit,
     total: safeTotal,
     totalPages,
-    hasMore: page < totalPages,
+    hasMore:
+      hasMore !== undefined ? Boolean(hasMore) : page < totalPages,
+  };
+};
+
+/** Fetch limit+1 rows, then drop the extra to know if another page exists. */
+export const takePage = (rows = [], limit) => {
+  const hasMore = rows.length > limit;
+  return {
+    rows: hasMore ? rows.slice(0, limit) : rows,
+    hasMore,
   };
 };

@@ -69,16 +69,27 @@ export default function PublicSiteLayout({ children }) {
 
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             {loading ? null : isGuest ? (
-              <div className="hidden md:block">
-                <GuestAuthButtons />
-              </div>
+              <>
+                <div className="hidden md:block">
+                  <GuestAuthButtons />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMobileOpen((open) => !open)}
+                  className="md:hidden p-2 rounded-lg border border-[#2A241E] text-[#A69B8D] hover:text-[#D4AF37] hover:border-[#D4AF37]/40"
+                  aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
+                  aria-expanded={mobileOpen}
+                >
+                  {mobileOpen ? <X size={18} /> : <Menu size={18} />}
+                </button>
+              </>
             ) : (
               <Link
                 to={profileTo}
-                className="hidden md:flex items-center gap-2.5 pl-3 border-l border-[#2A241E] hover:opacity-80 transition-opacity"
+                className="flex items-center gap-2.5 pl-3 border-l border-[#2A241E] hover:opacity-80 transition-opacity"
                 title="Profile"
               >
-                <div className="text-right">
+                <div className="text-right hidden sm:block">
                   <p className="text-xs font-semibold text-[#E5E0D8]">
                     {user?.name || user?.username || 'User'}
                   </p>
@@ -98,16 +109,6 @@ export default function PublicSiteLayout({ children }) {
                 />
               </Link>
             )}
-
-            <button
-              type="button"
-              onClick={() => setMobileOpen((open) => !open)}
-              className="md:hidden p-2 rounded-lg border border-[#2A241E] text-[#A69B8D] hover:text-[#D4AF37] hover:border-[#D4AF37]/40"
-              aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
-              aria-expanded={mobileOpen}
-            >
-              {mobileOpen ? <X size={18} /> : <Menu size={18} />}
-            </button>
           </div>
         </div>
 

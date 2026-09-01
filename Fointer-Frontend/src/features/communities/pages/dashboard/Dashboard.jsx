@@ -23,11 +23,11 @@ import {
 import AuthOnly from "../../../../guards/AuthOnly";
 import PanelShell from "../../../../shared/layouts/PanelShell";
 import { EXPLORE_PATH } from "../../../../shared/constants/paths";
+import DashboardFeed from "./DashboardFeed";
 
 const ManageCommunities = lazy(() => import("./ManageCommunities"));
 const ManagePostPage = lazy(() => import("./ManagePostPage"));
 const DashboardPostPage = lazy(() => import("./DashboardPostPage"));
-const DashboardFeed = lazy(() => import("./DashboardFeed"));
 const PostManagement = lazy(() => import("../../../posts/pages/PostManagement"));
 const JoinedCommunities = lazy(() => import("./JoinedCommunities"));
 const CommunityFeed = lazy(() => import("./CommunityFeed"));
@@ -302,7 +302,7 @@ const Dashboard = () => {
     .filter((item) => !isGuest || GUEST_TABS.has(item.id))
     .map((item) => ({ ...item, isActive: activeTab === item.id }));
 
-  if (loading) {
+  if (loading && !isRootFeed) {
     return (
       <div className="min-h-screen bg-[#0E0C0A] flex items-center justify-center text-[#A69B8D] text-sm">
         Loading…
@@ -310,7 +310,7 @@ const Dashboard = () => {
     );
   }
 
-  if (user?.role === "admin") {
+  if (!loading && user?.role === "admin") {
     return <Navigate to="/admin" replace />;
   }
 

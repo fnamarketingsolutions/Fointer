@@ -72,10 +72,10 @@ export const fetchAdminSupportTickets = async (params = {}) => {
   return response.data;
 };
 
-export const updateAdminSupportTicketStatus = async (ticketId, status) => {
-  const response = await api.patch(`/admin/support/${ticketId}/status`, {
-    status,
-  });
+export const updateAdminSupportTicketStatus = async (ticketId, payload) => {
+  const body =
+    typeof payload === "string" ? { status: payload } : payload || {};
+  const response = await api.patch(`/admin/support/${ticketId}/status`, body);
   return response.data;
 };
 

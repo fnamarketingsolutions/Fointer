@@ -21,7 +21,7 @@ export default function SignUp() {
     setError: setSocialError,
     pendingVerification,
     clearPendingVerification,
-    handleGoogleAuth,
+    handleGoogleCredential,
     handleFacebookAuth,
   } = useSocialAuth();
 
@@ -270,7 +270,7 @@ export default function SignUp() {
                     {emailLoading ? 'Signing up...' : 'Sign Up'}
                   </button>
                 }
-                onGoogleClick={() => handleGoogleAuth()}
+                onGoogleCredential={handleGoogleCredential}
                 onFacebookClick={handleFacebookAuth}
                 googleLoading={socialLoading.google}
                 facebookLoading={socialLoading.facebook}

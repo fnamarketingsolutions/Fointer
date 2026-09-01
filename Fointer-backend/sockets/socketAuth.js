@@ -2,26 +2,6 @@ import jwt from "jsonwebtoken";
 import User from "../models/user.js";
 import { getHandshakeToken } from "../utils/authToken.js";
 
-export const parseCookies = (header = "") => {
-  const out = {};
-  String(header)
-    .split(";")
-    .forEach((part) => {
-      const trimmed = part.trim();
-      if (!trimmed) return;
-      const eq = trimmed.indexOf("=");
-      if (eq === -1) return;
-      const key = trimmed.slice(0, eq).trim();
-      const value = trimmed.slice(eq + 1).trim();
-      try {
-        out[key] = decodeURIComponent(value);
-      } catch {
-        out[key] = value;
-      }
-    });
-  return out;
-};
-
 export const authenticateSocket = async (socket) => {
   const token = getHandshakeToken(socket);
   if (!token) {

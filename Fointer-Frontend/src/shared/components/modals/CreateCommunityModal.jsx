@@ -283,14 +283,13 @@ export default function CreateCommunityModal({ open, onClose, onSuccess }) {
       let coverImage = form.coverImage || '';
       if (coverFile) {
         const upload = await uploadMedia(coverFile, 'fointer/communities');
-        coverImage = upload?.media?.url || '';
+        coverImage = upload?.media || '';
       }
 
       const galleryImages = [];
       for (const item of galleryItems) {
         const upload = await uploadMedia(item.file, 'fointer/communities');
-        const url = upload?.media?.url;
-        if (url) galleryImages.push(url);
+        if (upload?.media) galleryImages.push(upload.media);
       }
 
       await createCommunity({

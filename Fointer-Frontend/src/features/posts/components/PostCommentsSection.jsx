@@ -27,7 +27,6 @@ export default function PostCommentsSection({
   toggleRepliesExpand,
   replyTargetId,
   setReplyTargetId,
-  showMainCommentInput,
   setShowMainCommentInput,
   commentText,
   setCommentText,

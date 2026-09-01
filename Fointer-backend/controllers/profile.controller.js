@@ -4,6 +4,9 @@ import Community from "../models/community.js";
 import CommunityMember from "../models/communityMember.js";
 import Post from "../models/post.js";
 import { getEffectiveMemberRole } from "../utils/communityPermissions.js";
+import {
+  acceptSignedImageValue,
+} from "../utils/cloudinary.js";
 import { sendServerError } from "../utils/safeError.js";
 import { respondIfBanned } from "../utils/bannedKeywords.js";
 
@@ -219,7 +222,18 @@ export const updateMyProfile = async (req, res) => {
     }
 
     if (req.body.avatar !== undefined) {
-      user.avatar = String(req.body.avatar || "").trim();
+      const acceptedAvatar = acceptSignedImageValue(
+        req.user._id,
+        req.body.avatar,
+        user.avatar || ""
+      );
+      if (!acceptedAvatar.ok) {
+        return res.status(400).json({
+          success: false,
+          message: acceptedAvatar.message,
+        });
+      }
+      user.avatar = acceptedAvatar.url;
     }
 
     if (

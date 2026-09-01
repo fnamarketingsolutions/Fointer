@@ -14,16 +14,14 @@ import { sendServerError } from "../utils/safeError.js";
 import { escapeRegex } from "../utils/validate.js";
 import { notify, personName } from "../utils/notify.js";
 
-const formatInviteUser = (user, fallbackId, { includeEmail = false } = {}) => {
+const formatInviteUser = (user, fallbackId) => {
   if (user && typeof user === "object" && user._id) {
-    const ref = {
+    return {
       id: user._id,
       username: user.username,
       name: user.name,
       avatar: user.avatar || "",
     };
-    if (includeEmail && user.email) ref.email = user.email;
-    return ref;
   }
   return { id: fallbackId };
 };
@@ -96,23 +94,27 @@ export const lookupInviteUser = async (req, res) => {
       });
     }
 
-    const contains = new RegExp(escapeRegex(query), "i");
-    const users = await User.find({
-      $or: [{ username: contains }, { email: contains }],
-    })
-      .select("username name email avatar")
-      .limit(10);
+    const looksLikeEmail = query.includes("@");
+    const user = looksLikeEmail
+      ? await User.findOne({ email: query.toLowerCase() }).select(
+          "username name avatar"
+        )
+      : await User.findOne({
+          username: new RegExp(`^${escapeRegex(query)}$`, "i"),
+        }).select("username name avatar");
 
-    // Owner invite lookup may include email so the owner can confirm the person.
     return res.status(200).json({
       success: true,
-      users: users.map((user) => ({
-        id: user._id,
-        username: user.username,
-        name: user.name || "",
-        email: user.email,
-        avatar: user.avatar || "",
-      })),
+      users: user
+        ? [
+            {
+              id: user._id,
+              username: user.username,
+              name: user.name || "",
+              avatar: user.avatar || "",
+            },
+          ]
+        : [],
     });
   } catch (error) {
     return sendServerError(res, error);

@@ -21,7 +21,7 @@ export default function Login() {
     setError: setSocialError,
     pendingVerification,
     clearPendingVerification,
-    handleGoogleAuth,
+    handleGoogleCredential,
     handleFacebookAuth,
   } = useSocialAuth();
 
@@ -209,7 +209,7 @@ export default function Login() {
                     {emailLoading ? 'Logging in...' : 'Login'}
                   </button>
                 }
-                onGoogleClick={() => handleGoogleAuth()}
+                onGoogleCredential={handleGoogleCredential}
                 onFacebookClick={handleFacebookAuth}
                 googleLoading={socialLoading.google}
                 facebookLoading={socialLoading.facebook}

@@ -88,6 +88,15 @@ export const canManageCommunity = (community, user) => {
   return String(ownerId) === String(user._id) || user.role === "admin";
 };
 
+export const isDiscoverableCommunityType = (type) =>
+  ["public", "private_request"].includes(String(type || ""));
+
+export const canViewCommunity = (community, user, membership) => {
+  if (user?.role === "admin") return true;
+  if (getEffectiveMemberRole(membership)) return true;
+  return isDiscoverableCommunityType(community?.type);
+};
+
 export const getActorCommunityRole = async (communityId, user) => {
   if (user.role === "admin") return "admin";
   const membership = await getMembership(communityId, user._id);
@@ -124,12 +133,6 @@ export const formatMember = (membership) => {
           }
         : { id: membership.user },
   };
-};
-
-export const canCreatePost = async (communityId, user) => {
-  if (user.role === "admin") return true;
-  const membership = await getMembership(communityId, user._id);
-  return Boolean(getEffectiveMemberRole(membership));
 };
 
 export const canEngageInCommunity = async (communityId, user) => {

@@ -17,11 +17,13 @@ import {
   parsePagination,
   resolveSort,
   buildPaginationMeta,
+  takePage,
 } from "../utils/pagination.js";
 import { parseObjectIdInput, resolveDocumentId } from "../utils/shortCode.js";
 import { sendServerError } from "../utils/safeError.js";
 import { escapeRegex } from "../utils/validate.js";
 import { respondIfBanned } from "../utils/bannedKeywords.js";
+import { notify, personName, snippet } from "../utils/notify.js";
 
 const POST_SORT_MAP = {
   newest: { createdAt: -1 },
@@ -106,6 +108,94 @@ const getViewerEngagement = async (postIds, userId) => {
   return { liked: likeMeta.liked, reshared: reshareMeta.reshared };
 };
 
+const isWithinWindow = (createdAt, minutes) => {
+  if (!createdAt || minutes == null) return false;
+  return Date.now() - new Date(createdAt).getTime() < minutes * 60 * 1000;
+};
+
+const getViewerCommunityAccess = async (user) => {
+  if (!user) {
+    return {
+      joinedIds: [],
+      joinedIdSet: new Set(),
+      manageableIdSet: new Set(),
+    };
+  }
+
+  if (user.role === "admin") {
+    const all = await Community.find().select("_id").lean();
+    const ids = all.map((row) => row._id);
+    const idSet = new Set(ids.map(String));
+    return { joinedIds: ids, joinedIdSet: idSet, manageableIdSet: idSet };
+  }
+
+  const memberships = await CommunityMember.find({
+    user: user._id,
+    status: "active",
+  })
+    .select("community role status moderatorExpiresAt")
+    .lean();
+
+  const joinedIds = memberships.map((row) => row.community);
+  const joinedIdSet = new Set(joinedIds.map(String));
+  const manageableIdSet = new Set();
+  for (const row of memberships) {
+    const role = getEffectiveMemberRole(row);
+    if (role === "owner" || role === "moderator") {
+      manageableIdSet.add(String(row.community));
+    }
+  }
+
+  return { joinedIds, joinedIdSet, manageableIdSet };
+};
+
+const formatFeedPost = (
+  post,
+  user,
+  { liked = {}, reshared = {}, joinedIdSet, manageableIdSet, editWindowMinutes }
+) => {
+  if (!user) {
+    return formatPost(post, {
+      likeCount: post.likeCount ?? 0,
+      likedByMe: false,
+      commentCount: post.commentCount ?? 0,
+      reshareCount: post.reshareCount ?? 0,
+      resharedByMe: false,
+      canEngage: false,
+    });
+  }
+
+  const isAuthor = isDocAuthor(post, user);
+  const isAdmin = user.role === "admin";
+  const within = isWithinWindow(post.createdAt, editWindowMinutes);
+  const communityId = post.community?._id || post.community;
+  const communityKey = communityId ? String(communityId) : null;
+
+  return formatPost(post, {
+    likeCount: post.likeCount ?? 0,
+    likedByMe: liked[String(post._id)] || false,
+    commentCount: post.commentCount ?? 0,
+    reshareCount: post.reshareCount ?? 0,
+    resharedByMe: reshared[String(post._id)] || false,
+    isAuthor,
+    canEdit: isAdmin || (isAuthor && within),
+    isLocked: !isAdmin && isAuthor && !within,
+    canDelete:
+      isAdmin ||
+      (isAuthor && within) ||
+      (communityKey ? manageableIdSet.has(communityKey) : false),
+    canEngage: isAdmin || !communityKey || joinedIdSet.has(communityKey),
+    editWindowMinutes,
+  });
+};
+
+const postListSort = (sortBy) =>
+  sortBy === "likes"
+    ? { likeCount: -1, createdAt: -1 }
+    : sortBy === "comments"
+      ? { commentCount: -1, createdAt: -1 }
+      : resolveSort(sortBy, POST_SORT_MAP, { createdAt: -1 });
+
 const clampNonNegative = async (Model, id, field) => {
   await Model.updateOne(
     { _id: id, [field]: { $lt: 0 } },
@@ -155,13 +245,24 @@ const formatPost = (post, extras = {}) => {
 
 const DISCOVERABLE_COMMUNITY_TYPES = ["public", "private_request"];
 
+const DISCOVERABLE_CACHE_MS = 15_000;
+let discoverableIdsCache = { ids: null, at: 0 };
+
 const getDiscoverableCommunityIds = async () => {
+  if (
+    discoverableIdsCache.ids &&
+    Date.now() - discoverableIdsCache.at < DISCOVERABLE_CACHE_MS
+  ) {
+    return discoverableIdsCache.ids;
+  }
   const rows = await Community.find({
     type: { $in: DISCOVERABLE_COMMUNITY_TYPES },
   })
     .select("_id")
     .lean();
-  return rows.map((row) => row._id);
+  const ids = rows.map((row) => row._id);
+  discoverableIdsCache = { ids, at: Date.now() };
+  return ids;
 };
 
 const getCommunityIdsByChannel = async (channelName, { discoverableOnly = false } = {}) => {
@@ -315,8 +416,8 @@ export const listPosts = async (req, res) => {
       defaultLimit: 10,
       maxLimit: 100,
     });
-    const joinedIds = await listJoinedCommunityIds(req.user);
-    const manageableIds = await listManageableCommunityIds(req.user);
+    const access = await getViewerCommunityAccess(req.user);
+    const { joinedIds, joinedIdSet, manageableIdSet } = access;
 
     const filter = {};
     const mineOnly = mine === "1" || mine === "true";
@@ -335,9 +436,8 @@ export const listPosts = async (req, res) => {
       const communityIdStr = String(parsedCommunityId);
       const allowed =
         req.user.role === "admin" ||
-        (await canEngageInCommunity(parsedCommunityId, req.user)) ||
-        manageableIds.some((id) => String(id) === communityIdStr) ||
-        joinedIds.some((id) => String(id) === communityIdStr);
+        joinedIdSet.has(communityIdStr) ||
+        manageableIdSet.has(communityIdStr);
 
       if (!allowed) {
         return res.status(403).json({
@@ -357,7 +457,12 @@ export const listPosts = async (req, res) => {
       if (!scopeIds.length) {
         const empty = { success: true, posts: [] };
         if (enabled) {
-          empty.pagination = buildPaginationMeta({ page, limit, total: 0 });
+          empty.pagination = buildPaginationMeta({
+            page,
+            limit,
+            total: 0,
+            hasMore: false,
+          });
         }
         return res.status(200).json(empty);
       }
@@ -372,14 +477,7 @@ export const listPosts = async (req, res) => {
       ];
     }
 
-    let posts = [];
-    let total = null;
-    const sort =
-      sortBy === "likes"
-        ? { likeCount: -1, createdAt: -1 }
-        : sortBy === "comments"
-          ? { commentCount: -1, createdAt: -1 }
-          : resolveSort(sortBy, POST_SORT_MAP, { createdAt: -1 });
+    const sort = postListSort(sortBy);
 
     let query = Post.find(filter)
       .populate("author", "username name avatar role")
@@ -388,51 +486,35 @@ export const listPosts = async (req, res) => {
       .lean();
 
     if (enabled) {
-      total = await Post.countDocuments(filter);
-      query = query.skip(skip).limit(limit);
+      query = query.skip(skip).limit(limit + 1);
     }
 
-    posts = await query;
+    const found = await query;
+    const { rows: posts, hasMore } = enabled
+      ? takePage(found, limit)
+      : { rows: found, hasMore: false };
 
     const postIds = posts.map((p) => p._id);
-    const { liked, reshared } = await getViewerEngagement(postIds, req.user._id);
-
-    const editWindowMinutes = await getEditWindowMinutes();
-    const postsWithPermission = await Promise.all(
-      posts.map(async (p) => {
-        const flags = await buildOwnContentFlags(p, req.user);
-        return {
-          post: p,
-          canDelete: await userCanDeletePost(p, req.user),
-          ...flags,
-        };
-      })
-    );
+    const [{ liked, reshared }, editWindowMinutes] = await Promise.all([
+      getViewerEngagement(postIds, req.user._id),
+      getEditWindowMinutes(),
+    ]);
 
     const payload = {
       success: true,
-      posts: await Promise.all(
-        postsWithPermission.map(
-          async ({ post: p, canDelete, isAuthor, canEdit, isLocked }) =>
-            formatPost(p, {
-              likeCount: p.likeCount ?? 0,
-              likedByMe: liked[String(p._id)] || false,
-              commentCount: p.commentCount ?? 0,
-              reshareCount: p.reshareCount ?? 0,
-              resharedByMe: reshared[String(p._id)] || false,
-              canEdit,
-              canDelete,
-              canEngage: await canEngageWithPost(p, req.user),
-              isAuthor,
-              isLocked,
-              editWindowMinutes,
-            })
-        )
+      posts: posts.map((p) =>
+        formatFeedPost(p, req.user, {
+          liked,
+          reshared,
+          joinedIdSet,
+          manageableIdSet,
+          editWindowMinutes,
+        })
       ),
     };
 
     if (enabled) {
-      payload.pagination = buildPaginationMeta({ page, limit, total });
+      payload.pagination = buildPaginationMeta({ page, limit, hasMore });
     }
 
     return res.status(200).json(payload);
@@ -492,25 +574,22 @@ export const listPublicPosts = async (req, res) => {
       maxLimit: 100,
     });
 
-    let visibility;
-    if (channel) {
-      const channelCommunityIds = await getCommunityIdsByChannel(channel, {
-        discoverableOnly: true,
-      });
-      visibility = {
-        community: { $in: channelCommunityIds },
-      };
-    } else {
-      const discoverableIds = await getDiscoverableCommunityIds();
-      const visibilityOr = [
-        { community: null },
-        { community: { $exists: false } },
-      ];
-      if (discoverableIds.length) {
-        visibilityOr.push({ community: { $in: discoverableIds } });
-      }
-      visibility = { $or: visibilityOr };
-    }
+    const [channelCommunityIds, discoverableIds, access] = await Promise.all([
+      channel
+        ? getCommunityIdsByChannel(channel, { discoverableOnly: true })
+        : Promise.resolve(null),
+      channel ? Promise.resolve(null) : getDiscoverableCommunityIds(),
+      req.user
+        ? getViewerCommunityAccess(req.user)
+        : Promise.resolve({
+            joinedIdSet: new Set(),
+            manageableIdSet: new Set(),
+          }),
+    ]);
+
+    const visibility = channel
+      ? { community: { $in: channelCommunityIds } }
+      : { community: { $in: [null, ...discoverableIds] } };
 
     let filter = { ...visibility };
     if (q && String(q).trim()) {
@@ -528,71 +607,44 @@ export const listPublicPosts = async (req, res) => {
       };
     }
 
-    let posts = [];
-    let total = null;
-    const communityPopulate = {
-      path: "community",
-      select: "name coverImage shortCode type channel",
-    };
-    const sort =
-      sortBy === "likes"
-        ? { likeCount: -1, createdAt: -1 }
-        : sortBy === "comments"
-          ? { commentCount: -1, createdAt: -1 }
-          : resolveSort(sortBy, POST_SORT_MAP, { createdAt: -1 });
+    const sort = postListSort(sortBy);
 
     let query = Post.find(filter)
       .populate("author", "username name avatar role")
-      .populate(communityPopulate)
+      .populate("community", "name coverImage shortCode type channel")
       .sort(sort)
       .lean();
 
     if (enabled) {
-      total = await Post.countDocuments(filter);
-      query = query.skip(skip).limit(limit);
+      query = query.skip(skip).limit(limit + 1);
     }
 
-    posts = await query;
+    const found = await query;
+    const { rows: posts, hasMore } = enabled
+      ? takePage(found, limit)
+      : { rows: found, hasMore: false };
 
     const postIds = posts.map((p) => p._id);
-    const userId = req.user?._id;
-    const { liked, reshared } = await getViewerEngagement(postIds, userId);
-
-    const editWindowMinutes = req.user ? await getEditWindowMinutes() : null;
-    const postsFormatted = await Promise.all(
-      posts.map(async (p) => {
-        if (!req.user) {
-          return formatPost(p, {
-            likeCount: p.likeCount ?? 0,
-            likedByMe: false,
-            commentCount: p.commentCount ?? 0,
-            reshareCount: p.reshareCount ?? 0,
-            resharedByMe: false,
-            canEngage: false,
-          });
-        }
-        const flags = await buildOwnContentFlags(p, req.user);
-        return formatPost(p, {
-          likeCount: p.likeCount ?? 0,
-          likedByMe: liked[String(p._id)] || false,
-          commentCount: p.commentCount ?? 0,
-          reshareCount: p.reshareCount ?? 0,
-          resharedByMe: reshared[String(p._id)] || false,
-          canDelete: await userCanDeletePost(p, req.user),
-          canEngage: await canEngageWithPost(p, req.user),
-          ...flags,
-          editWindowMinutes,
-        });
-      })
-    );
+    const [{ liked, reshared }, editWindowMinutes] = await Promise.all([
+      getViewerEngagement(postIds, req.user?._id),
+      req.user ? getEditWindowMinutes() : Promise.resolve(null),
+    ]);
 
     const payload = {
       success: true,
-      posts: postsFormatted,
+      posts: posts.map((p) =>
+        formatFeedPost(p, req.user, {
+          liked,
+          reshared,
+          joinedIdSet: access.joinedIdSet,
+          manageableIdSet: access.manageableIdSet,
+          editWindowMinutes,
+        })
+      ),
     };
 
     if (enabled) {
-      payload.pagination = buildPaginationMeta({ page, limit, total });
+      payload.pagination = buildPaginationMeta({ page, limit, hasMore });
     }
 
     return res.status(200).json(payload);
@@ -965,6 +1017,47 @@ export const createComment = async (req, res) => {
     await Post.updateOne({ _id: post._id }, { $inc: { commentCount: 1 } });
     await comment.populate("author", "username name avatar role");
 
+    const io = req.app.get("io");
+    const commenterId = String(req.user._id);
+    const postAuthorId = String(post.author);
+    const parentAuthorId = parent ? String(parent.author) : null;
+    const postEntity = {
+      kind: "post",
+      id: post._id,
+      shortCode: post.shortCode,
+      title: post.title || "",
+    };
+
+    if (parent && parentAuthorId && parentAuthorId !== commenterId) {
+      await notify({
+        io,
+        recipientId: parent.author,
+        actor: req.user,
+        type: "reply",
+        title: `${personName(req.user)} replied to your comment`,
+        body: snippet(text),
+        entity: postEntity,
+        community: post.community,
+      });
+    }
+
+    if (
+      postAuthorId &&
+      postAuthorId !== commenterId &&
+      postAuthorId !== parentAuthorId
+    ) {
+      await notify({
+        io,
+        recipientId: post.author,
+        actor: req.user,
+        type: "comment",
+        title: `${personName(req.user)} commented on your post`,
+        body: snippet(text),
+        entity: postEntity,
+        community: post.community,
+      });
+    }
+
     return res.status(201).json({
       success: true,
       comment: formatComment(comment.toObject(), {
@@ -1125,6 +1218,23 @@ export const togglePostLike = async (req, res) => {
     }
 
     const result = await toggleLike("post", post._id, req.user);
+    if (result.likedByMe) {
+      await notify({
+        io: req.app.get("io"),
+        recipientId: post.author,
+        actor: req.user,
+        type: "like",
+        title: `${personName(req.user)} liked your post`,
+        entity: {
+          kind: "post",
+          id: post._id,
+          shortCode: post.shortCode,
+          title: post.title || "",
+        },
+        community: post.community,
+        collapse: true,
+      });
+    }
     return res.status(200).json({ success: true, ...result });
   } catch (error) {
     return sendServerError(res, error);
@@ -1168,6 +1278,24 @@ export const togglePostReshare = async (req, res) => {
       await updated.save();
     }
 
+    if (!existing) {
+      await notify({
+        io: req.app.get("io"),
+        recipientId: post.author,
+        actor: req.user,
+        type: "reshare",
+        title: `${personName(req.user)} reshared your post`,
+        entity: {
+          kind: "post",
+          id: post._id,
+          shortCode: post.shortCode,
+          title: post.title || "",
+        },
+        community: post.community,
+        collapse: true,
+      });
+    }
+
     return res.status(200).json({
       success: true,
       reshareCount: updated?.reshareCount ?? 0,
@@ -1209,6 +1337,23 @@ export const toggleCommentLike = async (req, res) => {
     }
 
     const result = await toggleLike("comment", comment._id, req.user);
+    if (result.likedByMe) {
+      await notify({
+        io: req.app.get("io"),
+        recipientId: comment.author,
+        actor: req.user,
+        type: "like",
+        title: `${personName(req.user)} liked your comment`,
+        body: snippet(comment.text),
+        entity: {
+          kind: "post",
+          id: post._id,
+          shortCode: post.shortCode,
+          title: post.title || "",
+        },
+        community: post.community,
+      });
+    }
     return res.status(200).json({ success: true, ...result });
   } catch (error) {
     return sendServerError(res, error);

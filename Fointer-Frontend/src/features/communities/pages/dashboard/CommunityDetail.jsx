@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   LuArrowLeft as ArrowLeft,
   LuPencil as Pencil,
@@ -171,6 +171,7 @@ export default function CommunityDetail({
   onRefresh,
 }) {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { showToast } = useToast();
   const [heroPreview, setHeroPreview] = useState(null);
   const [aboutExpanded, setAboutExpanded] = useState(false);
@@ -193,7 +194,12 @@ export default function CommunityDetail({
   const [memberStatusFilter, setMemberStatusFilter] = useState("all");
   const [savingMemberId, setSavingMemberId] = useState(null);
   const inviteLookupSeq = useRef(0);
-  const [section, setSection] = useState("posts");
+  const sectionFromUrl = searchParams.get("section");
+  const [section, setSection] = useState(
+    ["posts", "overview", "incoming", "members", "invite"].includes(sectionFromUrl)
+      ? sectionFromUrl
+      : "posts"
+  );
   const [joinRequests, setJoinRequests] = useState([]);
   const [joinRequestsLoading, setJoinRequestsLoading] = useState(false);
   const [actionRequestId, setActionRequestId] = useState(null);

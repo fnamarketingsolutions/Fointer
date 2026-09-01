@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useParams, useSearchParams } from 'react-route
 import ProtectedRoute from '../../guards/ProtectedRoute';
 import RoleRoute from '../../guards/RoleRoute';
 import PublicSiteLayout from '../../shared/layouts/PublicSiteLayout';
+import HomePage from '../../features/public/pages/home/HomePage';
 import { SITE_LINKS } from '../../shared/constants/siteLinks';
 import { useAuth } from '../../context/AuthContext';
 
@@ -18,9 +19,6 @@ const PublicPostPage = lazy(() =>
   import('../../features/posts/pages/public/PublicPostPage')
 );
 
-const HomePage = lazy(() =>
-  import('../../features/public/pages/home/HomePage')
-);
 const AboutHero = lazy(() =>
   import('../../features/public/pages/about/AboutHero')
 );
@@ -52,12 +50,6 @@ const CodeOfConduct = lazy(() =>
   import('../../features/public/pages/policies/CodeofConduct')
 );
 
-const routeFallback = (
-  <div className="min-h-[40vh] flex items-center justify-center bg-[#130D08] text-gray-300 text-sm">
-    Loading...
-  </div>
-);
-
 const PUBLIC_PAGE_ELEMENTS = {
   about: <AboutHero />,
   'contact-us': <ContactHero />,
@@ -80,9 +72,8 @@ function LegacyFeedRedirect() {
 }
 
 function RootHome() {
-  const { user, loading } = useAuth();
+  const { user } = useAuth();
 
-  if (loading) return routeFallback;
   if (user) return <Dashboard />;
 
   return (
@@ -94,7 +85,7 @@ function RootHome() {
 
 export default function AppRoutes() {
   return (
-    <Suspense fallback={routeFallback}>
+    <Suspense>
       <Routes>
         <Route path="/signup" element={<SignUp />} />
         <Route path="/login" element={<Login />} />

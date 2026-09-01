@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   LuPencil as Pencil,
@@ -35,6 +35,7 @@ import { useToast } from "../../../shared/components/feedback/ToastContext";
 import { useAuth } from "../../../context/AuthContext";
 import { communitySegment } from "../../../shared/services/entityLinks";
 import { timeAgo } from "../../../shared/utils/date";
+import { scrollAppToTop } from "../../../shared/utils/scroll";
 
 export default function PostDetail({
   postId,
@@ -107,6 +108,10 @@ export default function PostDetail({
       setCommentsLoading(false);
     }
   }, [postId, showToast]);
+
+  useLayoutEffect(() => {
+    if (postId) scrollAppToTop();
+  }, [postId]);
 
   useEffect(() => {
     if (!postId) {

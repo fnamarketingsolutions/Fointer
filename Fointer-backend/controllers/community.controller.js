@@ -38,6 +38,12 @@ import {
 } from "../utils/sendVerificationEmail.js";
 import { sendServerError } from "../utils/safeError.js";
 import { respondIfBanned } from "../utils/bannedKeywords.js";
+import {
+  notify,
+  notifyMany,
+  getCommunityStewardIds,
+  personName,
+} from "../utils/notify.js";
 
 const COMMUNITY_SORT_MAP = {
   newest: { createdAt: -1 },
@@ -282,6 +288,71 @@ const getMemberCounts = async (communityIds) => {
     acc[String(row._id)] = row.count;
     return acc;
   }, {});
+};
+
+/** Rank matching communities by member count without hydrating every member. */
+const findCommunitiesByMemberCount = async (filter, { skip = 0, limit }) => {
+  const pipeline = [
+    { $match: filter },
+    {
+      $lookup: {
+        from: CommunityMember.collection.name,
+        localField: "_id",
+        foreignField: "community",
+        pipeline: [
+          { $match: { status: "active" } },
+          { $count: "n" },
+        ],
+        as: "_memberCounts",
+      },
+    },
+    {
+      $addFields: {
+        memberCount: {
+          $ifNull: [{ $arrayElemAt: ["$_memberCounts.n", 0] }, 0],
+        },
+      },
+    },
+    { $project: { _memberCounts: 0 } },
+    { $sort: { memberCount: -1, createdAt: -1 } },
+    { $skip: skip },
+    { $limit: limit },
+    {
+      $lookup: {
+        from: User.collection.name,
+        localField: "owner",
+        foreignField: "_id",
+        pipeline: [
+          {
+            $project: {
+              _id: 1,
+              username: 1,
+              name: 1,
+              email: 1,
+              avatar: 1,
+            },
+          },
+        ],
+        as: "_owner",
+      },
+    },
+    {
+      $addFields: {
+        owner: { $arrayElemAt: ["$_owner", 0] },
+      },
+    },
+    { $project: { _owner: 0 } },
+  ];
+
+  const communities = await Community.aggregate(pipeline);
+  const countMap = Object.fromEntries(
+    communities.map((community) => [
+      String(community._id),
+      community.memberCount || 0,
+    ])
+  );
+
+  return { communities, countMap };
 };
 
 const canInviteToCommunity = async (community, user) => {
@@ -918,88 +989,44 @@ export const listBrowsableCommunities = async (req, res) => {
     let pendingSet = new Set();
 
     if (req.user) {
-      const memberships = await CommunityMember.find({
-        user: req.user._id,
-        status: "active",
-      }).select("community");
-
-      memberIds = memberships.map((m) => m.community);
       const includeJoined =
         req.query.includeJoined === "1" || req.query.includeJoined === "true";
+      const [memberships, pending] = await Promise.all([
+        CommunityMember.find({
+          user: req.user._id,
+          status: "active",
+        })
+          .select("community")
+          .lean(),
+        CommunityJoinRequest.find({
+          user: req.user._id,
+          status: "pending",
+        })
+          .select("community")
+          .lean(),
+      ]);
+
+      memberIds = memberships.map((m) => m.community);
       if (memberIds.length && !includeJoined) {
         filter._id = { $nin: memberIds };
       }
-
-      const pending = await CommunityJoinRequest.find({
-        user: req.user._id,
-        status: "pending",
-      }).select("community");
-
       pendingSet = new Set(pending.map((p) => String(p.community)));
     }
 
     let communities = [];
     let total = null;
+    let countMap = {};
 
     if (sortBy === "members") {
+      const ranked = await findCommunitiesByMemberCount(filter, {
+        skip: enabled ? skip : 0,
+        limit,
+      });
+      communities = ranked.communities;
+      countMap = ranked.countMap;
       if (enabled) {
         total = await Community.countDocuments(filter);
       }
-
-      const pipeline = [
-        { $match: filter },
-        {
-          $lookup: {
-            from: CommunityMember.collection.name,
-            let: { communityId: "$_id" },
-            pipeline: [
-              {
-                $match: {
-                  $expr: {
-                    $and: [
-                      { $eq: ["$community", "$$communityId"] },
-                      { $eq: ["$status", "active"] },
-                    ],
-                  },
-                },
-              },
-            ],
-            as: "_activeMembers",
-          },
-        },
-        {
-          $addFields: {
-            memberCount: { $size: "$_activeMembers" },
-          },
-        },
-        { $project: { _activeMembers: 0 } },
-        { $sort: { memberCount: -1, createdAt: -1 } },
-      ];
-
-      if (enabled) {
-        pipeline.push({ $skip: skip }, { $limit: limit });
-      } else {
-        pipeline.push({ $limit: limit });
-      }
-
-      pipeline.push(
-        {
-          $lookup: {
-            from: User.collection.name,
-            localField: "owner",
-            foreignField: "_id",
-            as: "_owner",
-          },
-        },
-        {
-          $addFields: {
-            owner: { $arrayElemAt: ["$_owner", 0] },
-          },
-        },
-        { $project: { _owner: 0 } }
-      );
-
-      communities = await Community.aggregate(pipeline);
     } else {
       const sort = resolveSort(sortBy, COMMUNITY_SORT_MAP, { createdAt: -1 });
 
@@ -1015,14 +1042,8 @@ export const listBrowsableCommunities = async (req, res) => {
       }
 
       communities = await query;
+      countMap = await getMemberCounts(communities.map((c) => c._id));
     }
-
-    const countMap =
-      sortBy === "members"
-        ? Object.fromEntries(
-            communities.map((c) => [String(c._id), c.memberCount || 0])
-          )
-        : await getMemberCounts(communities.map((c) => c._id));
     const memberIdSet = new Set(memberIds.map((id) => String(id)));
 
     const payload = {
@@ -1278,6 +1299,17 @@ export const createJoinRequest = async (req, res) => {
       });
     }
 
+    const stewards = await getCommunityStewardIds(community._id);
+    await notifyMany(stewards, {
+      io: req.app.get("io"),
+      actor: req.user,
+      type: "join_request",
+      title: `${personName(req.user)} requested to join ${community.name}`,
+      body: joinRequest.message || "",
+      entity: { kind: "join_request", id: joinRequest._id },
+      community,
+    });
+
     return res.status(201).json({
       success: true,
       message: "Join request submitted. Waiting for creator approval.",
@@ -1524,6 +1556,17 @@ export const createCommunityInvite = async (req, res) => {
       });
     }
 
+    await notify({
+      io: req.app.get("io"),
+      recipientId: invitee._id,
+      actor: req.user,
+      type: "invite",
+      title: `${personName(req.user)} invited you to join ${community.name}`,
+      body: invite.message || "",
+      entity: { kind: "invite", id: invite._id },
+      community,
+    });
+
     return res.status(201).json({
       success: true,
       message: "Invite sent.",
@@ -1724,6 +1767,16 @@ export const acceptCommunityInvite = async (req, res) => {
       });
     }
 
+    await notify({
+      io: req.app.get("io"),
+      recipientId: invite.inviter?._id || invite.inviter,
+      actor: req.user,
+      type: "invite_accepted",
+      title: `${personName(req.user)} accepted your invite to ${communityName}`,
+      entity: { kind: "invite", id: invite._id },
+      community: invite.community,
+    });
+
     return res.status(200).json({
       success: true,
       message: "Invite accepted. You are now a member.",
@@ -1812,6 +1865,16 @@ export const declineCommunityInvite = async (req, res) => {
           "Failed to send invite decline email. Please try again.",
       });
     }
+
+    await notify({
+      io: req.app.get("io"),
+      recipientId: invite.inviter?._id || invite.inviter,
+      actor: req.user,
+      type: "invite_declined",
+      title: `${personName(req.user)} declined your invite to ${communityName}`,
+      entity: { kind: "invite", id: invite._id },
+      community: invite.community,
+    });
 
     return res.status(200).json({
       success: true,

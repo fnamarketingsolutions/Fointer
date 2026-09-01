@@ -69,6 +69,9 @@ const postSchema = new mongoose.Schema(
 );
 
 postSchema.index({ title: "text", text: "text" });
+postSchema.index({ createdAt: -1 });
+postSchema.index({ likeCount: -1, createdAt: -1 });
+postSchema.index({ commentCount: -1, createdAt: -1 });
 postSchema.index({ community: 1, createdAt: -1 });
 postSchema.index({ community: 1, likeCount: -1, createdAt: -1 });
 postSchema.index({ community: 1, commentCount: -1, createdAt: -1 });

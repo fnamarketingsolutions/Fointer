@@ -19,8 +19,10 @@ import profileRoute from "./routes/profileRoute.js";
 import liveEventRoute from "./routes/liveEventRoute.js";
 import watchGroupRoute from "./routes/watchGroupRoute.js";
 import reportRoute from "./routes/reportRoute.js";
+import notificationRoute from "./routes/notificationRoute.js";
 import { initLiveSocket } from "./sockets/liveSocket.js";
 import { initWatchGroupSocket } from "./sockets/watchGroupSocket.js";
+import { initNotificationSocket } from "./sockets/notificationSocket.js";
 import { safeErrorMessage } from "./utils/safeError.js";
 
 const app = express();
@@ -81,6 +83,7 @@ const io = new Server(server, {
 app.set("io", io);
 initLiveSocket(io);
 initWatchGroupSocket(io);
+initNotificationSocket(io);
 
 app.use("/api/auth", authRoute);
 app.use("/api", dashboardRoute);
@@ -92,6 +95,7 @@ app.use("/api/profile", profileRoute);
 app.use("/api/live-events", liveEventRoute);
 app.use("/api/watch-groups", watchGroupRoute);
 app.use("/api/reports", reportRoute);
+app.use("/api/notifications", notificationRoute);
 
 // Multer / unexpected errors — never leak internals
 app.use((err, _req, res, _next) => {

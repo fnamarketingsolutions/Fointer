@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   LuArrowRight as ArrowRight,
   LuCircleCheck as CheckCircle2,
@@ -112,9 +112,13 @@ const matchesName = (community, query) => {
 
 export default function JoinedCommunities() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { showToast } = useToast();
   const { isAuthenticated } = useAuth();
-  const [tab, setTab] = useState("discover");
+  const tabFromUrl = searchParams.get("tab");
+  const [tab, setTab] = useState(
+    TABS.some((item) => item.id === tabFromUrl) ? tabFromUrl : "discover"
+  );
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
 

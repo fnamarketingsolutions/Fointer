@@ -1,5 +1,6 @@
 import jwt from "jsonwebtoken";
 import User from "../models/user.js";
+import { getHandshakeToken } from "../utils/authToken.js";
 
 export const parseCookies = (header = "") => {
   const out = {};
@@ -22,8 +23,7 @@ export const parseCookies = (header = "") => {
 };
 
 export const authenticateSocket = async (socket) => {
-  const cookies = parseCookies(socket.handshake.headers.cookie);
-  const token = cookies.token;
+  const token = getHandshakeToken(socket);
   if (!token) {
     throw new Error("Please login to continue.");
   }

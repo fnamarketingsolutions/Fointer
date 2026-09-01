@@ -1,12 +1,13 @@
 import React from 'react';
 import { useLocation } from 'react-router-dom';
 import AppRoutes from './routes/AppRoutes';
+import { scrollAppToTop } from '../shared/utils/scroll';
 
 const ScrollToTop = () => {
   const { pathname } = useLocation();
 
-  React.useEffect(() => {
-    window.scrollTo(0, 0);
+  React.useLayoutEffect(() => {
+    scrollAppToTop();
   }, [pathname]);
 
   return null;

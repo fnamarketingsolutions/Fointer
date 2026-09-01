@@ -12,6 +12,7 @@ import {
 } from "../utils/sendVerificationEmail.js";
 import { sendServerError } from "../utils/safeError.js";
 import { escapeRegex } from "../utils/validate.js";
+import { notify, personName } from "../utils/notify.js";
 
 const formatInviteUser = (user, fallbackId, { includeEmail = false } = {}) => {
   if (user && typeof user === "object" && user._id) {
@@ -237,6 +238,17 @@ export const inviteUserToCommunity = async (req, res) => {
           "Failed to send invite email. Please try again.",
       });
     }
+
+    await notify({
+      io: req.app.get("io"),
+      recipientId: invitee._id,
+      actor: req.user,
+      type: "invite",
+      title: `${personName(req.user)} invited you to join ${community.name}`,
+      body: invite.message || "",
+      entity: { kind: "invite", id: invite._id },
+      community,
+    });
 
     return res.status(201).json({
       success: true,

@@ -13,6 +13,8 @@ import {
   LuShield as Shield,
   LuBan as Ban,
   LuLifeBuoy as LifeBuoy,
+  LuFlag as Flag,
+  LuLayers as Layers,
   LuLoaderCircle as Loader2,
 } from "react-icons/lu";
 import {
@@ -22,18 +24,30 @@ import {
   markNotificationRead,
   markNotificationUnread,
 } from "../../../../api/notifications";
-import { notificationPath, isSystemNotification } from "../../../notifications/notificationLinks";
+import {
+  notificationPath,
+  notificationTypeLabel,
+  isSystemNotification,
+  isAdminNotification,
+} from "../../../notifications/notificationLinks";
 import { useNotifications } from "../../../../context/NotificationContext";
 import { timeAgo } from "../../../../shared/utils/date";
 import { useToast } from "../../../../shared/components/feedback/ToastContext";
 import { DEFAULT_AVATAR } from "../../../../shared/constants/avatars";
 import { getLiveSocket } from "../../../../shared/services/liveSocket";
 
-const FILTERS = [
+const USER_FILTERS = [
   { id: "all", label: "All Activity" },
   { id: "unread", label: "Unread" },
   { id: "mentions", label: "Mentions" },
   { id: "system", label: "System & Access" },
+];
+
+const ADMIN_FILTERS = [
+  { id: "all", label: "All" },
+  { id: "unread", label: "Unread" },
+  { id: "reports", label: "Reports" },
+  { id: "requests", label: "Channel requests" },
 ];
 
 const typeIcon = (type) => {
@@ -51,8 +65,14 @@ const typeIcon = (type) => {
   if (type === "member_banned" || type === "member_removed") {
     return { Icon: Ban, className: "text-red-400" };
   }
-  if (type === "support_ticket") {
-    return { Icon: LifeBuoy, className: "text-[#D4AF37]" };
+  if (type === "support_ticket" || type === "channel_request") {
+    return {
+      Icon: type === "channel_request" ? Layers : LifeBuoy,
+      className: "text-[#D4AF37]",
+    };
+  }
+  if (type === "content_report") {
+    return { Icon: Flag, className: "text-rose-400" };
   }
   return { Icon: Bell, className: "text-[#D4AF37]" };
 };
@@ -67,6 +87,7 @@ export default function UserNotifications({ onBack }) {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const isAdmin = location.pathname.startsWith("/admin");
+  const filters = isAdmin ? ADMIN_FILTERS : USER_FILTERS;
 
   const handleBack = () => {
     if (onBack) onBack();
@@ -106,9 +127,17 @@ export default function UserNotifications({ onBack }) {
             String(n.id) === String(payload.id) ? { ...n, ...payload } : n
           );
         }
+        if (isAdmin && !isAdminNotification(payload.type)) return prev;
+        if (!isAdmin && isAdminNotification(payload.type)) return prev;
         if (filter === "unread" && !payload.isUnread) return prev;
         if (filter === "mentions" && payload.type !== "mention") return prev;
         if (filter === "system" && !isSystemNotification(payload.type)) {
+          return prev;
+        }
+        if (filter === "reports" && payload.type !== "content_report") {
+          return prev;
+        }
+        if (filter === "requests" && payload.type !== "channel_request") {
           return prev;
         }
         return [payload, ...prev];
@@ -116,7 +145,7 @@ export default function UserNotifications({ onBack }) {
     };
     socket.on("notification:new", onNew);
     return () => socket.off("notification:new", onNew);
-  }, [filter]);
+  }, [filter, isAdmin]);
 
   const handleMarkAllAsRead = async () => {
     if (unreadCount === 0) return;
@@ -209,8 +238,9 @@ export default function UserNotifications({ onBack }) {
               )}
             </div>
             <p className="text-xs text-[#8C8070] mt-1">
-              Stay updated with mentions, community activity, and account status
-              updates.
+              {isAdmin
+                ? "New reports and pending channel requests from the platform."
+                : "Stay updated with mentions, community activity, and account status updates."}
             </p>
           </div>
         </div>
@@ -233,7 +263,7 @@ export default function UserNotifications({ onBack }) {
 
       <div className="flex items-center gap-2 border-b border-[#2A241E]/60 pb-3 overflow-x-auto">
         <Filter size={14} className="text-[#8C8070] ml-1 mr-2 shrink-0" />
-        {FILTERS.map((tab) => (
+        {filters.map((tab) => (
           <button
             key={tab.id}
             type="button"
@@ -298,7 +328,7 @@ export default function UserNotifications({ onBack }) {
                   <div className="space-y-1 pr-2 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-xs font-mono uppercase text-[#D4AF37] font-semibold">
-                        {n.community?.name || n.type.replace(/_/g, " ")}
+                        {notificationTypeLabel(n)}
                       </span>
                       <span className="text-[10px] text-[#8C8070]">
                         • {timeAgo(n.createdAt)}
@@ -347,8 +377,9 @@ export default function UserNotifications({ onBack }) {
               No notifications found
             </h3>
             <p className="text-xs text-[#8C8070]">
-              You&apos;re all caught up! Check back later for new mentions and
-              community updates.
+              {isAdmin
+                ? "New reports and channel requests will show up here."
+                : "You're all caught up! Check back later for new mentions and community updates."}
             </p>
           </div>
         )}

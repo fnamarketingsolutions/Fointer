@@ -1,6 +1,5 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useGoogleLogin } from '@react-oauth/google';
 import { googleAuth, facebookAuth } from '../services/authService';
 import { loginWithFacebook, ensureFacebookSdk } from '../../../shared/lib/facebookSdk';
 import { useAuth } from '../../../context/AuthContext';
@@ -12,10 +11,9 @@ export function useSocialAuth() {
   const [error, setError] = useState('');
   const [pendingVerification, setPendingVerification] = useState(null);
 
-  const clearError = () => setError('');
   const clearPendingVerification = () => setPendingVerification(null);
 
-  const completeAuth = async (provider, token, authApiCall) => {
+  const completeAuth = useCallback(async (provider, token, authApiCall) => {
     setLoading((prev) => ({ ...prev, [provider]: true }));
     setError('');
     setPendingVerification(null);
@@ -42,21 +40,15 @@ export function useSocialAuth() {
     } finally {
       setLoading((prev) => ({ ...prev, [provider]: false }));
     }
-  };
+  }, [loginSuccess, navigate]);
 
-  const handleGoogleAuth = useGoogleLogin({
-    onSuccess: (tokenResponse) => {
-      const googleToken = tokenResponse?.access_token;
-      if (!googleToken) {
-        setError('Failed to retrieve token from Google.');
-        return;
-      }
-      completeAuth('google', googleToken, googleAuth);
-    },
-    onError: () => {
-      setError('Google Sign-In was cancelled or failed.');
-    },
-  });
+  const handleGoogleCredential = useCallback((credential) => {
+    if (!credential) {
+      setError('Failed to retrieve token from Google.');
+      return;
+    }
+    completeAuth('google', credential, googleAuth);
+  }, [completeAuth]);
 
   const handleFacebookAuth = async () => {
     setError('');
@@ -83,10 +75,9 @@ export function useSocialAuth() {
     loading,
     error,
     setError,
-    clearError,
     pendingVerification,
     clearPendingVerification,
-    handleGoogleAuth,
+    handleGoogleCredential,
     handleFacebookAuth,
   };
 }

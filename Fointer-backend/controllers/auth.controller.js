@@ -58,13 +58,29 @@ export const signup = async (req, res) => {
     if (await respondIfBanned(res, username, name)) return;
 
     const normalizedEmail = String(email).trim().toLowerCase();
+    const genericSignup = {
+      success: true,
+      message:
+        "If this email is not already registered, we sent a 6-digit OTP.",
+      requiresEmailVerification: true,
+      email: normalizedEmail,
+    };
 
     const emailExists = await User.findOne({ email: normalizedEmail });
     if (emailExists) {
-      return res.status(400).json({
-        success: false,
-        message: "Email already exists.",
-      });
+      if (!emailExists.isEmailVerified) {
+        const { otp, hashedOtp, expiresAt } = createEmailVerificationFields();
+        emailExists.emailVerificationOtp = hashedOtp;
+        emailExists.emailVerificationOtpExpires = expiresAt;
+        emailExists.emailVerificationOtpAttempts = 0;
+        await emailExists.save();
+        await sendVerificationEmail({
+          to: emailExists.email,
+          name: emailExists.name,
+          otp,
+        });
+      }
+      return res.status(200).json(genericSignup);
     }
 
     const usernameExists = await User.findOne({ username });
@@ -101,12 +117,7 @@ export const signup = async (req, res) => {
       throw mailError;
     }
 
-    return res.status(201).json({
-      success: true,
-      message: "Account created. Enter the 6-digit OTP sent to your email.",
-      requiresEmailVerification: true,
-      email: user.email,
-    });
+    return res.status(200).json(genericSignup);
   } catch (error) {
     return sendServerError(res, error, "Signup failed. Please try again.");
   }
@@ -192,6 +203,13 @@ export const googleLogin = async (req, res) => {
       });
     }
 
+    if (!process.env.GOOGLE_CLIENT_ID) {
+      return res.status(503).json({
+        success: false,
+        message: "Google login is not configured.",
+      });
+    }
+
     let email;
     let name;
     let picture;
@@ -210,28 +228,10 @@ export const googleLogin = async (req, res) => {
       picture = payload.picture;
       emailVerified = payload.email_verified === true;
     } catch {
-      const userInfoRes = await fetch(
-        "https://www.googleapis.com/oauth2/v3/userinfo",
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-
-      if (!userInfoRes.ok) {
-        return res.status(401).json({
-          success: false,
-          message: "Invalid Google token.",
-        });
-      }
-
-      const googleUser = await userInfoRes.json();
-      googleId = googleUser.sub;
-      email = googleUser.email;
-      name = googleUser.name;
-      picture = googleUser.picture;
-      emailVerified =
-        googleUser.email_verified === true ||
-        googleUser.verified_email === true;
+      return res.status(401).json({
+        success: false,
+        message: "Invalid Google token.",
+      });
     }
 
     if (!email || !googleId) {
@@ -318,7 +318,6 @@ export const googleLogin = async (req, res) => {
 
     return sendToken(user, 200, res);
   } catch (error) {
-    console.error("Google login error:", error);
     return sendServerError(res, error, "Google login failed. Please try again.");
   }
 };
@@ -334,17 +333,42 @@ export const facebookLogin = async (req, res) => {
       });
     }
 
+    const appId = String(process.env.FACEBOOK_APP_ID || "").trim();
+    const appSecret = String(process.env.FACEBOOK_APP_SECRET || "").trim();
+    if (!appId || !appSecret) {
+      return res.status(503).json({
+        success: false,
+        message: "Facebook login is not configured.",
+      });
+    }
+
+    const debugParams = new URLSearchParams({
+      input_token: accessToken,
+      access_token: `${appId}|${appSecret}`,
+    });
+    const debugRes = await fetch(
+      `https://graph.facebook.com/debug_token?${debugParams.toString()}`
+    );
+    const debugJson = await debugRes.json();
+    const debugData = debugJson?.data;
+    if (
+      !debugRes.ok ||
+      !debugData?.is_valid ||
+      String(debugData.app_id) !== appId
+    ) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid or expired Facebook token.",
+      });
+    }
+
     const params = new URLSearchParams({
       fields: "id,name,email,picture.type(large)",
     });
-
-    const appSecret = String(process.env.FACEBOOK_APP_SECRET || "").trim();
-    if (appSecret) {
-      params.set(
-        "appsecret_proof",
-        crypto.createHmac("sha256", appSecret).update(accessToken).digest("hex")
-      );
-    }
+    params.set(
+      "appsecret_proof",
+      crypto.createHmac("sha256", appSecret).update(accessToken).digest("hex")
+    );
 
     const fbRes = await fetch(
       `https://graph.facebook.com/v19.0/me?${params.toString()}`,
@@ -364,7 +388,7 @@ export const facebookLogin = async (req, res) => {
     const { id: facebookId, name, email, picture } = fbData;
     const avatar = picture?.data?.url;
 
-    if (!facebookId) {
+    if (!facebookId || String(facebookId) !== String(debugData.user_id)) {
       return res.status(401).json({
         success: false,
         message: "Unable to read Facebook account details.",
@@ -447,7 +471,6 @@ export const facebookLogin = async (req, res) => {
 
     return sendToken(user, 200, res);
   } catch (error) {
-    console.error("Facebook login error:", error);
     return sendServerError(
       res,
       error,
@@ -555,22 +578,17 @@ export const resendVerificationEmail = async (req, res) => {
       });
     }
 
+    const genericResend = {
+      success: true,
+      message: "If that email needs verification, we sent a new code.",
+    };
+
     const user = await User.findOne({
       email: String(email).trim().toLowerCase(),
     });
 
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "No account found with that email.",
-      });
-    }
-
-    if (user.isEmailVerified) {
-      return res.status(400).json({
-        success: false,
-        message: "This email is already verified.",
-      });
+    if (!user || user.isEmailVerified) {
+      return res.status(200).json(genericResend);
     }
 
     const { otp, hashedOtp, expiresAt } = createEmailVerificationFields();
@@ -585,10 +603,7 @@ export const resendVerificationEmail = async (req, res) => {
       otp,
     });
 
-    return res.status(200).json({
-      success: true,
-      message: "A new OTP has been sent to your email.",
-    });
+    return res.status(200).json(genericResend);
   } catch (error) {
     return sendServerError(
       res,

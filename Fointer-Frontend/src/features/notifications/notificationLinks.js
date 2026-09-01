@@ -15,7 +15,24 @@ const SYSTEM_TYPES = new Set([
   'support_ticket',
 ]);
 
+const ADMIN_TYPES = new Set(['content_report', 'channel_request']);
+
+export const TYPE_LABELS = {
+  content_report: 'Content report',
+  channel_request: 'Channel request',
+  support_ticket: 'Support',
+};
+
 export const isSystemNotification = (type) => SYSTEM_TYPES.has(type);
+
+export const isAdminNotification = (type) => ADMIN_TYPES.has(type);
+
+export const notificationTypeLabel = (notification) => {
+  const type = notification?.type;
+  if (TYPE_LABELS[type]) return TYPE_LABELS[type];
+  if (notification?.community?.name) return notification.community.name;
+  return String(type || 'notification').replace(/_/g, ' ');
+};
 
 /**
  * Platform-neutral notification → web path. Native apps should use
@@ -37,19 +54,10 @@ export const notificationPath = (notification, { isAdmin = false } = {}) => {
     : '/admin/communities';
 
   if (isAdmin) {
-    if (type === 'support_ticket') return '/admin/support';
-    if (
-      type === 'comment' ||
-      type === 'reply' ||
-      type === 'like' ||
-      type === 'reshare' ||
-      type === 'mention'
-    ) {
-      if (community && entity?.id) {
-        return `${adminCommunityPath}/posts/${entity.id}`;
-      }
-      return adminCommunityPath;
+    if (type === 'channel_request' || type === 'support_ticket') {
+      return '/admin/support';
     }
+    if (type === 'content_report') return '/admin/analytics';
     if (community) return adminCommunityPath;
     return '/admin';
   }
@@ -89,7 +97,7 @@ export const notificationPath = (notification, { isAdmin = false } = {}) => {
     return '/';
   }
   if (type === 'support_ticket') {
-    return isAdmin ? '/admin/support' : '/support';
+    return '/support';
   }
   if (
     type === 'moderator_assigned' ||

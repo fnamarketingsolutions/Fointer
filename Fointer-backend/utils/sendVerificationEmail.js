@@ -317,12 +317,16 @@ export const sendSupportRequestEmail = async ({ userName, description }) => {
   });
 };
 
-const getSupportStatusCopy = (status) => {
+const getSupportStatusCopy = (status, { channelName = "", subchannelName = "" } = {}) => {
   if (status === "approved") {
+    const created =
+      channelName && subchannelName
+        ? ` ${escapeHtml(channelName)} / ${escapeHtml(subchannelName)} is now available when you create a community.`
+        : "";
     return {
       title: "Support request approved",
       subject: "Your channel request was approved",
-      body: "Your channel and subchannel request has been approved and created. You can view the updated status on your support page.",
+      body: `Your channel and subchannel request has been approved and created.${created}`,
       ctaLabel: "View support status",
       statusLabel: "Created",
     };
@@ -347,12 +351,18 @@ const getSupportStatusCopy = (status) => {
   };
 };
 
-export const sendSupportStatusUpdateEmail = async ({ to, userName, status }) => {
+export const sendSupportStatusUpdateEmail = async ({
+  to,
+  userName,
+  status,
+  channelName,
+  subchannelName,
+}) => {
   if (!to) {
     throw new Error("Recipient email is missing.");
   }
 
-  const copy = getSupportStatusCopy(status);
+  const copy = getSupportStatusCopy(status, { channelName, subchannelName });
   const safeStatus = escapeHtml(copy.statusLabel);
 
   await sendDashboardNotificationEmail({

@@ -290,14 +290,13 @@ export default function EditCommunityModal({ community, onClose, onSuccess }) {
       let coverImage = form.coverImage.trim();
       if (coverFile) {
         const upload = await uploadMedia(coverFile, 'fointer/communities');
-        coverImage = upload?.media?.url || coverImage;
+        coverImage = upload?.media || coverImage;
       }
 
       const uploadedGallery = [];
       for (const item of newGalleryItems) {
         const upload = await uploadMedia(item.file, 'fointer/communities');
-        const url = upload?.media?.url;
-        if (url) uploadedGallery.push(url);
+        if (upload?.media) uploadedGallery.push(upload.media);
       }
 
       const selectedIds = form.subchannelIds.map(String);

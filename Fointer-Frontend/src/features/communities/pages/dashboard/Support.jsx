@@ -211,6 +211,17 @@ export default function Support() {
                 <p className="text-sm text-[#E5E0D8] whitespace-pre-wrap break-words leading-relaxed">
                   {ticket.description}
                 </p>
+                {ticket.fulfilled?.channel ? (
+                  <p className="text-[11px] text-[#A69B8D]">
+                    Available now:{" "}
+                    <span className="text-[#D4AF37]">
+                      {ticket.fulfilled.channel}
+                      {ticket.fulfilled.subchannel
+                        ? ` / ${ticket.fulfilled.subchannel}`
+                        : ""}
+                    </span>
+                  </p>
+                ) : null}
               </article>
             );
           })}

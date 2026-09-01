@@ -206,7 +206,7 @@ export default function Profile() {
       const avatarUrl = upload?.media?.url;
       if (!avatarUrl) throw new Error("Upload did not return an image URL.");
 
-      const data = await updateMyProfile({ avatar: avatarUrl });
+      const data = await updateMyProfile({ avatar: upload.media });
       showToast(data?.message || "Profile photo updated.");
 
       const updated = data?.user || data?.profile;

@@ -9,9 +9,11 @@ import {
   LuCircleX as XCircle
 } from "react-icons/lu";
 import {
+  fetchAdminChannels,
   fetchAdminSupportTickets,
   updateAdminSupportTicketStatus,
 } from "../../services/adminService";
+import ApproveChannelRequestModal from "../../../../shared/components/modals/ApproveChannelRequestModal";
 import { useToast } from "../../../../shared/components/feedback/ToastContext";
 import { getErrorMessage } from "../../../../shared/utils/errors";
 import { timeAgo } from "../../../../shared/utils/date";
@@ -68,16 +70,22 @@ function ActionBtn({ onClick, disabled, tone = "ghost", children }) {
 export default function SupportTicketCenter() {
   const { showToast } = useToast();
   const [tickets, setTickets] = useState([]);
+  const [channels, setChannels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [updatingId, setUpdatingId] = useState(null);
+  const [approvingTicket, setApprovingTicket] = useState(null);
 
   const loadTickets = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await fetchAdminSupportTickets();
-      setTickets(data?.tickets || []);
+      const [ticketData, channelData] = await Promise.all([
+        fetchAdminSupportTickets(),
+        fetchAdminChannels(),
+      ]);
+      setTickets(ticketData?.tickets || []);
+      setChannels(channelData?.channels || []);
     } catch (err) {
       showToast(getErrorMessage(err, "Failed to load support requests."));
       setTickets([]);
@@ -114,17 +122,33 @@ export default function SupportTicketCenter() {
     });
   }, [filter, tickets, search]);
 
-  const handleStatusUpdate = async (ticketId, status) => {
+  const handleStatusUpdate = async (ticketId, payload) => {
     setUpdatingId(ticketId);
     try {
-      await updateAdminSupportTicketStatus(ticketId, status);
-      showToast(`Request marked as ${status}.`);
+      await updateAdminSupportTicketStatus(ticketId, payload);
+      const status = payload?.status || payload;
+      showToast(
+        status === "approved"
+          ? "Channel created and request approved."
+          : `Request marked as ${status}.`
+      );
+      setApprovingTicket(null);
       await loadTickets();
     } catch (err) {
       showToast(getErrorMessage(err, "Failed to update support request."));
     } finally {
       setUpdatingId(null);
     }
+  };
+
+  const handleApproveSubmit = async ({ channelId, channelName, subchannelName }) => {
+    if (!approvingTicket) return;
+    await handleStatusUpdate(approvingTicket.id, {
+      status: "approved",
+      channelId,
+      channelName,
+      subchannelName,
+    });
   };
 
   return (
@@ -135,7 +159,7 @@ export default function SupportTicketCenter() {
             Support
           </h1>
           <p className="text-sm text-[#8C8070]">
-            Review channel and subchannel requests from members.
+            Create the requested channel and subchannel, then approve. Reject if it should not be added.
           </p>
         </div>
         <button
@@ -244,27 +268,33 @@ export default function SupportTicketCenter() {
                   {ticket.description}
                 </p>
 
+                {ticket.fulfilled?.channel ? (
+                  <p className="text-[11px] text-[#A69B8D]">
+                    Created:{" "}
+                    <span className="text-[#D4AF37]">
+                      {ticket.fulfilled.channel}
+                      {ticket.fulfilled.subchannel
+                        ? ` / ${ticket.fulfilled.subchannel}`
+                        : ""}
+                    </span>
+                  </p>
+                ) : null}
+
                 {ticket.status === "pending" ? (
                   <div className="flex flex-wrap gap-1.5">
                     <ActionBtn
                       tone="success"
                       disabled={isUpdating}
-                      onClick={() =>
-                        handleStatusUpdate(ticket.id, "approved")
-                      }
+                      onClick={() => setApprovingTicket(ticket)}
                     >
-                      {isUpdating ? (
-                        <Loader2 size={12} className="animate-spin" />
-                      ) : (
-                        <CheckCircle2 size={12} />
-                      )}
+                      <CheckCircle2 size={12} />
                       Approve
                     </ActionBtn>
                     <ActionBtn
                       tone="danger"
                       disabled={isUpdating}
                       onClick={() =>
-                        handleStatusUpdate(ticket.id, "rejected")
+                        handleStatusUpdate(ticket.id, { status: "rejected" })
                       }
                     >
                       {isUpdating ? (
@@ -281,6 +311,18 @@ export default function SupportTicketCenter() {
           })}
         </div>
       )}
+
+      <ApproveChannelRequestModal
+        open={Boolean(approvingTicket)}
+        ticket={approvingTicket}
+        channels={channels}
+        loading={updatingId === approvingTicket?.id}
+        onClose={() => {
+          if (updatingId) return;
+          setApprovingTicket(null);
+        }}
+        onSubmit={handleApproveSubmit}
+      />
     </div>
   );
 }

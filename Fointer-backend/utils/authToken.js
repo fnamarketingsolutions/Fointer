@@ -2,7 +2,7 @@
  * Read a JWT from cookie (web) or Authorization Bearer (native / API clients).
  */
 
-const bearerFromHeader = (value) => {
+export const bearerFromHeader = (value) => {
   const header = String(value || "").trim();
   if (!header) return null;
   if (header.toLowerCase().startsWith("bearer ")) {

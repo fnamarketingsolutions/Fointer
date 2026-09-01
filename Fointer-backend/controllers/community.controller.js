@@ -13,13 +13,14 @@ import Reshare from "../models/reshare.js";
 import LiveEvent from "../models/liveEvent.js";
 import LiveMessage from "../models/liveMessage.js";
 import Report from "../models/report.js";
-import { destroyManyFromCloudinary } from "../utils/cloudinary.js";
+import { destroyManyFromCloudinary, acceptSignedImageValue, acceptSignedImageList } from "../utils/cloudinary.js";
 import {
   getMembership,
   getEffectiveMemberRole,
   getBannedMembership,
   canManageCommunity,
   canModerateCommunity,
+  canViewCommunity,
   getActorCommunityRole,
   formatMember,
 } from "../utils/communityPermissions.js";
@@ -68,7 +69,7 @@ const COMMUNITY_POPULATE_STDLIB = [
 /**
  * Helper function to query and fully populate community references
  */
-export const getPopulatedCommunity = async (id) => {
+const getPopulatedCommunity = async (id) => {
   return await Community.findById(id).populate(COMMUNITY_POPULATE_STDLIB);
 };
 
@@ -159,16 +160,6 @@ const normalizeTags = (tags) => {
         .filter(Boolean)
     ),
   ];
-};
-
-const normalizeGalleryImages = (images) => {
-  if (!images) return [];
-  const list = Array.isArray(images) ? images : [images];
-  return [
-    ...new Set(
-      list.map((url) => String(url || "").trim()).filter(Boolean)
-    ),
-  ].slice(0, MAX_GALLERY_IMAGES);
 };
 
 const formatUserRef = (user, fallbackId, { includeEmail = false } = {}) => {
@@ -422,11 +413,36 @@ export const createCommunity = async (req, res) => {
       });
     }
 
-    const gallery = normalizeGalleryImages(galleryImages);
-    if (Array.isArray(galleryImages) && galleryImages.length > MAX_GALLERY_IMAGES) {
+    const galleryLimit = Array.isArray(galleryImages)
+      ? galleryImages.length
+      : 0;
+    if (galleryLimit > MAX_GALLERY_IMAGES) {
       return res.status(400).json({
         success: false,
         message: `You can add up to ${MAX_GALLERY_IMAGES} gallery images.`,
+      });
+    }
+
+    const acceptedCover = acceptSignedImageValue(
+      req.user._id,
+      coverImage,
+      ""
+    );
+    if (!acceptedCover.ok) {
+      return res.status(400).json({
+        success: false,
+        message: acceptedCover.message,
+      });
+    }
+    const acceptedGallery = acceptSignedImageList(
+      req.user._id,
+      galleryImages,
+      []
+    );
+    if (!acceptedGallery.ok) {
+      return res.status(400).json({
+        success: false,
+        message: acceptedGallery.message,
       });
     }
 
@@ -435,8 +451,8 @@ export const createCommunity = async (req, res) => {
       description: description?.trim() || "",
       rules: rules?.trim() || "",
       tags: normalizeTags(tags),
-      coverImage: coverImage?.trim() || "",
-      galleryImages: gallery,
+      coverImage: acceptedCover.url,
+      galleryImages: acceptedGallery.urls,
       type: communityType,
       channel: resolved.channelName,
       subchannels: resolved.subchannelNames,
@@ -561,15 +577,10 @@ export const getCommunity = async (req, res) => {
       });
     }
 
-    const isAdmin = req.user.role === "admin";
     const membership = await getMembership(community._id, req.user._id);
     const isMember = Boolean(getEffectiveMemberRole(membership));
-    const isDiscoverable = ["public", "private_request"].includes(
-      community.type
-    );
 
-    // private_invite (and any future non-discoverable types) require membership
-    if (!isAdmin && !isMember && !isDiscoverable) {
+    if (!canViewCommunity(community, req.user, membership)) {
       return res.status(403).json({
         success: false,
         message: "You do not have access to this community.",
@@ -664,9 +675,19 @@ export const updateCommunity = async (req, res) => {
     }
     if (nextCover !== undefined) {
       const prevCover = community.coverImage || "";
-      const nextCoverValue = String(nextCover).trim();
-      community.coverImage = nextCoverValue;
-      if (prevCover && prevCover !== nextCoverValue) {
+      const acceptedCover = acceptSignedImageValue(
+        req.user._id,
+        nextCover,
+        prevCover
+      );
+      if (!acceptedCover.ok) {
+        return res.status(400).json({
+          success: false,
+          message: acceptedCover.message,
+        });
+      }
+      community.coverImage = acceptedCover.url;
+      if (prevCover && prevCover !== acceptedCover.url) {
         await destroyManyFromCloudinary([prevCover]);
       }
     }
@@ -681,7 +702,18 @@ export const updateCommunity = async (req, res) => {
         });
       }
       const prevGallery = community.galleryImages || [];
-      const nextGallery = normalizeGalleryImages(galleryImages);
+      const acceptedGallery = acceptSignedImageList(
+        req.user._id,
+        galleryImages,
+        prevGallery
+      );
+      if (!acceptedGallery.ok) {
+        return res.status(400).json({
+          success: false,
+          message: acceptedGallery.message,
+        });
+      }
+      const nextGallery = acceptedGallery.urls;
       const removed = prevGallery.filter((url) => !nextGallery.includes(url));
       community.galleryImages = nextGallery;
       if (removed.length) {
@@ -1899,6 +1931,25 @@ export const resolveCommunityCode = async (req, res) => {
         message: "Community not found.",
       });
     }
+
+    const community = await Community.findById(id).select("type owner").lean();
+    if (!community) {
+      return res.status(404).json({
+        success: false,
+        message: "Community not found.",
+      });
+    }
+
+    const membership = req.user
+      ? await getMembership(community._id, req.user._id)
+      : null;
+    if (!canViewCommunity(community, req.user || null, membership)) {
+      return res.status(404).json({
+        success: false,
+        message: "Community not found.",
+      });
+    }
+
     return res.status(200).json({ success: true, id });
   } catch (error) {
     return sendServerError(res, error);

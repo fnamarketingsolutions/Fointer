@@ -1,7 +1,14 @@
 import Community from "../models/community.js";
 import CommunityMember from "../models/communityMember.js";
-import Notification from "../models/notification.js";
+import Notification, {
+  ADMIN_NOTIFICATION_TYPES,
+} from "../models/notification.js";
+import User from "../models/user.js";
 import { getEffectiveMemberRole } from "./communityPermissions.js";
+
+const ADMIN_TYPE_SET = new Set(ADMIN_NOTIFICATION_TYPES);
+const ADMIN_ID_CACHE_MS = 15_000;
+let adminIdCache = { ids: [], at: 0 };
 
 export const userNotificationRoom = (userId) => `user:${String(userId)}`;
 
@@ -144,6 +151,21 @@ export const getCommunityStewardIds = async (communityId) => {
   return [...new Set(ids)];
 };
 
+export const getAdminIds = async () => {
+  const now = Date.now();
+  if (adminIdCache.at && now - adminIdCache.at < ADMIN_ID_CACHE_MS) {
+    return adminIdCache.ids;
+  }
+  const admins = await User.find({ role: "admin", status: "active" })
+    .select("_id")
+    .lean();
+  const ids = admins.map((user) => String(user._id));
+  adminIdCache = { ids, at: now };
+  return ids;
+};
+
+export const isAdminNotificationType = (type) => ADMIN_TYPE_SET.has(type);
+
 const emitNotification = (io, recipientId, payload) => {
   if (!io || !recipientId || !payload) return;
   io.to(userNotificationRoom(recipientId)).emit("notification:new", payload);
@@ -163,6 +185,11 @@ const createOne = async ({
   const recipient = toId(recipientId);
   if (!recipient || !type || !title) return null;
   if (actor && idsEqual(recipient, actor)) return null;
+
+  if (!isAdminNotificationType(type)) {
+    const adminIds = await getAdminIds();
+    if (adminIds.includes(String(recipient))) return null;
+  }
 
   const actorSnap = snapshotUser(actor);
   const communitySnap = await snapshotCommunity(community);
@@ -240,4 +267,14 @@ export const notifyMany = async (recipientIds, opts) => {
       .filter((id) => id !== actorId)
       .map((recipientId) => notify({ ...opts, recipientId }))
   );
+};
+
+/** Fan-out a platform event to every active admin. Never throws. */
+export const notifyAdmins = async (opts) => {
+  try {
+    const ids = await getAdminIds();
+    await notifyMany(ids, opts);
+  } catch (error) {
+    console.error("Failed to notify admins:", error);
+  }
 };

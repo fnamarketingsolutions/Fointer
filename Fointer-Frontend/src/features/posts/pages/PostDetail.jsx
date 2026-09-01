@@ -507,8 +507,6 @@ export default function PostDetail({
     );
   }
 
-  const communityId = post.community?.id || post.community;
-
   const postActions = showPostActions ? (
     <div className="shrink-0 flex items-center gap-2 rounded-lg border border-[#2A241E] bg-[#0E0C0A] p-1.5">
       {showPostEdit && (
@@ -768,7 +766,6 @@ export default function PostDetail({
         toggleRepliesExpand={toggleRepliesExpand}
         replyTargetId={replyTargetId}
         setReplyTargetId={setReplyTargetId}
-        showMainCommentInput={showMainCommentInput}
         setShowMainCommentInput={setShowMainCommentInput}
         commentText={commentText}
         setCommentText={setCommentText}

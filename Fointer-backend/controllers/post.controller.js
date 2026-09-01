@@ -6,7 +6,6 @@ import Reshare from "../models/reshare.js";
 import Community from "../models/community.js";
 import CommunityMember from "../models/communityMember.js";
 import {
-  canCreatePost,
   canEngageInCommunity,
   canManagePostsInCommunity,
   isWithinEditWindow,
@@ -24,6 +23,10 @@ import { sendServerError } from "../utils/safeError.js";
 import { escapeRegex } from "../utils/validate.js";
 import { respondIfBanned } from "../utils/bannedKeywords.js";
 import { notify, personName, snippet } from "../utils/notify.js";
+import {
+  acceptSignedMediaList,
+  destroyManyFromCloudinary,
+} from "../utils/cloudinary.js";
 
 const POST_SORT_MAP = {
   newest: { createdAt: -1 },
@@ -288,7 +291,7 @@ const resolveCommunityType = async (post) => {
 };
 
 /** Anyone may view community-less + discoverable community posts; private invite needs membership. */
-const canViewPost = async (post, user) => {
+export const canViewPost = async (post, user) => {
   if (user?.role === "admin") return true;
   const communityId = post.community?._id || post.community;
   if (!communityId) return true;
@@ -297,10 +300,7 @@ const canViewPost = async (post, user) => {
   if (DISCOVERABLE_COMMUNITY_TYPES.includes(type)) return true;
 
   if (!user) return false;
-  return (
-    (await canEngageInCommunity(communityId, user)) ||
-    (await canCreatePost(communityId, user))
-  );
+  return canEngageInCommunity(communityId, user);
 };
 
 /** Like / comment: community-less ok when logged in; community posts require membership. */
@@ -372,39 +372,6 @@ const userCanDeleteComment = async (comment, user) => {
   const post = await Post.findById(comment.post).select("community").lean();
   if (!post?.community) return false;
   return canManagePostsInCommunity(post.community, user);
-};
-
-/** Communities where user is an active member (or all for admin) */
-export const listJoinedCommunityIds = async (user) => {
-  if (user.role === "admin") {
-    const all = await Community.find().select("_id").lean();
-    return all.map((c) => c._id);
-  }
-
-  const memberships = await CommunityMember.find({
-    user: user._id,
-    status: "active",
-  }).select("community");
-
-  return memberships.map((m) => m.community);
-};
-
-/** Communities where user is owner or active (non-expired) moderator */
-export const listManageableCommunityIds = async (user) => {
-  if (user.role === "admin") {
-    const all = await Community.find().select("_id").lean();
-    return all.map((c) => c._id);
-  }
-
-  const memberships = await CommunityMember.find({
-    user: user._id,
-    status: "active",
-    role: { $in: ["owner", "moderator"] },
-  });
-
-  return memberships
-    .filter((m) => getEffectiveMemberRole(m) === "owner" || getEffectiveMemberRole(m) === "moderator")
-    .map((m) => m.community);
 };
 
 export const listPosts = async (req, res) => {
@@ -723,7 +690,7 @@ export const createPost = async (req, res) => {
         });
       }
 
-      if (!(await canCreatePost(communityId, req.user))) {
+      if (!(await canEngageInCommunity(communityId, req.user))) {
         return res.status(403).json({
           success: false,
           message: "You must be an active member to create posts.",
@@ -751,6 +718,14 @@ export const createPost = async (req, res) => {
 
     if (await respondIfBanned(res, cleanTitle, cleanText)) return;
 
+    const acceptedMedia = acceptSignedMediaList(req.user._id, mediaList, []);
+    if (!acceptedMedia.ok) {
+      return res.status(400).json({
+        success: false,
+        message: acceptedMedia.message,
+      });
+    }
+
     const postData = {
       author: req.user._id,
       title: cleanTitle,
@@ -758,11 +733,7 @@ export const createPost = async (req, res) => {
       likeCount: 0,
       commentCount: 0,
       reshareCount: 0,
-      media: mediaList.map((m) => ({
-        url: m.url,
-        publicId: m.publicId || "",
-        type: m.type === "video" ? "video" : "image",
-      })),
+      media: acceptedMedia.items,
     };
     if (hasCommunity) {
       postData.community = communityId;
@@ -825,11 +796,25 @@ export const updatePost = async (req, res) => {
     }
     if (text !== undefined) post.text = String(text).trim();
     if (media !== undefined) {
-      post.media = (Array.isArray(media) ? media : []).map((m) => ({
-        url: m.url,
-        publicId: m.publicId || "",
-        type: m.type === "video" ? "video" : "image",
-      }));
+      const acceptedMedia = acceptSignedMediaList(
+        req.user._id,
+        Array.isArray(media) ? media : [],
+        post.media || []
+      );
+      if (!acceptedMedia.ok) {
+        return res.status(400).json({
+          success: false,
+          message: acceptedMedia.message,
+        });
+      }
+      const nextUrls = new Set(acceptedMedia.items.map((item) => item.url));
+      const removed = (post.media || [])
+        .map((item) => item.url)
+        .filter((url) => url && !nextUrls.has(url));
+      post.media = acceptedMedia.items;
+      if (removed.length) {
+        await destroyManyFromCloudinary(removed);
+      }
     }
 
     if (await respondIfBanned(res, post.title, post.text)) return;
@@ -1370,6 +1355,12 @@ export const resolvePostCode = async (req, res) => {
     if (!id) {
       return res.status(404).json({ success: false, message: "Post not found." });
     }
+
+    const post = await Post.findById(id).select("community").lean();
+    if (!post || !(await canViewPost(post, req.user || null))) {
+      return res.status(404).json({ success: false, message: "Post not found." });
+    }
+
     return res.status(200).json({ success: true, id });
   } catch (error) {
     return sendServerError(res, error);

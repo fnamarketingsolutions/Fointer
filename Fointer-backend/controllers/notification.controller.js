@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import Notification, {
+  ADMIN_NOTIFICATION_TYPES,
   SYSTEM_NOTIFICATION_TYPES,
 } from "../models/notification.js";
 import { formatNotification } from "../utils/notify.js";
@@ -10,6 +11,15 @@ import {
 import { sendServerError } from "../utils/safeError.js";
 
 const isValidId = (value) => mongoose.Types.ObjectId.isValid(String(value || ""));
+const isAdminRole = (user) => String(user?.role || "").toLowerCase() === "admin";
+
+const recipientScope = (user) => {
+  const query = { recipient: user._id };
+  if (isAdminRole(user)) {
+    query.type = { $in: ADMIN_NOTIFICATION_TYPES };
+  }
+  return query;
+};
 
 const ownedNotification = async (id, userId) => {
   if (!isValidId(id)) return null;
@@ -26,9 +36,17 @@ export const listNotifications = async (req, res) => {
       maxLimit: 50,
     });
     const filter = String(req.query.filter || "all").toLowerCase();
-    const query = { recipient: req.user._id };
+    const query = recipientScope(req.user);
 
-    if (filter === "unread") {
+    if (isAdminRole(req.user)) {
+      if (filter === "unread") {
+        query.readAt = null;
+      } else if (filter === "reports") {
+        query.type = "content_report";
+      } else if (filter === "requests" || filter === "channel") {
+        query.type = "channel_request";
+      }
+    } else if (filter === "unread") {
       query.readAt = null;
     } else if (filter === "mentions") {
       query.type = "mention";
@@ -36,16 +54,18 @@ export const listNotifications = async (req, res) => {
       query.type = { $in: SYSTEM_NOTIFICATION_TYPES };
     }
 
+    const unreadQuery = {
+      ...recipientScope(req.user),
+      readAt: null,
+    };
+
     const [items, total, unreadCount] = await Promise.all([
       Notification.find(query)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit),
       Notification.countDocuments(query),
-      Notification.countDocuments({
-        recipient: req.user._id,
-        readAt: null,
-      }),
+      Notification.countDocuments(unreadQuery),
     ]);
 
     return res.status(200).json({
@@ -62,7 +82,7 @@ export const listNotifications = async (req, res) => {
 export const getUnreadCount = async (req, res) => {
   try {
     const unreadCount = await Notification.countDocuments({
-      recipient: req.user._id,
+      ...recipientScope(req.user),
       readAt: null,
     });
     return res.status(200).json({
@@ -123,7 +143,7 @@ export const markNotificationUnread = async (req, res) => {
 export const markAllNotificationsRead = async (req, res) => {
   try {
     const result = await Notification.updateMany(
-      { recipient: req.user._id, readAt: null },
+      { ...recipientScope(req.user), readAt: null },
       { $set: { readAt: new Date() } }
     );
 

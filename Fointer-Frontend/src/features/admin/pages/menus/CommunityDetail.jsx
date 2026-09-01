@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   LuArrowLeft as ArrowLeft,
-  LuCalendarDays as CalendarDays,
   LuChevronDown as ChevronDown,
   LuChevronUp as ChevronUp,
   LuLayoutGrid as Grid,

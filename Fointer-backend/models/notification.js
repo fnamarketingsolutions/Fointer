@@ -18,6 +18,14 @@ export const NOTIFICATION_TYPES = [
   "member_banned",
   "member_unbanned",
   "support_ticket",
+  "content_report",
+  "channel_request",
+];
+
+/** Platform events shown only on the admin notification feed. */
+export const ADMIN_NOTIFICATION_TYPES = [
+  "content_report",
+  "channel_request",
 ];
 
 export const SYSTEM_NOTIFICATION_TYPES = [
@@ -42,6 +50,7 @@ export const ENTITY_KINDS = [
   "join_request",
   "invite",
   "support_ticket",
+  "report",
 ];
 
 const actorSnapshotSchema = new mongoose.Schema(

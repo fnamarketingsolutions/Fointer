@@ -11,6 +11,8 @@ import LiveEvent from "../models/liveEvent.js";
 import WatchGroup from "../models/watchGroup.js";
 import Community from "../models/community.js";
 import { sendServerError } from "../utils/safeError.js";
+import { canViewPost } from "./post.controller.js";
+import { notifyAdmins, personName, snippet } from "../utils/notify.js";
 
 const formatUser = (user) => {
   if (!user || typeof user !== "object" || !user._id) {
@@ -36,7 +38,7 @@ const reasonLabel = (reason) =>
     other: "Other",
   })[reason] || reason;
 
-export const formatReport = (report) => ({
+const formatReport = (report, { includeSnapshot = true } = {}) => ({
   id: report._id,
   targetType: report.targetType,
   targetId: report.targetId,
@@ -44,7 +46,7 @@ export const formatReport = (report) => ({
   reasonLabel: reasonLabel(report.reason),
   details: report.details || "",
   status: report.status,
-  snapshot: report.snapshot || {},
+  snapshot: includeSnapshot ? report.snapshot || {} : {},
   reporter: formatUser(report.reporter),
   reviewedBy: formatUser(report.reviewedBy),
   reviewedAt: report.reviewedAt || null,
@@ -174,6 +176,12 @@ export const createReport = async (req, res) => {
           message: "Post not found.",
         });
       }
+      if (!(await canViewPost(post, req.user))) {
+        return res.status(403).json({
+          success: false,
+          message: "You cannot report this post.",
+        });
+      }
       if (String(post.author?._id || post.author) === String(req.user._id)) {
         return res.status(400).json({
           success: false,
@@ -187,12 +195,23 @@ export const createReport = async (req, res) => {
         .populate({
           path: "post",
           select: "title community",
-          populate: { path: "community", select: "name" },
+          populate: { path: "community", select: "name type" },
         });
       if (!comment) {
         return res.status(404).json({
           success: false,
           message: "Comment not found.",
+        });
+      }
+      const commentPost = comment.post;
+      if (
+        !commentPost ||
+        typeof commentPost !== "object" ||
+        !(await canViewPost(commentPost, req.user))
+      ) {
+        return res.status(403).json({
+          success: false,
+          message: "You cannot report this comment.",
         });
       }
       if (
@@ -231,10 +250,25 @@ export const createReport = async (req, res) => {
 
     await report.populate("reporter", "username name avatar status");
 
+    await notifyAdmins({
+      io: req.app.get("io"),
+      actor: req.user,
+      type: "content_report",
+      title: `${personName(req.user)} reported a ${targetType}`,
+      body: details
+        ? `${reasonLabel(reason)} — ${snippet(details)}`
+        : reasonLabel(reason),
+      entity: {
+        kind: "report",
+        id: report._id,
+        title: snapshot?.title || reasonLabel(reason),
+      },
+    });
+
     return res.status(201).json({
       success: true,
       message: "Report submitted. Our team will review it.",
-      report: formatReport(report),
+      report: formatReport(report, { includeSnapshot: false }),
     });
   } catch (error) {
     if (error?.code === 11000) {

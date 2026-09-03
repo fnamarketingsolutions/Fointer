@@ -12,6 +12,7 @@ export const NOTIFICATION_TYPES = [
   "like",
   "reshare",
   "mention",
+  "follow",
   "moderator_assigned",
   "moderator_revoked",
   "member_removed",
@@ -20,9 +21,9 @@ export const NOTIFICATION_TYPES = [
   "support_ticket",
   "content_report",
   "channel_request",
+  "listing_inquiry",
+  "direct_message",
 ];
-
-/** Platform events shown only on the admin notification feed. */
 export const ADMIN_NOTIFICATION_TYPES = [
   "content_report",
   "channel_request",
@@ -51,6 +52,9 @@ export const ENTITY_KINDS = [
   "invite",
   "support_ticket",
   "report",
+  "user",
+  "listing",
+  "conversation",
 ];
 
 const actorSnapshotSchema = new mongoose.Schema(

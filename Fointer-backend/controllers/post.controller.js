@@ -8,6 +8,7 @@ import CommunityMember from "../models/communityMember.js";
 import {
   canEngageInCommunity,
   canManagePostsInCommunity,
+  DISCOVERABLE_COMMUNITY_TYPES,
   isWithinEditWindow,
   getEditWindowMinutes,
   getEffectiveMemberRole,
@@ -23,6 +24,7 @@ import { sendServerError } from "../utils/safeError.js";
 import { escapeRegex } from "../utils/validate.js";
 import { respondIfBanned } from "../utils/bannedKeywords.js";
 import { notify, personName, snippet } from "../utils/notify.js";
+import { getFollowedUserIds } from "../utils/followHelpers.js";
 import {
   acceptSignedMediaList,
   destroyManyFromCloudinary,
@@ -246,8 +248,6 @@ const formatPost = (post, extras = {}) => {
   };
 };
 
-const DISCOVERABLE_COMMUNITY_TYPES = ["public", "private_request"];
-
 const DISCOVERABLE_CACHE_MS = 15_000;
 let discoverableIdsCache = { ids: null, at: 0 };
 
@@ -388,6 +388,7 @@ export const listPosts = async (req, res) => {
 
     const filter = {};
     const mineOnly = mine === "1" || mine === "true";
+    let scopeFilter = null;
 
     if (mineOnly) {
       filter.author = req.user._id;
@@ -414,14 +415,36 @@ export const listPosts = async (req, res) => {
       }
       filter.community = parsedCommunityId;
     } else {
-      // Default: posts in communities the user has joined
+      const followedIds = await getFollowedUserIds(req.user._id);
       let scopeIds = joinedIds;
       if (channel) {
         const channelIds = await getCommunityIdsByChannel(channel);
         const channelSet = new Set(channelIds.map(String));
         scopeIds = joinedIds.filter((id) => channelSet.has(String(id)));
       }
-      if (!scopeIds.length) {
+
+      const orConditions = [];
+      if (scopeIds.length) {
+        orConditions.push({ community: { $in: scopeIds } });
+      }
+      if (followedIds.length) {
+        const discoverableIds = await getDiscoverableCommunityIds();
+        const visibleCommunities = [
+          ...new Set([
+            ...discoverableIds.map(String),
+            ...joinedIds.map(String),
+          ]),
+        ];
+        orConditions.push({
+          author: { $in: followedIds },
+          $or: [
+            { community: null },
+            { community: { $in: visibleCommunities } },
+          ],
+        });
+      }
+
+      if (!orConditions.length) {
         const empty = { success: true, posts: [] };
         if (enabled) {
           empty.pagination = buildPaginationMeta({
@@ -433,15 +456,31 @@ export const listPosts = async (req, res) => {
         }
         return res.status(200).json(empty);
       }
-      filter.community = { $in: scopeIds };
+
+      scopeFilter =
+        orConditions.length === 1 ? orConditions[0] : { $or: orConditions };
     }
 
     if (q && String(q).trim()) {
       const term = escapeRegex(String(q).trim());
-      filter.$or = [
-        { title: { $regex: term, $options: "i" } },
-        { text: { $regex: term, $options: "i" } },
-      ];
+      const textMatch = {
+        $or: [
+          { title: { $regex: term, $options: "i" } },
+          { text: { $regex: term, $options: "i" } },
+        ],
+      };
+
+      if (scopeFilter) {
+        Object.assign(filter, { $and: [scopeFilter, textMatch] });
+      } else if (Object.keys(filter).length) {
+        const baseFilter = { ...filter };
+        Object.keys(filter).forEach((key) => delete filter[key]);
+        filter.$and = [baseFilter, textMatch];
+      } else {
+        Object.assign(filter, textMatch);
+      }
+    } else if (scopeFilter) {
+      Object.assign(filter, scopeFilter);
     }
 
     const sort = postListSort(sortBy);
@@ -679,10 +718,21 @@ export const getPublicPost = async (req, res) => {
 export const createPost = async (req, res) => {
   try {
     const { communityId, title, text, media } = req.body;
-    const hasCommunity = Boolean(communityId);
+    const parsedCommunityId = communityId
+      ? parseObjectIdInput(communityId)
+      : null;
+
+    if (communityId != null && communityId !== "" && !parsedCommunityId) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid community id.",
+      });
+    }
+
+    const hasCommunity = Boolean(parsedCommunityId);
 
     if (hasCommunity) {
-      const community = await Community.findById(communityId);
+      const community = await Community.findById(parsedCommunityId);
       if (!community) {
         return res.status(404).json({
           success: false,
@@ -690,7 +740,7 @@ export const createPost = async (req, res) => {
         });
       }
 
-      if (!(await canEngageInCommunity(communityId, req.user))) {
+      if (!(await canEngageInCommunity(parsedCommunityId, req.user))) {
         return res.status(403).json({
           success: false,
           message: "You must be an active member to create posts.",
@@ -736,7 +786,7 @@ export const createPost = async (req, res) => {
       media: acceptedMedia.items,
     };
     if (hasCommunity) {
-      postData.community = communityId;
+      postData.community = parsedCommunityId;
     }
 
     const post = await Post.create(postData);
@@ -979,8 +1029,15 @@ export const createComment = async (req, res) => {
 
     let parent = null;
     if (req.body.parentId) {
+      const parentId = parseObjectIdInput(req.body.parentId);
+      if (!parentId) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid parent comment id.",
+        });
+      }
       parent = await Comment.findOne({
-        _id: req.body.parentId,
+        _id: parentId,
         post: post._id,
       });
       if (!parent) {

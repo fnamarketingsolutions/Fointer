@@ -9,12 +9,14 @@ import {
   getEffectiveMemberRole,
 } from "../utils/communityPermissions.js";
 import {
-  getRequestsActionUrl,
+  getCommunitiesUrl,
+  getCommunitiesRequestsUrl,
   sendJoinRequestApprovedEmail,
   sendJoinRequestDeniedEmail,
 } from "../utils/sendVerificationEmail.js";
 import { sendServerError } from "../utils/safeError.js";
 import { notify } from "../utils/notify.js";
+import { parseObjectIdInput } from "../utils/shortCode.js";
 
 const formatJoinRequest = (request) => {
   const user = request.user;
@@ -38,7 +40,15 @@ const formatJoinRequest = (request) => {
 };
 
 const assertCommunity = async (id, res) => {
-  const community = await Community.findById(id);
+  const communityId = parseObjectIdInput(id);
+  if (!communityId) {
+    res.status(404).json({
+      success: false,
+      message: "Community not found.",
+    });
+    return null;
+  }
+  const community = await Community.findById(communityId);
   if (!community) {
     res.status(404).json({
       success: false,
@@ -47,6 +57,18 @@ const assertCommunity = async (id, res) => {
     return null;
   }
   return community;
+};
+
+const parseRouteObjectId = (value, res, label = "id") => {
+  const parsed = parseObjectIdInput(value);
+  if (!parsed) {
+    res.status(400).json({
+      success: false,
+      message: `Invalid ${label}.`,
+    });
+    return null;
+  }
+  return parsed;
 };
 
 export const listCommunityMembers = async (req, res) => {
@@ -80,37 +102,6 @@ export const listCommunityMembers = async (req, res) => {
   }
 };
 
-export const listModerators = async (req, res) => {
-  try {
-    const community = await assertCommunity(req.params.id, res);
-    if (!community) return;
-
-    if (!(await canModerateCommunity(community, req.user))) {
-      return res.status(403).json({
-        success: false,
-        message: "You can only view moderators for communities you manage.",
-      });
-    }
-
-    const moderators = await CommunityMember.find({
-      community: community._id,
-      status: "active",
-      role: "moderator",
-    })
-      .populate("user", "username name email avatar")
-      .sort({ createdAt: -1 });
-
-    return res.status(200).json({
-      success: true,
-      moderators: moderators
-        .filter((m) => getEffectiveMemberRole(m) === "moderator")
-        .map(formatMember),
-    });
-  } catch (error) {
-    return sendServerError(res, error);
-  }
-};
-
 export const assignModerator = async (req, res) => {
   try {
     const community = await assertCommunity(req.params.id, res);
@@ -123,11 +114,12 @@ export const assignModerator = async (req, res) => {
       });
     }
 
-    const { userId, expiresAt } = req.body;
+    const { expiresAt } = req.body;
+    const userId = parseObjectIdInput(req.body.userId);
     if (!userId) {
       return res.status(400).json({
         success: false,
-        message: "userId is required.",
+        message: "Valid user id is required.",
       });
     }
 
@@ -212,9 +204,17 @@ export const revokeModerator = async (req, res) => {
       });
     }
 
+    const targetUserId = parseObjectIdInput(req.params.userId);
+    if (!targetUserId) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid user id.",
+      });
+    }
+
     const membership = await CommunityMember.findOne({
       community: community._id,
-      user: req.params.userId,
+      user: targetUserId,
       status: "active",
     }).populate("user", "username name email avatar");
 
@@ -274,8 +274,11 @@ export const removeMemberRole = async (req, res) => {
       });
     }
 
+    const memberId = parseRouteObjectId(req.params.memberId, res, "member id");
+    if (!memberId) return;
+
     const membership = await CommunityMember.findOne({
-      _id: req.params.memberId,
+      _id: memberId,
       community: community._id,
     }).populate("user", "username name email avatar");
 
@@ -392,8 +395,11 @@ export const banMember = async (req, res) => {
       });
     }
 
+    const memberId = parseRouteObjectId(req.params.memberId, res, "member id");
+    if (!memberId) return;
+
     const membership = await CommunityMember.findOne({
-      _id: req.params.memberId,
+      _id: memberId,
       community: community._id,
     }).populate("user", "username name email avatar");
 
@@ -470,8 +476,11 @@ export const unbanMember = async (req, res) => {
       });
     }
 
+    const memberId = parseRouteObjectId(req.params.memberId, res, "member id");
+    if (!memberId) return;
+
     const membership = await CommunityMember.findOne({
-      _id: req.params.memberId,
+      _id: memberId,
       community: community._id,
       status: "banned",
     }).populate("user", "username name email avatar");
@@ -585,7 +594,7 @@ export const approveJoinRequest = async (req, res) => {
     const requester = joinRequest.user;
     const requesterEmail =
       requester && typeof requester === "object" ? requester.email : null;
-    const actionUrl = getRequestsActionUrl();
+    const actionUrl = getCommunitiesUrl(community);
     const userName =
       (requester && typeof requester === "object" &&
         (requester.name || requester.username)) ||
@@ -686,7 +695,7 @@ export const denyJoinRequest = async (req, res) => {
     const requester = joinRequest.user;
     const requesterEmail =
       requester && typeof requester === "object" ? requester.email : null;
-    const actionUrl = getRequestsActionUrl();
+    const actionUrl = getCommunitiesRequestsUrl();
     const userName =
       (requester &&
         typeof requester === "object" &&

@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { FiEye, FiEyeOff, FiHome } from 'react-icons/fi';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { loginUser, resendVerificationEmail, verifyEmailOtp } from '../services/authService';
+import { loginUser, resendVerificationEmail, verifyEmailOtp } from '../../../api/auth';
 import { useAuth } from '../../../context/AuthContext';
 import { useSocialAuth } from '../hooks/useSocialAuth';
 import { useToast } from '../../../shared/components/feedback/ToastContext';
 import SocialAuthButtons from './SocialAuthButtons';
 import BrandLogo from '../../../shared/components/BrandLogo';
+import ThemeToggle from '../../../shared/components/ThemeToggle';
 import { getDashboardPathForRole } from '../../../shared/lib/roles';
 import { getSafeReturnPath } from '../../../shared/lib/safeRedirect';
 
@@ -115,11 +116,11 @@ export default function Login() {
   const renderInputField = (label, name, type, placeholder, isPassword = false) => (
     <div>
       <div className="flex justify-between items-center mb-1.5">
-        <label className="block text-xs font-medium text-gray-300 uppercase tracking-wider">
+        <label className="block text-xs font-medium text-fo-muted uppercase tracking-wider">
           {label}
         </label>
         {isPassword && (
-          <a href="#" className="text-xs text-[#F8A201] hover:underline">
+          <a href="#" className="text-xs text-fo-brand hover:underline">
             Forgot?
           </a>
         )}
@@ -132,13 +133,13 @@ export default function Login() {
           onChange={handleChange}
           placeholder={placeholder}
           required
-          className="w-full px-4 py-3 rounded-lg bg-[#1c140d] border border-amber-900/30 text-white placeholder-gray-500 focus:outline-none focus:border-[#F8A201] transition-all text-sm pr-10"
+          className="w-full px-4 py-3 rounded-lg bg-fo-surface-hover border border-fo-border/60 text-fo-text placeholder:text-fo-subtle focus:outline-none focus:border-fo-brand transition-all text-sm pr-10"
         />
         {isPassword && (
           <button
             type="button"
             onClick={() => setShowPassword((prev) => !prev)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[#F8A201] transition-colors"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-fo-subtle hover:text-fo-brand transition-colors"
           >
             {showPassword ? <FiEyeOff size={18} /> : <FiEye size={18} />}
           </button>
@@ -148,48 +149,50 @@ export default function Login() {
   );
 
   return (
-    <div className="min-h-screen w-full flex flex-col md:flex-row bg-[#130D08] text-white font-sans overflow-x-hidden">
+    <div className="auth-page relative min-h-screen w-full flex flex-col md:flex-row font-sans overflow-x-hidden">
+      <div className="absolute top-4 right-4 z-20">
+        <ThemeToggle />
+      </div>
       <div
-        className="relative md:w-1/2 w-full min-h-[450px] md:min-h-screen flex flex-col justify-between p-8 md:p-14 bg-cover bg-center overflow-hidden"
+        className="auth-hero relative md:w-1/2 w-full min-h-[450px] md:min-h-screen flex flex-col justify-between p-8 md:p-14 bg-cover bg-center overflow-hidden"
         style={{
           backgroundImage: `linear-gradient(to bottom, rgba(19, 13, 8, 0.65), rgba(19, 13, 8, 0.85)), url('https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?q=80&w=1200&auto=format&fit=crop')`,
         }}
       >
         <div>
           <BrandLogo />
-          <h1 className="text-4xl md:text-6xl font-serif text-amber-50/90 leading-tight mt-6">
+          <h1 className="auth-hero-title text-4xl md:text-6xl font-serif leading-tight mt-6">
             Connect. Engage.<br />
             <span className="italic font-normal">Grow.</span>
           </h1>
         </div>
 
         <div className="mt-12 md:mt-0 space-y-6">
-         
-          <p className="text-gray-300 text-sm md:text-base max-w-md leading-relaxed font-light">
+          <p className="auth-hero-lead text-sm md:text-base max-w-md leading-relaxed font-light">
             Welcome back! Log in to re-connect with your network and explore high-impact opportunities.
           </p>
 
-          <div className="pt-4 border-t border-white/10 flex items-center space-x-3">
+          <div className="auth-hero-separator pt-4 border-t flex items-center space-x-3">
             <div className="flex -space-x-2 overflow-hidden">
-              <img className="inline-block h-8 w-8 rounded-full ring-2 ring-[#130D08]" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80" alt="user" />
-              <img className="inline-block h-8 w-8 rounded-full ring-2 ring-[#130D08]" src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&q=80" alt="user" />
-              <img className="inline-block h-8 w-8 rounded-full ring-2 ring-[#130D08]" src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=100&q=80" alt="user" />
+              <img className="auth-hero-avatar inline-block h-8 w-8 rounded-full ring-2" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80" alt="user" />
+              <img className="auth-hero-avatar inline-block h-8 w-8 rounded-full ring-2" src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&q=80" alt="user" />
+              <img className="auth-hero-avatar inline-block h-8 w-8 rounded-full ring-2" src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=100&q=80" alt="user" />
             </div>
-            <span className="text-xs text-gray-300 font-medium">
-              <strong className="text-[#F8A201]">12k+</strong> professionals active today
+            <span className="auth-hero-meta text-xs font-medium">
+              <strong>12k+</strong> professionals active today
             </span>
           </div>
         </div>
       </div>
 
-      <div className="md:w-1/2 w-full flex flex-col justify-between p-8 md:p-14 bg-[#130D08]">
+      <div className="md:w-1/2 w-full flex flex-col justify-between p-8 md:p-14">
         <div className="max-w-md w-full mx-auto my-auto py-8">
           <div className="mb-8">
           <Link to="/">
-          <FiHome size={24} className="text-[#F8A201] mb-2 hover:cursor-pointer" />
+          <FiHome size={24} className="text-fo-brand mb-2 hover:cursor-pointer" />
           </Link>
-            <h2 className="text-3xl font-serif text-amber-50">Welcome Back</h2>
-            <p className="text-xs text-gray-400 mt-2">
+            <h2 className="text-3xl font-serif text-fo-text">Welcome Back</h2>
+            <p className="text-xs text-fo-subtle mt-2">
               Please enter your credentials to access your account.
             </p>
           </div>
@@ -204,7 +207,7 @@ export default function Login() {
                   <button
                     type="submit"
                     disabled={emailLoading}
-                    className="w-full py-3 px-4 bg-[#F8A201] text-[#130D08] font-bold text-sm rounded-lg hover:bg-[#e09200] transition-colors shadow-md shadow-[#F8A201]/10 active:scale-[0.98] disabled:opacity-50"
+                    className="w-full py-3 px-4 bg-fo-brand text-fo-brand-fg font-bold text-sm rounded-lg hover:bg-fo-brand-hover transition-colors shadow-md shadow-fo-brand/10 active:scale-[0.98] disabled:opacity-50"
                   >
                     {emailLoading ? 'Logging in...' : 'Login'}
                   </button>
@@ -218,7 +221,7 @@ export default function Login() {
           ) : (
             <form onSubmit={handleVerifyOtp} className="space-y-5">
               <div>
-                <label className="block text-xs font-medium text-gray-300 uppercase tracking-wider mb-1.5">
+                <label className="block text-xs font-medium text-fo-muted uppercase tracking-wider mb-1.5">
                   6-Digit OTP
                 </label>
                 <input
@@ -230,35 +233,35 @@ export default function Login() {
                   onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
                   placeholder="123456"
                   required
-                  className="w-full px-4 py-3 rounded-lg bg-[#1c140d] border border-amber-900/30 text-white placeholder-gray-500 focus:outline-none focus:border-[#F8A201] transition-all text-sm text-center tracking-[0.35em]"
+                  className="w-full px-4 py-3 rounded-lg bg-fo-surface-hover border border-fo-border/60 text-fo-text placeholder:text-fo-subtle focus:outline-none focus:border-fo-brand transition-all text-sm text-center tracking-[0.35em]"
                 />
               </div>
 
               <button
                 type="submit"
                 disabled={verifyLoading || otp.length !== 6}
-                className="w-full py-3 px-4 bg-[#F8A201] text-[#130D08] font-bold text-sm rounded-lg hover:bg-[#e09200] transition-colors shadow-md shadow-[#F8A201]/10 active:scale-[0.98] disabled:opacity-50"
+                className="w-full py-3 px-4 bg-fo-brand text-fo-brand-fg font-bold text-sm rounded-lg hover:bg-fo-brand-hover transition-colors shadow-md shadow-fo-brand/10 active:scale-[0.98] disabled:opacity-50"
               >
                 {verifyLoading ? 'Verifying...' : 'Verify & Login'}
               </button>
             </form>
           )}
 
-          <p className="text-center text-sm text-gray-400 mt-6">
+          <p className="text-center text-sm text-fo-subtle mt-6">
             Don't have an account?{' '}
-            <Link to="/signup" className="text-[#F8A201] hover:underline font-semibold">
+            <Link to="/signup" className="text-fo-brand hover:underline font-semibold">
               Sign up
             </Link>
           </p>
 
           {activeVerificationEmail && (
-            <div className="mt-4 text-center text-xs text-gray-400">
+            <div className="mt-4 text-center text-xs text-fo-subtle">
               Need a new OTP for {activeVerificationEmail}?{' '}
               <button
                 type="button"
                 onClick={handleResend}
                 disabled={resendLoading}
-                className="text-[#F8A201] hover:underline font-medium disabled:opacity-50"
+                className="text-fo-brand hover:underline font-medium disabled:opacity-50"
               >
                 {resendLoading ? 'Sending...' : 'Resend OTP'}
               </button>
@@ -266,11 +269,11 @@ export default function Login() {
           )}
         </div>
 
-        <div className="flex flex-col sm:flex-row items-center justify-between pt-6 border-t border-white/5 text-[11px] text-gray-500 gap-2">
+        <div className="flex flex-col sm:flex-row items-center justify-between pt-6 border-t border-fo-border text-[11px] text-fo-subtle gap-2">
           <span>© 2026 Fointer</span>
           <div className="flex space-x-4">
-            <Link to="/terms-and-conditions" className="hover:text-gray-300 transition-colors">Terms</Link>
-            <Link to="/privacy-policy" className="hover:text-gray-300 transition-colors">Privacy</Link>
+            <Link to="/terms-and-conditions" className="hover:text-fo-muted transition-colors">Terms</Link>
+            <Link to="/privacy-policy" className="hover:text-fo-muted transition-colors">Privacy</Link>
           </div>
         </div>
       </div>

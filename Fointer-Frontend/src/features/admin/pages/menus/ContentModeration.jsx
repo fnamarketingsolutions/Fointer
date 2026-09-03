@@ -19,7 +19,7 @@ import {
   fetchAdminModerationComments,
   fetchAdminModerationPosts,
   updateUserStatus,
-} from "../../services/adminService";
+} from "../../../../api/dashboard";
 import { useToast } from "../../../../shared/components/feedback/ToastContext";
 import { getErrorMessage } from "../../../../shared/utils/errors";
 import { timeAgo } from "../../../../shared/utils/date";
@@ -41,11 +41,11 @@ const PAGE_SIZE = 20;
 function ActionBtn({ onClick, disabled, tone = "ghost", children }) {
   const tones = {
     ghost:
-      "border border-[#2A241E] text-[#A69B8D] hover:text-[#E5E0D8] hover:border-[#D4AF37]/30",
+      "border border-fo-border text-fo-muted hover:text-fo-text hover:border-fo-accent/30",
     danger:
       "border border-red-500/30 text-red-400 hover:bg-red-500/10",
     primary:
-      "border border-[#D4AF37]/35 text-[#D4AF37] hover:bg-[#D4AF37]/10",
+      "border border-fo-accent/35 text-fo-accent hover:bg-fo-accent/10",
   };
   return (
     <button
@@ -262,10 +262,10 @@ export default function ContentModeration() {
     <div className="w-full max-w-3xl mx-auto space-y-5">
       <header className="flex items-start justify-between gap-3">
         <div className="space-y-1 min-w-0">
-          <h1 className="text-xl sm:text-2xl font-semibold text-[#E5E0D8]">
+          <h1 className="text-xl sm:text-2xl font-semibold text-fo-text">
             Moderation
           </h1>
-          <p className="text-sm text-[#8C8070]">
+          <p className="text-sm text-fo-subtle">
             Review posts and comments. Delete content or ban authors.
           </p>
         </div>
@@ -273,14 +273,14 @@ export default function ContentModeration() {
           type="button"
           onClick={handleRefresh}
           disabled={loading}
-          className="p-2 rounded-lg border border-[#2A241E] text-[#A69B8D] hover:text-[#D4AF37] hover:border-[#D4AF37]/40 transition-colors disabled:opacity-50 shrink-0"
+          className="p-2 rounded-lg border border-fo-border text-fo-muted hover:text-fo-accent hover:border-fo-accent/40 transition-colors disabled:opacity-50 shrink-0"
           title="Refresh"
         >
           <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
         </button>
       </header>
 
-      <div className="flex gap-1 p-1 rounded-xl bg-[#0E0C0A] border border-[#2A241E]">
+      <div className="flex gap-1 p-1 rounded-xl bg-fo-bg border border-fo-border">
         {TABS.map((item) => {
           const active = tab === item.id;
           return (
@@ -294,8 +294,8 @@ export default function ContentModeration() {
               }}
               className={`flex-1 py-2 px-3 rounded-lg text-xs sm:text-sm font-semibold transition-colors ${
                 active
-                  ? "bg-[#1A1510] text-[#D4AF37] border border-[#D4AF37]/35"
-                  : "text-[#8C8070] hover:text-[#E5E0D8] border border-transparent"
+                  ? "bg-[#1A1510] text-fo-accent border border-fo-accent/35"
+                  : "text-fo-subtle hover:text-fo-text border border-transparent"
               }`}
             >
               {item.label}
@@ -316,7 +316,7 @@ export default function ContentModeration() {
         <div className="relative flex-1">
           <Search
             size={14}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8C8070] pointer-events-none"
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-fo-subtle pointer-events-none"
           />
           <input
             type="search"
@@ -327,19 +327,19 @@ export default function ContentModeration() {
                 ? "Search posts by title or text…"
                 : "Search comments…"
             }
-            className="w-full bg-[#14100D] border border-[#2A241E] rounded-xl pl-9 pr-3 py-2.5 text-sm text-[#E5E0D8] placeholder:text-[#5C5348] focus:outline-none focus:border-[#D4AF37]/50"
+            className="w-full bg-fo-surface border border-fo-border rounded-xl pl-9 pr-3 py-2.5 text-sm text-fo-text placeholder:text-fo-subtle focus:outline-none focus:border-fo-accent/50"
           />
         </div>
         <button
           type="submit"
-          className="px-4 py-2.5 rounded-xl bg-[#D4AF37] text-black text-sm font-semibold hover:bg-[#e0c04a] shrink-0"
+          className="px-4 py-2.5 rounded-xl bg-fo-accent text-black text-sm font-semibold hover:bg-fo-accent-hover shrink-0"
         >
           Search
         </button>
       </form>
 
       {tab === "posts" ? (
-        <div className="flex gap-1 p-1 rounded-xl bg-[#0E0C0A] border border-[#2A241E] overflow-x-auto">
+        <div className="flex gap-1 p-1 rounded-xl bg-fo-bg border border-fo-border overflow-x-auto">
           {SCOPE_FILTERS.map((item) => {
             const active = scope === item.id;
             const count = postSummary[item.id] ?? 0;
@@ -350,8 +350,8 @@ export default function ContentModeration() {
                 onClick={() => setScope(item.id)}
                 className={`flex-1 min-w-[4.5rem] py-1.5 px-3 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
                   active
-                    ? "bg-[#1A1510] text-[#D4AF37] border border-[#D4AF37]/35"
-                    : "text-[#8C8070] hover:text-[#E5E0D8] border border-transparent"
+                    ? "bg-[#1A1510] text-fo-accent border border-fo-accent/35"
+                    : "text-fo-subtle hover:text-fo-text border border-transparent"
                 }`}
               >
                 {item.label}
@@ -363,20 +363,20 @@ export default function ContentModeration() {
       ) : null}
 
       {loading ? (
-        <div className="flex items-center justify-center gap-2 py-14 text-sm text-[#A69B8D]">
-          <Loader2 size={16} className="animate-spin text-[#D4AF37]" />
+        <div className="flex items-center justify-center gap-2 py-14 text-sm text-fo-muted">
+          <Loader2 size={16} className="animate-spin text-fo-accent" />
           Loading content…
         </div>
       ) : tab === "posts" && posts.length === 0 ? (
-        <div className="border border-dashed border-[#2A241E] rounded-xl py-14 text-center text-sm text-[#8C8070] px-4 space-y-2">
-          <FileText className="w-8 h-8 mx-auto text-[#D4AF37]/40" />
+        <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle px-4 space-y-2">
+          <FileText className="w-8 h-8 mx-auto text-fo-accent/40" />
           <p>
             {query ? `No posts match “${query}”.` : "No posts to moderate."}
           </p>
         </div>
       ) : tab === "comments" && comments.length === 0 ? (
-        <div className="border border-dashed border-[#2A241E] rounded-xl py-14 text-center text-sm text-[#8C8070] px-4 space-y-2">
-          <MessageCircle className="w-8 h-8 mx-auto text-[#D4AF37]/40" />
+        <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle px-4 space-y-2">
+          <MessageCircle className="w-8 h-8 mx-auto text-fo-accent/40" />
           <p>
             {query
               ? `No comments match “${query}”.`
@@ -391,7 +391,7 @@ export default function ContentModeration() {
               return (
                 <article
                   key={post.id}
-                  className="flex gap-3 bg-[#14100D] border border-[#2A241E] hover:border-[#D4AF37]/35 rounded-xl p-3.5 sm:p-4 transition-colors"
+                  className="flex gap-3 bg-fo-surface border border-fo-border hover:border-fo-accent/35 rounded-xl p-3.5 sm:p-4 transition-colors"
                 >
                   <button
                     type="button"
@@ -399,8 +399,8 @@ export default function ContentModeration() {
                     className="flex gap-3 min-w-0 flex-1 text-left"
                   >
                     <div className="min-w-0 flex-1 space-y-1.5">
-                      <div className="flex items-center gap-2 text-[11px] text-[#8C8070] flex-wrap">
-                        <span className="text-[#A69B8D]">
+                      <div className="flex items-center gap-2 text-[11px] text-fo-subtle flex-wrap">
+                        <span className="text-fo-muted">
                           {post.community?.name || "Public"}
                         </span>
                         <span>·</span>
@@ -414,15 +414,15 @@ export default function ContentModeration() {
                           </>
                         ) : null}
                       </div>
-                      <h2 className="text-sm font-semibold text-[#E5E0D8] leading-snug line-clamp-2">
+                      <h2 className="text-sm font-semibold text-fo-text leading-snug line-clamp-2">
                         {post.title || "Untitled"}
                       </h2>
                       {post.text ? (
-                        <p className="text-xs text-[#A69B8D] line-clamp-2 leading-relaxed">
+                        <p className="text-xs text-fo-muted line-clamp-2 leading-relaxed">
                           {post.text}
                         </p>
                       ) : null}
-                      <div className="flex items-center gap-3 text-[11px] text-[#8C8070] pt-0.5">
+                      <div className="flex items-center gap-3 text-[11px] text-fo-subtle pt-0.5">
                         <span className="inline-flex items-center gap-1">
                           <Heart size={11} /> {post.likeCount || 0}
                         </span>
@@ -435,10 +435,10 @@ export default function ContentModeration() {
                       <img
                         src={cover.url}
                         alt=""
-                        className="hidden sm:block w-16 h-14 rounded-lg object-cover shrink-0 border border-[#2A241E]"
+                        className="hidden sm:block w-16 h-14 rounded-lg object-cover shrink-0 border border-fo-border"
                       />
                     ) : post.mediaCount > 0 ? (
-                      <div className="hidden sm:flex w-16 h-14 rounded-lg bg-[#0E0C0A] border border-[#2A241E] items-center justify-center text-[#5C5348] shrink-0">
+                      <div className="hidden sm:flex w-16 h-14 rounded-lg bg-fo-bg border border-fo-border items-center justify-center text-fo-subtle shrink-0">
                         <ImageIcon size={16} />
                       </div>
                     ) : null}
@@ -489,7 +489,7 @@ export default function ContentModeration() {
                 type="button"
                 onClick={handleLoadMore}
                 disabled={loadingMore}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-[#2A241E] text-xs text-[#A69B8D] hover:border-[#D4AF37]/40 hover:text-[#D4AF37] disabled:opacity-50"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-fo-border text-xs text-fo-muted hover:border-fo-accent/40 hover:text-fo-accent disabled:opacity-50"
               >
                 {loadingMore ? (
                   <Loader2 size={14} className="animate-spin" />
@@ -505,15 +505,15 @@ export default function ContentModeration() {
             {comments.map((comment) => (
               <article
                 key={comment.id}
-                className="bg-[#14100D] border border-[#2A241E] hover:border-[#D4AF37]/35 rounded-xl p-3.5 sm:p-4 transition-colors space-y-2.5"
+                className="bg-fo-surface border border-fo-border hover:border-fo-accent/35 rounded-xl p-3.5 sm:p-4 transition-colors space-y-2.5"
               >
                 <button
                   type="button"
                   onClick={() => setPreview({ kind: "comment", ...comment })}
                   className="w-full text-left space-y-1.5"
                 >
-                  <div className="flex items-center gap-2 text-[11px] text-[#8C8070] flex-wrap">
-                    <span className="text-[#A69B8D]">
+                  <div className="flex items-center gap-2 text-[11px] text-fo-subtle flex-wrap">
+                    <span className="text-fo-muted">
                       {comment.post?.community?.name ||
                         (comment.post ? "Post" : "Orphaned")}
                     </span>
@@ -538,11 +538,11 @@ export default function ContentModeration() {
                       </>
                     ) : null}
                   </div>
-                  <p className="text-sm text-[#E5E0D8] whitespace-pre-wrap break-words line-clamp-3 leading-relaxed">
+                  <p className="text-sm text-fo-text whitespace-pre-wrap break-words line-clamp-3 leading-relaxed">
                     {comment.text}
                   </p>
                   {comment.post?.title ? (
-                    <p className="text-[11px] text-[#8C8070] truncate">
+                    <p className="text-[11px] text-fo-subtle truncate">
                       on {comment.post.title}
                     </p>
                   ) : null}
@@ -594,7 +594,7 @@ export default function ContentModeration() {
                 type="button"
                 onClick={handleLoadMore}
                 disabled={loadingMore}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-[#2A241E] text-xs text-[#A69B8D] hover:border-[#D4AF37]/40 hover:text-[#D4AF37] disabled:opacity-50"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-fo-border text-xs text-fo-muted hover:border-fo-accent/40 hover:text-fo-accent disabled:opacity-50"
               >
                 {loadingMore ? (
                   <Loader2 size={14} className="animate-spin" />
@@ -612,32 +612,32 @@ export default function ContentModeration() {
             className="absolute inset-0 bg-black/75 backdrop-blur-[2px]"
             onClick={() => setPreview(null)}
           />
-          <div className="relative w-full max-w-lg max-h-[88vh] overflow-hidden flex flex-col bg-[#14100D] border border-[#2A241E] rounded-2xl shadow-2xl">
-            <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-[#2A241E] shrink-0">
-              <h2 className="text-sm font-semibold text-[#E5E0D8] capitalize">
+          <div className="relative w-full max-w-lg max-h-[88vh] overflow-hidden flex flex-col bg-fo-surface border border-fo-border rounded-2xl shadow-2xl">
+            <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-fo-border shrink-0">
+              <h2 className="text-sm font-semibold text-fo-text capitalize">
                 {preview.kind} details
               </h2>
               <button
                 type="button"
                 onClick={() => setPreview(null)}
-                className="p-1.5 rounded-lg text-[#A69B8D] hover:text-[#E5E0D8] hover:bg-[#1A1510]"
+                className="p-1.5 rounded-lg text-fo-muted hover:text-fo-text hover:bg-[#1A1510]"
               >
                 <X size={18} />
               </button>
             </div>
             <div className="overflow-y-auto flex-1 p-4 sm:p-5 space-y-4">
               <div className="space-y-1">
-                <p className="text-[11px] text-[#8C8070]">
+                <p className="text-[11px] text-fo-subtle">
                   {preview.kind === "post"
                     ? preview.community?.name || "Public post"
                     : preview.post?.community?.name || "Comment"}
                 </p>
                 {preview.kind === "post" ? (
-                  <h3 className="text-base font-semibold text-[#E5E0D8]">
+                  <h3 className="text-base font-semibold text-fo-text">
                     {preview.title || "Untitled"}
                   </h3>
                 ) : null}
-                <p className="text-xs text-[#8C8070]">
+                <p className="text-xs text-fo-subtle">
                   by {authorLabel(preview.author)} ·{" "}
                   {timeAgo(preview.createdAt)}
                   {preview.author?.id ? (
@@ -645,7 +645,7 @@ export default function ContentModeration() {
                       {" · "}
                       <Link
                         to={`/admin/users/${preview.author.id}`}
-                        className="text-[#D4AF37] hover:underline"
+                        className="text-fo-accent hover:underline"
                       >
                         View user
                       </Link>
@@ -655,12 +655,12 @@ export default function ContentModeration() {
               </div>
 
               {preview.kind === "comment" && preview.post?.title ? (
-                <p className="text-xs text-[#8C8070]">
+                <p className="text-xs text-fo-subtle">
                   On post: {preview.post.title}
                 </p>
               ) : null}
 
-              <p className="text-sm text-[#E5E0D8] whitespace-pre-wrap break-words leading-relaxed">
+              <p className="text-sm text-fo-text whitespace-pre-wrap break-words leading-relaxed">
                 {preview.kind === "post"
                   ? preview.text || "No body text."
                   : preview.text}
@@ -674,14 +674,14 @@ export default function ContentModeration() {
                         key={i}
                         src={m.url}
                         controls
-                        className="w-full rounded-lg border border-[#2A241E]"
+                        className="w-full rounded-lg border border-fo-border"
                       />
                     ) : (
                       <img
                         key={i}
                         src={m.url}
                         alt=""
-                        className="w-full rounded-lg object-cover border border-[#2A241E] max-h-40"
+                        className="w-full rounded-lg object-cover border border-fo-border max-h-40"
                       />
                     )
                   )}
@@ -689,7 +689,7 @@ export default function ContentModeration() {
               ) : null}
             </div>
 
-            <div className="shrink-0 flex flex-wrap gap-2 px-4 py-3 border-t border-[#2A241E]">
+            <div className="shrink-0 flex flex-wrap gap-2 px-4 py-3 border-t border-fo-border">
               {preview.author?.id && !isBanned(preview) ? (
                 <ActionBtn
                   tone="danger"

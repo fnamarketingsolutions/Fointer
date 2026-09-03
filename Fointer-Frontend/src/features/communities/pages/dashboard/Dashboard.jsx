@@ -2,7 +2,6 @@ import React, { Suspense, lazy, useEffect } from "react";
 import {
   useNavigate,
   useLocation,
-  useParams,
   Routes,
   Route,
   Navigate,
@@ -18,13 +17,19 @@ import {
   LuFileText as FileText,
   LuUserRound as UserRound,
   LuLifeBuoy as LifeBuoy,
+  LuShoppingBag as ShoppingBag,
+  LuMessageCircle as MessageCircle,
 } from "react-icons/lu";
 
 import AuthOnly from "../../../../guards/AuthOnly";
 import PanelShell from "../../../../shared/layouts/PanelShell";
-import { EXPLORE_PATH } from "../../../../shared/constants/paths";
+import {
+  EXPLORE_PATH,
+  FEED_PATH,
+  MARKETPLACE_PATH,
+  MESSAGES_PATH,
+} from "../../../../shared/constants/paths";
 import DashboardFeed from "./DashboardFeed";
-
 const ManageCommunities = lazy(() => import("./ManageCommunities"));
 const ManagePostPage = lazy(() => import("./ManagePostPage"));
 const DashboardPostPage = lazy(() => import("./DashboardPostPage"));
@@ -34,128 +39,37 @@ const CommunityFeed = lazy(() => import("./CommunityFeed"));
 const ActivityHistory = lazy(() => import("./ActivityHistory"));
 const Support = lazy(() => import("./Support"));
 const Profile = lazy(() => import("../../../profile/pages/Profile"));
+const PublicProfile = lazy(() => import("../../../profile/pages/PublicProfile"));
+const SearchResultsPage = lazy(() => import("../../../search/pages/SearchResultsPage"));
 const LiveEvents = lazy(() => import("./LiveEvents"));
 const LiveRoom = lazy(() => import("./LiveRoom"));
 const WatchGroups = lazy(() => import("./WatchGroups"));
 const WatchGroupRoom = lazy(() => import("./WatchGroupRoom"));
 const UserNotifications = lazy(() => import("./UserNotifications"));
+const MarketplaceBrowse = lazy(
+  () => import("../../../marketplace/pages/MarketplaceBrowse")
+);
+const ListingDetail = lazy(
+  () => import("../../../marketplace/pages/ListingDetail")
+);
+const MyListings = lazy(() => import("../../../marketplace/pages/MyListings"));
+const MessagesInbox = lazy(
+  () => import("../../../messages/pages/MessagesInbox")
+);
+const ConversationThread = lazy(
+  () => import("../../../messages/pages/ConversationThread")
+);
 
 const pageFallback = (
-  <div className="min-h-[30vh] flex items-center justify-center text-[#A69B8D] text-sm">
+  <div className="min-h-[30vh] flex items-center justify-center text-fo-muted text-sm">
     Loading...
   </div>
 );
 
-function LegacyCommunitiesRedirect() {
-  const { "*": rest } = useParams();
-  const location = useLocation();
-  const suffix = rest ? `/${rest}` : "";
-  return (
-    <Navigate
-      to={`/communities${suffix}${location.search}${location.hash}`}
-      replace
-    />
-  );
-}
-
-function LegacyManageRedirect() {
-  const { "*": rest } = useParams();
-  const location = useLocation();
-  const suffix = rest ? `/${rest}` : "";
-  return (
-    <Navigate
-      to={`/manage-community${suffix}${location.search}${location.hash}`}
-      replace
-    />
-  );
-}
-
-function LegacyPostsRedirect() {
-  const { "*": rest } = useParams();
-  const location = useLocation();
-  const suffix = rest ? `/${rest}` : "";
-  return (
-    <Navigate
-      to={`/post-management${suffix}${location.search}${location.hash}`}
-      replace
-    />
-  );
-}
-
-function LegacyEventsRedirect() {
-  const { "*": rest } = useParams();
-  const location = useLocation();
-  const suffix = rest ? `/${rest}` : "";
-  return (
-    <Navigate
-      to={`/live-events${suffix}${location.search}${location.hash}`}
-      replace
-    />
-  );
-}
-
-function LegacyWatchGroupsRedirect() {
-  const { "*": rest } = useParams();
-  const location = useLocation();
-  const suffix = rest ? `/${rest}` : "";
-  return (
-    <Navigate
-      to={`/watch-groups${suffix}${location.search}${location.hash}`}
-      replace
-    />
-  );
-}
-
-function LegacyActivityRedirect() {
-  const { "*": rest } = useParams();
-  const location = useLocation();
-  const suffix = rest ? `/${rest}` : "";
-  return (
-    <Navigate
-      to={`/my-activity${suffix}${location.search}${location.hash}`}
-      replace
-    />
-  );
-}
-
-function LegacySupportRedirect() {
-  const { "*": rest } = useParams();
-  const location = useLocation();
-  const suffix = rest ? `/${rest}` : "";
-  return (
-    <Navigate
-      to={`/support${suffix}${location.search}${location.hash}`}
-      replace
-    />
-  );
-}
-
-function LegacyProfileRedirect() {
-  const { "*": rest } = useParams();
-  const location = useLocation();
-  const suffix = rest ? `/${rest}` : "";
-  return (
-    <Navigate
-      to={`/profile${suffix}${location.search}${location.hash}`}
-      replace
-    />
-  );
-}
-
-function LegacyNotificationsRedirect() {
-  const { "*": rest } = useParams();
-  const location = useLocation();
-  const suffix = rest ? `/${rest}` : "";
-  return (
-    <Navigate
-      to={`/notifications${suffix}${location.search}${location.hash}`}
-      replace
-    />
-  );
-}
-
 const VALID_TABS = [
   "postfeed",
+  "marketplace",
+  "messages",
   "manage",
   "posts",
   "communities",
@@ -166,8 +80,19 @@ const VALID_TABS = [
   "profile",
 ];
 
-/** Guests get an empty sidebar; these tabs stay gated behind login. */
-const GUEST_TABS = new Set();
+const TAB_PATHS = {
+  postfeed: FEED_PATH,
+  marketplace: MARKETPLACE_PATH,
+  messages: MESSAGES_PATH,
+  communities: "/communities",
+  manage: "/manage-community",
+  posts: "/post-management",
+  events: "/live-events",
+  watchgroups: "/watch-groups",
+  activity: "/my-activity",
+  support: "/support",
+  profile: "/profile",
+};
 
 const Dashboard = () => {
   const { user, loading } = useAuth();
@@ -176,9 +101,15 @@ const Dashboard = () => {
   const isGuest = !loading && !user;
 
   const isRootFeed =
-    location.pathname === "/" ||
+    location.pathname === FEED_PATH ||
     location.pathname === EXPLORE_PATH ||
     location.pathname.startsWith("/post/");
+  const isMarketplace =
+    location.pathname === MARKETPLACE_PATH ||
+    location.pathname.startsWith("/marketplace/");
+  const isMessages =
+    location.pathname === MESSAGES_PATH ||
+    location.pathname.startsWith("/messages/");
   const isCommunities =
     location.pathname === "/communities" ||
     location.pathname.startsWith("/communities/");
@@ -203,13 +134,14 @@ const Dashboard = () => {
   const isProfile =
     location.pathname === "/profile" ||
     location.pathname.startsWith("/profile/");
-  const pathAfterDashboard = location.pathname
-    .replace(/^\/dashboard\/?/, "")
-    .split("/")
-    .filter(Boolean);
+
   const firstSegment = isRootFeed
     ? "postfeed"
-    : isCommunities
+    : isMarketplace
+      ? "marketplace"
+      : isMessages
+        ? "messages"
+        : isCommunities
       ? "communities"
       : isManage
         ? "manage"
@@ -225,7 +157,8 @@ const Dashboard = () => {
                   ? "support"
                   : isProfile
                     ? "profile"
-                    : pathAfterDashboard[0] || "postfeed";
+                    : "postfeed";
+
   const activeTab = VALID_TABS.includes(firstSegment)
     ? firstSegment
     : "postfeed";
@@ -243,53 +176,25 @@ const Dashboard = () => {
   };
 
   const handleTabSelect = (tabId) => {
-    if (isGuest && !GUEST_TABS.has(tabId)) {
-      const loginFrom =
-        tabId === "communities"
-          ? "/communities"
-          : tabId === "manage"
-            ? "/manage-community"
-            : tabId === "posts"
-              ? "/post-management"
-              : tabId === "events"
-                ? "/live-events"
-                : tabId === "watchgroups"
-                  ? "/watch-groups"
-                  : tabId === "activity"
-                    ? "/my-activity"
-                    : tabId === "support"
-                      ? "/support"
-                      : tabId === "profile"
-                        ? "/profile"
-                        : `/dashboard/${tabId}`;
-      requireLogin(loginFrom);
+    const targetPath =
+      tabId === "postfeed"
+        ? isGuest
+          ? EXPLORE_PATH
+          : FEED_PATH
+        : TAB_PATHS[tabId] || (isGuest ? EXPLORE_PATH : FEED_PATH);
+
+    if (isGuest) {
+      requireLogin(targetPath);
       return;
     }
-    if (tabId === "postfeed") {
-      navigate(isGuest ? EXPLORE_PATH : "/");
-    } else if (tabId === "communities") {
-      navigate("/communities");
-    } else if (tabId === "manage") {
-      navigate("/manage-community");
-    } else if (tabId === "posts") {
-      navigate("/post-management");
-    } else if (tabId === "events") {
-      navigate("/live-events");
-    } else if (tabId === "watchgroups") {
-      navigate("/watch-groups");
-    } else if (tabId === "activity") {
-      navigate("/my-activity");
-    } else if (tabId === "support") {
-      navigate("/support");
-    } else if (tabId === "profile") {
-      navigate("/profile");
-    } else {
-      navigate(`/dashboard/${tabId}`);
-    }
+
+    navigate(targetPath);
   };
 
   const navItems = [
     { id: "postfeed", label: "Feed", icon: Newspaper },
+    { id: "marketplace", label: "Marketplace", icon: ShoppingBag },
+    { id: "messages", label: "Messages", icon: MessageCircle },
     { id: "communities", label: "Communities", icon: Users },
     { id: "manage", label: "Manage Communities", icon: Folders },
     { id: "posts", label: "Post Management", icon: FileText },
@@ -299,15 +204,19 @@ const Dashboard = () => {
     { id: "support", label: "Support", icon: LifeBuoy },
     { id: "profile", label: "Profile", icon: UserRound },
   ]
-    .filter((item) => !isGuest || GUEST_TABS.has(item.id))
+    .filter((item) => !isGuest)
     .map((item) => ({ ...item, isActive: activeTab === item.id }));
 
   if (loading && !isRootFeed) {
     return (
-      <div className="min-h-screen bg-[#0E0C0A] flex items-center justify-center text-[#A69B8D] text-sm">
+      <div className="min-h-screen bg-fo-bg flex items-center justify-center text-fo-muted text-sm">
         Loading…
       </div>
     );
+  }
+
+  if (!loading && isGuest && location.pathname === FEED_PATH) {
+    return <Navigate to={EXPLORE_PATH} replace />;
   }
 
   if (!loading && user?.role === "admin") {
@@ -318,213 +227,162 @@ const Dashboard = () => {
     <PanelShell
       navItems={navItems}
       onSelectNav={handleTabSelect}
-      homeTo={isGuest ? EXPLORE_PATH : "/"}
+      homeTo="/"
       profileTo="/profile"
       notificationsTo="/notifications"
       logoutTo="/"
       allowGuest
     >
-          <Suspense fallback={pageFallback}>
-            <Routes>
-                <Route path="/" element={<DashboardFeed />} />
-                <Route path={EXPLORE_PATH} element={<DashboardFeed />} />
-                <Route path="/post/:postSlug" element={<DashboardFeed />} />
-                <Route
-                  path="/dashboard"
-                  element={<Navigate to="/" replace />}
-                />
-                <Route
-                  path="/dashboard/create"
-                  element={
-                    <AuthOnly>
-                      <Navigate to="/manage-community" replace />
-                    </AuthOnly>
-                  }
-                />
-                <Route
-                  path="/manage-community/:communityId/posts/:postId"
-                  element={
-                    <AuthOnly>
-                      <ManagePostPage />
-                    </AuthOnly>
-                  }
-                />
-                <Route
-                  path="/manage-community/:communityId"
-                  element={
-                    <AuthOnly>
-                      <ManageCommunities />
-                    </AuthOnly>
-                  }
-                />
-                <Route
-                  path="/manage-community"
-                  element={
-                    <AuthOnly>
-                      <ManageCommunities />
-                    </AuthOnly>
-                  }
-                />
-                <Route
-                  path="/dashboard/manage/*"
-                  element={<LegacyManageRedirect />}
-                />
-                <Route
-                  path="/dashboard/manage"
-                  element={<Navigate to="/manage-community" replace />}
-                />
-                <Route
-                  path="/post-management/:postId"
-                  element={
-                    <AuthOnly>
-                      <DashboardPostPage />
-                    </AuthOnly>
-                  }
-                />
-                <Route
-                  path="/post-management"
-                  element={
-                    <AuthOnly>
-                      <PostManagement />
-                    </AuthOnly>
-                  }
-                />
-                <Route
-                  path="/dashboard/posts/*"
-                  element={<LegacyPostsRedirect />}
-                />
-                <Route
-                  path="/dashboard/posts"
-                  element={<Navigate to="/post-management" replace />}
-                />
-                <Route
-                  path="/dashboard/feed/*"
-                  element={
-                    <Navigate to="/?mode=personalized" replace />
-                  }
-                />
-                <Route
-                  path="/communities/:communityId/posts/:postSlug"
-                  element={<CommunityFeed />}
-                />
-                <Route
-                  path="/communities/:communityId"
-                  element={<CommunityFeed />}
-                />
-                <Route path="/communities" element={<JoinedCommunities />} />
-                <Route
-                  path="/dashboard/communities/*"
-                  element={<LegacyCommunitiesRedirect />}
-                />
-                <Route
-                  path="/dashboard/communities"
-                  element={<Navigate to="/communities" replace />}
-                />
-                <Route
-                  path="/dashboard/requests"
-                  element={<Navigate to="/communities" replace />}
-                />
-                <Route
-                  path="/support"
-                  element={
-                    <AuthOnly>
-                      <Support />
-                    </AuthOnly>
-                  }
-                />
-                <Route
-                  path="/dashboard/support/*"
-                  element={<LegacySupportRedirect />}
-                />
-                <Route
-                  path="/dashboard/support"
-                  element={<Navigate to="/support" replace />}
-                />
-                <Route
-                  path="/notifications"
-                  element={
-                    <AuthOnly>
-                      <UserNotifications />
-                    </AuthOnly>
-                  }
-                />
-                <Route
-                  path="/dashboard/notifications/*"
-                  element={<LegacyNotificationsRedirect />}
-                />
-                <Route
-                  path="/dashboard/notifications"
-                  element={<Navigate to="/notifications" replace />}
-                />
-                <Route
-                  path="/profile"
-                  element={
-                    <AuthOnly>
-                      <Profile />
-                    </AuthOnly>
-                  }
-                />
-                <Route
-                  path="/dashboard/profile/*"
-                  element={<LegacyProfileRedirect />}
-                />
-                <Route
-                  path="/dashboard/profile"
-                  element={<Navigate to="/profile" replace />}
-                />
-                <Route
-                  path="/live-events/:eventId"
-                  element={
-                    <AuthOnly>
-                      <LiveRoom />
-                    </AuthOnly>
-                  }
-                />
-                <Route path="/live-events" element={<LiveEvents />} />
-                <Route
-                  path="/dashboard/events/*"
-                  element={<LegacyEventsRedirect />}
-                />
-                <Route
-                  path="/dashboard/events"
-                  element={<Navigate to="/live-events" replace />}
-                />
-                <Route
-                  path="/watch-groups/:groupId"
-                  element={
-                    <AuthOnly>
-                      <WatchGroupRoom />
-                    </AuthOnly>
-                  }
-                />
-                <Route path="/watch-groups" element={<WatchGroups />} />
-                <Route
-                  path="/dashboard/watchgroups/*"
-                  element={<LegacyWatchGroupsRedirect />}
-                />
-                <Route
-                  path="/dashboard/watchgroups"
-                  element={<Navigate to="/watch-groups" replace />}
-                />
-                <Route
-                  path="/my-activity"
-                  element={
-                    <AuthOnly>
-                      <ActivityHistory />
-                    </AuthOnly>
-                  }
-                />
-                <Route
-                  path="/dashboard/activity/*"
-                  element={<LegacyActivityRedirect />}
-                />
-                <Route
-                  path="/dashboard/activity"
-                  element={<Navigate to="/my-activity" replace />}
-                />
-                <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </Suspense>
+      <Suspense fallback={pageFallback}>
+        <Routes>
+          <Route path={FEED_PATH} element={<DashboardFeed />} />
+          <Route path={EXPLORE_PATH} element={<DashboardFeed />} />
+          <Route path="/post/:postSlug" element={<DashboardFeed />} />
+          <Route
+            path="/manage-community/:communityId/posts/:postId"
+            element={
+              <AuthOnly>
+                <ManagePostPage />
+              </AuthOnly>
+            }
+          />
+          <Route
+            path="/manage-community/:communityId"
+            element={
+              <AuthOnly>
+                <ManageCommunities />
+              </AuthOnly>
+            }
+          />
+          <Route
+            path="/manage-community"
+            element={
+              <AuthOnly>
+                <ManageCommunities />
+              </AuthOnly>
+            }
+          />
+          <Route
+            path="/post-management/:postId"
+            element={
+              <AuthOnly>
+                <DashboardPostPage />
+              </AuthOnly>
+            }
+          />
+          <Route
+            path="/post-management"
+            element={
+              <AuthOnly>
+                <PostManagement />
+              </AuthOnly>
+            }
+          />
+          <Route
+            path="/communities/:communityId/posts/:postSlug"
+            element={<CommunityFeed />}
+          />
+          <Route
+            path="/communities/:communityId"
+            element={<CommunityFeed />}
+          />
+          <Route path="/communities" element={<JoinedCommunities />} />
+          <Route
+            path="/support"
+            element={
+              <AuthOnly>
+                <Support />
+              </AuthOnly>
+            }
+          />
+          <Route
+            path="/notifications"
+            element={
+              <AuthOnly>
+                <UserNotifications />
+              </AuthOnly>
+            }
+          />
+          <Route path="/search" element={<SearchResultsPage />} />
+          <Route path="/users/:username" element={<PublicProfile />} />
+          <Route
+            path="/profile"
+            element={
+              <AuthOnly>
+                <Profile />
+              </AuthOnly>
+            }
+          />
+          <Route
+            path="/live-events/:eventId"
+            element={
+              <AuthOnly>
+                <LiveRoom />
+              </AuthOnly>
+            }
+          />
+          <Route path="/live-events" element={<LiveEvents />} />
+          <Route
+            path="/watch-groups/:groupId"
+            element={
+              <AuthOnly>
+                <WatchGroupRoom />
+              </AuthOnly>
+            }
+          />
+          <Route path="/watch-groups" element={<WatchGroups />} />
+          <Route path={MARKETPLACE_PATH} element={
+              <AuthOnly>
+                <MarketplaceBrowse />
+              </AuthOnly>
+            }
+          />
+          <Route path="/marketplace/my-listings" element={
+              <AuthOnly>
+                <MyListings />
+              </AuthOnly>
+            }
+          />
+          <Route
+            path="/marketplace/:listingId"
+            element={
+              <AuthOnly>
+                <ListingDetail />
+              </AuthOnly>
+            }
+          />
+          <Route
+            path={MESSAGES_PATH}
+            element={
+              <AuthOnly>
+                <MessagesInbox />
+              </AuthOnly>
+            }
+          />
+          <Route
+            path="/messages/:conversationId"
+            element={
+              <AuthOnly>
+                <ConversationThread />
+              </AuthOnly>
+            }
+          />
+          <Route
+            path="/my-activity"
+            element={
+              <AuthOnly>
+                <ActivityHistory />
+              </AuthOnly>
+            }
+          />
+          <Route
+            path="*"
+            element={
+              <Navigate to={isGuest ? EXPLORE_PATH : FEED_PATH} replace />
+            }
+          />
+        </Routes>
+      </Suspense>
     </PanelShell>
   );
 };

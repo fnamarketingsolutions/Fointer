@@ -2,7 +2,7 @@
  * Normalize a title into a URL-safe slug with every word kept
  * (no length cap — short code is appended separately).
  */
-export const slugify = (value) =>
+const slugify = (value) =>
   String(value ?? '')
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '')

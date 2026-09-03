@@ -320,13 +320,13 @@ export default function CreateCommunityModal({ open, onClose, onSuccess }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-      <div className="relative w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-[#120F0D] border border-[#2A241E] rounded-2xl shadow-2xl text-[#E5E0D8] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-[#120F0D] [&::-webkit-scrollbar-thumb]:bg-[#2A241E] [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-[#D4AF37]/50">
-        <div className="sticky top-0 z-20 flex items-center justify-between gap-3 px-5 py-4 border-b border-[#2A241E] bg-[#120F0D]/95 backdrop-blur">
+      <div className="relative w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-[#120F0D] border border-fo-border rounded-2xl shadow-2xl text-fo-text [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-[#120F0D] [&::-webkit-scrollbar-thumb]:bg-[#2A241E] [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-fo-accent/50">
+        <div className="sticky top-0 z-20 flex items-center justify-between gap-3 px-5 py-4 border-b border-fo-border bg-[#120F0D]/95 backdrop-blur">
           <div>
-            <h3 className="text-lg sm:text-xl font-serif font-semibold text-[#E5E0D8]">
+            <h3 className="text-lg sm:text-xl font-serif font-semibold text-fo-text">
               Create Community
             </h3>
-            <p className="text-[11px] text-[#A69B8D] mt-0.5">
+            <p className="text-[11px] text-fo-muted mt-0.5">
               Select a channel and 1–5 subchannels, then fill in the rest.
             </p>
           </div>
@@ -334,7 +334,7 @@ export default function CreateCommunityModal({ open, onClose, onSuccess }) {
             type="button"
             disabled={saving}
             onClick={onClose}
-            className="text-[#8C8070] hover:text-[#E5E0D8] p-1"
+            className="text-fo-subtle hover:text-fo-text p-1"
           >
             <X size={20} />
           </button>
@@ -344,14 +344,14 @@ export default function CreateCommunityModal({ open, onClose, onSuccess }) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Custom Channel Dropdown */}
             <div className="relative" ref={channelRef}>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-[#D4AF37] mb-2">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-fo-accent mb-2">
                 Channel
               </label>
               <button
                 type="button"
                 disabled={loadingChannels}
                 onClick={() => setChannelDropdownOpen((prev) => !prev)}
-                className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg bg-[#0E0C0A] border border-[#2A241E] text-xs sm:text-sm text-[#E5E0D8] focus:outline-none focus:border-[#D4AF37]/80"
+                className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg bg-fo-bg border border-fo-border text-xs sm:text-sm text-fo-text focus:outline-none focus:border-fo-accent/80"
               >
                 <span className="truncate">
                   {loadingChannels
@@ -362,16 +362,16 @@ export default function CreateCommunityModal({ open, onClose, onSuccess }) {
                 </span>
                 <ChevronDown
                   size={16}
-                  className={`text-[#8C8070] transition-transform ${
+                  className={`text-fo-subtle transition-transform ${
                     channelDropdownOpen ? 'rotate-180' : ''
                   }`}
                 />
               </button>
 
               {channelDropdownOpen && !loadingChannels && (
-                <div className="absolute left-0 right-0 top-full mt-1.5 z-30 max-h-48 overflow-y-auto bg-[#0E0C0A] border border-[#2A241E] rounded-lg shadow-xl py-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-[#2A241E] [&::-webkit-scrollbar-thumb]:rounded-full">
+                <div className="absolute left-0 right-0 top-full mt-1.5 z-30 max-h-48 overflow-y-auto bg-fo-bg border border-fo-border rounded-lg shadow-xl py-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-[#2A241E] [&::-webkit-scrollbar-thumb]:rounded-full">
                   {channels.length === 0 ? (
-                    <div className="px-3 py-2 text-xs text-[#8C8070]">
+                    <div className="px-3 py-2 text-xs text-fo-subtle">
                       No channels available
                     </div>
                   ) : (
@@ -382,8 +382,8 @@ export default function CreateCommunityModal({ open, onClose, onSuccess }) {
                         onClick={() => handleChannelSelect(ch.id)}
                         className={`w-full text-left px-3.5 py-2 text-xs sm:text-sm transition-colors flex items-center justify-between ${
                           form.channelId === ch.id
-                            ? 'bg-[#D4AF37]/15 text-[#D4AF37] font-semibold'
-                            : 'text-[#E5E0D8] hover:bg-[#1a1510]'
+                            ? 'bg-fo-accent/15 text-fo-accent font-semibold'
+                            : 'text-fo-text hover:bg-[#1a1510]'
                         }`}
                       >
                         <span className="truncate">{ch.name}</span>
@@ -397,12 +397,12 @@ export default function CreateCommunityModal({ open, onClose, onSuccess }) {
 
             {/* Custom Subchannel Multi-Select Dropdown */}
             <div className="relative" ref={subchannelRef}>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-[#D4AF37] mb-2">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-fo-accent mb-2">
                 Subchannels ({form.subchannelIds.length}/5)
               </label>
 
               {!form.channelId ? (
-                <div className="w-full px-3.5 py-2.5 rounded-lg bg-[#0E0C0A]/60 border border-[#2A241E] text-xs text-[#8C8070]">
+                <div className="w-full px-3.5 py-2.5 rounded-lg bg-fo-bg/60 border border-fo-border text-xs text-fo-subtle">
                   Select a channel first.
                 </div>
               ) : (
@@ -411,7 +411,7 @@ export default function CreateCommunityModal({ open, onClose, onSuccess }) {
                     type="button"
                     disabled={loadingSubchannels}
                     onClick={() => setSubchannelDropdownOpen((prev) => !prev)}
-                    className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg bg-[#0E0C0A] border border-[#2A241E] text-xs sm:text-sm text-[#E5E0D8] focus:outline-none focus:border-[#D4AF37]/80"
+                    className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg bg-fo-bg border border-fo-border text-xs sm:text-sm text-fo-text focus:outline-none focus:border-fo-accent/80"
                   >
                     <span className="truncate">
                       {loadingSubchannels
@@ -421,11 +421,11 @@ export default function CreateCommunityModal({ open, onClose, onSuccess }) {
                         : 'Select subchannels'}
                     </span>
                     {loadingSubchannels ? (
-                      <Loader2 size={14} className="animate-spin text-[#8C8070]" />
+                      <Loader2 size={14} className="animate-spin text-fo-subtle" />
                     ) : (
                       <ChevronDown
                         size={16}
-                        className={`text-[#8C8070] transition-transform ${
+                        className={`text-fo-subtle transition-transform ${
                           subchannelDropdownOpen ? 'rotate-180' : ''
                         }`}
                       />
@@ -433,9 +433,9 @@ export default function CreateCommunityModal({ open, onClose, onSuccess }) {
                   </button>
 
                   {subchannelDropdownOpen && !loadingSubchannels && (
-                    <div className="absolute left-0 right-0 top-full mt-1.5 z-30 max-h-48 overflow-y-auto bg-[#0E0C0A] border border-[#2A241E] rounded-lg shadow-xl py-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-[#2A241E] [&::-webkit-scrollbar-thumb]:rounded-full">
+                    <div className="absolute left-0 right-0 top-full mt-1.5 z-30 max-h-48 overflow-y-auto bg-fo-bg border border-fo-border rounded-lg shadow-xl py-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-[#2A241E] [&::-webkit-scrollbar-thumb]:rounded-full">
                       {subchannels.length === 0 ? (
-                        <div className="px-3 py-2 text-xs text-[#8C8070]">
+                        <div className="px-3 py-2 text-xs text-fo-subtle">
                           No subchannels for this channel yet.
                         </div>
                       ) : (
@@ -446,15 +446,15 @@ export default function CreateCommunityModal({ open, onClose, onSuccess }) {
                               key={sub.id}
                               className={`flex items-center gap-2.5 px-3.5 py-2 text-xs sm:text-sm cursor-pointer transition-colors ${
                                 selected
-                                  ? 'bg-[#D4AF37]/15 text-[#D4AF37] font-medium'
-                                  : 'text-[#E5E0D8] hover:bg-[#1a1510]'
+                                  ? 'bg-fo-accent/15 text-fo-accent font-medium'
+                                  : 'text-fo-text hover:bg-[#1a1510]'
                               }`}
                             >
                               <input
                                 type="checkbox"
                                 checked={selected}
                                 onChange={() => toggleSubchannel(sub.id)}
-                                className="accent-[#D4AF37] rounded border-[#2A241E] bg-[#120F0D]"
+                                className="accent-[#D4AF37] rounded border-fo-border bg-[#120F0D]"
                               />
                               <span className="truncate">{sub.name}</span>
                             </label>
@@ -469,7 +469,7 @@ export default function CreateCommunityModal({ open, onClose, onSuccess }) {
           </div>
 
           <div className="space-y-3">
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-[#D4AF37]">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-fo-accent">
               Primary Cover Image
             </label>
             <input
@@ -481,7 +481,7 @@ export default function CreateCommunityModal({ open, onClose, onSuccess }) {
             />
             <div
               onClick={() => coverInputRef.current?.click()}
-              className="relative w-full h-40 rounded-xl bg-[#0E0C0A] border border-dashed border-[#2A241E] hover:border-[#D4AF37]/50 overflow-hidden flex items-center justify-center cursor-pointer group"
+              className="relative w-full h-40 rounded-xl bg-fo-bg border border-dashed border-fo-border hover:border-fo-accent/50 overflow-hidden flex items-center justify-center cursor-pointer group"
             >
               {displayCover ? (
                 <>
@@ -502,8 +502,8 @@ export default function CreateCommunityModal({ open, onClose, onSuccess }) {
                   </button>
                 </>
               ) : (
-                <div className="flex flex-col items-center gap-2 text-[#8C8070] p-4 text-center">
-                  <Upload size={20} className="text-[#D4AF37]" />
+                <div className="flex flex-col items-center gap-2 text-fo-subtle p-4 text-center">
+                  <Upload size={20} className="text-fo-accent" />
                   <span className="text-xs">Click to upload cover</span>
                 </div>
               )}
@@ -512,10 +512,10 @@ export default function CreateCommunityModal({ open, onClose, onSuccess }) {
 
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-[#D4AF37]">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-fo-accent">
                 Gallery Images
               </label>
-              <span className="text-[10px] text-[#8C8070]">
+              <span className="text-[10px] text-fo-subtle">
                 {galleryItems.length}/{MAX_GALLERY_IMAGES}
               </span>
             </div>
@@ -531,7 +531,7 @@ export default function CreateCommunityModal({ open, onClose, onSuccess }) {
               {galleryItems.map((item) => (
                 <div
                   key={item.id}
-                  className="relative aspect-[4/3] rounded-lg overflow-hidden border border-[#2A241E]"
+                  className="relative aspect-[4/3] rounded-lg overflow-hidden border border-fo-border"
                 >
                   <img
                     src={item.preview}
@@ -551,9 +551,9 @@ export default function CreateCommunityModal({ open, onClose, onSuccess }) {
                 <button
                   type="button"
                   onClick={() => galleryInputRef.current?.click()}
-                  className="aspect-[4/3] rounded-lg border border-dashed border-[#2A241E] hover:border-[#D4AF37]/50 flex flex-col items-center justify-center gap-1 text-[#8C8070]"
+                  className="aspect-[4/3] rounded-lg border border-dashed border-fo-border hover:border-fo-accent/50 flex flex-col items-center justify-center gap-1 text-fo-subtle"
                 >
-                  <ImagePlus size={18} className="text-[#D4AF37]" />
+                  <ImagePlus size={18} className="text-fo-accent" />
                   <span className="text-[10px]">Add</span>
                 </button>
               )}
@@ -561,7 +561,7 @@ export default function CreateCommunityModal({ open, onClose, onSuccess }) {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-[#E5E0D8] mb-2">
+            <label className="block text-xs font-semibold text-fo-text mb-2">
               Community Name
             </label>
             <input
@@ -569,13 +569,13 @@ export default function CreateCommunityModal({ open, onClose, onSuccess }) {
               value={form.name}
               onChange={(e) => handleInputChange('name', e.target.value)}
               placeholder="e.g. Sovereign Wealth Circle"
-              className="w-full px-3.5 py-2.5 rounded-lg bg-[#0E0C0A] border border-[#2A241E] text-xs sm:text-sm text-[#E5E0D8] placeholder-[#5A5046] focus:outline-none focus:border-[#D4AF37]/80"
+              className="w-full px-3.5 py-2.5 rounded-lg bg-fo-bg border border-fo-border text-xs sm:text-sm text-fo-text placeholder-[#5A5046] focus:outline-none focus:border-fo-accent/80"
               required
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-[#E5E0D8] mb-2">
+            <label className="block text-xs font-semibold text-fo-text mb-2">
               Description
             </label>
             <textarea
@@ -583,12 +583,12 @@ export default function CreateCommunityModal({ open, onClose, onSuccess }) {
               onChange={(e) => handleInputChange('description', e.target.value)}
               rows={3}
               placeholder="Define the purpose of your community..."
-              className="w-full px-3.5 py-2.5 rounded-lg bg-[#0E0C0A] border border-[#2A241E] text-xs sm:text-sm text-[#E5E0D8] placeholder-[#5A5046] focus:outline-none focus:border-[#D4AF37]/80 resize-y"
+              className="w-full px-3.5 py-2.5 rounded-lg bg-fo-bg border border-fo-border text-xs sm:text-sm text-fo-text placeholder-[#5A5046] focus:outline-none focus:border-fo-accent/80 resize-y"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-[#E5E0D8] mb-2">
+            <label className="block text-xs font-semibold text-fo-text mb-2">
               Rules
             </label>
             <textarea
@@ -596,19 +596,19 @@ export default function CreateCommunityModal({ open, onClose, onSuccess }) {
               onChange={(e) => handleInputChange('rules', e.target.value)}
               rows={3}
               placeholder="House rules and expectations..."
-              className="w-full px-3.5 py-2.5 rounded-lg bg-[#0E0C0A] border border-[#2A241E] text-xs sm:text-sm text-[#E5E0D8] placeholder-[#5A5046] focus:outline-none focus:border-[#D4AF37]/80 resize-y"
+              className="w-full px-3.5 py-2.5 rounded-lg bg-fo-bg border border-fo-border text-xs sm:text-sm text-fo-text placeholder-[#5A5046] focus:outline-none focus:border-fo-accent/80 resize-y"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-[#E5E0D8] mb-2">
+            <label className="block text-xs font-semibold text-fo-text mb-2">
               Tags / Topics
             </label>
-            <div className="w-full min-h-[42px] px-2.5 py-2 rounded-lg bg-[#0E0C0A] border border-[#2A241E] flex flex-wrap items-center gap-1.5 focus-within:border-[#D4AF37]/80">
+            <div className="w-full min-h-[42px] px-2.5 py-2 rounded-lg bg-fo-bg border border-fo-border flex flex-wrap items-center gap-1.5 focus-within:border-fo-accent/80">
               {form.tags.map((tag) => (
                 <span
                   key={tag}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#D4AF37]/15 text-[#D4AF37] text-[11px]"
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-fo-accent/15 text-fo-accent text-[11px]"
                 >
                   {tag}
                   <button type="button" onClick={() => removeTag(tag)}>
@@ -623,13 +623,13 @@ export default function CreateCommunityModal({ open, onClose, onSuccess }) {
                 onKeyDown={handleTagKeyDown}
                 onBlur={() => addTag(tagInput)}
                 placeholder={form.tags.length ? '' : 'finance, startups'}
-                className="flex-1 min-w-[120px] bg-transparent text-xs text-[#E5E0D8] placeholder-[#5A5046] focus:outline-none px-1"
+                className="flex-1 min-w-[120px] bg-transparent text-xs text-fo-text placeholder-[#5A5046] focus:outline-none px-1"
               />
             </div>
           </div>
 
           <div className="space-y-3">
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-[#D4AF37]">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-fo-accent">
               Community Type
             </label>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -642,16 +642,16 @@ export default function CreateCommunityModal({ open, onClose, onSuccess }) {
                     onClick={() => handleInputChange('type', value)}
                     className={`p-3 rounded-xl border text-left transition-all ${
                       selected
-                        ? 'bg-[#251E17] border-[#D4AF37] text-white'
-                        : 'bg-[#0E0C0A] border-[#2A241E] text-[#8C8070] hover:border-[#3D332A]'
+                        ? 'bg-fo-surface-3 border-fo-accent text-fo-text'
+                        : 'bg-fo-bg border-fo-border text-fo-subtle hover:border-[#3D332A]'
                     }`}
                   >
                     <Icon
                       size={16}
-                      className={`mb-1.5 ${selected ? 'text-[#D4AF37]' : ''}`}
+                      className={`mb-1.5 ${selected ? 'text-fo-accent' : ''}`}
                     />
-                    <div className="text-xs font-bold text-[#E5E0D8]">{label}</div>
-                    <div className="text-[10px] text-[#A69B8D] mt-0.5 leading-tight">
+                    <div className="text-xs font-bold text-fo-text">{label}</div>
+                    <div className="text-[10px] text-fo-muted mt-0.5 leading-tight">
                       {description}
                     </div>
                   </button>
@@ -660,12 +660,12 @@ export default function CreateCommunityModal({ open, onClose, onSuccess }) {
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-3 pt-2 border-t border-[#2A241E]">
+          <div className="flex items-center justify-end gap-3 pt-2 border-t border-fo-border">
             <button
               type="button"
               disabled={saving}
               onClick={onClose}
-              className="text-xs text-[#A69B8D] hover:text-[#E5E0D8]"
+              className="text-xs text-fo-muted hover:text-fo-text"
             >
               Cancel
             </button>

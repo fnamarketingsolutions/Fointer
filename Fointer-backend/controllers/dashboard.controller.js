@@ -1,4 +1,5 @@
 import User from "../models/user.js";
+import Listing from "../models/listing.js";
 import CommunityMember from "../models/communityMember.js";
 import Community from "../models/community.js";
 import { sendServerError } from "../utils/safeError.js";
@@ -7,21 +8,6 @@ import {
   buildPaginationMeta,
 } from "../utils/pagination.js";
 import { escapeRegex } from "../utils/validate.js";
-
-export const getOverview = async (req, res) => {
-  try {
-    return res.status(200).json({
-      success: true,
-      message: `Welcome back, ${req.user.name}.`,
-      stats: {
-        role: req.user.role,
-        accountStatus: req.user.status || "active",
-      },
-    });
-  } catch (error) {
-    return sendServerError(res, error);
-  }
-};
 
 const formatAdminUser = (u) => ({
   id: u._id,
@@ -123,6 +109,42 @@ const getMemberCountMap = async (communityIds = []) => {
   }, {});
 };
 
+const getActiveModeratorUserIds = async () => {
+  const modMemberships = await CommunityMember.find({
+    status: "active",
+    role: "moderator",
+  }).select("user moderatorExpiresAt");
+
+  const now = new Date();
+  return [
+    ...new Set(
+      modMemberships
+        .filter(
+          (m) => !m.moderatorExpiresAt || new Date(m.moderatorExpiresAt) > now
+        )
+        .map((m) => m.user)
+    ),
+  ];
+};
+
+const getUserManagementSummary = async () => {
+  const modUserIds = await getActiveModeratorUserIds();
+  const [all, active, banned, users] = await Promise.all([
+    User.countDocuments(),
+    User.countDocuments({ status: "active" }),
+    User.countDocuments({ status: "banned" }),
+    User.countDocuments({ role: "user" }),
+  ]);
+
+  return {
+    all,
+    active,
+    banned,
+    users,
+    moderators: modUserIds.length,
+  };
+};
+
 export const listUsers = async (req, res) => {
   try {
     const { status, role, moderators, q } = req.query;
@@ -145,24 +167,8 @@ export const listUsers = async (req, res) => {
     }
 
     if (moderators === "true") {
-      const modMemberships = await CommunityMember.find({
-        status: "active",
-        role: "moderator",
-      }).select("user moderatorExpiresAt");
-
-      const now = new Date();
-      const modUserIds = [
-        ...new Set(
-          modMemberships
-            .filter(
-              (m) =>
-                !m.moderatorExpiresAt || new Date(m.moderatorExpiresAt) > now
-            )
-            .map((m) => String(m.user))
-        ),
-      ];
-
-      filter._id = { $in: modUserIds };
+      const modUserIds = await getActiveModeratorUserIds();
+      filter._id = { $in: modUserIds.map(String) };
     }
 
     if (q && String(q).trim()) {
@@ -174,7 +180,7 @@ export const listUsers = async (req, res) => {
       ];
     }
 
-    const [users, total] = await Promise.all([
+    const [users, total, summary] = await Promise.all([
       User.find(filter)
         .select(
           "username name email role status avatar googleId facebookId createdAt updatedAt"
@@ -184,11 +190,13 @@ export const listUsers = async (req, res) => {
         .limit(pageLimit)
         .lean(),
       User.countDocuments(filter),
+      getUserManagementSummary(),
     ]);
 
     return res.status(200).json({
       success: true,
       users: users.map(formatAdminUser),
+      summary,
       pagination: buildPaginationMeta({
         page: pageNum,
         limit: pageLimit,
@@ -233,6 +241,13 @@ export const updateUserStatus = async (req, res) => {
     target.status = status;
     await target.save();
 
+    if (status === "banned") {
+      const { hideActiveListingsForSeller } = await import(
+        "./adminMarketplace.controller.js"
+      );
+      await hideActiveListingsForSeller(target._id, req.user._id);
+    }
+
     return res.status(200).json({
       success: true,
       message: "User status updated successfully.",
@@ -262,6 +277,11 @@ export const getAdminUserDetail = async (req, res) => {
       .populate("owner", "username name email avatar")
       .sort({ createdAt: -1 });
 
+    const listings = await Listing.find({ seller: user._id })
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .select("title status price currency category shortCode createdAt");
+
     const countMap = await getMemberCountMap(communities.map((c) => c._id));
     const communityMembers = await CommunityMember.find({
       community: { $in: communities.map((c) => c._id) },
@@ -288,6 +308,17 @@ export const getAdminUserDetail = async (req, res) => {
           members: membersByCommunity[String(community._id)] || [],
         })
       ),
+      listings: listings.map((listing) => ({
+        id: listing._id,
+        shortCode: listing.shortCode || "",
+        title: listing.title,
+        status: listing.status,
+        price: listing.price,
+        currency: listing.currency || "USD",
+        category: listing.category,
+        createdAt: listing.createdAt,
+      })),
+      listingCount: listings.length,
     });
   } catch (error) {
     return sendServerError(res, error);

@@ -94,14 +94,14 @@ export default function ConfirmDeleteModal({
           className="absolute inset-0 bg-black/80 backdrop-blur-sm"
           onClick={handleBackdropClick}
         />
-        <div className="relative w-full max-w-sm bg-[#120F0D] border border-[#2A241E] rounded-xl p-4 sm:p-5 shadow-2xl z-10">
+        <div className="relative w-full max-w-sm bg-[#120F0D] border border-fo-border rounded-xl p-4 sm:p-5 shadow-2xl z-10">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-base sm:text-lg font-semibold text-red-400">{title}</h2>
             {showCloseButton && (
               <button
                 type="button"
                 onClick={onClose}
-                className="p-1.5 text-[#A69B8D] hover:text-[#E5E0D8] rounded-lg"
+                className="p-1.5 text-fo-muted hover:text-fo-text rounded-lg"
                 aria-label="Close"
               >
                 <X size={18} />
@@ -109,7 +109,7 @@ export default function ConfirmDeleteModal({
             )}
           </div>
 
-          <div className="text-xs sm:text-sm text-[#A69B8D] mb-4">{children}</div>
+          <div className="text-xs sm:text-sm text-fo-muted mb-4">{children}</div>
 
           <div className="flex gap-2.5">
             <button
@@ -125,7 +125,7 @@ export default function ConfirmDeleteModal({
               type="button"
               onClick={onClose}
               disabled={loading}
-              className="flex-1 px-4 py-2.5 rounded-lg border border-[#2A241E] text-xs sm:text-sm text-[#A69B8D] hover:text-[#E5E0D8]"
+              className="flex-1 px-4 py-2.5 rounded-lg border border-fo-border text-xs sm:text-sm text-fo-muted hover:text-fo-text"
             >
               {cancelLabel}
             </button>
@@ -142,17 +142,17 @@ export default function ConfirmDeleteModal({
         className="absolute inset-0 bg-black/80 backdrop-blur-sm"
         onClick={handleBackdropClick}
       />
-      <div className="relative w-full max-w-sm bg-[#14100D] border border-[#2A241E] rounded-xl p-6 space-y-4 shadow-2xl">
-        <h3 className="text-base font-semibold text-[#E5E0D8]">{title}</h3>
+      <div className="relative w-full max-w-sm bg-fo-surface border border-fo-border rounded-xl p-6 space-y-4 shadow-2xl">
+        <h3 className="text-base font-semibold text-fo-text">{title}</h3>
 
-        <div className="text-xs text-[#A69B8D] leading-relaxed">{children}</div>
+        <div className="text-xs text-fo-muted leading-relaxed">{children}</div>
 
         <div className="flex gap-2 justify-end pt-2">
           <button
             type="button"
             onClick={onClose}
             disabled={loading}
-            className="px-4 py-2 rounded-lg border border-[#2A241E] text-xs text-[#A69B8D] hover:text-[#E5E0D8]"
+            className="px-4 py-2 rounded-lg border border-fo-border text-xs text-fo-muted hover:text-fo-text"
           >
             {cancelLabel}
           </button>

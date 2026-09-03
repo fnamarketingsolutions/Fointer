@@ -18,9 +18,10 @@ import {
 } from "react-icons/lu";
 import {
   fetchAdminAnalytics,
+  fetchAdminConversationMessages,
   fetchAdminReports,
   updateAdminReport,
-} from "../../services/adminService";
+} from "../../../../api/dashboard";
 import { useToast } from "../../../../shared/components/feedback/ToastContext";
 import { getErrorMessage } from "../../../../shared/utils/errors";
 import { timeAgo } from "../../../../shared/utils/date";
@@ -33,10 +34,10 @@ const STATUS_FILTERS = [
 ];
 
 const STATUS_META = {
-  pending: { label: "Pending", className: "text-[#D4AF37]" },
+  pending: { label: "Pending", className: "text-fo-accent" },
   reviewed: { label: "Reviewed", className: "text-sky-400" },
   actioned: { label: "Actioned", className: "text-emerald-400" },
-  dismissed: { label: "Dismissed", className: "text-[#8C8070]" },
+  dismissed: { label: "Dismissed", className: "text-fo-subtle" },
 };
 
 const VIEWS = [
@@ -47,11 +48,11 @@ const VIEWS = [
 function ActionBtn({ onClick, disabled, tone = "ghost", children }) {
   const tones = {
     ghost:
-      "border border-[#2A241E] text-[#A69B8D] hover:text-[#E5E0D8] hover:border-[#D4AF37]/30",
+      "border border-fo-border text-fo-muted hover:text-fo-text hover:border-fo-accent/30",
     danger:
       "border border-red-500/30 text-red-400 hover:bg-red-500/10",
     primary:
-      "border border-[#D4AF37]/35 text-[#D4AF37] hover:bg-[#D4AF37]/10",
+      "border border-fo-accent/35 text-fo-accent hover:bg-fo-accent/10",
   };
   return (
     <button
@@ -85,6 +86,8 @@ export default function ReportingAnalytics() {
   const [busyId, setBusyId] = useState(null);
   const [selected, setSelected] = useState(null);
   const [adminNote, setAdminNote] = useState("");
+  const [conversationMessages, setConversationMessages] = useState([]);
+  const [convLoading, setConvLoading] = useState(false);
 
   const loadReports = useCallback(async () => {
     setLoading(true);
@@ -129,14 +132,58 @@ export default function ReportingAnalytics() {
     else loadAnalytics();
   }, [view, loadReports, loadAnalytics]);
 
+  useEffect(() => {
+    if (!selected || selected.targetType !== "conversation") {
+      setConversationMessages([]);
+      setConvLoading(false);
+      return undefined;
+    }
+
+    const conversationId =
+      selected.snapshot?.conversationId || selected.targetId;
+    if (!conversationId) return undefined;
+
+    let cancelled = false;
+    const loadConversationMessages = async () => {
+      setConvLoading(true);
+      try {
+        const data = await fetchAdminConversationMessages(conversationId);
+        if (!cancelled) {
+          setConversationMessages(data?.messages || []);
+        }
+      } catch {
+        if (!cancelled) {
+          const snapshotMessages = selected.snapshot?.messages || [];
+          setConversationMessages(
+            snapshotMessages.map((message, index) => ({
+              id: `snapshot-${index}`,
+              text: message.text,
+              author: { name: message.authorName },
+              createdAt: message.createdAt,
+            }))
+          );
+        }
+      } finally {
+        if (!cancelled) setConvLoading(false);
+      }
+    };
+
+    loadConversationMessages();
+    return () => {
+      cancelled = true;
+    };
+  }, [selected]);
+
   const visibleReports = useMemo(() => reports, [reports]);
 
   const handleAction = async (report, action) => {
     const labels = {
       dismiss: "Dismiss this report as not a violation?",
       delete_content: "Delete the reported content?",
+      remove_listing: "Remove this listing from marketplace?",
       ban_author: "Ban the content author?",
       delete_and_ban: "Delete the content and ban the author?",
+      warn_seller: "Send a policy warning to the seller?",
     };
     if (!window.confirm(labels[action] || "Continue?")) return;
 
@@ -169,7 +216,7 @@ export default function ReportingAnalytics() {
           label: "Pending reports",
           value: analytics.pendingReports,
           icon: Flag,
-          tone: "text-[#D4AF37]",
+          tone: "text-fo-accent",
         },
         {
           label: "Reports this week",
@@ -187,25 +234,25 @@ export default function ReportingAnalytics() {
           label: "Dismissed",
           value: analytics.dismissedReports,
           icon: XCircle,
-          tone: "text-[#8C8070]",
+          tone: "text-fo-subtle",
         },
         {
           label: "Total posts",
           value: analytics.totalPosts,
           icon: FileText,
-          tone: "text-[#D4AF37]",
+          tone: "text-fo-accent",
         },
         {
           label: "Total comments",
           value: analytics.totalComments,
           icon: MessageCircle,
-          tone: "text-[#D4AF37]",
+          tone: "text-fo-accent",
         },
         {
           label: "Users",
           value: analytics.totalUsers,
           icon: Users,
-          tone: "text-[#D4AF37]",
+          tone: "text-fo-accent",
         },
         {
           label: "Banned users",
@@ -220,10 +267,10 @@ export default function ReportingAnalytics() {
     <div className="w-full max-w-3xl mx-auto space-y-5">
       <header className="flex items-start justify-between gap-3">
         <div className="space-y-1 min-w-0">
-          <h1 className="text-xl sm:text-2xl font-semibold text-[#E5E0D8]">
+          <h1 className="text-xl sm:text-2xl font-semibold text-fo-text">
             Reports & Analytics
           </h1>
-          <p className="text-sm text-[#8C8070]">
+          <p className="text-sm text-fo-subtle">
             Review reports and monitor platform health.
           </p>
         </div>
@@ -231,7 +278,7 @@ export default function ReportingAnalytics() {
           type="button"
           onClick={() => (view === "reports" ? loadReports() : loadAnalytics())}
           disabled={loading || analyticsLoading}
-          className="p-2 rounded-lg border border-[#2A241E] text-[#A69B8D] hover:text-[#D4AF37] hover:border-[#D4AF37]/40 transition-colors disabled:opacity-50 shrink-0"
+          className="p-2 rounded-lg border border-fo-border text-fo-muted hover:text-fo-accent hover:border-fo-accent/40 transition-colors disabled:opacity-50 shrink-0"
           title="Refresh"
         >
           <RefreshCw
@@ -241,7 +288,7 @@ export default function ReportingAnalytics() {
         </button>
       </header>
 
-      <div className="flex gap-1 p-1 rounded-xl bg-[#0E0C0A] border border-[#2A241E]">
+      <div className="flex gap-1 p-1 rounded-xl bg-fo-bg border border-fo-border">
         {VIEWS.map((item) => {
           const active = view === item.id;
           return (
@@ -251,8 +298,8 @@ export default function ReportingAnalytics() {
               onClick={() => setView(item.id)}
               className={`flex-1 py-2 px-3 rounded-lg text-xs sm:text-sm font-semibold transition-colors ${
                 active
-                  ? "bg-[#1A1510] text-[#D4AF37] border border-[#D4AF37]/35"
-                  : "text-[#8C8070] hover:text-[#E5E0D8] border border-transparent"
+                  ? "bg-[#1A1510] text-fo-accent border border-fo-accent/35"
+                  : "text-fo-subtle hover:text-fo-text border border-transparent"
               }`}
             >
               {item.label}
@@ -268,12 +315,12 @@ export default function ReportingAnalytics() {
 
       {view === "analytics" ? (
         analyticsLoading ? (
-          <div className="flex items-center justify-center gap-2 py-14 text-sm text-[#A69B8D]">
-            <Loader2 size={16} className="animate-spin text-[#D4AF37]" />
+          <div className="flex items-center justify-center gap-2 py-14 text-sm text-fo-muted">
+            <Loader2 size={16} className="animate-spin text-fo-accent" />
             Loading analytics…
           </div>
         ) : !analytics ? (
-          <div className="border border-dashed border-[#2A241E] rounded-xl py-14 text-center text-sm text-[#8C8070]">
+          <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle">
             No analytics available.
           </div>
         ) : (
@@ -284,13 +331,13 @@ export default function ReportingAnalytics() {
                 return (
                   <div
                     key={card.label}
-                    className="bg-[#14100D] border border-[#2A241E] rounded-xl p-3.5"
+                    className="bg-fo-surface border border-fo-border rounded-xl p-3.5"
                   >
                     <Icon size={14} className={card.tone} />
-                    <p className="text-xl font-semibold text-[#E5E0D8] mt-2 tabular-nums">
+                    <p className="text-xl font-semibold text-fo-text mt-2 tabular-nums">
                       {card.value ?? 0}
                     </p>
-                    <p className="text-[11px] text-[#8C8070] mt-0.5">
+                    <p className="text-[11px] text-fo-subtle mt-0.5">
                       {card.label}
                     </p>
                   </div>
@@ -299,12 +346,12 @@ export default function ReportingAnalytics() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              <section className="bg-[#14100D] border border-[#2A241E] rounded-xl p-4 space-y-3">
-                <h3 className="text-sm font-semibold text-[#E5E0D8]">
+              <section className="bg-fo-surface border border-fo-border rounded-xl p-4 space-y-3">
+                <h3 className="text-sm font-semibold text-fo-text">
                   Reports by reason
                 </h3>
                 {(analytics.reportsByReason || []).length === 0 ? (
-                  <p className="text-xs text-[#8C8070]">No reports yet.</p>
+                  <p className="text-xs text-fo-subtle">No reports yet.</p>
                 ) : (
                   <ul className="space-y-2">
                     {analytics.reportsByReason.map((row) => (
@@ -312,10 +359,10 @@ export default function ReportingAnalytics() {
                         key={row.reason}
                         className="flex items-center justify-between text-xs gap-3"
                       >
-                        <span className="text-[#A69B8D] truncate">
+                        <span className="text-fo-muted truncate">
                           {row.label}
                         </span>
-                        <span className="text-[#D4AF37] tabular-nums shrink-0">
+                        <span className="text-fo-accent tabular-nums shrink-0">
                           {row.count}
                         </span>
                       </li>
@@ -324,12 +371,12 @@ export default function ReportingAnalytics() {
                 )}
               </section>
 
-              <section className="bg-[#14100D] border border-[#2A241E] rounded-xl p-4 space-y-3">
-                <h3 className="text-sm font-semibold text-[#E5E0D8]">
+              <section className="bg-fo-surface border border-fo-border rounded-xl p-4 space-y-3">
+                <h3 className="text-sm font-semibold text-fo-text">
                   Last 7 days
                 </h3>
                 {(analytics.reportsByDay || []).length === 0 ? (
-                  <p className="text-xs text-[#8C8070]">No reports this week.</p>
+                  <p className="text-xs text-fo-subtle">No reports this week.</p>
                 ) : (
                   <ul className="space-y-2">
                     {analytics.reportsByDay.map((row) => (
@@ -337,10 +384,10 @@ export default function ReportingAnalytics() {
                         key={row.date}
                         className="flex items-center justify-between text-xs gap-3"
                       >
-                        <span className="text-[#8C8070] tabular-nums">
+                        <span className="text-fo-subtle tabular-nums">
                           {row.date}
                         </span>
-                        <span className="text-[#D4AF37] tabular-nums">
+                        <span className="text-fo-accent tabular-nums">
                           {row.count}
                         </span>
                       </li>
@@ -359,10 +406,10 @@ export default function ReportingAnalytics() {
               ].map((item) => (
                 <div
                   key={item.label}
-                  className="bg-[#14100D] border border-[#2A241E] rounded-xl p-3.5"
+                  className="bg-fo-surface border border-fo-border rounded-xl p-3.5"
                 >
-                  <p className="text-[11px] text-[#8C8070]">{item.label}</p>
-                  <p className="text-lg font-semibold text-[#E5E0D8] mt-1 tabular-nums">
+                  <p className="text-[11px] text-fo-subtle">{item.label}</p>
+                  <p className="text-lg font-semibold text-fo-text mt-1 tabular-nums">
                     {item.value ?? 0}
                   </p>
                 </div>
@@ -382,25 +429,25 @@ export default function ReportingAnalytics() {
             <div className="relative flex-1">
               <Search
                 size={14}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8C8070] pointer-events-none"
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-fo-subtle pointer-events-none"
               />
               <input
                 type="search"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search reports…"
-                className="w-full bg-[#14100D] border border-[#2A241E] rounded-xl pl-9 pr-3 py-2.5 text-sm text-[#E5E0D8] placeholder:text-[#5C5348] focus:outline-none focus:border-[#D4AF37]/50"
+                className="w-full bg-fo-surface border border-fo-border rounded-xl pl-9 pr-3 py-2.5 text-sm text-fo-text placeholder:text-fo-subtle focus:outline-none focus:border-fo-accent/50"
               />
             </div>
             <button
               type="submit"
-              className="px-4 py-2.5 rounded-xl bg-[#D4AF37] text-black text-sm font-semibold hover:bg-[#e0c04a] shrink-0"
+              className="px-4 py-2.5 rounded-xl bg-fo-accent text-black text-sm font-semibold hover:bg-fo-accent-hover shrink-0"
             >
               Search
             </button>
           </form>
 
-          <div className="flex gap-1 p-1 rounded-xl bg-[#0E0C0A] border border-[#2A241E] overflow-x-auto">
+          <div className="flex gap-1 p-1 rounded-xl bg-fo-bg border border-fo-border overflow-x-auto">
             {STATUS_FILTERS.map((item) => {
               const active = status === item.id;
               const count = summary[item.id] ?? 0;
@@ -411,8 +458,8 @@ export default function ReportingAnalytics() {
                   onClick={() => setStatus(item.id)}
                   className={`flex-1 min-w-[4.5rem] py-1.5 px-3 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
                     active
-                      ? "bg-[#1A1510] text-[#D4AF37] border border-[#D4AF37]/35"
-                      : "text-[#8C8070] hover:text-[#E5E0D8] border border-transparent"
+                      ? "bg-[#1A1510] text-fo-accent border border-fo-accent/35"
+                      : "text-fo-subtle hover:text-fo-text border border-transparent"
                   }`}
                 >
                   {item.label}
@@ -423,13 +470,13 @@ export default function ReportingAnalytics() {
           </div>
 
           {loading ? (
-            <div className="flex items-center justify-center gap-2 py-14 text-sm text-[#A69B8D]">
-              <Loader2 size={16} className="animate-spin text-[#D4AF37]" />
+            <div className="flex items-center justify-center gap-2 py-14 text-sm text-fo-muted">
+              <Loader2 size={16} className="animate-spin text-fo-accent" />
               Loading reports…
             </div>
           ) : visibleReports.length === 0 ? (
-            <div className="border border-dashed border-[#2A241E] rounded-xl py-14 text-center text-sm text-[#8C8070] px-4 space-y-2">
-              <Shield className="w-8 h-8 mx-auto text-[#D4AF37]/40" />
+            <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle px-4 space-y-2">
+              <Shield className="w-8 h-8 mx-auto text-fo-accent/40" />
               <p>
                 {query
                   ? `No reports match “${query}”.`
@@ -445,19 +492,19 @@ export default function ReportingAnalytics() {
                 return (
                   <article
                     key={report.id}
-                    className="bg-[#14100D] border border-[#2A241E] hover:border-[#D4AF37]/35 rounded-xl p-3.5 sm:p-4 transition-colors space-y-2.5"
+                    className="bg-fo-surface border border-fo-border hover:border-fo-accent/35 rounded-xl p-3.5 sm:p-4 transition-colors space-y-2.5"
                   >
                     <button
                       type="button"
                       onClick={() => openReport(report)}
                       className="w-full text-left space-y-1.5"
                     >
-                      <div className="flex items-center gap-2 text-[11px] text-[#8C8070] flex-wrap">
+                      <div className="flex items-center gap-2 text-[11px] text-fo-subtle flex-wrap">
                         <span className={`font-medium ${meta.className}`}>
                           {meta.label}
                         </span>
                         <span>·</span>
-                        <span className="text-[#A69B8D]">
+                        <span className="text-fo-muted">
                           {report.reasonLabel}
                         </span>
                         <span>·</span>
@@ -465,17 +512,17 @@ export default function ReportingAnalytics() {
                         <span>·</span>
                         <span>{timeAgo(report.createdAt)}</span>
                       </div>
-                      <h2 className="text-sm font-semibold text-[#E5E0D8] line-clamp-2 leading-snug">
+                      <h2 className="text-sm font-semibold text-fo-text line-clamp-2 leading-snug">
                         {report.snapshot?.title ||
                           report.snapshot?.text?.slice(0, 80) ||
                           "Reported content"}
                       </h2>
                       {report.snapshot?.text ? (
-                        <p className="text-xs text-[#A69B8D] line-clamp-2 leading-relaxed">
+                        <p className="text-xs text-fo-muted line-clamp-2 leading-relaxed">
                           {report.snapshot.text}
                         </p>
                       ) : null}
-                      <p className="text-[11px] text-[#8C8070]">
+                      <p className="text-[11px] text-fo-subtle">
                         by {report.snapshot?.authorName || "Unknown"}
                         {report.snapshot?.communityName
                           ? ` · ${report.snapshot.communityName}`
@@ -533,15 +580,15 @@ export default function ReportingAnalytics() {
             className="absolute inset-0 bg-black/75 backdrop-blur-[2px]"
             onClick={() => setSelected(null)}
           />
-          <div className="relative w-full sm:max-w-lg max-h-[88vh] overflow-hidden flex flex-col bg-[#14100D] border border-[#2A241E] border-b-0 sm:border-b rounded-t-2xl sm:rounded-2xl shadow-2xl">
-            <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-[#2A241E] shrink-0">
-              <h2 className="text-sm font-semibold text-[#E5E0D8]">
+          <div className="relative w-full sm:max-w-lg max-h-[88vh] overflow-hidden flex flex-col bg-fo-surface border border-fo-border border-b-0 sm:border-b rounded-t-2xl sm:rounded-2xl shadow-2xl">
+            <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-fo-border shrink-0">
+              <h2 className="text-sm font-semibold text-fo-text">
                 Report review
               </h2>
               <button
                 type="button"
                 onClick={() => setSelected(null)}
-                className="p-1.5 rounded-lg text-[#A69B8D] hover:text-[#E5E0D8] hover:bg-[#1A1510]"
+                className="p-1.5 rounded-lg text-fo-muted hover:text-fo-text hover:bg-[#1A1510]"
               >
                 <X size={18} />
               </button>
@@ -557,31 +604,70 @@ export default function ReportingAnalytics() {
                 >
                   {(STATUS_META[selected.status] || STATUS_META.pending).label}
                 </span>
-                <span className="text-[#8C8070]">·</span>
-                <span className="text-[#A69B8D]">{selected.reasonLabel}</span>
-                <span className="text-[#8C8070]">·</span>
-                <span className="text-[#8C8070] capitalize">
+                <span className="text-fo-subtle">·</span>
+                <span className="text-fo-muted">{selected.reasonLabel}</span>
+                <span className="text-fo-subtle">·</span>
+                <span className="text-fo-subtle capitalize">
                   {selected.targetType}
                 </span>
               </div>
 
               <div className="space-y-1">
                 {selected.snapshot?.title ? (
-                  <h3 className="text-base font-semibold text-[#E5E0D8]">
+                  <h3 className="text-base font-semibold text-fo-text">
                     {selected.snapshot.title}
                   </h3>
                 ) : null}
-                <p className="text-sm text-[#A69B8D] whitespace-pre-wrap break-words leading-relaxed">
-                  {selected.snapshot?.text || "No text snapshot."}
-                </p>
-                <p className="text-[11px] text-[#8C8070] pt-1">
-                  Author: {selected.snapshot?.authorName || "Unknown"}
+                {selected.targetType === "conversation" ? (
+                  <div className="space-y-2">
+                    <p className="text-[11px] uppercase tracking-wide text-fo-subtle">
+                      Conversation messages
+                    </p>
+                    {convLoading ? (
+                      <div className="flex justify-center py-6 text-fo-muted">
+                        <Loader2 size={18} className="animate-spin" />
+                      </div>
+                    ) : conversationMessages.length ? (
+                      <div className="max-h-64 overflow-y-auto space-y-2 rounded-xl border border-fo-border bg-fo-bg p-3">
+                        {conversationMessages.map((message) => (
+                          <div
+                            key={message.id}
+                            className="rounded-lg border border-fo-border/70 bg-fo-surface p-3"
+                          >
+                            <p className="text-[11px] text-fo-subtle mb-1">
+                              {message.author?.name ||
+                                message.author?.username ||
+                                "User"}{" "}
+                              · {timeAgo(message.createdAt)}
+                            </p>
+                            <p className="text-sm text-fo-text whitespace-pre-wrap break-words">
+                              {message.text}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-fo-muted">
+                        No messages found in this conversation.
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-sm text-fo-muted whitespace-pre-wrap break-words leading-relaxed">
+                    {selected.snapshot?.text || "No text snapshot."}
+                  </p>
+                )}
+                <p className="text-[11px] text-fo-subtle pt-1">
+                  {selected.targetType === "conversation"
+                    ? "Reported user"
+                    : "Author"}
+                  : {selected.snapshot?.authorName || "Unknown"}
                   {selected.snapshot?.authorId ? (
                     <>
                       {" · "}
                       <Link
                         to={`/admin/users/${selected.snapshot.authorId}`}
-                        className="text-[#D4AF37] hover:underline"
+                        className="text-fo-accent hover:underline"
                       >
                         View user
                       </Link>
@@ -597,16 +683,16 @@ export default function ReportingAnalytics() {
 
               {selected.details ? (
                 <div>
-                  <p className="text-[11px] uppercase tracking-wide text-[#8C8070] mb-1">
+                  <p className="text-[11px] uppercase tracking-wide text-fo-subtle mb-1">
                     Reporter note
                   </p>
-                  <p className="text-xs text-[#A69B8D] whitespace-pre-wrap">
+                  <p className="text-xs text-fo-muted whitespace-pre-wrap">
                     {selected.details}
                   </p>
                 </div>
               ) : null}
 
-              <p className="text-[11px] text-[#8C8070]">
+              <p className="text-[11px] text-fo-subtle">
                 Reported by{" "}
                 {selected.reporter?.name ||
                   selected.reporter?.username ||
@@ -622,9 +708,9 @@ export default function ReportingAnalytics() {
 
               {selected.status === "pending" ? (
                 <div>
-                  <label className="block text-[11px] uppercase tracking-wide text-[#8C8070] mb-1.5">
+                  <label className="block text-[11px] uppercase tracking-wide text-fo-subtle mb-1.5">
                     Admin note{" "}
-                    <span className="normal-case tracking-normal text-[#5C5348]">
+                    <span className="normal-case tracking-normal text-fo-subtle">
                       (optional)
                     </span>
                   </label>
@@ -634,14 +720,14 @@ export default function ReportingAnalytics() {
                     rows={2}
                     maxLength={500}
                     placeholder="Internal note about this decision…"
-                    className="w-full bg-[#0E0C0A] border border-[#2A241E] rounded-xl px-3 py-2.5 text-sm text-[#E5E0D8] focus:outline-none focus:border-[#D4AF37]/50 placeholder:text-[#5C5348] resize-none"
+                    className="w-full bg-fo-bg border border-fo-border rounded-xl px-3 py-2.5 text-sm text-fo-text focus:outline-none focus:border-fo-accent/50 placeholder:text-fo-subtle resize-none"
                   />
                 </div>
               ) : null}
             </div>
 
             {selected.status === "pending" ? (
-              <div className="shrink-0 flex flex-wrap gap-1.5 px-4 py-3 border-t border-[#2A241E]">
+              <div className="shrink-0 flex flex-wrap gap-1.5 px-4 py-3 border-t border-fo-border">
                 <ActionBtn
                   disabled={busyId === selected.id}
                   onClick={() => handleAction(selected, "dismiss")}
@@ -651,10 +737,28 @@ export default function ReportingAnalytics() {
                 <ActionBtn
                   tone="danger"
                   disabled={busyId === selected.id || !selected.targetExists}
-                  onClick={() => handleAction(selected, "delete_content")}
+                  onClick={() =>
+                    handleAction(
+                      selected,
+                      selected.targetType === "listing"
+                        ? "remove_listing"
+                        : "delete_content"
+                    )
+                  }
                 >
-                  <Trash2 size={12} /> Delete
+                  <Trash2 size={12} />{" "}
+                  {selected.targetType === "listing" ? "Remove" : "Delete"}
                 </ActionBtn>
+                {selected.targetType === "listing" ? (
+                  <ActionBtn
+                    disabled={
+                      busyId === selected.id || !selected.snapshot?.authorId
+                    }
+                    onClick={() => handleAction(selected, "warn_seller")}
+                  >
+                    <Flag size={12} /> Warn seller
+                  </ActionBtn>
+                ) : null}
                 <ActionBtn
                   tone="danger"
                   disabled={

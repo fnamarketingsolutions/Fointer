@@ -1,6 +1,6 @@
 // src/context/AuthContext.jsx
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { getMe, logoutUser } from '../features/auth/services/authService';
+import { getMe, logoutUser } from '../api/auth';
 import { setUnauthorizedHandler } from '../shared/services/http/client';
 
 const AuthContext = createContext(null);

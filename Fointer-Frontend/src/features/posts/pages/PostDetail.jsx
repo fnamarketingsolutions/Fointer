@@ -29,6 +29,7 @@ import ConfirmDeleteModal from "../../../shared/components/modals/ConfirmDeleteM
 import EditWindowExpiredModal from "../../../shared/components/modals/EditWindowExpiredModal";
 import ReportContentModal from "../../../shared/components/modals/ReportContentModal";
 import PostAuthorAvatar from "../components/PostAuthorAvatar";
+import UserProfileLink from "../../../shared/components/UserProfileLink";
 import PostCommentsSection from "../components/PostCommentsSection";
 import PostEditModal from "../components/PostEditModal";
 import { useToast } from "../../../shared/components/feedback/ToastContext";
@@ -490,8 +491,8 @@ export default function PostDetail({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20 text-[#A69B8D] text-sm gap-2 w-full">
-        <Loader2 size={18} className="animate-spin text-[#D4AF37]" />
+      <div className="flex items-center justify-center py-20 text-fo-muted text-sm gap-2 w-full">
+        <Loader2 size={18} className="animate-spin text-fo-accent" />
         Loading post...
       </div>
     );
@@ -500,7 +501,7 @@ export default function PostDetail({
   if (!post) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4 py-6">
-        <div className="border border-dashed border-[#2A241E] rounded-xl py-12 text-center text-[#8C8070] text-sm">
+        <div className="border border-dashed border-fo-border rounded-xl py-12 text-center text-fo-subtle text-sm">
           Post not found.
         </div>
       </div>
@@ -508,13 +509,13 @@ export default function PostDetail({
   }
 
   const postActions = showPostActions ? (
-    <div className="shrink-0 flex items-center gap-2 rounded-lg border border-[#2A241E] bg-[#0E0C0A] p-1.5">
+    <div className="shrink-0 flex items-center gap-2 rounded-lg border border-fo-border bg-fo-bg p-1.5">
       {showPostEdit && (
         <button
           type="button"
           onClick={openEdit}
           title="Edit Post"
-          className="p-2 rounded-md text-[#A69B8D] hover:text-[#D4AF37] hover:bg-[#2A241E]/50 transition-all"
+          className="p-2 rounded-md text-fo-muted hover:text-fo-accent hover:bg-[#2A241E]/50 transition-all"
         >
           <Pencil size={16} />
         </button>
@@ -535,20 +536,26 @@ export default function PostDetail({
   const authorBlock = (
     <div
       className={`flex items-center gap-3 ${
-        compact ? "min-w-0" : "py-2 border-y border-[#2A241E]/40"
+        compact ? "min-w-0" : "py-2 border-y border-fo-border/40"
       }`}
     >
       <PostAuthorAvatar author={post.author} size={compact ? "sm" : "md"} />
       <div className="min-w-0">
-        <div className="text-sm font-semibold text-[#E5E0D8] truncate">
+        <UserProfileLink
+          author={post.author}
+          className="text-sm font-semibold text-fo-text truncate block hover:text-fo-accent transition-colors"
+        >
           {post.author?.name || post.author?.username || "Member"}
-        </div>
+        </UserProfileLink>
         {post.author?.username && (
-          <div className="text-[11px] text-[#A69B8D] truncate">
+          <UserProfileLink
+            author={post.author}
+            className="text-[11px] text-fo-muted truncate block hover:text-fo-accent transition-colors"
+          >
             @{post.author.username}
-          </div>
+          </UserProfileLink>
         )}
-        <div className="text-[11px] text-[#8C8070]">
+        <div className="text-[11px] text-fo-subtle">
           {compact
             ? timeAgo(post.createdAt)
             : post.createdAt
@@ -571,18 +578,18 @@ export default function PostDetail({
         communityPath ? (
           <Link
             to={communityPath}
-            className="text-[10px] uppercase tracking-widest text-[#D4AF37] font-mono hover:text-[#e0c04a]"
+            className="text-[10px] uppercase tracking-widest text-fo-accent font-mono hover:text-fo-accent-hover"
           >
             {post.community.name}
           </Link>
         ) : (
-          <p className="text-[10px] uppercase tracking-widest text-[#D4AF37] font-mono">
+          <p className="text-[10px] uppercase tracking-widest text-fo-accent font-mono">
             {post.community.name}
           </p>
         )
       )}
       <h1
-        className={`font-serif font-bold text-[#E5E0D8] leading-tight ${
+        className={`font-serif font-bold text-fo-text leading-tight ${
           compact
             ? "text-base sm:text-lg"
             : "text-2xl sm:text-3xl lg:text-4xl"
@@ -602,7 +609,7 @@ export default function PostDetail({
         <button
           type="button"
           onClick={onBack}
-          className="inline-flex items-center gap-1.5 text-xs text-[#A69B8D] hover:text-[#D4AF37] transition-colors"
+          className="inline-flex items-center gap-1.5 text-xs text-fo-muted hover:text-fo-accent transition-colors"
         >
           <ArrowLeft size={14} />
           {backLabel}
@@ -611,7 +618,7 @@ export default function PostDetail({
 
       <div className="w-full max-w-full">
         <article
-          className={`bg-[#14100D] overflow-hidden w-full shadow-xl ${
+          className={`bg-fo-surface overflow-hidden w-full shadow-xl ${
             compact ? "rounded-lg" : "rounded-xl"
           }`}
         >
@@ -642,7 +649,7 @@ export default function PostDetail({
 
             {post.media && post.media.length > 0 && (
               <div
-                className={`relative w-full bg-[#0A0806] flex items-center justify-center rounded-lg overflow-hidden group ${
+                className={`relative w-full bg-fo-surface-2 flex items-center justify-center rounded-lg overflow-hidden group ${
                   compact ? "max-h-[40vh]" : "min-h-[250px] max-h-[70vh]"
                 }`}
               >
@@ -664,8 +671,8 @@ export default function PostDetail({
               <p
                 className={
                   compact
-                    ? "text-sm text-[#C9C0B4] whitespace-pre-wrap leading-relaxed"
-                    : "text-sm sm:text-base text-[#C9C0B4] whitespace-pre-wrap leading-relaxed font-serif first-letter:float-left first-letter:mr-3 first-letter:mt-1 first-letter:font-serif first-letter:text-5xl sm:first-letter:text-6xl first-letter:leading-[0.8] first-letter:text-[#D4AF37]"
+                    ? "text-sm text-fo-muted whitespace-pre-wrap leading-relaxed"
+                    : "text-sm sm:text-base text-fo-muted whitespace-pre-wrap leading-relaxed font-serif first-letter:float-left first-letter:mr-3 first-letter:mt-1 first-letter:font-serif first-letter:text-5xl sm:first-letter:text-6xl first-letter:leading-[0.8] first-letter:text-fo-accent"
                 }
               >
                 {post.text}
@@ -673,10 +680,10 @@ export default function PostDetail({
             )}
 
             {needsCommunityJoin ? (
-              <div className="rounded-xl border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-4 py-3 space-y-2">
-                <p className="text-xs text-[#E5E0D8]">
+              <div className="rounded-xl border border-fo-accent/30 bg-fo-accent/10 px-4 py-3 space-y-2">
+                <p className="text-xs text-fo-text">
                   Join{" "}
-                  <span className="text-[#D4AF37] font-medium">
+                  <span className="text-fo-accent font-medium">
                     {post.community?.name || "this community"}
                   </span>{" "}
                   to like and comment.
@@ -686,7 +693,7 @@ export default function PostDetail({
                     type="button"
                     disabled={joining}
                     onClick={handleJoinCommunity}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#D4AF37] text-black text-xs font-semibold disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-fo-accent text-black text-xs font-semibold disabled:opacity-50"
                   >
                     {joining ? (
                       <Loader2 size={12} className="animate-spin" />
@@ -700,7 +707,7 @@ export default function PostDetail({
                   {communityPath ? (
                     <Link
                       to={communityPath}
-                      className="inline-flex items-center px-3 py-1.5 rounded-lg border border-[#2A241E] text-xs text-[#A69B8D] hover:text-[#E5E0D8]"
+                      className="inline-flex items-center px-3 py-1.5 rounded-lg border border-fo-border text-xs text-fo-muted hover:text-fo-text"
                     >
                       View community
                     </Link>
@@ -710,7 +717,7 @@ export default function PostDetail({
             ) : null}
 
             <div
-              className={`flex items-center gap-4 border-t border-[#2A241E]/60 ${
+              className={`flex items-center gap-4 border-t border-fo-border/60 ${
                 compact ? "pt-3" : "pt-4"
               }`}
             >
@@ -739,7 +746,7 @@ export default function PostDetail({
                       label: post.title || "this post",
                     })
                   }
-                  className="inline-flex items-center gap-2 text-xs font-medium text-[#A69B8D] hover:text-red-400 transition-colors ml-auto"
+                  className="inline-flex items-center gap-2 text-xs font-medium text-fo-muted hover:text-red-400 transition-colors ml-auto"
                   title="Report post"
                 >
                   <Flag size={15} />

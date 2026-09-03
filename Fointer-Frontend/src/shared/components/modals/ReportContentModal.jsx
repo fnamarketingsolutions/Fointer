@@ -63,7 +63,14 @@ export default function ReportContentModal({
   if (!open) return null;
 
   const selectedReason = reasons.find((r) => r.id === reason);
-  const noun = targetType === "comment" ? "comment" : "post";
+  const noun =
+    targetType === "comment"
+      ? "comment"
+      : targetType === "listing"
+        ? "listing"
+        : targetType === "conversation"
+          ? "conversation"
+          : "post";
 
   const handleClose = () => {
     if (submitting) return;
@@ -107,7 +114,7 @@ export default function ReportContentModal({
   return (
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center sm:p-4">
       <div
-        className="absolute inset-0 bg-black/75 backdrop-blur-[2px]"
+        className="absolute inset-0 bg-[var(--theme-overlay)] backdrop-blur-[2px]"
         onClick={handleClose}
       />
 
@@ -115,16 +122,16 @@ export default function ReportContentModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="report-dialog-title"
-        className="relative w-full sm:max-w-md bg-[#14100D] border border-[#2A241E] border-b-0 sm:border-b rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[88vh] flex flex-col"
+        className="relative w-full sm:max-w-md bg-fo-surface border border-fo-border border-b-0 sm:border-b rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[88vh] flex flex-col"
       >
         {/* Header */}
-        <div className="flex items-center gap-3 px-4 sm:px-5 pt-4 pb-3 border-b border-[#2A241E] shrink-0">
+        <div className="flex items-center gap-3 px-4 sm:px-5 pt-4 pb-3 border-b border-fo-border shrink-0">
           {step === 2 && !done ? (
             <button
               type="button"
               disabled={submitting}
               onClick={() => setStep(1)}
-              className="p-1.5 -ml-1 rounded-lg text-[#A69B8D] hover:text-[#E5E0D8] hover:bg-[#1A1510]"
+              className="p-1.5 -ml-1 rounded-lg text-fo-muted hover:text-fo-text hover:bg-fo-surface-hover"
               aria-label="Back"
             >
               <ArrowLeft size={18} />
@@ -137,12 +144,12 @@ export default function ReportContentModal({
           <div className="min-w-0 flex-1">
             <h2
               id="report-dialog-title"
-              className="text-sm sm:text-base font-semibold text-[#E5E0D8]"
+              className="text-sm sm:text-base font-semibold text-fo-text"
             >
               {done ? "Report sent" : `Report ${noun}`}
             </h2>
             {!done ? (
-              <p className="text-[11px] text-[#8C8070] truncate mt-0.5">
+              <p className="text-[11px] text-fo-subtle truncate mt-0.5">
                 {step === 1
                   ? `Help keep Fointer safe — ${targetLabel}`
                   : selectedReason?.label || "Add details"}
@@ -153,7 +160,7 @@ export default function ReportContentModal({
             type="button"
             disabled={submitting}
             onClick={handleClose}
-            className="p-1.5 rounded-lg text-[#A69B8D] hover:text-[#E5E0D8] hover:bg-[#1A1510]"
+            className="p-1.5 rounded-lg text-fo-muted hover:text-fo-text hover:bg-fo-surface-hover"
             aria-label="Close"
           >
             <X size={18} />
@@ -167,31 +174,31 @@ export default function ReportContentModal({
               <div className="w-12 h-12 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center">
                 <CheckCircle2 size={24} className="text-emerald-400" />
               </div>
-              <p className="text-sm text-[#E5E0D8] font-medium">
+              <p className="text-sm text-fo-text font-medium">
                 Thanks for reporting
               </p>
-              <p className="text-xs text-[#8C8070] max-w-[260px]">
+              <p className="text-xs text-fo-subtle max-w-[260px]">
                 Our team will review this {noun}. You can keep browsing.
               </p>
             </div>
           ) : step === 1 ? (
             <div>
-              <p className="text-[11px] uppercase tracking-wide text-[#8C8070] mb-3">
+              <p className="text-[11px] uppercase tracking-wide text-fo-subtle mb-3">
                 Why are you reporting this?
               </p>
-              <ul className="divide-y divide-[#2A241E] rounded-xl border border-[#2A241E] overflow-hidden">
+              <ul className="divide-y divide-fo-border rounded-xl border border-fo-border overflow-hidden">
                 {reasons.map((r) => (
                   <li key={r.id}>
                     <button
                       type="button"
                       onClick={() => handlePickReason(r.id)}
-                      className="w-full flex items-center gap-3 px-3.5 py-3 text-left text-sm text-[#E5E0D8] hover:bg-[#1A1510] transition-colors"
+                      className="w-full flex items-center gap-3 px-3.5 py-3 text-left text-sm text-fo-text hover:bg-fo-surface-hover transition-colors"
                     >
                       <span
                         className={`w-4 h-4 rounded-full border shrink-0 ${
                           reason === r.id
-                            ? "border-[#D4AF37] bg-[#D4AF37]"
-                            : "border-[#5C5348]"
+                            ? "border-fo-accent bg-fo-accent"
+                            : "border-fo-subtle"
                         }`}
                         aria-hidden
                       />
@@ -203,11 +210,11 @@ export default function ReportContentModal({
             </div>
           ) : (
             <form id="report-form" onSubmit={handleSubmit} className="space-y-4">
-              <div className="rounded-xl border border-[#2A241E] bg-[#0D0A08] px-3.5 py-3">
-                <p className="text-[10px] uppercase tracking-wide text-[#8C8070]">
+              <div className="rounded-xl border border-fo-border bg-fo-surface-hover px-3.5 py-3">
+                <p className="text-[10px] uppercase tracking-wide text-fo-subtle">
                   Reason
                 </p>
-                <p className="text-sm text-[#E5E0D8] mt-0.5">
+                <p className="text-sm text-fo-text mt-0.5">
                   {selectedReason?.label}
                 </p>
               </div>
@@ -215,10 +222,10 @@ export default function ReportContentModal({
               <div>
                 <label
                   htmlFor="report-details"
-                  className="block text-[11px] uppercase tracking-wide text-[#8C8070] mb-1.5"
+                  className="block text-[11px] uppercase tracking-wide text-fo-subtle mb-1.5"
                 >
                   Additional details{" "}
-                  <span className="normal-case tracking-normal text-[#5C5348]">
+                  <span className="normal-case tracking-normal text-fo-subtle">
                     (optional)
                   </span>
                 </label>
@@ -230,9 +237,9 @@ export default function ReportContentModal({
                   rows={4}
                   autoFocus
                   placeholder="Anything else we should know?"
-                  className="w-full bg-[#0D0A08] border border-[#2A241E] rounded-xl px-3.5 py-2.5 text-sm text-[#E5E0D8] focus:outline-none focus:border-[#D4AF37]/50 placeholder:text-[#5C5348] resize-none"
+                  className="w-full bg-fo-surface-hover border border-fo-border rounded-xl px-3.5 py-2.5 text-sm text-fo-text focus:outline-none focus:border-fo-accent/50 placeholder:text-fo-subtle resize-none"
                 />
-                <p className="text-[10px] text-[#5C5348] text-right mt-1">
+                <p className="text-[10px] text-fo-subtle text-right mt-1">
                   {details.length}/1000
                 </p>
               </div>
@@ -242,12 +249,12 @@ export default function ReportContentModal({
 
         {/* Footer — step 2 only */}
         {!done && step === 2 ? (
-          <div className="shrink-0 px-4 sm:px-5 pb-4 sm:pb-5 pt-2 border-t border-[#2A241E] flex gap-2">
+          <div className="shrink-0 px-4 sm:px-5 pb-4 sm:pb-5 pt-2 border-t border-fo-border flex gap-2">
             <button
               type="button"
               disabled={submitting}
               onClick={() => setStep(1)}
-              className="flex-1 py-2.5 rounded-xl border border-[#2A241E] text-sm text-[#A69B8D] hover:text-[#E5E0D8] hover:border-[#D4AF37]/30"
+              className="flex-1 py-2.5 rounded-xl border border-fo-border text-sm text-fo-muted hover:text-fo-text hover:border-fo-accent/30"
             >
               Change reason
             </button>

@@ -35,6 +35,7 @@ import { COMMUNITY_TYPE_LABELS } from "../../../../shared/constants/community";
 import { formatLongDate, timeAgo } from "../../../../shared/utils/date";
 import { formatCount } from "../../../../shared/utils/format";
 import PostActions from "../../../../shared/components/PostActions";
+import UserProfileLink from "../../../../shared/components/UserProfileLink";
 import {
   communitySegment,
   postSegment,
@@ -60,10 +61,10 @@ const MEMBER_FILTERS = [
 
 const roleBadgeClass = (role) => {
   if (role === "owner")
-    return "text-[#D4AF37] border-[#D4AF37]/40 bg-[#D4AF37]/10";
+    return "text-fo-accent border-fo-accent/40 bg-fo-accent/10";
   if (role === "moderator")
     return "text-amber-200 border-amber-500/30 bg-amber-500/10";
-  return "text-[#A69B8D] border-[#2A241E] bg-[#0E0C0A]";
+  return "text-fo-muted border-fo-border bg-fo-bg";
 };
 
 function Collapsible({ open, collapsedHeight = 0, children }) {
@@ -105,10 +106,10 @@ function Collapsible({ open, collapsedHeight = 0, children }) {
 function RuleItem({ index, rule }) {
   return (
     <li className="flex gap-2">
-      <span className="text-[11px] font-semibold text-[#D4AF37] shrink-0 w-4">
+      <span className="text-[11px] font-semibold text-fo-accent shrink-0 w-4">
         {index + 1}.
       </span>
-      <span className="text-xs text-[#A69B8D] leading-relaxed">{rule}</span>
+      <span className="text-xs text-fo-muted leading-relaxed">{rule}</span>
     </li>
   );
 }
@@ -120,21 +121,24 @@ function FeedPostRow({ post, onOpen, onLike, onReshare, onComment }) {
   return (
     <article
       onClick={() => onOpen(post)}
-      className="group flex gap-3 bg-[#14100D] border border-[#2A241E] hover:border-[#D4AF37]/35 rounded-xl overflow-hidden cursor-pointer transition-colors p-3 sm:p-4"
+      className="group flex gap-3 bg-fo-surface border border-fo-border hover:border-fo-accent/35 rounded-xl overflow-hidden cursor-pointer transition-colors p-3 sm:p-4"
     >
       <div className="flex-1 min-w-0 space-y-2">
-        <div className="flex items-center gap-2 text-[11px] text-[#8C8070] flex-wrap">
-          <span className="font-semibold text-[#A69B8D] group-hover:text-[#D4AF37] transition-colors">
+        <div className="flex items-center gap-2 text-[11px] text-fo-subtle flex-wrap">
+          <UserProfileLink
+            author={post?.author}
+            className="font-semibold text-fo-muted hover:text-fo-accent transition-colors"
+          >
             {authorName}
-          </span>
+          </UserProfileLink>
           <span>·</span>
           <span>{timeAgo(post?.createdAt)}</span>
         </div>
-        <h2 className="text-sm sm:text-base font-semibold text-[#E5E0D8] leading-snug group-hover:text-[#D4AF37] transition-colors line-clamp-2">
+        <h2 className="text-sm sm:text-base font-semibold text-fo-text leading-snug group-hover:text-fo-accent transition-colors line-clamp-2">
           {post?.title || "Untitled"}
         </h2>
         {post?.text ? (
-          <p className="text-xs sm:text-sm text-[#A69B8D] line-clamp-2 leading-relaxed">
+          <p className="text-xs sm:text-sm text-fo-muted line-clamp-2 leading-relaxed">
             {post.text}
           </p>
         ) : null}
@@ -149,7 +153,7 @@ function FeedPostRow({ post, onOpen, onLike, onReshare, onComment }) {
         </div>
       </div>
       {coverImage ? (
-        <div className="hidden sm:block w-24 h-20 shrink-0 rounded-lg overflow-hidden bg-[#0A0806] border border-[#2A241E]">
+        <div className="hidden sm:block w-24 h-20 shrink-0 rounded-lg overflow-hidden bg-fo-surface-2 border border-fo-border">
           <img
             src={coverImage.url}
             alt=""
@@ -576,9 +580,9 @@ export default function CommunityDetail({
 
   const aboutSidebar = community ? (
     <aside className="space-y-4">
-      <div className="bg-[#14100D] border border-[#2A241E] rounded-xl overflow-hidden">
+      <div className="bg-fo-surface border border-fo-border rounded-xl overflow-hidden">
         {heroImage ? (
-          <div className="h-28 bg-[#0A0806]">
+          <div className="h-28 bg-fo-surface-2">
             <img
               src={heroImage}
               alt=""
@@ -590,24 +594,24 @@ export default function CommunityDetail({
         )}
         <div className="p-4 space-y-3">
           <div>
-            <h3 className="text-sm font-semibold text-[#E5E0D8]">
+            <h3 className="text-sm font-semibold text-fo-text">
               {community.name}
             </h3>
-            <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-[#8C8070]">
-              <TypeIcon size={11} className="text-[#D4AF37]" />
+            <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-fo-subtle">
+              <TypeIcon size={11} className="text-fo-accent" />
               {meta.label}
             </p>
           </div>
-          <div className="flex items-center gap-3 text-[11px] text-[#8C8070] pt-1 border-t border-[#2A241E]">
+          <div className="flex items-center gap-3 text-[11px] text-fo-subtle pt-1 border-t border-fo-border">
             <span className="inline-flex items-center gap-1">
-              <Users size={11} className="text-[#D4AF37]" />
+              <Users size={11} className="text-fo-accent" />
               {formatCount(community.memberCount || 0)} members
             </span>
             <span>·</span>
             <span>{ownerName}</span>
           </div>
           {community.createdAt ? (
-            <p className="text-[11px] text-[#8C8070]">
+            <p className="text-[11px] text-fo-subtle">
               Created {formatLongDate(community.createdAt)}
             </p>
           ) : null}
@@ -615,8 +619,8 @@ export default function CommunityDetail({
       </div>
 
       {thumbs.length > 1 ? (
-        <div className="bg-[#14100D] border border-[#2A241E] rounded-xl p-4 space-y-2">
-          <h4 className="text-sm font-semibold text-[#E5E0D8]">Gallery</h4>
+        <div className="bg-fo-surface border border-fo-border rounded-xl p-4 space-y-2">
+          <h4 className="text-sm font-semibold text-fo-text">Gallery</h4>
           <div className="grid grid-cols-4 gap-1.5">
             {thumbs.slice(0, 8).map((src) => (
               <button
@@ -625,8 +629,8 @@ export default function CommunityDetail({
                 onClick={() => setHeroPreview(src)}
                 className={`aspect-square rounded-lg overflow-hidden border transition-all ${
                   heroImage === src
-                    ? "border-[#D4AF37]"
-                    : "border-[#2A241E] hover:border-[#D4AF37]/40"
+                    ? "border-fo-accent"
+                    : "border-fo-border hover:border-fo-accent/40"
                 }`}
               >
                 <img src={src} alt="" className="w-full h-full object-cover" />
@@ -637,27 +641,27 @@ export default function CommunityDetail({
       ) : null}
 
       {(channelName || subchannelList.length > 0) && (
-        <div className="bg-[#14100D] border border-[#2A241E] rounded-xl p-4 space-y-3">
+        <div className="bg-fo-surface border border-fo-border rounded-xl p-4 space-y-3">
           {channelName ? (
             <div>
-              <p className="text-[10px] uppercase tracking-wide text-[#8C8070] mb-1.5 flex items-center gap-1">
-                <Layers size={11} className="text-[#D4AF37]" /> Channel
+              <p className="text-[10px] uppercase tracking-wide text-fo-subtle mb-1.5 flex items-center gap-1">
+                <Layers size={11} className="text-fo-accent" /> Channel
               </p>
-              <span className="inline-flex px-2.5 py-1 rounded-md bg-[#D4AF37]/15 border border-[#D4AF37]/30 text-[#D4AF37] text-xs font-semibold">
+              <span className="inline-flex px-2.5 py-1 rounded-md bg-fo-accent/15 border border-fo-accent/30 text-fo-accent text-xs font-semibold">
                 {channelName}
               </span>
             </div>
           ) : null}
           {subchannelList.length > 0 ? (
             <div>
-              <p className="text-[10px] uppercase tracking-wide text-[#8C8070] mb-1.5 flex items-center gap-1">
-                <Grid size={11} className="text-[#D4AF37]" /> Subchannels
+              <p className="text-[10px] uppercase tracking-wide text-fo-subtle mb-1.5 flex items-center gap-1">
+                <Grid size={11} className="text-fo-accent" /> Subchannels
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {primarySubchannels.map((name) => (
                   <span
                     key={name}
-                    className="px-2 py-0.5 rounded-md bg-[#1C1612] border border-[#2A241E] text-[#E5E0D8] text-[11px]"
+                    className="px-2 py-0.5 rounded-md bg-fo-surface-hover border border-fo-border text-fo-text text-[11px]"
                   >
                     {name}
                   </span>
@@ -670,7 +674,7 @@ export default function CommunityDetail({
                       {extraSubchannels.map((name) => (
                         <span
                           key={name}
-                          className="px-2 py-0.5 rounded-md bg-[#1C1612] border border-[#2A241E] text-[#E5E0D8] text-[11px]"
+                          className="px-2 py-0.5 rounded-md bg-fo-surface-hover border border-fo-border text-fo-text text-[11px]"
                         >
                           {name}
                         </span>
@@ -680,7 +684,7 @@ export default function CommunityDetail({
                   <button
                     type="button"
                     onClick={() => setSubchannelsExpanded((v) => !v)}
-                    className="mt-1 text-[11px] font-medium text-[#D4AF37] hover:text-[#e0c04a]"
+                    className="mt-1 text-[11px] font-medium text-fo-accent hover:text-fo-accent-hover"
                   >
                     {subchannelsExpanded ? "Show less" : "View more"}
                   </button>
@@ -692,10 +696,10 @@ export default function CommunityDetail({
       )}
 
       {community.description ? (
-        <div className="bg-[#14100D] border border-[#2A241E] rounded-xl p-4 space-y-2">
-          <h4 className="text-sm font-semibold text-[#E5E0D8]">About</h4>
+        <div className="bg-fo-surface border border-fo-border rounded-xl p-4 space-y-2">
+          <h4 className="text-sm font-semibold text-fo-text">About</h4>
           <Collapsible open={aboutExpanded || !aboutNeedsToggle} collapsedHeight={72}>
-            <p className="text-xs text-[#A69B8D] leading-relaxed whitespace-pre-wrap">
+            <p className="text-xs text-fo-muted leading-relaxed whitespace-pre-wrap">
               {community.description}
             </p>
           </Collapsible>
@@ -703,7 +707,7 @@ export default function CommunityDetail({
             <button
               type="button"
               onClick={() => setAboutExpanded((v) => !v)}
-              className="text-[11px] font-medium text-[#D4AF37] hover:text-[#e0c04a]"
+              className="text-[11px] font-medium text-fo-accent hover:text-fo-accent-hover"
             >
               {aboutExpanded ? "Show less" : "Read more"}
             </button>
@@ -712,8 +716,8 @@ export default function CommunityDetail({
       ) : null}
 
       {ruleLines.length > 0 || community.rules ? (
-        <div className="bg-[#14100D] border border-[#2A241E] rounded-xl p-4 space-y-2">
-          <h4 className="text-sm font-semibold text-[#E5E0D8]">Rules</h4>
+        <div className="bg-fo-surface border border-fo-border rounded-xl p-4 space-y-2">
+          <h4 className="text-sm font-semibold text-fo-text">Rules</h4>
           {ruleLines.length > 1 ? (
             <>
               <ol className="space-y-2">
@@ -737,7 +741,7 @@ export default function CommunityDetail({
                   <button
                     type="button"
                     onClick={() => setRulesExpanded((v) => !v)}
-                    className="text-[11px] font-medium text-[#D4AF37] hover:text-[#e0c04a]"
+                    className="text-[11px] font-medium text-fo-accent hover:text-fo-accent-hover"
                   >
                     {rulesExpanded ? "Show less" : "View more"}
                   </button>
@@ -750,7 +754,7 @@ export default function CommunityDetail({
                 open={rulesExpanded || !rulesBlobNeedsToggle}
                 collapsedHeight={72}
               >
-                <p className="text-xs text-[#A69B8D] whitespace-pre-wrap leading-relaxed">
+                <p className="text-xs text-fo-muted whitespace-pre-wrap leading-relaxed">
                   {community.rules}
                 </p>
               </Collapsible>
@@ -758,7 +762,7 @@ export default function CommunityDetail({
                 <button
                   type="button"
                   onClick={() => setRulesExpanded((v) => !v)}
-                  className="text-[11px] font-medium text-[#D4AF37] hover:text-[#e0c04a]"
+                  className="text-[11px] font-medium text-fo-accent hover:text-fo-accent-hover"
                 >
                   {rulesExpanded ? "Show less" : "Read more"}
                 </button>
@@ -769,12 +773,12 @@ export default function CommunityDetail({
       ) : null}
 
       {Array.isArray(community.tags) && community.tags.length > 0 ? (
-        <div className="bg-[#14100D] border border-[#2A241E] rounded-xl p-4">
+        <div className="bg-fo-surface border border-fo-border rounded-xl p-4">
           <div className="flex flex-wrap gap-1.5">
             {community.tags.map((tag) => (
               <span
                 key={tag}
-                className="px-2 py-0.5 rounded-md bg-[#D4AF37]/10 text-[#D4AF37] text-[11px]"
+                className="px-2 py-0.5 rounded-md bg-fo-accent/10 text-fo-accent text-[11px]"
               >
                 #{tag}
               </span>
@@ -787,7 +791,7 @@ export default function CommunityDetail({
 
   if (showCreatePost && community) {
     return (
-      <div className="text-[#E5E0D8] w-full max-w-6xl mx-auto px-2 sm:px-4 lg:px-6 pb-10">
+      <div className="text-fo-text w-full max-w-6xl mx-auto px-2 sm:px-4 lg:px-6 pb-10">
         <CreatePostForm
           title={postForm.title}
           text={postForm.text}
@@ -810,12 +814,12 @@ export default function CommunityDetail({
   }
 
   return (
-    <div className="text-[#E5E0D8] w-full max-w-6xl mx-auto px-2 sm:px-4 lg:px-6 pb-10 space-y-5">
+    <div className="text-fo-text w-full max-w-6xl mx-auto px-2 sm:px-4 lg:px-6 pb-10 space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <button
           type="button"
           onClick={onBack}
-          className="inline-flex items-center gap-1.5 text-xs text-[#A69B8D] hover:text-[#D4AF37] transition-colors self-start"
+          className="inline-flex items-center gap-1.5 text-xs text-fo-muted hover:text-fo-accent transition-colors self-start"
         >
           <ArrowLeft size={14} />
           Back to communities
@@ -826,7 +830,7 @@ export default function CommunityDetail({
             <button
               type="button"
               onClick={refreshAll}
-              className="p-2 rounded-lg border border-[#2A241E] text-[#A69B8D] hover:text-[#D4AF37] hover:border-[#D4AF37]/40"
+              className="p-2 rounded-lg border border-fo-border text-fo-muted hover:text-fo-accent hover:border-fo-accent/40"
               title="Refresh"
             >
               <RefreshCw size={14} />
@@ -836,7 +840,7 @@ export default function CommunityDetail({
                 <button
                   type="button"
                   onClick={() => onEdit?.(community)}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#2A241E] text-xs text-[#A69B8D] hover:text-[#D4AF37] hover:border-[#D4AF37]/40"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-fo-border text-xs text-fo-muted hover:text-fo-accent hover:border-fo-accent/40"
                 >
                   <Pencil size={12} /> Edit
                 </button>
@@ -854,20 +858,20 @@ export default function CommunityDetail({
       </div>
 
       {manageLoading && !community ? (
-        <div className="flex items-center justify-center py-16 text-[#A69B8D] text-sm gap-2">
-          <Loader2 size={16} className="animate-spin text-[#D4AF37]" />
+        <div className="flex items-center justify-center py-16 text-fo-muted text-sm gap-2">
+          <Loader2 size={16} className="animate-spin text-fo-accent" />
           Loading community…
         </div>
       ) : community ? (
         <>
           <header className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
             <div className="min-w-0 space-y-1">
-              <h1 className="text-2xl sm:text-3xl font-semibold text-[#E5E0D8] leading-tight truncate">
+              <h1 className="text-2xl sm:text-3xl font-semibold text-fo-text leading-tight truncate">
                 {community.name}
               </h1>
-              <p className="text-sm text-[#8C8070] flex flex-wrap items-center gap-2">
+              <p className="text-sm text-fo-subtle flex flex-wrap items-center gap-2">
                 <span className="inline-flex items-center gap-1">
-                  <TypeIcon size={12} className="text-[#D4AF37]" />
+                  <TypeIcon size={12} className="text-fo-accent" />
                   {meta.label}
                 </span>
                 <span>·</span>
@@ -879,13 +883,13 @@ export default function CommunityDetail({
             <button
               type="button"
               onClick={() => setShowCreatePost(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#D4AF37] text-black text-xs font-semibold hover:bg-[#e0c04a] shrink-0"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-fo-accent text-black text-xs font-semibold hover:bg-fo-accent-hover shrink-0"
             >
               <Plus size={14} /> Create post
             </button>
           </header>
 
-          <div className="flex gap-1 p-1 rounded-xl bg-[#0E0C0A] border border-[#2A241E] overflow-x-auto">
+          <div className="flex gap-1 p-1 rounded-xl bg-fo-bg border border-fo-border overflow-x-auto">
             {sectionTabs.map((tab) => {
               const active = section === tab.id;
               return (
@@ -895,8 +899,8 @@ export default function CommunityDetail({
                   onClick={() => setSection(tab.id)}
                   className={`flex-1 min-w-[4.5rem] py-2 px-3 rounded-lg text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap ${
                     active
-                      ? "bg-[#1A1510] text-[#D4AF37] border border-[#D4AF37]/35"
-                      : "text-[#8C8070] hover:text-[#E5E0D8] border border-transparent"
+                      ? "bg-[#1A1510] text-fo-accent border border-fo-accent/35"
+                      : "text-fo-subtle hover:text-fo-text border border-transparent"
                   }`}
                 >
                   {tab.label}
@@ -909,7 +913,7 @@ export default function CommunityDetail({
             <div className="min-w-0 space-y-4">
               {section === "posts" ? (
                 <>
-                  <div className="flex flex-wrap items-center gap-1.5 border-b border-[#2A241E] pb-3">
+                  <div className="flex flex-wrap items-center gap-1.5 border-b border-fo-border pb-3">
                     {FEED_SORT.map((opt) => {
                       const active = feedFilter === opt.id;
                       return (
@@ -919,8 +923,8 @@ export default function CommunityDetail({
                           onClick={() => setFeedFilter(opt.id)}
                           className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
                             active
-                              ? "bg-[#D4AF37]/15 text-[#D4AF37]"
-                              : "text-[#8C8070] hover:text-[#E5E0D8] hover:bg-[#1C1612]"
+                              ? "bg-fo-accent/15 text-fo-accent"
+                              : "text-fo-subtle hover:text-fo-text hover:bg-fo-surface-hover"
                           }`}
                         >
                           {opt.label}
@@ -930,20 +934,20 @@ export default function CommunityDetail({
                   </div>
 
                   {postsLoading ? (
-                    <div className="flex items-center justify-center py-14 text-[#A69B8D] text-sm gap-2">
+                    <div className="flex items-center justify-center py-14 text-fo-muted text-sm gap-2">
                       <Loader2
                         size={16}
-                        className="animate-spin text-[#D4AF37]"
+                        className="animate-spin text-fo-accent"
                       />
                       Loading posts…
                     </div>
                   ) : sortedPosts.length === 0 ? (
-                    <div className="border border-dashed border-[#2A241E] rounded-xl py-14 text-center text-sm text-[#8C8070] px-4 space-y-3">
+                    <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle px-4 space-y-3">
                       <p>No posts in this community yet.</p>
                       <button
                         type="button"
                         onClick={() => setShowCreatePost(true)}
-                        className="inline-flex items-center gap-2 text-[#D4AF37] hover:text-[#e0c04a] font-medium"
+                        className="inline-flex items-center gap-2 text-fo-accent hover:text-fo-accent-hover font-medium"
                       >
                         <Plus size={14} /> Create the first post
                       </button>
@@ -972,24 +976,24 @@ export default function CommunityDetail({
               {section === "incoming" && canShowIncoming ? (
                 <>
                   <div className="space-y-1">
-                    <h2 className="text-base font-semibold text-[#E5E0D8]">
+                    <h2 className="text-base font-semibold text-fo-text">
                       Incoming requests
                     </h2>
-                    <p className="text-xs text-[#8C8070]">
+                    <p className="text-xs text-fo-subtle">
                       People asking to join this private community.
                     </p>
                   </div>
 
                   {joinRequestsLoading ? (
-                    <div className="flex items-center justify-center py-14 text-[#A69B8D] text-sm gap-2">
+                    <div className="flex items-center justify-center py-14 text-fo-muted text-sm gap-2">
                       <Loader2
                         size={16}
-                        className="animate-spin text-[#D4AF37]"
+                        className="animate-spin text-fo-accent"
                       />
                       Loading requests…
                     </div>
                   ) : joinRequests.length === 0 ? (
-                    <div className="border border-dashed border-[#2A241E] rounded-xl py-14 text-center text-sm text-[#8C8070] px-4">
+                    <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle px-4">
                       No pending join requests.
                     </div>
                   ) : (
@@ -1004,32 +1008,38 @@ export default function CommunityDetail({
                         return (
                           <article
                             key={request.id}
-                            className="flex flex-col gap-3 bg-[#14100D] border border-[#2A241E] rounded-xl p-3.5 sm:p-4 sm:flex-row sm:items-center sm:justify-between"
+                            className="flex flex-col gap-3 bg-fo-surface border border-fo-border rounded-xl p-3.5 sm:p-4 sm:flex-row sm:items-center sm:justify-between"
                           >
                             <div className="flex items-center gap-3 min-w-0">
                               {request.user?.avatar ? (
                                 <img
                                   src={request.user.avatar}
                                   alt=""
-                                  className="w-10 h-10 rounded-full object-cover border border-[#2A241E] shrink-0"
+                                  className="w-10 h-10 rounded-full object-cover border border-fo-border shrink-0"
                                 />
                               ) : (
-                                <div className="w-10 h-10 rounded-full bg-[#1A1510] border border-[#2A241E] flex items-center justify-center text-[#D4AF37] text-sm font-semibold shrink-0">
+                                <div className="w-10 h-10 rounded-full bg-[#1A1510] border border-fo-border flex items-center justify-center text-fo-accent text-sm font-semibold shrink-0">
                                   {initial}
                                 </div>
                               )}
                               <div className="min-w-0">
-                                <p className="text-sm font-semibold text-[#E5E0D8] truncate">
+                                <UserProfileLink
+                                  author={request.user}
+                                  className="text-sm font-semibold text-fo-text truncate block hover:text-fo-accent transition-colors"
+                                >
                                   {name}
-                                </p>
-                                <p className="text-[11px] text-[#8C8070] truncate">
+                                </UserProfileLink>
+                                <UserProfileLink
+                                  author={request.user}
+                                  className="text-[11px] text-fo-subtle truncate block hover:text-fo-accent transition-colors"
+                                >
                                   @{request.user?.username || "user"}
                                   {request.createdAt
                                     ? ` · ${timeAgo(request.createdAt)}`
                                     : ""}
-                                </p>
+                                </UserProfileLink>
                                 {request.message ? (
-                                  <p className="text-xs text-[#A69B8D] mt-1 line-clamp-2">
+                                  <p className="text-xs text-fo-muted mt-1 line-clamp-2">
                                     “{request.message}”
                                   </p>
                                 ) : null}
@@ -1040,7 +1050,7 @@ export default function CommunityDetail({
                                 type="button"
                                 disabled={busy}
                                 onClick={() => handleDenyIncoming(request.id)}
-                                className="rounded-lg border border-[#2A241E] px-3 py-1.5 text-[11px] text-[#A69B8D] hover:text-red-400 hover:border-red-500/30 disabled:opacity-60"
+                                className="rounded-lg border border-fo-border px-3 py-1.5 text-[11px] text-fo-muted hover:text-red-400 hover:border-red-500/30 disabled:opacity-60"
                               >
                                 Deny
                               </button>
@@ -1050,7 +1060,7 @@ export default function CommunityDetail({
                                 onClick={() =>
                                   handleApproveIncoming(request.id)
                                 }
-                                className="inline-flex items-center gap-1.5 rounded-lg border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-3 py-1.5 text-[11px] text-[#D4AF37] disabled:opacity-60"
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-fo-accent/30 bg-fo-accent/10 px-3 py-1.5 text-[11px] text-fo-accent disabled:opacity-60"
                               >
                                 {busy ? (
                                   <Loader2
@@ -1072,17 +1082,17 @@ export default function CommunityDetail({
               {section === "members" && canModerate ? (
                 <>
                   <div className="space-y-1">
-                    <h2 className="text-base font-semibold text-[#E5E0D8]">
+                    <h2 className="text-base font-semibold text-fo-text">
                       Members
                     </h2>
-                    <p className="text-xs text-[#8C8070]">
+                    <p className="text-xs text-fo-subtle">
                       {isOwner
                         ? "Assign or remove moderators, remove members, or ban users."
                         : "Remove or ban regular members. Moderator roles are owner-only."}
                     </p>
                   </div>
 
-                  <div className="flex gap-1 p-1 rounded-xl bg-[#0E0C0A] border border-[#2A241E] overflow-x-auto">
+                  <div className="flex gap-1 p-1 rounded-xl bg-fo-bg border border-fo-border overflow-x-auto">
                     {MEMBER_FILTERS.map((item) => {
                       const active = memberStatusFilter === item.id;
                       return (
@@ -1092,8 +1102,8 @@ export default function CommunityDetail({
                           onClick={() => setMemberStatusFilter(item.id)}
                           className={`flex-1 min-w-[4rem] py-2 px-3 rounded-lg text-xs font-semibold transition-colors ${
                             active
-                              ? "bg-[#1A1510] text-[#D4AF37] border border-[#D4AF37]/35"
-                              : "text-[#8C8070] hover:text-[#E5E0D8] border border-transparent"
+                              ? "bg-[#1A1510] text-fo-accent border border-fo-accent/35"
+                              : "text-fo-subtle hover:text-fo-text border border-transparent"
                           }`}
                         >
                           {item.label}
@@ -1103,15 +1113,15 @@ export default function CommunityDetail({
                   </div>
 
                   {membersLoading ? (
-                    <div className="flex items-center justify-center py-14 text-[#A69B8D] text-sm gap-2">
+                    <div className="flex items-center justify-center py-14 text-fo-muted text-sm gap-2">
                       <Loader2
                         size={16}
-                        className="animate-spin text-[#D4AF37]"
+                        className="animate-spin text-fo-accent"
                       />
                       Loading members…
                     </div>
                   ) : members.length === 0 ? (
-                    <div className="border border-dashed border-[#2A241E] rounded-xl py-14 text-center text-sm text-[#8C8070] px-4">
+                    <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle px-4">
                       {memberStatusFilter === "all"
                         ? "No members found."
                         : `No ${memberStatusFilter} members found.`}
@@ -1128,13 +1138,16 @@ export default function CommunityDetail({
                         return (
                           <article
                             key={member.id}
-                            className="flex flex-col gap-3 bg-[#14100D] border border-[#2A241E] rounded-xl p-3.5 sm:p-4 sm:flex-row sm:items-center sm:justify-between"
+                            className="flex flex-col gap-3 bg-fo-surface border border-fo-border rounded-xl p-3.5 sm:p-4 sm:flex-row sm:items-center sm:justify-between"
                           >
                             <div className="min-w-0">
                               <div className="flex flex-wrap items-center gap-2">
-                                <p className="truncate text-sm font-semibold text-[#E5E0D8]">
+                                <UserProfileLink
+                                  author={member.user}
+                                  className="truncate text-sm font-semibold text-fo-text hover:text-fo-accent transition-colors"
+                                >
                                   {name}
-                                </p>
+                                </UserProfileLink>
                                 <span
                                   className={`inline-flex px-2 py-0.5 rounded border text-[10px] uppercase tracking-wide ${roleBadgeClass(
                                     member.role
@@ -1143,10 +1156,13 @@ export default function CommunityDetail({
                                   {member.role}
                                 </span>
                               </div>
-                              <p className="truncate text-[11px] text-[#8C8070] mt-0.5">
+                              <UserProfileLink
+                                author={member.user}
+                                className="truncate text-[11px] text-fo-subtle mt-0.5 block hover:text-fo-accent transition-colors"
+                              >
                                 @{member.user?.username || "user"}
                                 {banned ? " · banned" : ""}
-                              </p>
+                              </UserProfileLink>
                             </div>
 
                             <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
@@ -1159,7 +1175,7 @@ export default function CommunityDetail({
                                     type="button"
                                     disabled={busy}
                                     onClick={() => handleUnbanMember(member)}
-                                    className="rounded-lg border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-3 py-1.5 text-[11px] text-[#D4AF37] disabled:opacity-60"
+                                    className="rounded-lg border border-fo-accent/30 bg-fo-accent/10 px-3 py-1.5 text-[11px] text-fo-accent disabled:opacity-60"
                                   >
                                     {busy ? "Saving…" : "Unban"}
                                   </button>
@@ -1173,7 +1189,7 @@ export default function CommunityDetail({
                                       onClick={() =>
                                         handleAssignModerator(member)
                                       }
-                                      className="rounded-lg border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-3 py-1.5 text-[11px] text-[#D4AF37] disabled:opacity-60"
+                                      className="rounded-lg border border-fo-accent/30 bg-fo-accent/10 px-3 py-1.5 text-[11px] text-fo-accent disabled:opacity-60"
                                     >
                                       {busy ? "Saving…" : "Assign mod"}
                                     </button>
@@ -1198,7 +1214,7 @@ export default function CommunityDetail({
                                         onClick={() =>
                                           handleRemoveMember(member)
                                         }
-                                        className="rounded-lg border border-[#2A241E] px-3 py-1.5 text-[11px] text-[#A69B8D] hover:text-[#D4AF37] hover:border-[#D4AF37]/40 disabled:opacity-60"
+                                        className="rounded-lg border border-fo-border px-3 py-1.5 text-[11px] text-fo-muted hover:text-fo-accent hover:border-fo-accent/40 disabled:opacity-60"
                                       >
                                         {busy ? "Saving…" : "Remove"}
                                       </button>
@@ -1227,11 +1243,11 @@ export default function CommunityDetail({
               {section === "invite" && canInvite ? (
                 <div className="space-y-4">
                   <div className="space-y-1">
-                    <h2 className="text-base font-semibold text-[#E5E0D8] inline-flex items-center gap-2">
-                      <UserPlus size={16} className="text-[#D4AF37]" />
+                    <h2 className="text-base font-semibold text-fo-text inline-flex items-center gap-2">
+                      <UserPlus size={16} className="text-fo-accent" />
                       Invite members
                     </h2>
-                    <p className="text-xs text-[#8C8070]">
+                    <p className="text-xs text-fo-subtle">
                       Search by username or email. Type at least 3 characters,
                       then select a user to invite.
                     </p>
@@ -1247,7 +1263,7 @@ export default function CommunityDetail({
                           setSelectedInviteUser(null);
                         }}
                         placeholder="Username or email"
-                        className="flex-1 bg-[#14100D] border border-[#2A241E] rounded-xl px-3 py-2.5 text-sm text-[#E5E0D8] placeholder:text-[#5C5348] focus:outline-none focus:border-[#D4AF37]/50"
+                        className="flex-1 bg-fo-surface border border-fo-border rounded-xl px-3 py-2.5 text-sm text-fo-text placeholder:text-fo-subtle focus:outline-none focus:border-fo-accent/50"
                       />
                       <button
                         type="submit"
@@ -1256,7 +1272,7 @@ export default function CommunityDetail({
                           !inviteIdentifier.trim() ||
                           (isOwner && !selectedInviteUser)
                         }
-                        className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#D4AF37] text-black text-xs font-semibold disabled:opacity-60"
+                        className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-fo-accent text-black text-xs font-semibold disabled:opacity-60"
                       >
                         {inviteBusy ? (
                           <Loader2 size={12} className="animate-spin" />
@@ -1268,11 +1284,11 @@ export default function CommunityDetail({
                     {isOwner && inviteIdentifier.trim() ? (
                       <div className="space-y-1.5">
                         {inviteIdentifier.trim().length < 3 ? (
-                          <p className="text-[11px] text-[#8C8070] px-1">
+                          <p className="text-[11px] text-fo-subtle px-1">
                             Type at least 3 characters to look up a user.
                           </p>
                         ) : inviteLookupLoading ? (
-                          <div className="flex items-center gap-2 text-[11px] text-[#A69B8D] px-1 py-1">
+                          <div className="flex items-center gap-2 text-[11px] text-fo-muted px-1 py-1">
                             <Loader2 size={12} className="animate-spin" />
                             Looking up users…
                           </div>
@@ -1295,34 +1311,34 @@ export default function CommunityDetail({
                                   }}
                                   className={`w-full flex items-center gap-3 rounded-xl border px-3 py-2 text-left transition-colors ${
                                     isSelected
-                                      ? "border-[#D4AF37] bg-[#D4AF37]/10"
-                                      : "border-[#2A241E] bg-[#14100D] hover:border-[#D4AF37]/40"
+                                      ? "border-fo-accent bg-fo-accent/10"
+                                      : "border-fo-border bg-fo-surface hover:border-fo-accent/40"
                                   }`}
                                 >
                                   {user.avatar ? (
                                     <img
                                       src={user.avatar}
                                       alt=""
-                                      className="w-9 h-9 rounded-full object-cover shrink-0 border border-[#2A241E]"
+                                      className="w-9 h-9 rounded-full object-cover shrink-0 border border-fo-border"
                                     />
                                   ) : (
-                                    <div className="w-9 h-9 rounded-full bg-[#1C1612] border border-[#2A241E] flex items-center justify-center text-[#D4AF37] text-xs font-semibold shrink-0">
+                                    <div className="w-9 h-9 rounded-full bg-fo-surface-hover border border-fo-border flex items-center justify-center text-fo-accent text-xs font-semibold shrink-0">
                                       {(user.username || "?")
                                         .charAt(0)
                                         .toUpperCase()}
                                     </div>
                                   )}
                                   <div className="min-w-0">
-                                    <p className="text-sm font-medium text-[#E5E0D8] truncate">
+                                    <p className="text-sm font-medium text-fo-text truncate">
                                       @{user.username}
                                     </p>
-                                    <p className="text-[11px] text-[#A69B8D] truncate">
+                                    <p className="text-[11px] text-fo-muted truncate">
                                       {user.name ? `${user.name} · ` : ""}
                                       {user.email || ""}
                                     </p>
                                   </div>
                                   {isSelected ? (
-                                    <span className="ml-auto text-[10px] uppercase tracking-wide text-[#D4AF37] shrink-0">
+                                    <span className="ml-auto text-[10px] uppercase tracking-wide text-fo-accent shrink-0">
                                       Selected
                                     </span>
                                   ) : null}
@@ -1343,7 +1359,7 @@ export default function CommunityDetail({
                       onChange={(e) => setInviteNote(e.target.value)}
                       placeholder="Optional message…"
                       rows={2}
-                      className="w-full bg-[#14100D] border border-[#2A241E] rounded-xl px-3 py-2.5 text-sm text-[#E5E0D8] placeholder:text-[#5C5348] focus:outline-none focus:border-[#D4AF37]/50 resize-y min-h-[64px]"
+                      className="w-full bg-fo-surface border border-fo-border rounded-xl px-3 py-2.5 text-sm text-fo-text placeholder:text-fo-subtle focus:outline-none focus:border-fo-accent/50 resize-y min-h-[64px]"
                     />
                   </form>
                 </div>

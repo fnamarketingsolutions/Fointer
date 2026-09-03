@@ -1,8 +1,9 @@
 import { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { googleAuth, facebookAuth } from '../services/authService';
+import { googleAuth, facebookAuth } from '../../../api/auth';
 import { loginWithFacebook, ensureFacebookSdk } from '../../../shared/lib/facebookSdk';
 import { useAuth } from '../../../context/AuthContext';
+import { getDashboardPathForRole } from '../../../shared/lib/roles';
 
 export function useSocialAuth() {
   const navigate = useNavigate();
@@ -22,7 +23,7 @@ export function useSocialAuth() {
       const response = await authApiCall(token);
       if (response?.success && response.user) {
         loginSuccess(response.user);
-        navigate(response.user.role === 'admin' ? '/admin' : '/');
+        navigate(getDashboardPathForRole(response.user.role));
         return;
       }
       if (response?.requiresEmailVerification && response?.email) {

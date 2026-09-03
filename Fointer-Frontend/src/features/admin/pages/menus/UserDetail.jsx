@@ -7,6 +7,12 @@ import {
 } from 'react-icons/lu';
 import { fetchAdminUserDetail } from '../../../../api/dashboard';
 import { useToast } from '../../../../shared/components/feedback/ToastContext';
+import ProfileAvatar from '../../../../shared/components/ProfileAvatar';
+
+const cardClass =
+  'bg-fo-surface border border-fo-border rounded-xl p-4 sm:p-5';
+const innerItemClass =
+  'rounded-lg border border-fo-border bg-fo-surface-hover p-3';
 
 export default function UserDetail() {
   const { id } = useParams();
@@ -37,65 +43,56 @@ export default function UserDetail() {
       <button
         type="button"
         onClick={() => navigate('/admin/users')}
-        className="inline-flex items-center gap-1.5 text-xs text-stone-400 hover:text-amber-300 transition-colors"
+        className="inline-flex items-center gap-1.5 text-xs text-fo-subtle hover:text-fo-accent transition-colors"
       >
         <ArrowLeft size={14} /> Back to users
       </button>
 
       {loading ? (
-        <div className="flex items-center justify-center gap-2 py-20 text-stone-400 text-sm">
+        <div className="flex items-center justify-center gap-2 py-20 text-fo-muted text-sm">
           <Loader2 className="w-4 h-4 animate-spin" />
           Loading user detail...
         </div>
       ) : !detail?.user ? (
-        <div className="border border-dashed border-stone-800 rounded-xl py-12 text-center text-stone-500 text-sm">
+        <div className="border border-dashed border-fo-border rounded-xl py-12 text-center text-fo-subtle text-sm">
           User not found.
         </div>
       ) : (
         <div className="space-y-5">
-          <div className="bg-[#141210] border border-stone-800/60 rounded-xl p-4 sm:p-5">
+          <div className={cardClass}>
             <div className="flex items-center gap-3">
-              {detail.user.avatar ? (
-                <img
-                  src={detail.user.avatar}
-                  alt=""
-                  className="w-16 h-16 rounded-full object-cover border border-stone-800"
-                />
-              ) : (
-                <div className="w-16 h-16 rounded-full bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 text-xl font-semibold">
-                  {(detail.user.name || detail.user.username || '?').charAt(0).toUpperCase()}
-                </div>
-              )}
+              <ProfileAvatar
+                src={detail.user.avatar}
+                name={detail.user.name || detail.user.username}
+                className="w-16 h-16 rounded-full object-cover border border-fo-border shrink-0"
+              />
               <div className="min-w-0">
-                <h1 className="font-serif text-2xl font-bold text-amber-50 truncate">
+                <h1 className="font-serif text-2xl font-bold text-fo-text truncate">
                   {detail.user.name || detail.user.username}
                 </h1>
-                <p className="text-sm text-stone-400">@{detail.user.username}</p>
-                <p className="text-xs text-stone-500">{detail.user.email}</p>
+                <p className="text-sm text-fo-muted">@{detail.user.username}</p>
+                <p className="text-xs text-fo-subtle">{detail.user.email}</p>
               </div>
             </div>
           </div>
 
-          <div className="bg-[#141210] border border-stone-800/60 rounded-xl p-4 sm:p-5">
-            <div className="flex items-center gap-2 mb-4 text-amber-200">
+          <div className={cardClass}>
+            <div className="flex items-center gap-2 mb-4 text-fo-accent">
               <Users size={16} />
-              <h2 className="font-semibold text-sm">Owned Communities</h2>
+              <h2 className="font-semibold text-sm text-fo-text">Owned Communities</h2>
             </div>
             {detail.ownedCommunities?.length ? (
               <div className="space-y-3">
                 {detail.ownedCommunities.map((community) => (
-                  <div
-                    key={community.id}
-                    className="rounded-lg border border-stone-800/60 bg-[#0E0C0A] p-3"
-                  >
+                  <div key={community.id} className={innerItemClass}>
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-sm font-semibold text-amber-50">{community.name}</p>
-                        <p className="text-[11px] text-stone-500">
+                        <p className="text-sm font-semibold text-fo-text">{community.name}</p>
+                        <p className="text-[11px] text-fo-subtle">
                           @{community.owner?.username || detail.user.username}
                         </p>
                       </div>
-                      <p className="text-xs text-stone-300">
+                      <p className="text-xs text-fo-muted">
                         {community.memberCount || 0} members
                       </p>
                     </div>
@@ -103,7 +100,30 @@ export default function UserDetail() {
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-stone-500">No owned communities found.</p>
+              <p className="text-xs text-fo-subtle">No owned communities found.</p>
+            )}
+          </div>
+
+          <div className={cardClass}>
+            <div className="flex items-center gap-2 mb-4 text-fo-accent">
+              <Users size={16} />
+              <h2 className="font-semibold text-sm text-fo-text">Marketplace Listings</h2>
+            </div>
+            {detail.listings?.length ? (
+              <div className="space-y-3">
+                {detail.listings.map((listing) => (
+                  <div key={listing.id} className={innerItemClass}>
+                    <p className="text-sm font-semibold text-fo-text truncate">
+                      {listing.title}
+                    </p>
+                    <p className="text-[11px] text-fo-subtle mt-1">
+                      {listing.status} · {listing.category} · ${listing.price}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-fo-subtle">No marketplace listings.</p>
             )}
           </div>
         </div>

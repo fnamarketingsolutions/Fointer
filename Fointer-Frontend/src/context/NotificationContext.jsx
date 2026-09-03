@@ -7,7 +7,7 @@ import {
   useState,
 } from 'react';
 import { useAuth } from './AuthContext';
-import { fetchUnreadCount } from '../features/notifications/services/notificationService';
+import { fetchUnreadCount } from '../api/notifications';
 import { getLiveSocket } from '../shared/services/liveSocket';
 
 const NotificationContext = createContext(null);

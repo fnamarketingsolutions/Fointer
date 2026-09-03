@@ -17,7 +17,7 @@ const SYSTEM_TYPES = new Set([
 
 const ADMIN_TYPES = new Set(['content_report', 'channel_request']);
 
-export const TYPE_LABELS = {
+const TYPE_LABELS = {
   content_report: 'Content report',
   channel_request: 'Channel request',
   support_ticket: 'Support',
@@ -107,6 +107,16 @@ export const notificationPath = (notification, { isAdmin = false } = {}) => {
     type === 'member_unbanned'
   ) {
     return communityPath || '/communities';
+  }
+  if (type === 'listing_inquiry') {
+    const listingPath = entity?.shortCode || entity?.targetId || entity?.id;
+    if (listingPath) return `/marketplace/${listingPath}`;
+    return '/marketplace/my-listings';
+  }
+  if (type === 'direct_message') {
+    const conversationId = entity?.id || entity?.targetId;
+    if (conversationId) return `/messages/${conversationId}`;
+    return '/messages';
   }
   return '/notifications';
 };

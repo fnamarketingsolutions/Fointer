@@ -164,7 +164,7 @@ export const getAdminIds = async () => {
   return ids;
 };
 
-export const isAdminNotificationType = (type) => ADMIN_TYPE_SET.has(type);
+const isAdminNotificationType = (type) => ADMIN_TYPE_SET.has(type);
 
 const emitNotification = (io, recipientId, payload) => {
   if (!io || !recipientId || !payload) return;

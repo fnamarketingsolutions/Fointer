@@ -9,19 +9,26 @@ import {
   LuX as X,
 } from 'react-icons/lu';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import { APP_SCROLL_ID } from '../utils/scroll';
 import BrandLogo from '../components/BrandLogo';
 import GuestAuthButtons from '../components/GuestAuthButtons';
-import { DEFAULT_AVATAR } from '../constants/avatars';
-import guestJoinSrc from '../../assets/guest-join-fointer.png';
+import HeaderSearch from '../components/HeaderSearch';
+import ThemeToggle from '../components/ThemeToggle';
+import ProfileAvatar from '../components/ProfileAvatar';
+import guestJoinDarkSrc from '../../assets/guest-join-fointer.png';
+import guestJoinLightSrc from '../../assets/guest-join-fointer-light.png';
 import { useNotifications } from '../../context/NotificationContext';
 
 function GuestJoinPromo({ onClose }) {
+  const { isDark } = useTheme();
+  const guestJoinSrc = isDark ? guestJoinDarkSrc : guestJoinLightSrc;
+
   return (
     <Link
       to="/signup"
       onClick={onClose}
-      className="block overflow-hidden bg-white"
+      className="block overflow-hidden bg-fo-surface"
     >
       <img
         src={guestJoinSrc}
@@ -29,21 +36,6 @@ function GuestJoinPromo({ onClose }) {
         className="block w-full h-auto"
       />
     </Link>
-  );
-}
-
-function AvatarImage({ src, alt }) {
-  return (
-    <img
-      src={src || DEFAULT_AVATAR}
-      alt={alt || 'Avatar'}
-      referrerPolicy="no-referrer"
-      onError={(e) => {
-        e.currentTarget.onerror = null;
-        e.currentTarget.src = DEFAULT_AVATAR;
-      }}
-      className="w-9 h-9 rounded-full object-cover border border-[#D4AF37]/50 shrink-0"
-    />
   );
 }
 
@@ -58,16 +50,16 @@ function NavList({ items, onSelect, mobile = false }) {
         onClick={() => onSelect(item.id)}
         className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-medium transition-all duration-200 ${
           isActive
-            ? `bg-[#251E17] text-[#D4AF37] border-l-2 border-[#D4AF37] ${
+            ? `bg-fo-surface-3 text-fo-accent border-l-2 border-fo-accent ${
                 mobile ? '' : 'shadow-lg shadow-black/20'
               }`
-            : 'text-[#A69B8D] hover:text-[#E5E0D8] hover:bg-[#1C1612]'
+            : 'text-fo-muted hover:text-fo-text hover:bg-fo-surface-hover'
         }`}
       >
         <div className="flex items-center gap-2.5 min-w-0 pr-1">
           <Icon
             size={16}
-            className={`shrink-0 ${isActive ? 'text-[#D4AF37]' : 'text-[#8C8070]'}`}
+            className={`shrink-0 ${isActive ? 'text-fo-accent' : 'text-fo-subtle'}`}
           />
           <span className="truncate whitespace-nowrap">{item.label}</span>
         </div>
@@ -83,7 +75,7 @@ function AuthFooter({ isGuest, onLogout, onClose, fromPath }) {
         <Link
           to="/signup"
           onClick={onClose}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-[#D4AF37] text-black text-xs font-semibold"
+          className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-fo-accent text-black text-xs font-semibold"
         >
           <UserPlus size={14} /> Sign up
         </Link>
@@ -91,7 +83,7 @@ function AuthFooter({ isGuest, onLogout, onClose, fromPath }) {
           to="/login"
           state={{ from: fromPath }}
           onClick={onClose}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-[#2A241E] text-xs text-[#E5E0D8] hover:text-[#D4AF37]"
+          className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-fo-border text-xs text-fo-text hover:text-fo-accent"
         >
           <LogIn size={14} /> Log in
         </Link>
@@ -181,11 +173,14 @@ export default function PanelShell({
       location.pathname.startsWith(`${notificationsTo}/`));
 
   return (
-    <div className="min-h-screen bg-[#0E0C0A] text-[#E5E0D8] font-sans flex flex-col antialiased selection:bg-[#D4AF37] selection:text-black">
-      <header className="h-16 sm:h-20 border-b border-[#2A241E] bg-[#14100D]/80 backdrop-blur-md sticky top-0 z-40 px-4 sm:px-6 flex items-center justify-between">
+    <div className="min-h-screen bg-fo-bg text-fo-text font-sans flex flex-col antialiased selection:bg-fo-accent selection:text-black">
+      <header className="h-16 sm:h-20 border-b border-fo-border bg-fo-surface/80 backdrop-blur-md sticky top-0 z-40 px-4 sm:px-6 flex items-center gap-3 sm:gap-4">
         <BrandLogo to={homeTo} />
 
-        <div className="flex items-center gap-2 sm:gap-4">
+        <HeaderSearch className="flex-1 max-w-xl mx-auto hidden sm:block" />
+
+        <div className="flex items-center gap-2 sm:gap-4 shrink-0 ml-auto">
+          <ThemeToggle />
           {isGuest ? (
             <div className="flex items-center gap-2">
               <div className="hidden md:block">
@@ -194,7 +189,7 @@ export default function PanelShell({
               <button
                 type="button"
                 onClick={() => setIsMobileMenuOpen(true)}
-                className="md:hidden p-2 rounded-lg border border-[#2A241E] text-[#A69B8D] hover:text-[#D4AF37]"
+                className="md:hidden p-2 rounded-lg border border-fo-border text-fo-muted hover:text-fo-accent"
                 aria-label="Open menu"
               >
                 <Menu size={18} />
@@ -208,8 +203,8 @@ export default function PanelShell({
                   onClick={() => navigate(notificationsTo)}
                   className={`p-2 rounded-lg border transition-colors ${
                     notificationsActive
-                      ? 'border-[#D4AF37]/40 text-[#D4AF37] bg-[#D4AF37]/10'
-                      : 'border-[#2A241E] text-[#A69B8D] hover:text-[#D4AF37] hover:border-[#D4AF37]/40'
+                      ? 'border-fo-accent/40 text-fo-accent bg-fo-accent/10'
+                      : 'border-fo-border text-fo-muted hover:text-fo-accent hover:border-fo-accent/40'
                   }`}
                   aria-label="Notifications"
                   title="Notifications"
@@ -217,7 +212,7 @@ export default function PanelShell({
                   <span className="relative inline-flex">
                     <Bell size={16} />
                     {unreadCount > 0 ? (
-                      <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-[#D4AF37] text-black text-[9px] font-bold leading-4 text-center">
+                      <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-fo-accent text-black text-[9px] font-bold leading-4 text-center">
                         {unreadCount > 99 ? '99+' : unreadCount}
                       </span>
                     ) : null}
@@ -227,26 +222,34 @@ export default function PanelShell({
               <button
                 type="button"
                 onClick={handleAvatarClick}
-                className="flex items-center gap-3 pl-3 border-l border-[#2A241E] focus:outline-none hover:opacity-80 transition-opacity"
+                className="flex items-center gap-3 pl-3 border-l border-fo-border focus:outline-none hover:opacity-80 transition-opacity"
                 title="Profile"
               >
                 <div className="text-right hidden sm:block">
-                  <p className="text-xs font-semibold text-[#E5E0D8]">
+                  <p className="text-xs font-semibold text-fo-text">
                     {user?.name || user?.username || 'User'}
                   </p>
-                  <p className="text-[10px] text-[#D4AF37] capitalize font-mono">
+                  <p className="text-[10px] text-fo-accent capitalize font-mono">
                     {user?.role || 'Member'}
                   </p>
                 </div>
-                <AvatarImage src={user?.avatar} alt={user?.name} />
+                <ProfileAvatar
+                  src={user?.avatar}
+                  alt={user?.name}
+                  className="w-9 h-9 rounded-full object-cover border border-fo-accent/50 shrink-0"
+                />
               </button>
             </div>
           )}
         </div>
       </header>
 
+      <div className="sm:hidden sticky top-16 z-30 px-4 py-2 border-b border-fo-border bg-fo-surface/95">
+        <HeaderSearch />
+      </div>
+
       <div className="flex-1 flex max-w-[1600px] w-full mx-auto relative">
-        <aside className={`w-64 border-r border-[#2A241E] bg-[#14100D] flex-col justify-between shrink-0 hidden md:flex max-h-[calc(100vh-5rem)] overflow-y-auto ${showGuestPromo ? 'p-0' : 'p-4'}`}>
+        <aside className={`w-64 border-r border-fo-border bg-fo-surface flex-col justify-between shrink-0 hidden md:flex max-h-[calc(100vh-5rem)] overflow-y-auto ${showGuestPromo ? 'p-0' : 'p-4'}`}>
           <div className={showGuestPromo ? '' : 'space-y-6'}>
             {navItems?.length ? (
               <nav className="space-y-1">
@@ -257,7 +260,7 @@ export default function PanelShell({
             ) : null}
           </div>
 
-          <div className={`space-y-4 border-t border-[#2A241E] ${showGuestPromo ? 'p-4' : 'pt-4 mt-4'}`}>
+          <div className={`space-y-4 border-t border-fo-border ${showGuestPromo ? 'p-4' : 'pt-4 mt-4'}`}>
             <AuthFooter
               isGuest={isGuest}
               onLogout={handleLogout}
@@ -269,24 +272,28 @@ export default function PanelShell({
         {isMobileMenuOpen ? (
           <div className="fixed inset-0 z-50 md:hidden flex justify-end">
             <div
-              className="fixed inset-0 bg-black/75 backdrop-blur-sm transition-opacity"
+              className="fixed inset-0 bg-[var(--theme-overlay)] backdrop-blur-sm transition-opacity"
               onClick={closeMobileMenu}
             />
 
-            <aside className="relative w-[70%] max-w-[300px] bg-[#14100D] h-full border-l border-[#2A241E] p-4 flex flex-col justify-between z-10 overflow-y-auto shadow-2xl">
+            <aside className="relative w-[70%] max-w-[300px] bg-fo-surface h-full border-l border-fo-border p-4 flex flex-col justify-between z-10 overflow-y-auto shadow-2xl">
               <div className="space-y-5">
-                <div className="flex items-center justify-between pb-4 border-b border-[#2A241E]">
+                <div className="flex items-center justify-between pb-4 border-b border-fo-border">
                   <button
                     type="button"
                     onClick={openProfile}
                     className="flex items-center gap-2.5 truncate text-left hover:opacity-80 transition-opacity"
                   >
-                    <AvatarImage src={user?.avatar} alt="Avatar" />
+                    <ProfileAvatar
+                      src={user?.avatar}
+                      alt="Avatar"
+                      className="w-9 h-9 rounded-full object-cover border border-fo-accent/50 shrink-0"
+                    />
                     <div className="truncate">
-                      <p className="text-xs font-bold text-[#E5E0D8] truncate">
+                      <p className="text-xs font-bold text-fo-text truncate">
                         {user?.name || user?.username || 'Guest'}
                       </p>
-                      <p className="text-[10px] text-[#D4AF37] capitalize font-mono">
+                      <p className="text-[10px] text-fo-accent capitalize font-mono">
                         {user?.role || 'Browse'}
                       </p>
                     </div>
@@ -294,7 +301,7 @@ export default function PanelShell({
                   <button
                     type="button"
                     onClick={closeMobileMenu}
-                    className="p-1 text-[#A69B8D] hover:text-[#E5E0D8] shrink-0"
+                    className="p-1 text-fo-muted hover:text-fo-text shrink-0"
                   >
                     <X size={18} />
                   </button>
@@ -305,9 +312,14 @@ export default function PanelShell({
                     <NavList items={navItems} onSelect={handleSelectNav} mobile />
                   </nav>
                 ) : null}
+
+                <div className="flex items-center justify-between rounded-lg border border-fo-border px-3 py-2">
+                  <span className="text-sm text-fo-muted">Theme</span>
+                  <ThemeToggle />
+                </div>
               </div>
 
-              <div className="space-y-3 pt-4 border-t border-[#2A241E] mt-auto">
+              <div className="space-y-3 pt-4 border-t border-fo-border mt-auto">
                 <AuthFooter
                   isGuest={isGuest}
                   onLogout={handleLogout}

@@ -1,12 +1,26 @@
 <!doctype html>
-<html lang="en" style="background-color:#0E0C0A">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/fointer-logo.jpeg" href="/fointer-logo1.jpeg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
     <title>FOINTER-APP</title>
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem("fointer-theme");
+          document.documentElement.setAttribute(
+            "data-theme",
+            t === "dark" ? "dark" : "light"
+          );
+        } catch (e) {
+          document.documentElement.setAttribute("data-theme", "light");
+        }
+      })();
+    </script>
   </head>
-  <body style="margin:0;background-color:#0E0C0A">
+  <body style="margin:0">
     <div id="root"></div>
     <script type="module" src="/src/app/main.jsx"></script>
   </body>

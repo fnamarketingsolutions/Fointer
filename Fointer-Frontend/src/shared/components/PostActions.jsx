@@ -43,7 +43,7 @@ export default function PostActions({
 
   const itemClass = (active) =>
     `inline-flex items-center gap-1.5 text-xs font-medium transition-colors ${
-      active ? "text-[#D4AF37]" : "text-[#A69B8D] hover:text-[#E5E0D8]"
+      active ? "text-fo-accent" : "text-fo-muted hover:text-fo-text"
     }`;
 
   return (

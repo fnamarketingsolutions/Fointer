@@ -27,25 +27,25 @@ export default function EditWindowExpiredModal({
         className="absolute inset-0 bg-black/80 backdrop-blur-sm"
         onClick={onClose}
       />
-      <div className="relative w-full max-w-sm bg-[#14100D] border border-[#2A241E] rounded-xl p-6 space-y-4 shadow-2xl">
+      <div className="relative w-full max-w-sm bg-fo-surface border border-fo-border rounded-xl p-6 space-y-4 shadow-2xl">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
-              <Clock size={16} className="text-[#D4AF37]" />
+              <Clock size={16} className="text-fo-accent" />
             </div>
-            <h3 className="text-base font-semibold text-[#E5E0D8]">{title}</h3>
+            <h3 className="text-base font-semibold text-fo-text">{title}</h3>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 text-[#A69B8D] hover:text-[#E5E0D8] rounded-lg"
+            className="p-1.5 text-fo-muted hover:text-fo-text rounded-lg"
             aria-label="Close"
           >
             <X size={18} />
           </button>
         </div>
 
-        <p className="text-xs text-[#A69B8D] leading-relaxed">
+        <p className="text-xs text-fo-muted leading-relaxed">
           {message}
           {windowHint}
         </p>
@@ -54,7 +54,7 @@ export default function EditWindowExpiredModal({
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded-lg bg-[#D4AF37]/15 border border-[#D4AF37]/30 text-[#D4AF37] text-xs font-semibold hover:bg-[#D4AF37]/25 transition-colors"
+            className="px-4 py-2 rounded-lg bg-fo-accent/15 border border-fo-accent/30 text-fo-accent text-xs font-semibold hover:bg-fo-accent/25 transition-colors"
           >
             Got it
           </button>

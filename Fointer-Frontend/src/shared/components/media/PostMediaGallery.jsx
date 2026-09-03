@@ -39,7 +39,7 @@ export default function PostMediaGallery({
   return (
     <div className="relative">
       {counterOverlay && (
-        <div className="absolute top-3 right-3 z-10 rounded-full border border-[#2A241E] bg-black/70 px-2.5 py-1 text-[10px] font-mono text-[#E5E0D8] backdrop-blur-sm">
+        <div className="absolute top-3 right-3 z-10 rounded-full border border-fo-border bg-black/70 px-2.5 py-1 text-[10px] font-mono text-fo-text backdrop-blur-sm">
           {activeIndex + 1} / {media.length}
         </div>
       )}
@@ -71,7 +71,7 @@ export default function PostMediaGallery({
         ))}
       </div>
 
-      <div className="flex items-center justify-center gap-1.5 py-2 bg-[#0E0C0A]/80">
+      <div className="flex items-center justify-center gap-1.5 py-2 bg-fo-bg/80">
         {media.map((_, idx) => (
           <button
             key={idx}
@@ -85,13 +85,13 @@ export default function PostMediaGallery({
             }}
             className={`h-1.5 rounded-full transition-all ${
               idx === activeIndex
-                ? "w-4 bg-[#D4AF37]"
+                ? "w-4 bg-fo-accent"
                 : "w-1.5 bg-[#2A241E] hover:bg-[#4A4036]"
             }`}
           />
         ))}
         {!counterOverlay && (
-          <span className="ml-2 text-[10px] text-[#8C8070] font-mono">
+          <span className="ml-2 text-[10px] text-fo-subtle font-mono">
             {activeIndex + 1} / {media.length}
           </span>
         )}

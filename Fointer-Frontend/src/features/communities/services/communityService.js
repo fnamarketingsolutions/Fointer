@@ -30,11 +30,6 @@ export const fetchBrowsableCommunity = async (id) => {
   return response.data;
 };
 
-export const fetchBrowsableCommunityMembers = async (id) => {
-  const response = await api.get(`/communities/browse/${id}/members`);
-  return response.data;
-};
-
 export const fetchMyJoinRequests = async () => {
   const response = await api.get('/communities/join-requests/mine');
   return response.data;
@@ -62,13 +57,6 @@ export const inviteUserToCommunity = async (communityId, payload = {}) => {
     `/communities/${communityId}/invite-user`,
     payload
   );
-  return response.data;
-};
-
-export const fetchCommunityInvites = async (id, status = 'pending') => {
-  const response = await api.get(`/communities/${id}/invites`, {
-    params: { status },
-  });
   return response.data;
 };
 
@@ -104,11 +92,6 @@ export const assignModerator = async (id, payload) => {
   return response.data;
 };
 
-export const fetchModerators = async (communityId) => {
-  const response = await api.get(`/communities/${communityId}/moderators`);
-  return response.data;
-};
-
 export const revokeModerator = async (communityId, userId) => {
   const response = await api.delete(`/communities/${communityId}/moderators/${userId}`);
   return response.data;
@@ -133,11 +116,6 @@ export const unbanCommunityMember = async (communityId, memberId) => {
 
 export const fetchAllCommunities = async () => {
   const response = await api.get('/communities');
-  return response.data;
-};
-
-export const fetchCommunity = async (id) => {
-  const response = await api.get(`/communities/${id}`);
   return response.data;
 };
 

@@ -15,7 +15,7 @@ export const shortCodeField = {
   sparse: true,
 };
 
-export const generateShortCode = (length = CODE_LENGTH) => {
+const generateShortCode = (length = CODE_LENGTH) => {
   const bytes = crypto.randomBytes(length);
   let code = "";
   for (let i = 0; i < length; i += 1) {
@@ -24,7 +24,7 @@ export const generateShortCode = (length = CODE_LENGTH) => {
   return code;
 };
 
-export const generateUniqueShortCode = async (Model) => {
+const generateUniqueShortCode = async (Model) => {
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
     const code = generateShortCode();
     const taken = await Model.exists({ shortCode: code });
@@ -59,6 +59,13 @@ export const parseObjectIdInput = (value) => {
   if (!isObjectId(raw)) return null;
   return mongoose.Types.ObjectId.createFromHexString(raw);
 };
+
+/** True when a JSON body field is an object/array (Mongo operator injection). */
+export const isUnsafeObjectInput = (value) =>
+  value != null &&
+  value !== "" &&
+  typeof value === "object" &&
+  !(value instanceof mongoose.Types.ObjectId);
 
 /**
  * URL segments carry a short code, but older links still carry a raw id, so

@@ -11,6 +11,7 @@ import {
   LuUserRound as UserRound,
   LuLayers as Layers,
   LuSettings as Settings,
+  LuShoppingBag as ShoppingBag,
 } from 'react-icons/lu';
 
 import PanelShell from '../../../shared/layouts/PanelShell';
@@ -27,6 +28,7 @@ const UserDetail = lazy(() => import('./menus/UserDetail'));
 const CommunityDetail = lazy(() => import('./menus/CommunityDetail'));
 const AdminCommunityPostPage = lazy(() => import('./menus/AdminCommunityPostPage'));
 const SystemSettings = lazy(() => import('./menus/SystemSettings'));
+const MarketplaceManagement = lazy(() => import('./menus/MarketplaceManagement'));
 const Profile = lazy(() => import('../../profile/pages/Profile'));
 
 const UserNotifications = lazy(() =>
@@ -34,7 +36,7 @@ const UserNotifications = lazy(() =>
 );
 
 const pageFallback = (
-  <div className="min-h-[30vh] flex items-center justify-center text-[#A69B8D] text-sm">
+  <div className="min-h-[30vh] flex items-center justify-center text-fo-muted text-sm">
     Loading...
   </div>
 );
@@ -46,6 +48,7 @@ const NAV_ITEMS = [
   { id: 'commentary', label: 'Live Events Management', icon: MessageSquare },
   { id: 'watchgroups', label: 'Watch Groups Management', icon: Radio },
   { id: 'moderation', label: 'Content Moderation', icon: Shield },
+  { id: 'marketplace', label: 'Marketplace', icon: ShoppingBag },
   { id: 'analytics', label: 'Reporting & Analytics', icon: BarChart3 },
   { id: 'support', label: 'Support Tools', icon: LifeBuoy },
   { id: 'settings', label: 'System Settings', icon: Settings },
@@ -97,6 +100,7 @@ const AdminDashboard = () => {
             element={<Navigate to="/admin/channels?tab=subchannels" replace />}
           />
           <Route path="moderation" element={<ContentModeration />} />
+          <Route path="marketplace" element={<MarketplaceManagement />} />
           <Route path="commentary" element={<LiveEventManagement />} />
           <Route path="watchgroups" element={<WatchGroupManagement />} />
           <Route path="analytics" element={<ReportingAnalytics />} />

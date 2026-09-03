@@ -45,7 +45,7 @@ export function useSiteContact() {
   return useContext(SiteContactContext);
 }
 
-const EMAIL_CLASS = "text-[#F8A201] font-mono hover:underline";
+const EMAIL_CLASS = "text-fo-brand font-mono hover:underline";
 
 export function SiteEmail({ className = EMAIL_CLASS }) {
   const { contactEmail } = useSiteContact();
@@ -63,13 +63,13 @@ export function SiteEmail({ className = EMAIL_CLASS }) {
   );
 }
 
-export function SiteEmailPlain({ className = "text-xs text-gray-400 font-mono" }) {
+export function SiteEmailPlain({ className = "text-xs text-fo-subtle font-mono" }) {
   const { contactEmail } = useSiteContact();
   if (!contactEmail) {
     return (
       <span className={className}>
         Email Inquiry: see{" "}
-        <Link to="/contact-us" className="text-[#F8A201] hover:underline">
+        <Link to="/contact-us" className="text-fo-brand hover:underline">
           Contact Us
         </Link>
       </span>
@@ -77,16 +77,5 @@ export function SiteEmailPlain({ className = "text-xs text-gray-400 font-mono" }
   }
   return (
     <span className={className}>Email Inquiry: {contactEmail}</span>
-  );
-}
-
-export function SitePhone({ className = "" }) {
-  const { contactPhone } = useSiteContact();
-  if (!contactPhone) return null;
-  const href = `tel:${contactPhone.replace(/[^\d+]/g, "")}`;
-  return (
-    <a href={href} className={className}>
-      {contactPhone}
-    </a>
   );
 }

@@ -350,15 +350,15 @@ export default function EditCommunityModal({ community, onClose, onSuccess }) {
         className="absolute inset-0 bg-black/80 backdrop-blur-sm"
         onClick={handleClose}
       />
-      <div className="relative w-full max-w-md bg-[#120F0D] border border-[#2A241E] rounded-xl p-4 sm:p-5 shadow-2xl z-10 max-h-[90vh] overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-[#120F0D] [&::-webkit-scrollbar-thumb]:bg-[#2A241E] [&::-webkit-scrollbar-thumb]:rounded-full">
+      <div className="relative w-full max-w-md bg-[#120F0D] border border-fo-border rounded-xl p-4 sm:p-5 shadow-2xl z-10 max-h-[90vh] overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-[#120F0D] [&::-webkit-scrollbar-thumb]:bg-[#2A241E] [&::-webkit-scrollbar-thumb]:rounded-full">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base sm:text-lg font-semibold text-[#D4AF37]">
+          <h2 className="text-base sm:text-lg font-semibold text-fo-accent">
             Edit Community
           </h2>
           <button
             type="button"
             onClick={handleClose}
-            className="p-1.5 text-[#A69B8D] hover:text-[#E5E0D8] rounded-lg"
+            className="p-1.5 text-fo-muted hover:text-fo-text rounded-lg"
             aria-label="Close"
           >
             <X size={18} />
@@ -368,12 +368,12 @@ export default function EditCommunityModal({ community, onClose, onSuccess }) {
         <form onSubmit={handleUpdate} className="space-y-3.5">
           <div className="space-y-3">
             <div>
-              <label className="block text-[10px] sm:text-xs uppercase tracking-wider text-[#A69B8D] mb-1 flex items-center gap-1">
-                <Layers size={12} className="text-[#D4AF37]" /> Channel (Primary)
+              <label className="block text-[10px] sm:text-xs uppercase tracking-wider text-fo-muted mb-1 flex items-center gap-1">
+                <Layers size={12} className="text-fo-accent" /> Channel (Primary)
               </label>
-              <div className="w-full px-3 py-2 sm:py-2.5 rounded-lg bg-[#0A0807] border border-[#2A241E] text-[#8C8070] text-xs sm:text-sm flex items-center justify-between cursor-not-allowed">
+              <div className="w-full px-3 py-2 sm:py-2.5 rounded-lg bg-[#0A0807] border border-fo-border text-fo-subtle text-xs sm:text-sm flex items-center justify-between cursor-not-allowed">
                 <span className="truncate">{channelName || 'Channel Assigned'}</span>
-                <span className="text-[10px] uppercase text-[#D4AF37] font-semibold bg-[#D4AF37]/10 px-1.5 py-0.5 rounded">
+                <span className="text-[10px] uppercase text-fo-accent font-semibold bg-fo-accent/10 px-1.5 py-0.5 rounded">
                   Locked
                 </span>
               </div>
@@ -381,10 +381,10 @@ export default function EditCommunityModal({ community, onClose, onSuccess }) {
 
             <div className="relative" ref={subchannelRef}>
               <div className="flex items-center justify-between mb-1">
-                <label className="block text-[10px] sm:text-xs uppercase tracking-wider text-[#A69B8D] flex items-center gap-1">
-                  <Grid size={12} className="text-[#D4AF37]" /> Subchannels
+                <label className="block text-[10px] sm:text-xs uppercase tracking-wider text-fo-muted flex items-center gap-1">
+                  <Grid size={12} className="text-fo-accent" /> Subchannels
                 </label>
-                <span className="text-[10px] text-[#8C8070]">
+                <span className="text-[10px] text-fo-subtle">
                   {form.subchannelIds.length}/5
                 </span>
               </div>
@@ -393,7 +393,7 @@ export default function EditCommunityModal({ community, onClose, onSuccess }) {
                 type="button"
                 disabled={loadingSubchannels}
                 onClick={() => setSubchannelDropdownOpen((prev) => !prev)}
-                className="w-full flex items-center justify-between px-3 py-2 sm:py-2.5 rounded-lg bg-[#0A0807] border border-[#2A241E] text-xs sm:text-sm text-[#E5E0D8] focus:outline-none focus:border-[#D4AF37]/60"
+                className="w-full flex items-center justify-between px-3 py-2 sm:py-2.5 rounded-lg bg-[#0A0807] border border-fo-border text-xs sm:text-sm text-fo-text focus:outline-none focus:border-fo-accent/60"
               >
                 <span className="truncate">
                   {loadingSubchannels
@@ -403,11 +403,11 @@ export default function EditCommunityModal({ community, onClose, onSuccess }) {
                     : 'Select subchannels'}
                 </span>
                 {loadingSubchannels ? (
-                  <Loader2 size={14} className="animate-spin text-[#8C8070]" />
+                  <Loader2 size={14} className="animate-spin text-fo-subtle" />
                 ) : (
                   <ChevronDown
                     size={16}
-                    className={`text-[#8C8070] transition-transform ${
+                    className={`text-fo-subtle transition-transform ${
                       subchannelDropdownOpen ? 'rotate-180' : ''
                     }`}
                   />
@@ -415,9 +415,9 @@ export default function EditCommunityModal({ community, onClose, onSuccess }) {
               </button>
 
               {subchannelDropdownOpen && !loadingSubchannels && (
-                <div className="absolute left-0 right-0 top-full mt-1 z-30 max-h-48 overflow-y-auto bg-[#0A0807] border border-[#2A241E] rounded-lg shadow-xl py-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-[#2A241E]">
+                <div className="absolute left-0 right-0 top-full mt-1 z-30 max-h-48 overflow-y-auto bg-[#0A0807] border border-fo-border rounded-lg shadow-xl py-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-[#2A241E]">
                   {subchannels.length === 0 ? (
-                    <div className="px-3 py-2 text-xs text-[#8C8070]">
+                    <div className="px-3 py-2 text-xs text-fo-subtle">
                       No subchannels available for this channel.
                     </div>
                   ) : (
@@ -430,15 +430,15 @@ export default function EditCommunityModal({ community, onClose, onSuccess }) {
                           key={sub.id}
                           className={`flex items-center gap-2.5 px-3 py-2 text-xs sm:text-sm cursor-pointer transition-colors ${
                             selected
-                              ? 'bg-[#D4AF37]/15 text-[#D4AF37] font-medium'
-                              : 'text-[#E5E0D8] hover:bg-[#1a1510]'
+                              ? 'bg-fo-accent/15 text-fo-accent font-medium'
+                              : 'text-fo-text hover:bg-[#1a1510]'
                           }`}
                         >
                           <input
                             type="checkbox"
                             checked={selected}
                             onChange={() => toggleSubchannel(sub.id)}
-                            className="accent-[#D4AF37] rounded border-[#2A241E] bg-[#120F0D]"
+                            className="accent-[#D4AF37] rounded border-fo-border bg-[#120F0D]"
                           />
                           <span className="truncate">{sub.name}</span>
                         </label>
@@ -451,7 +451,7 @@ export default function EditCommunityModal({ community, onClose, onSuccess }) {
           </div>
 
           <div>
-            <label className="block text-[10px] sm:text-xs uppercase tracking-wider text-[#A69B8D] mb-1">
+            <label className="block text-[10px] sm:text-xs uppercase tracking-wider text-fo-muted mb-1">
               Primary Cover Image
             </label>
             <input
@@ -464,7 +464,7 @@ export default function EditCommunityModal({ community, onClose, onSuccess }) {
             <button
               type="button"
               onClick={() => coverInputRef.current?.click()}
-              className="relative w-full h-32 rounded-lg bg-[#0A0807] border border-dashed border-[#2A241E] hover:border-[#D4AF37]/50 overflow-hidden flex items-center justify-center"
+              className="relative w-full h-32 rounded-lg bg-[#0A0807] border border-dashed border-fo-border hover:border-fo-accent/50 overflow-hidden flex items-center justify-center"
             >
               {displayCover ? (
                 <img
@@ -473,8 +473,8 @@ export default function EditCommunityModal({ community, onClose, onSuccess }) {
                   className="w-full h-full object-cover"
                 />
               ) : (
-                <div className="flex flex-col items-center gap-1 text-[#8C8070] text-xs">
-                  <Upload size={18} className="text-[#D4AF37]" />
+                <div className="flex flex-col items-center gap-1 text-fo-subtle text-xs">
+                  <Upload size={18} className="text-fo-accent" />
                   Upload from system
                 </div>
               )}
@@ -498,10 +498,10 @@ export default function EditCommunityModal({ community, onClose, onSuccess }) {
 
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="block text-[10px] sm:text-xs uppercase tracking-wider text-[#A69B8D]">
+              <label className="block text-[10px] sm:text-xs uppercase tracking-wider text-fo-muted">
                 Gallery Images
               </label>
-              <span className="text-[10px] text-[#8C8070]">
+              <span className="text-[10px] text-fo-subtle">
                 {galleryCount}/{MAX_GALLERY_IMAGES}
               </span>
             </div>
@@ -519,7 +519,7 @@ export default function EditCommunityModal({ community, onClose, onSuccess }) {
               {form.galleryImages.map((url) => (
                 <div
                   key={url}
-                  className="relative aspect-square rounded-lg overflow-hidden border border-[#2A241E] bg-[#0A0807]"
+                  className="relative aspect-square rounded-lg overflow-hidden border border-fo-border bg-[#0A0807]"
                 >
                   <img
                     src={url}
@@ -540,7 +540,7 @@ export default function EditCommunityModal({ community, onClose, onSuccess }) {
               {newGalleryItems.map((item) => (
                 <div
                   key={item.id}
-                  className="relative aspect-square rounded-lg overflow-hidden border border-[#D4AF37]/40 bg-[#0A0807]"
+                  className="relative aspect-square rounded-lg overflow-hidden border border-fo-accent/40 bg-[#0A0807]"
                 >
                   <img
                     src={item.preview}
@@ -562,9 +562,9 @@ export default function EditCommunityModal({ community, onClose, onSuccess }) {
                 <button
                   type="button"
                   onClick={() => galleryInputRef.current?.click()}
-                  className="aspect-square rounded-lg border border-dashed border-[#2A241E] hover:border-[#D4AF37]/50 bg-[#0A0807] flex flex-col items-center justify-center gap-1 text-[#8C8070]"
+                  className="aspect-square rounded-lg border border-dashed border-fo-border hover:border-fo-accent/50 bg-[#0A0807] flex flex-col items-center justify-center gap-1 text-fo-subtle"
                 >
-                  <ImagePlus size={16} className="text-[#D4AF37]" />
+                  <ImagePlus size={16} className="text-fo-accent" />
                   <span className="text-[9px]">Add</span>
                 </button>
               )}
@@ -572,7 +572,7 @@ export default function EditCommunityModal({ community, onClose, onSuccess }) {
           </div>
 
           <div>
-            <label className="block text-[10px] sm:text-xs uppercase tracking-wider text-[#A69B8D] mb-1">
+            <label className="block text-[10px] sm:text-xs uppercase tracking-wider text-fo-muted mb-1">
               Name
             </label>
             <input
@@ -581,13 +581,13 @@ export default function EditCommunityModal({ community, onClose, onSuccess }) {
               onChange={(e) =>
                 setForm((prev) => ({ ...prev, name: e.target.value }))
               }
-              className="w-full px-3 py-2 sm:py-2.5 rounded-lg bg-[#0A0807] border border-[#2A241E] text-[#E5E0D8] text-xs sm:text-sm focus:outline-none focus:border-[#D4AF37]/60"
+              className="w-full px-3 py-2 sm:py-2.5 rounded-lg bg-[#0A0807] border border-fo-border text-fo-text text-xs sm:text-sm focus:outline-none focus:border-fo-accent/60"
               required
             />
           </div>
 
           <div>
-            <label className="block text-[10px] sm:text-xs uppercase tracking-wider text-[#A69B8D] mb-1">
+            <label className="block text-[10px] sm:text-xs uppercase tracking-wider text-fo-muted mb-1">
               Description
             </label>
             <textarea
@@ -596,12 +596,12 @@ export default function EditCommunityModal({ community, onClose, onSuccess }) {
                 setForm((prev) => ({ ...prev, description: e.target.value }))
               }
               rows={2}
-              className="w-full px-3 py-2 sm:py-2.5 rounded-lg bg-[#0A0807] border border-[#2A241E] text-[#E5E0D8] text-xs sm:text-sm focus:outline-none focus:border-[#D4AF37]/60 resize-y"
+              className="w-full px-3 py-2 sm:py-2.5 rounded-lg bg-[#0A0807] border border-fo-border text-fo-text text-xs sm:text-sm focus:outline-none focus:border-fo-accent/60 resize-y"
             />
           </div>
 
           <div>
-            <label className="block text-[10px] sm:text-xs uppercase tracking-wider text-[#A69B8D] mb-1">
+            <label className="block text-[10px] sm:text-xs uppercase tracking-wider text-fo-muted mb-1">
               Rules
             </label>
             <textarea
@@ -610,12 +610,12 @@ export default function EditCommunityModal({ community, onClose, onSuccess }) {
                 setForm((prev) => ({ ...prev, rules: e.target.value }))
               }
               rows={2}
-              className="w-full px-3 py-2 sm:py-2.5 rounded-lg bg-[#0A0807] border border-[#2A241E] text-[#E5E0D8] text-xs sm:text-sm focus:outline-none focus:border-[#D4AF37]/60 resize-y"
+              className="w-full px-3 py-2 sm:py-2.5 rounded-lg bg-[#0A0807] border border-fo-border text-fo-text text-xs sm:text-sm focus:outline-none focus:border-fo-accent/60 resize-y"
             />
           </div>
 
           <div>
-            <label className="block text-[10px] sm:text-xs uppercase tracking-wider text-[#A69B8D] mb-1">
+            <label className="block text-[10px] sm:text-xs uppercase tracking-wider text-fo-muted mb-1">
               Tags (comma-separated)
             </label>
             <input
@@ -624,13 +624,13 @@ export default function EditCommunityModal({ community, onClose, onSuccess }) {
               onChange={(e) =>
                 setForm((prev) => ({ ...prev, tags: e.target.value }))
               }
-              className="w-full px-3 py-2 sm:py-2.5 rounded-lg bg-[#0A0807] border border-[#2A241E] text-[#E5E0D8] text-xs sm:text-sm focus:outline-none focus:border-[#D4AF37]/60"
+              className="w-full px-3 py-2 sm:py-2.5 rounded-lg bg-[#0A0807] border border-fo-border text-fo-text text-xs sm:text-sm focus:outline-none focus:border-fo-accent/60"
               placeholder="finance, startups"
             />
           </div>
 
           <div>
-            <label className="block text-[10px] sm:text-xs uppercase tracking-wider text-[#A69B8D] mb-1">
+            <label className="block text-[10px] sm:text-xs uppercase tracking-wider text-fo-muted mb-1">
               Type
             </label>
             <select
@@ -638,7 +638,7 @@ export default function EditCommunityModal({ community, onClose, onSuccess }) {
               onChange={(e) =>
                 setForm((prev) => ({ ...prev, type: e.target.value }))
               }
-              className="w-full px-3 py-2 sm:py-2.5 rounded-lg bg-[#0A0807] border border-[#2A241E] text-[#E5E0D8] text-xs sm:text-sm focus:outline-none focus:border-[#D4AF37]/60"
+              className="w-full px-3 py-2 sm:py-2.5 rounded-lg bg-[#0A0807] border border-fo-border text-fo-text text-xs sm:text-sm focus:outline-none focus:border-fo-accent/60"
             >
               <option value="public">Public</option>
               <option value="private_invite">Private-Invite</option>
@@ -650,7 +650,7 @@ export default function EditCommunityModal({ community, onClose, onSuccess }) {
             <button
               type="submit"
               disabled={saving}
-              className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[#D4AF37] text-black text-xs sm:text-sm font-semibold disabled:opacity-60 hover:bg-[#e0c04a] transition-colors"
+              className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-fo-accent text-black text-xs sm:text-sm font-semibold disabled:opacity-60 hover:bg-fo-accent-hover transition-colors"
             >
               {saving && <Loader2 size={14} className="animate-spin" />}
               Save Changes
@@ -659,7 +659,7 @@ export default function EditCommunityModal({ community, onClose, onSuccess }) {
               type="button"
               onClick={handleClose}
               disabled={saving}
-              className="flex-1 sm:flex-none px-4 py-2.5 rounded-lg border border-[#2A241E] text-xs sm:text-sm text-[#A69B8D] hover:text-[#E5E0D8]"
+              className="flex-1 sm:flex-none px-4 py-2.5 rounded-lg border border-fo-border text-xs sm:text-sm text-fo-muted hover:text-fo-text"
             >
               Cancel
             </button>

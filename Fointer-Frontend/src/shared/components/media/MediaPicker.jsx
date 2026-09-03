@@ -62,11 +62,11 @@ export default function MediaPicker({
   return (
     <div>
       {label && (
-        <label className="block text-[10px] uppercase tracking-wider text-[#8C8070] mb-1">
+        <label className="block text-[10px] uppercase tracking-wider text-fo-subtle mb-1">
           {label}
         </label>
       )}
-      <label className="flex items-center justify-center gap-2 w-full border border-dashed border-[#2A241E] rounded-lg py-4 text-xs text-[#A69B8D] cursor-pointer hover:border-[#D4AF37]/40">
+      <label className="flex items-center justify-center gap-2 w-full border border-dashed border-fo-border rounded-lg py-4 text-xs text-fo-muted cursor-pointer hover:border-fo-accent/40">
         {uploading ? (
           <>
             <Loader2 size={14} className="animate-spin" /> Uploading...
@@ -94,13 +94,13 @@ export default function MediaPicker({
               {m.type === "video" ? (
                 <video
                   src={m.url}
-                  className="w-full h-24 object-cover rounded-lg border border-[#2A241E]"
+                  className="w-full h-24 object-cover rounded-lg border border-fo-border"
                 />
               ) : (
                 <img
                   src={m.url}
                   alt=""
-                  className="w-full h-24 object-cover rounded-lg border border-[#2A241E]"
+                  className="w-full h-24 object-cover rounded-lg border border-fo-border"
                 />
               )}
               <button
@@ -118,5 +118,3 @@ export default function MediaPicker({
     </div>
   );
 }
-
-export { MAX_MEDIA };

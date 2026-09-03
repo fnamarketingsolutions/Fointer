@@ -1,10 +1,5 @@
 import api from '../../../shared/services/http/client';
 
-export const fetchOverview = async () => {
-  const response = await api.get('/dashboard/overview');
-  return response.data;
-};
-
 export const fetchUsers = async (params = {}) => {
   const response = await api.get('/admin/users', { params });
   return response.data;
@@ -81,11 +76,6 @@ export const updateAdminSupportTicketStatus = async (ticketId, payload) => {
 
 export const fetchAdminLiveEvents = async (params = {}) => {
   const response = await api.get('/admin/live-events', { params });
-  return response.data;
-};
-
-export const fetchAdminLiveEvent = async (eventId) => {
-  const response = await api.get(`/admin/live-events/${eventId}`);
   return response.data;
 };
 
@@ -181,5 +171,40 @@ export const updateAdminReport = async (reportId, payload) => {
 
 export const fetchAdminAnalytics = async () => {
   const response = await api.get('/admin/analytics');
+  return response.data;
+};
+
+export const fetchAdminMarketplaceListings = async (params = {}) => {
+  const response = await api.get('/admin/marketplace/listings', { params });
+  return response.data;
+};
+
+export const updateAdminMarketplaceListing = async (id, payload) => {
+  const response = await api.patch(`/admin/marketplace/listings/${id}`, payload);
+  return response.data;
+};
+
+export const removeAdminMarketplaceListing = async (id) => {
+  const response = await api.post(`/admin/marketplace/listings/${id}/remove`);
+  return response.data;
+};
+
+export const restoreAdminMarketplaceListing = async (id) => {
+  const response = await api.post(`/admin/marketplace/listings/${id}/restore`);
+  return response.data;
+};
+
+export const warnAdminMarketplaceSeller = async (id, payload) => {
+  const response = await api.post(`/admin/marketplace/listings/${id}/warn`, payload);
+  return response.data;
+};
+
+export const fetchAdminReportedConversations = async () => {
+  const response = await api.get('/admin/marketplace/reported-conversations');
+  return response.data;
+};
+
+export const fetchAdminConversationMessages = async (id) => {
+  const response = await api.get(`/admin/conversations/${id}/messages`);
   return response.data;
 };

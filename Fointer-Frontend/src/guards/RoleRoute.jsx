@@ -9,7 +9,7 @@ export default function RoleRoute({ children, roles = [] }) {
 
   if (loading) {
     return (
-      <div className="min-h-[50vh] flex items-center justify-center bg-[#130D08] text-gray-300 text-sm">
+      <div className="min-h-[50vh] flex items-center justify-center bg-fo-auth text-fo-muted text-sm">
         Loading...
       </div>
     );

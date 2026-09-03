@@ -31,9 +31,11 @@ import {
 } from "../utils/pagination.js";
 import { resolveDocumentId } from "../utils/shortCode.js";
 import {
-  getRequestsActionUrl,
+  getManageCommunityIncomingUrl,
+  getManageCommunityMembersUrl,
+  getCommunitiesRequestsUrl,
+  getCommunitiesUrl,
   sendJoinRequestReceivedEmail,
-  sendCommunityInviteEmail,
   sendCommunityInviteAcceptedEmail,
   sendCommunityInviteDeclinedEmail,
 } from "../utils/sendVerificationEmail.js";
@@ -45,6 +47,12 @@ import {
   getCommunityStewardIds,
   personName,
 } from "../utils/notify.js";
+import {
+  formatInvite,
+  resolveInviteeUser,
+  assertInviteeEligible,
+  createAndDeliverCommunityInvite,
+} from "../utils/communityInviteService.js";
 
 const COMMUNITY_SORT_MAP = {
   newest: { createdAt: -1 },
@@ -234,6 +242,8 @@ const formatCommunity = (community, extras = {}) => {
   };
 };
 
+const formatCommunityInvite = (invite) => formatInvite(invite, formatCommunity);
+
 const formatJoinRequest = (request) => ({
   id: request._id,
   status: request.status,
@@ -241,20 +251,6 @@ const formatJoinRequest = (request) => ({
   createdAt: request.createdAt,
   updatedAt: request.updatedAt,
   user: formatUserRef(request.user, request.user, { includeEmail: true }),
-});
-
-const formatInvite = (invite) => ({
-  id: invite._id,
-  status: invite.status,
-  message: invite.message || "",
-  createdAt: invite.createdAt,
-  updatedAt: invite.updatedAt,
-  inviter: formatUserRef(invite.inviter, invite.inviter),
-  invitee: formatUserRef(invite.invitee, invite.invitee),
-  community:
-    invite.community && typeof invite.community === "object" && invite.community._id
-      ? formatCommunity(invite.community)
-      : { id: invite.community },
 });
 
 const getMemberCounts = async (communityIds) => {
@@ -1306,7 +1302,7 @@ export const createJoinRequest = async (req, res) => {
 
     const owner = community.owner;
     const ownerEmail = owner && typeof owner === "object" ? owner.email : null;
-    const actionUrl = getRequestsActionUrl();
+    const actionUrl = getManageCommunityIncomingUrl(community);
     const requesterName =
       req.user.name || req.user.username || joinRequest.user?.username || "A user";
     const ownerName =
@@ -1412,50 +1408,6 @@ export const joinPublicCommunity = async (req, res) => {
   }
 };
 
-export const listBrowsableCommunityMembers = async (req, res) => {
-  try {
-    const community = await Community.findById(req.params.id);
-
-    if (!community) {
-      return res.status(404).json({
-        success: false,
-        message: "Community not found.",
-      });
-    }
-
-    if (!["public", "private_request"].includes(community.type)) {
-      return res.status(403).json({
-        success: false,
-        message: "This community is not publicly browsable.",
-      });
-    }
-
-    if (req.user.role !== "admin") {
-      const membership = await getMembership(community._id, req.user._id);
-      if (!getEffectiveMemberRole(membership)) {
-        return res.status(403).json({
-          success: false,
-          message: "You must be a member to view the member list.",
-        });
-      }
-    }
-
-    const members = await CommunityMember.find({
-      community: community._id,
-      status: "active",
-    })
-      .populate("user", "username name avatar")
-      .sort({ createdAt: 1 });
-
-    return res.status(200).json({
-      success: true,
-      members: members.map(formatMember),
-    });
-  } catch (error) {
-    return sendServerError(res, error);
-  }
-};
-
 export const createCommunityInvite = async (req, res) => {
   try {
     const community = await getPopulatedCommunity(req.params.id);
@@ -1483,9 +1435,7 @@ export const createCommunityInvite = async (req, res) => {
 
     const identifier = String(
       req.body?.username || req.body?.email || req.body?.identifier || ""
-    )
-      .trim()
-      .toLowerCase();
+    ).trim();
 
     if (!identifier) {
       return res.status(400).json({
@@ -1494,17 +1444,7 @@ export const createCommunityInvite = async (req, res) => {
       });
     }
 
-    const invitee = await User.findOne({
-      $or: [
-        {
-          username: new RegExp(
-            `^${identifier.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
-            "i"
-          ),
-        },
-        { email: identifier },
-      ],
-    }).select("username name email avatar");
+    const invitee = await resolveInviteeUser({ identifier });
 
     if (!invitee) {
       return res.status(404).json({
@@ -1513,73 +1453,34 @@ export const createCommunityInvite = async (req, res) => {
       });
     }
 
-    if (String(invitee._id) === String(req.user._id)) {
-      return res.status(400).json({
+    const eligibilityError = await assertInviteeEligible(
+      community._id,
+      invitee._id,
+      req.user._id
+    );
+    if (eligibilityError) {
+      return res.status(eligibilityError.status).json({
         success: false,
-        message: "You cannot invite yourself.",
+        message: eligibilityError.message,
       });
     }
-
-    const bannedInvitee = await getBannedMembership(community._id, invitee._id);
-    if (bannedInvitee) {
-      return res.status(403).json({
-        success: false,
-        message: "That user is banned from this community.",
-      });
-    }
-
-    const existingMember = await CommunityMember.findOne({
-      community: community._id,
-      user: invitee._id,
-      status: "active",
-    });
-
-    if (existingMember) {
-      return res.status(400).json({
-        success: false,
-        message: "That user is already a member of this community.",
-      });
-    }
-
-    const existingPending = await CommunityInvite.findOne({
-      community: community._id,
-      invitee: invitee._id,
-      status: "pending",
-    });
-
-    if (existingPending) {
-      return res.status(400).json({
-        success: false,
-        message: "A pending invite already exists for this user.",
-      });
-    }
-
-    const invite = await CommunityInvite.create({
-      community: community._id,
-      inviter: req.user._id,
-      invitee: invitee._id,
-      message: String(req.body?.message || "").trim(),
-      status: "pending",
-    });
-
-    await invite.populate("inviter", "username name email avatar");
-    await invite.populate("invitee", "username name email avatar");
-    invite.community = community;
-
-    const inviterName =
-      req.user.name || req.user.username || invite.inviter?.username || "A community owner";
-    const inviteeName = invitee.name || invitee.username || "there";
 
     try {
-      await sendCommunityInviteEmail({
-        to: invitee.email,
-        inviteeName,
-        inviterName,
-        communityName: community.name,
-        actionUrl: getRequestsActionUrl(),
+      const invite = await createAndDeliverCommunityInvite({
+        community,
+        inviter: req.user,
+        invitee,
+        message: req.body?.message,
+        io: req.app.get("io"),
+        formatCommunity,
+      });
+
+      return res.status(201).json({
+        success: true,
+        message: "Invite sent.",
+        invite,
       });
     } catch (emailError) {
-      await CommunityInvite.deleteOne({ _id: invite._id });
       return res.status(500).json({
         success: false,
         message:
@@ -1587,23 +1488,6 @@ export const createCommunityInvite = async (req, res) => {
           "Failed to send invite email. Please try again.",
       });
     }
-
-    await notify({
-      io: req.app.get("io"),
-      recipientId: invitee._id,
-      actor: req.user,
-      type: "invite",
-      title: `${personName(req.user)} invited you to join ${community.name}`,
-      body: invite.message || "",
-      entity: { kind: "invite", id: invite._id },
-      community,
-    });
-
-    return res.status(201).json({
-      success: true,
-      message: "Invite sent.",
-      invite: formatInvite(invite),
-    });
   } catch (error) {
     return sendServerError(res, error);
   }
@@ -1622,49 +1506,7 @@ export const listMyInvites = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      invites: invites.map(formatInvite),
-    });
-  } catch (error) {
-    return sendServerError(res, error);
-  }
-};
-
-export const listCommunityInvites = async (req, res) => {
-  try {
-    const community = await Community.findById(req.params.id);
-
-    if (!community) {
-      return res.status(404).json({
-        success: false,
-        message: "Community not found.",
-      });
-    }
-
-    if (!(await canInviteToCommunity(community, req.user))) {
-      return res.status(403).json({
-        success: false,
-        message: "You can only view invites for communities you manage.",
-      });
-    }
-
-    const status = req.query.status || "pending";
-    const filter = { community: community._id };
-    if (status !== "all") {
-      filter.status = status;
-    }
-
-    const invites = await CommunityInvite.find(filter)
-      .populate("inviter", "username name email avatar")
-      .populate("invitee", "username name email avatar")
-      .populate({
-        path: "community",
-        populate: COMMUNITY_POPULATE_STDLIB,
-      })
-      .sort({ createdAt: -1 });
-
-    return res.status(200).json({
-      success: true,
-      invites: invites.map(formatInvite),
+      invites: invites.map(formatCommunityInvite),
     });
   } catch (error) {
     return sendServerError(res, error);
@@ -1767,7 +1609,7 @@ export const acceptCommunityInvite = async (req, res) => {
         recipientName,
         inviteeName,
         communityName,
-        actionUrl: getRequestsActionUrl(),
+        actionUrl: getManageCommunityMembersUrl(invite.community),
       });
     } catch (emailError) {
       invite.status = "pending";
@@ -1812,7 +1654,7 @@ export const acceptCommunityInvite = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "Invite accepted. You are now a member.",
-      invite: formatInvite(invite),
+      invite: formatCommunityInvite(invite),
     });
   } catch (error) {
     return sendServerError(res, error);
@@ -1884,7 +1726,7 @@ export const declineCommunityInvite = async (req, res) => {
         recipientName,
         inviteeName,
         communityName,
-        actionUrl: getRequestsActionUrl(),
+        actionUrl: getManageCommunityMembersUrl(invite.community),
       });
     } catch (emailError) {
       invite.status = "pending";
@@ -1911,7 +1753,7 @@ export const declineCommunityInvite = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "Invite declined.",
-      invite: formatInvite(invite),
+      invite: formatCommunityInvite(invite),
     });
   } catch (error) {
     return sendServerError(res, error);

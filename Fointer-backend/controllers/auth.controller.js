@@ -636,6 +636,12 @@ export const getMe = async (req, res) => {
         status: user.status || "active",
         bio: user.bio || "",
         interests: user.interests || [],
+        city: user.city || "",
+        state: user.state || "",
+        country: user.country || "",
+        zipCode: user.zipCode || "",
+        phone: user.phone || "",
+        yearOfBirth: user.yearOfBirth ?? null,
       },
     });
   } catch (error) {

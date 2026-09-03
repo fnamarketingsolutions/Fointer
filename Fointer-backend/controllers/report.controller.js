@@ -10,9 +10,17 @@ import User from "../models/user.js";
 import LiveEvent from "../models/liveEvent.js";
 import WatchGroup from "../models/watchGroup.js";
 import Community from "../models/community.js";
+import Listing from "../models/listing.js";
+import Conversation from "../models/conversation.js";
+import DirectMessage from "../models/directMessage.js";
 import { sendServerError } from "../utils/safeError.js";
+import { parseObjectIdInput } from "../utils/shortCode.js";
 import { canViewPost } from "./post.controller.js";
-import { notifyAdmins, personName, snippet } from "../utils/notify.js";
+import { notifyAdmins, notify, personName, snippet } from "../utils/notify.js";
+import {
+  hideActiveListingsForSeller,
+} from "./adminMarketplace.controller.js";
+import { userInConversation, formatListingSnapshot } from "./conversation.controller.js";
 
 const formatUser = (user) => {
   if (!user || typeof user !== "object" || !user._id) {
@@ -97,6 +105,76 @@ const buildCommentSnapshot = (comment) => {
   };
 };
 
+const buildListingReportSnapshot = (listing) => {
+  const seller = listing.seller;
+  const snap = formatListingSnapshot(listing);
+  return {
+    title: listing.title || "",
+    text: listing.description || "",
+    authorId: seller?._id || listing.seller || null,
+    authorName:
+      (seller && typeof seller === "object"
+        ? seller.name || seller.username
+        : "") || "",
+    communityName: "",
+    postId: null,
+    listingPrice: snap?.price ?? listing.price,
+    listingCurrency: snap?.currency || listing.currency || "USD",
+    listingImageUrl: snap?.imageUrl || "",
+  };
+};
+
+const CONVERSATION_SNAPSHOT_MESSAGE_LIMIT = 50;
+
+const buildConversationReportSnapshot = async (conversation, reporterId) => {
+  const other = (conversation.participants || []).find(
+    (p) => String(p.user?._id || p.user) !== String(reporterId)
+  );
+  const otherUser = other?.user;
+  const authorId = otherUser?._id || other?.user || null;
+  const authorName =
+    otherUser && typeof otherUser === "object"
+      ? otherUser.name || otherUser.username || ""
+      : "";
+
+  const messages = await DirectMessage.find({
+    conversation: conversation._id,
+  })
+    .sort({ createdAt: 1 })
+    .limit(CONVERSATION_SNAPSHOT_MESSAGE_LIMIT)
+    .populate("author", "username name");
+
+  const formattedMessages = messages.map((msg) => {
+    const author = msg.author;
+    const name =
+      author && typeof author === "object"
+        ? author.name || author.username || "User"
+        : "User";
+    return {
+      authorId: author?._id || msg.author || null,
+      authorName: name,
+      text: msg.text || "",
+      createdAt: msg.createdAt,
+    };
+  });
+
+  const textPreview = formattedMessages
+    .slice(-8)
+    .map((m) => `${m.authorName}: ${m.text}`)
+    .join("\n");
+
+  return {
+    title: "Reported conversation",
+    text: textPreview,
+    authorId,
+    authorName,
+    communityName: "",
+    postId: null,
+    conversationId: conversation._id,
+    messages: formattedMessages,
+  };
+};
+
 const deleteTargetContent = async (targetType, targetId) => {
   if (targetType === "post") {
     const post = await Post.findById(targetId);
@@ -114,25 +192,48 @@ const deleteTargetContent = async (targetType, targetId) => {
     return { deleted: true, message: "Post deleted." };
   }
 
-  const comment = await Comment.findById(targetId);
-  if (!comment) return { deleted: false, message: "Comment already removed." };
-  const replies = await Comment.find({ parent: comment._id }).select("_id");
-  const ids = [comment._id, ...replies.map((r) => r._id)];
-  const postId = comment.post;
-  await Reaction.deleteMany({
-    targetType: "comment",
-    targetId: { $in: ids },
-  });
-  await Comment.deleteMany({ _id: { $in: ids } });
-  await Post.updateOne(
-    { _id: postId },
-    { $inc: { commentCount: -ids.length } }
-  );
-  await Post.updateOne(
-    { _id: postId, commentCount: { $lt: 0 } },
-    { $set: { commentCount: 0 } }
-  );
-  return { deleted: true, message: "Comment deleted." };
+  if (targetType === "comment") {
+    const comment = await Comment.findById(targetId);
+    if (!comment) return { deleted: false, message: "Comment already removed." };
+    const replies = await Comment.find({ parent: comment._id }).select("_id");
+    const ids = [comment._id, ...replies.map((r) => r._id)];
+    const postId = comment.post;
+    await Reaction.deleteMany({
+      targetType: "comment",
+      targetId: { $in: ids },
+    });
+    await Comment.deleteMany({ _id: { $in: ids } });
+    await Post.updateOne(
+      { _id: postId },
+      { $inc: { commentCount: -ids.length } }
+    );
+    await Post.updateOne(
+      { _id: postId, commentCount: { $lt: 0 } },
+      { $set: { commentCount: 0 } }
+    );
+    return { deleted: true, message: "Comment deleted." };
+  }
+
+  if (targetType === "listing") {
+    const listing = await Listing.findById(targetId);
+    if (!listing) {
+      return { deleted: false, message: "Listing already removed." };
+    }
+    listing.status = "removed";
+    listing.removedAt = new Date();
+    await listing.save();
+    return { deleted: true, message: "Listing removed from marketplace." };
+  }
+
+  if (targetType === "conversation") {
+    return {
+      deleted: false,
+      message:
+        "Conversation retained. Ban the reported user or remove related listings if needed.",
+    };
+  }
+
+  return { deleted: false, message: "Unknown target type." };
 };
 
 export const createReport = async (req, res) => {
@@ -140,7 +241,7 @@ export const createReport = async (req, res) => {
     const targetType = String(req.body.targetType || "")
       .toLowerCase()
       .trim();
-    const targetId = req.body.targetId;
+    const targetId = parseObjectIdInput(req.body.targetId);
     const reason = String(req.body.reason || "")
       .toLowerCase()
       .trim();
@@ -155,7 +256,7 @@ export const createReport = async (req, res) => {
     if (!targetId) {
       return res.status(400).json({
         success: false,
-        message: "Target id is required.",
+        message: "Valid target id is required.",
       });
     }
     if (!REPORT_REASONS.includes(reason)) {
@@ -189,7 +290,7 @@ export const createReport = async (req, res) => {
         });
       }
       snapshot = buildPostSnapshot(post);
-    } else {
+    } else if (targetType === "comment") {
       const comment = await Comment.findById(targetId)
         .populate("author", "username name")
         .populate({
@@ -223,6 +324,47 @@ export const createReport = async (req, res) => {
         });
       }
       snapshot = buildCommentSnapshot(comment);
+    } else if (targetType === "listing") {
+      const listing = await Listing.findById(targetId).populate(
+        "seller",
+        "username name"
+      );
+      if (!listing || listing.status === "removed") {
+        return res.status(404).json({
+          success: false,
+          message: "Listing not found.",
+        });
+      }
+      if (String(listing.seller?._id || listing.seller) === String(req.user._id)) {
+        return res.status(400).json({
+          success: false,
+          message: "You cannot report your own listing.",
+        });
+      }
+      snapshot = buildListingReportSnapshot(listing);
+    } else if (targetType === "conversation") {
+      const conversation = await Conversation.findById(targetId).populate(
+        "participants.user",
+        "username name"
+      );
+      if (!conversation) {
+        return res.status(404).json({
+          success: false,
+          message: "Conversation not found.",
+        });
+      }
+      if (!userInConversation(conversation, req.user._id)) {
+        return res.status(403).json({
+          success: false,
+          message: "You cannot report this conversation.",
+        });
+      }
+      snapshot = await buildConversationReportSnapshot(conversation, req.user._id);
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid report target.",
+      });
     }
 
     const existing = await Report.findOne({
@@ -318,8 +460,13 @@ export const listAdminReports = async (req, res) => {
         let exists = false;
         if (r.targetType === "post") {
           exists = Boolean(await Post.exists({ _id: r.targetId }));
-        } else {
+        } else if (r.targetType === "comment") {
           exists = Boolean(await Comment.exists({ _id: r.targetId }));
+        } else if (r.targetType === "listing") {
+          const listing = await Listing.findById(r.targetId).select("status");
+          exists = Boolean(listing && listing.status !== "removed");
+        } else if (r.targetType === "conversation") {
+          exists = Boolean(await Conversation.exists({ _id: r.targetId }));
         }
         return formatReport({ ...r, _targetExists: exists });
       })
@@ -365,14 +512,18 @@ export const updateAdminReport = async (req, res) => {
       String(req.body.action || "")
         .toLowerCase()
         .trim() || null;
-    // actions: dismiss | delete_content | ban_author | delete_and_ban
+    // actions: dismiss | delete_content | ban_author | delete_and_ban | warn_seller | remove_listing
 
     let actionTaken = report.actionTaken || "";
 
     if (action === "dismiss" || status === "dismissed") {
       report.status = "dismissed";
       actionTaken = actionTaken || "Dismissed — no violation found";
-    } else if (action === "delete_content" || action === "delete_and_ban") {
+    } else if (
+      action === "delete_content" ||
+      action === "delete_and_ban" ||
+      action === "remove_listing"
+    ) {
       const result = await deleteTargetContent(
         report.targetType,
         report.targetId
@@ -382,8 +533,35 @@ export const updateAdminReport = async (req, res) => {
         await User.findByIdAndUpdate(report.snapshot.authorId, {
           status: "banned",
         });
+        await hideActiveListingsForSeller(
+          report.snapshot.authorId,
+          req.user._id
+        );
         actionTaken += "; author banned";
       }
+      report.status = "actioned";
+    } else if (action === "warn_seller") {
+      if (!report.snapshot?.authorId) {
+        return res.status(400).json({
+          success: false,
+          message: "Seller information is unavailable for this report.",
+        });
+      }
+      const warning = adminNote || "Your marketplace listing may violate Fointer policies. Please review and update it.";
+      await notify({
+        io: req.app.get("io"),
+        recipientId: report.snapshot.authorId,
+        actor: req.user,
+        type: "support_ticket",
+        title: "Marketplace policy notice",
+        body: snippet(warning, 200),
+        entity: {
+          kind: "listing",
+          _id: report.targetId,
+          title: report.snapshot?.title || "",
+        },
+      });
+      actionTaken = "Warning sent to seller";
       report.status = "actioned";
     } else if (action === "ban_author") {
       if (!report.snapshot?.authorId) {
@@ -395,7 +573,11 @@ export const updateAdminReport = async (req, res) => {
       await User.findByIdAndUpdate(report.snapshot.authorId, {
         status: "banned",
       });
-      actionTaken = "Author banned";
+      await hideActiveListingsForSeller(
+        report.snapshot.authorId,
+        req.user._id
+      );
+      actionTaken = "Author banned; active listings hidden";
       report.status = "actioned";
     } else if (status && REPORT_STATUSES.includes(status)) {
       report.status = status;
@@ -418,8 +600,13 @@ export const updateAdminReport = async (req, res) => {
     let exists = false;
     if (report.targetType === "post") {
       exists = Boolean(await Post.exists({ _id: report.targetId }));
-    } else {
+    } else if (report.targetType === "comment") {
       exists = Boolean(await Comment.exists({ _id: report.targetId }));
+    } else if (report.targetType === "listing") {
+      const listing = await Listing.findById(report.targetId).select("status");
+      exists = Boolean(listing && listing.status !== "removed");
+    } else if (report.targetType === "conversation") {
+      exists = Boolean(await Conversation.exists({ _id: report.targetId }));
     }
 
     return res.json({

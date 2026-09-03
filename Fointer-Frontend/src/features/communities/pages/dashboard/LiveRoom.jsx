@@ -18,6 +18,7 @@ import {
   fetchLiveMessages,
 } from "../../../../api/liveEvents";
 import { getLiveSocket } from "../../../../shared/services/liveSocket";
+import UserProfileLink from "../../../../shared/components/UserProfileLink";
 import { useToast } from "../../../../shared/components/feedback/ToastContext";
 import { useAuth } from "../../../../context/AuthContext";
 
@@ -238,7 +239,7 @@ export default function LiveRoom() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-16 text-[#A69B8D] text-sm gap-2">
+      <div className="flex items-center justify-center py-16 text-fo-muted text-sm gap-2">
         <Loader2 size={16} className="animate-spin" />
         Joining live room...
       </div>
@@ -260,25 +261,25 @@ export default function LiveRoom() {
           <button
             type="button"
             onClick={() => navigate("/live-events")}
-            className="inline-flex items-center gap-1.5 text-xs text-[#A69B8D] hover:text-[#D4AF37] mb-2"
+            className="inline-flex items-center gap-1.5 text-xs text-fo-muted hover:text-fo-accent mb-2"
           >
             <ArrowLeft size={14} /> Back to Live Events
           </button>
           <div className="flex items-center gap-2 flex-wrap">
             {isLive ? (
-              <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide bg-red-600/90 text-white px-2 py-0.5 rounded-full">
+              <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide bg-red-600/90 text-fo-text px-2 py-0.5 rounded-full">
                 <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
                 Live
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide bg-[#2A241E] text-[#A69B8D] px-2 py-0.5 rounded-full">
+              <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide bg-[#2A241E] text-fo-muted px-2 py-0.5 rounded-full">
                 Ended
               </span>
             )}
-            <span className="text-[10px] font-mono uppercase text-[#D4AF37]">
+            <span className="text-[10px] font-mono uppercase text-fo-accent">
               {categoryLabel(event)}
             </span>
-            <span className="text-[10px] text-[#8C8070] flex items-center gap-1">
+            <span className="text-[10px] text-fo-subtle flex items-center gap-1">
               <Users size={11} /> {viewerCount} watching
             </span>
             <span
@@ -287,14 +288,23 @@ export default function LiveRoom() {
               {connected ? "Connected" : "Reconnecting…"}
             </span>
           </div>
-          <h1 className="text-xl sm:text-2xl font-serif font-semibold text-[#E5E0D8] mt-1 truncate">
+          <h1 className="text-xl sm:text-2xl font-serif font-semibold text-fo-text mt-1 truncate">
             {event.title}
           </h1>
-          <p className="text-xs text-[#8C8070] mt-0.5 truncate">
+          <p className="text-xs text-fo-subtle mt-0.5 truncate">
             {event.community?.name}
-            {event.host?.name || event.host?.username
-              ? ` · Hosted by ${event.host?.name || event.host?.username}`
-              : ""}
+            {event.host?.name || event.host?.username ? (
+              <>
+                {" · Hosted by "}
+                <UserProfileLink
+                  author={event.host}
+                  className="hover:text-fo-accent transition-colors"
+                  stopPropagation={false}
+                >
+                  {event.host?.name || event.host?.username}
+                </UserProfileLink>
+              </>
+            ) : null}
           </p>
         </div>
 
@@ -324,11 +334,11 @@ export default function LiveRoom() {
         )}
       </div>
 
-      <div className="flex-1 min-h-0 border border-[#2A241E] rounded-2xl bg-[#14100D] flex flex-col overflow-hidden">
-        <div className="px-4 py-2.5 border-b border-[#2A241E] flex items-center gap-2 text-xs text-[#A69B8D]">
+      <div className="flex-1 min-h-0 border border-fo-border rounded-2xl bg-fo-surface flex flex-col overflow-hidden">
+        <div className="px-4 py-2.5 border-b border-fo-border flex items-center gap-2 text-xs text-fo-muted">
           <Radio size={14} className="text-red-500" />
           Live Commentary
-          <MessageCircle size={12} className="ml-auto text-[#8C8070]" />
+          <MessageCircle size={12} className="ml-auto text-fo-subtle" />
           <span>{messages.length}</span>
         </div>
 
@@ -337,7 +347,7 @@ export default function LiveRoom() {
           className="flex-1 overflow-y-auto px-4 py-3 space-y-3"
         >
           {messages.length === 0 ? (
-            <p className="text-center text-xs text-[#8C8070] py-10">
+            <p className="text-center text-xs text-fo-subtle py-10">
               No messages yet. Be the first to comment.
             </p>
           ) : (
@@ -349,8 +359,8 @@ export default function LiveRoom() {
                 <div
                   className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-[10px] font-bold border ${
                     isOwn(msg)
-                      ? "bg-[#D4AF37]/15 border-[#D4AF37]/40 text-[#D4AF37]"
-                      : "bg-[#1C1612] border-[#2A241E] text-[#A69B8D]"
+                      ? "bg-fo-accent/15 border-fo-accent/40 text-fo-accent"
+                      : "bg-fo-surface-hover border-fo-border text-fo-muted"
                   }`}
                 >
                   {(displayName(msg)[0] || "?").toUpperCase()}
@@ -358,12 +368,16 @@ export default function LiveRoom() {
                 <div
                   className={`min-w-0 max-w-[80%] ${isOwn(msg) ? "text-right" : ""}`}
                 >
-                  <div className="flex items-center gap-2 mb-0.5 text-[10px] text-[#8C8070]">
-                    <span
-                      className={`font-medium ${isOwn(msg) ? "text-[#D4AF37]" : "text-[#A69B8D]"}`}
+                  <div className="flex items-center gap-2 mb-0.5 text-[10px] text-fo-subtle">
+                    <UserProfileLink
+                      author={msg.author}
+                      className={`font-medium hover:text-fo-accent transition-colors ${
+                        isOwn(msg) ? "text-fo-accent" : "text-fo-muted"
+                      }`}
+                      stopPropagation={false}
                     >
                       {displayName(msg)}
-                    </span>
+                    </UserProfileLink>
                     <span>
                       {msg.createdAt
                         ? new Date(msg.createdAt).toLocaleTimeString([], {
@@ -386,8 +400,8 @@ export default function LiveRoom() {
                   <div
                     className={`inline-block text-left text-sm px-3 py-2 rounded-xl ${
                       isOwn(msg)
-                        ? "bg-[#D4AF37]/15 text-[#E5E0D8] border border-[#D4AF37]/25"
-                        : "bg-[#1C1612] text-[#E5E0D8] border border-[#2A241E]"
+                        ? "bg-fo-accent/15 text-fo-text border border-fo-accent/25"
+                        : "bg-fo-surface-hover text-fo-text border border-fo-border"
                     }`}
                   >
                     {msg.text}
@@ -400,7 +414,7 @@ export default function LiveRoom() {
 
         <form
           onSubmit={handleSend}
-          className="p-3 border-t border-[#2A241E] flex items-center gap-2"
+          className="p-3 border-t border-fo-border flex items-center gap-2"
         >
           <input
             type="text"
@@ -413,12 +427,12 @@ export default function LiveRoom() {
                 ? "Write a live commentary message…"
                 : "This event has ended"
             }
-            className="flex-1 bg-[#0D0A08] border border-[#2A241E] rounded-xl px-3 py-2.5 text-sm text-[#E5E0D8] focus:outline-none focus:border-[#D4AF37]/60 placeholder:text-[#8C8070] disabled:opacity-50"
+            className="flex-1 bg-[#0D0A08] border border-fo-border rounded-xl px-3 py-2.5 text-sm text-fo-text focus:outline-none focus:border-fo-accent/60 placeholder:text-fo-subtle disabled:opacity-50"
           />
           <button
             type="submit"
             disabled={!isLive || sending || !text.trim()}
-            className="shrink-0 w-10 h-10 rounded-xl bg-[#D4AF37] text-black flex items-center justify-center hover:bg-[#e0c04a] disabled:opacity-40 disabled:cursor-not-allowed"
+            className="shrink-0 w-10 h-10 rounded-xl bg-fo-accent text-black flex items-center justify-center hover:bg-fo-accent-hover disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {sending ? (
               <Loader2 size={16} className="animate-spin" />

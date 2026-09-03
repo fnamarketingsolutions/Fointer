@@ -16,7 +16,7 @@ import {
   fetchAdminSubchannels,
   updateAdminChannel,
   updateAdminSubchannel,
-} from "../../services/adminService";
+} from "../../../../api/dashboard";
 import CreateChannelModal from "../../../../shared/components/modals/CreateChannelModal";
 import CreateSubchannelModal from "../../../../shared/components/modals/CreateSubchannelModal";
 import { useToast } from "../../../../shared/components/feedback/ToastContext";
@@ -162,10 +162,10 @@ export default function ChannelManagement() {
     <div className="w-full max-w-3xl mx-auto space-y-5">
       <header className="flex items-start justify-between gap-3">
         <div className="space-y-1 min-w-0">
-          <h1 className="text-xl sm:text-2xl font-semibold text-[#E5E0D8]">
+          <h1 className="text-xl sm:text-2xl font-semibold text-fo-text">
             Channels
           </h1>
-          <p className="text-sm text-[#8C8070]">
+          <p className="text-sm text-fo-subtle">
             Manage channels and subchannels used when creating communities.
           </p>
         </div>
@@ -174,7 +174,7 @@ export default function ChannelManagement() {
             type="button"
             onClick={loadData}
             disabled={loading}
-            className="p-2 rounded-lg border border-[#2A241E] text-[#A69B8D] hover:text-[#D4AF37] hover:border-[#D4AF37]/40 transition-colors disabled:opacity-50"
+            className="p-2 rounded-lg border border-fo-border text-fo-muted hover:text-fo-accent hover:border-fo-accent/40 transition-colors disabled:opacity-50"
             title="Refresh"
           >
             <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
@@ -183,7 +183,7 @@ export default function ChannelManagement() {
             <button
               type="button"
               onClick={() => setCreateChannelOpen(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#D4AF37] text-black text-xs font-semibold hover:bg-[#e0c04a]"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-fo-accent text-black text-xs font-semibold hover:bg-fo-accent-hover"
             >
               <Plus size={14} />
               Create
@@ -198,7 +198,7 @@ export default function ChannelManagement() {
                   ? "Create a channel first"
                   : "Create subchannel"
               }
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#D4AF37] text-black text-xs font-semibold hover:bg-[#e0c04a] disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-fo-accent text-black text-xs font-semibold hover:bg-fo-accent-hover disabled:opacity-50"
             >
               <Plus size={14} />
               Create
@@ -207,7 +207,7 @@ export default function ChannelManagement() {
         </div>
       </header>
 
-      <div className="flex gap-1 p-1 rounded-xl bg-[#0E0C0A] border border-[#2A241E]">
+      <div className="flex gap-1 p-1 rounded-xl bg-fo-bg border border-fo-border">
         {TABS.map((t) => {
           const active = tab === t.id;
           const count =
@@ -219,8 +219,8 @@ export default function ChannelManagement() {
               onClick={() => setTab(t.id)}
               className={`flex-1 py-2 px-3 rounded-lg text-xs sm:text-sm font-semibold transition-colors ${
                 active
-                  ? "bg-[#1A1510] text-[#D4AF37] border border-[#D4AF37]/35"
-                  : "text-[#8C8070] hover:text-[#E5E0D8] border border-transparent"
+                  ? "bg-[#1A1510] text-fo-accent border border-fo-accent/35"
+                  : "text-fo-subtle hover:text-fo-text border border-transparent"
               }`}
             >
               {t.label}
@@ -235,7 +235,7 @@ export default function ChannelManagement() {
       <div className="relative">
         <Search
           size={14}
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8C8070] pointer-events-none"
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-fo-subtle pointer-events-none"
         />
         <input
           type="text"
@@ -246,29 +246,29 @@ export default function ChannelManagement() {
           }
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full bg-[#14100D] border border-[#2A241E] rounded-xl pl-9 pr-3 py-2.5 text-sm text-[#E5E0D8] placeholder:text-[#5C5348] focus:outline-none focus:border-[#D4AF37]/50"
+          className="w-full bg-fo-surface border border-fo-border rounded-xl pl-9 pr-3 py-2.5 text-sm text-fo-text placeholder:text-fo-subtle focus:outline-none focus:border-fo-accent/50"
         />
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center gap-2 py-14 text-sm text-[#A69B8D]">
-          <Loader2 size={16} className="animate-spin text-[#D4AF37]" />
+        <div className="flex items-center justify-center gap-2 py-14 text-sm text-fo-muted">
+          <Loader2 size={16} className="animate-spin text-fo-accent" />
           Loading…
         </div>
       ) : isChannels ? (
         channels.length === 0 ? (
-          <div className="border border-dashed border-[#2A241E] rounded-xl py-14 text-center text-sm text-[#8C8070] px-4 space-y-3">
+          <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle px-4 space-y-3">
             <p>No channels yet. Create one to get started.</p>
             <button
               type="button"
               onClick={() => setCreateChannelOpen(true)}
-              className="inline-flex items-center gap-2 text-[#D4AF37] hover:text-[#e0c04a] font-medium"
+              className="inline-flex items-center gap-2 text-fo-accent hover:text-fo-accent-hover font-medium"
             >
               <Plus size={14} /> Create channel
             </button>
           </div>
         ) : filteredChannels.length === 0 ? (
-          <div className="border border-dashed border-[#2A241E] rounded-xl py-14 text-center text-sm text-[#8C8070]">
+          <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle">
             No channels match your search.
           </div>
         ) : (
@@ -276,16 +276,16 @@ export default function ChannelManagement() {
             {filteredChannels.map((channel) => (
               <article
                 key={channel.id}
-                className="flex items-center gap-3 bg-[#14100D] border border-[#2A241E] hover:border-[#D4AF37]/35 rounded-xl p-3.5 sm:p-4 transition-colors"
+                className="flex items-center gap-3 bg-fo-surface border border-fo-border hover:border-fo-accent/35 rounded-xl p-3.5 sm:p-4 transition-colors"
               >
-                <div className="w-10 h-10 rounded-lg bg-[#1A1510] border border-[#2A241E] flex items-center justify-center shrink-0">
-                  <Hash size={16} className="text-[#D4AF37]" />
+                <div className="w-10 h-10 rounded-lg bg-[#1A1510] border border-fo-border flex items-center justify-center shrink-0">
+                  <Hash size={16} className="text-fo-accent" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h2 className="text-sm font-semibold text-[#E5E0D8] truncate">
+                  <h2 className="text-sm font-semibold text-fo-text truncate">
                     {channel.name}
                   </h2>
-                  <p className="text-[11px] text-[#8C8070] mt-0.5">
+                  <p className="text-[11px] text-fo-subtle mt-0.5">
                     {channel.createdAt
                       ? `Created ${timeAgo(channel.createdAt)}`
                       : "Channel"}
@@ -294,7 +294,7 @@ export default function ChannelManagement() {
                 <button
                   type="button"
                   onClick={() => setEditingChannel(channel)}
-                  className="p-2 rounded-lg border border-[#2A241E] text-[#A69B8D] hover:text-[#D4AF37] hover:border-[#D4AF37]/40 transition-colors shrink-0"
+                  className="p-2 rounded-lg border border-fo-border text-fo-muted hover:text-fo-accent hover:border-fo-accent/40 transition-colors shrink-0"
                   title="Edit channel"
                 >
                   <Pencil size={14} />
@@ -304,22 +304,22 @@ export default function ChannelManagement() {
           </div>
         )
       ) : channels.length === 0 ? (
-        <div className="border border-dashed border-[#2A241E] rounded-xl py-14 text-center text-sm text-[#8C8070] px-4">
+        <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle px-4">
           Create a channel first, then add subchannels.
         </div>
       ) : subchannels.length === 0 ? (
-        <div className="border border-dashed border-[#2A241E] rounded-xl py-14 text-center text-sm text-[#8C8070] px-4 space-y-3">
+        <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle px-4 space-y-3">
           <p>No subchannels yet. Create one to get started.</p>
           <button
             type="button"
             onClick={() => setCreateSubOpen(true)}
-            className="inline-flex items-center gap-2 text-[#D4AF37] hover:text-[#e0c04a] font-medium"
+            className="inline-flex items-center gap-2 text-fo-accent hover:text-fo-accent-hover font-medium"
           >
             <Plus size={14} /> Create subchannel
           </button>
         </div>
       ) : filteredSubchannels.length === 0 ? (
-        <div className="border border-dashed border-[#2A241E] rounded-xl py-14 text-center text-sm text-[#8C8070]">
+        <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle">
           No subchannels match your search.
         </div>
       ) : (
@@ -327,16 +327,16 @@ export default function ChannelManagement() {
           {filteredSubchannels.map((sub) => (
             <article
               key={sub.id}
-              className="flex items-center gap-3 bg-[#14100D] border border-[#2A241E] hover:border-[#D4AF37]/35 rounded-xl p-3.5 sm:p-4 transition-colors"
+              className="flex items-center gap-3 bg-fo-surface border border-fo-border hover:border-fo-accent/35 rounded-xl p-3.5 sm:p-4 transition-colors"
             >
-              <div className="w-10 h-10 rounded-lg bg-[#1A1510] border border-[#2A241E] flex items-center justify-center shrink-0">
-                <Layers size={16} className="text-[#D4AF37]" />
+              <div className="w-10 h-10 rounded-lg bg-[#1A1510] border border-fo-border flex items-center justify-center shrink-0">
+                <Layers size={16} className="text-fo-accent" />
               </div>
               <div className="min-w-0 flex-1 space-y-1">
-                <h2 className="text-sm font-semibold text-[#E5E0D8] truncate">
+                <h2 className="text-sm font-semibold text-fo-text truncate">
                   {sub.name}
                 </h2>
-                <p className="text-[11px] text-[#8C8070]">
+                <p className="text-[11px] text-fo-subtle">
                   {sub.channel?.name || "Unassigned"}
                   {sub.createdAt ? ` · ${timeAgo(sub.createdAt)}` : ""}
                 </p>
@@ -344,7 +344,7 @@ export default function ChannelManagement() {
               <button
                 type="button"
                 onClick={() => setEditingSub(sub)}
-                className="p-2 rounded-lg border border-[#2A241E] text-[#A69B8D] hover:text-[#D4AF37] hover:border-[#D4AF37]/40 transition-colors shrink-0"
+                className="p-2 rounded-lg border border-fo-border text-fo-muted hover:text-fo-accent hover:border-fo-accent/40 transition-colors shrink-0"
                 title="Edit subchannel"
               >
                 <Pencil size={14} />

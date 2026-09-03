@@ -1,6 +1,5 @@
 import express from "express";
 import {
-  getOverview,
   listUsers,
   updateUserStatus,
   getAdminUserDetail,
@@ -39,11 +38,20 @@ import {
   updateAdminReport,
   getReportingAnalytics,
 } from "../controllers/report.controller.js";
+import {
+  listAdminListings,
+  getAdminListing,
+  updateAdminListing,
+  removeAdminListing,
+  restoreAdminListing,
+  listAdminUserListings,
+  listReportedConversations,
+  getAdminConversationMessages,
+  warnListingSeller,
+} from "../controllers/adminMarketplace.controller.js";
 import { isAuthenticated, authorize } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
-
-router.get("/dashboard/overview", isAuthenticated, getOverview);
 
 router.get("/site/contact", getPublicSiteContact);
 
@@ -227,6 +235,61 @@ router.get(
   isAuthenticated,
   authorize("admin"),
   getReportingAnalytics
+);
+
+router.get(
+  "/admin/marketplace/listings",
+  isAuthenticated,
+  authorize("admin"),
+  listAdminListings
+);
+router.get(
+  "/admin/marketplace/listings/:id",
+  isAuthenticated,
+  authorize("admin"),
+  getAdminListing
+);
+router.patch(
+  "/admin/marketplace/listings/:id",
+  isAuthenticated,
+  authorize("admin"),
+  updateAdminListing
+);
+router.post(
+  "/admin/marketplace/listings/:id/remove",
+  isAuthenticated,
+  authorize("admin"),
+  removeAdminListing
+);
+router.post(
+  "/admin/marketplace/listings/:id/restore",
+  isAuthenticated,
+  authorize("admin"),
+  restoreAdminListing
+);
+router.post(
+  "/admin/marketplace/listings/:id/warn",
+  isAuthenticated,
+  authorize("admin"),
+  warnListingSeller
+);
+router.get(
+  "/admin/users/:userId/listings",
+  isAuthenticated,
+  authorize("admin"),
+  listAdminUserListings
+);
+router.get(
+  "/admin/marketplace/reported-conversations",
+  isAuthenticated,
+  authorize("admin"),
+  listReportedConversations
+);
+router.get(
+  "/admin/conversations/:id/messages",
+  isAuthenticated,
+  authorize("admin"),
+  getAdminConversationMessages
 );
 
 export default router;

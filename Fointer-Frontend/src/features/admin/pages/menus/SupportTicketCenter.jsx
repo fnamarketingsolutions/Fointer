@@ -12,7 +12,7 @@ import {
   fetchAdminChannels,
   fetchAdminSupportTickets,
   updateAdminSupportTicketStatus,
-} from "../../services/adminService";
+} from "../../../../api/dashboard";
 import ApproveChannelRequestModal from "../../../../shared/components/modals/ApproveChannelRequestModal";
 import { useToast } from "../../../../shared/components/feedback/ToastContext";
 import { getErrorMessage } from "../../../../shared/utils/errors";
@@ -28,7 +28,7 @@ const STATUS_FILTERS = [
 const STATUS_META = {
   pending: {
     label: "Pending",
-    className: "text-[#D4AF37]",
+    className: "text-fo-accent",
     icon: Clock3,
   },
   approved: {
@@ -49,7 +49,7 @@ const getRequesterName = (ticket) =>
 function ActionBtn({ onClick, disabled, tone = "ghost", children }) {
   const tones = {
     ghost:
-      "border border-[#2A241E] text-[#A69B8D] hover:text-[#E5E0D8] hover:border-[#D4AF37]/30",
+      "border border-fo-border text-fo-muted hover:text-fo-text hover:border-fo-accent/30",
     success:
       "border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10",
     danger:
@@ -155,10 +155,10 @@ export default function SupportTicketCenter() {
     <div className="w-full max-w-3xl mx-auto space-y-5">
       <header className="flex items-start justify-between gap-3">
         <div className="space-y-1 min-w-0">
-          <h1 className="text-xl sm:text-2xl font-semibold text-[#E5E0D8]">
+          <h1 className="text-xl sm:text-2xl font-semibold text-fo-text">
             Support
           </h1>
-          <p className="text-sm text-[#8C8070]">
+          <p className="text-sm text-fo-subtle">
             Create the requested channel and subchannel, then approve. Reject if it should not be added.
           </p>
         </div>
@@ -166,14 +166,14 @@ export default function SupportTicketCenter() {
           type="button"
           onClick={loadTickets}
           disabled={loading}
-          className="p-2 rounded-lg border border-[#2A241E] text-[#A69B8D] hover:text-[#D4AF37] hover:border-[#D4AF37]/40 transition-colors disabled:opacity-50 shrink-0"
+          className="p-2 rounded-lg border border-fo-border text-fo-muted hover:text-fo-accent hover:border-fo-accent/40 transition-colors disabled:opacity-50 shrink-0"
           title="Refresh"
         >
           <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
         </button>
       </header>
 
-      <div className="flex gap-1 p-1 rounded-xl bg-[#0E0C0A] border border-[#2A241E] overflow-x-auto">
+      <div className="flex gap-1 p-1 rounded-xl bg-fo-bg border border-fo-border overflow-x-auto">
         {STATUS_FILTERS.map((item) => {
           const active = filter === item.id;
           const count = item.id === "all" ? counts.all : counts[item.id];
@@ -184,8 +184,8 @@ export default function SupportTicketCenter() {
               onClick={() => setFilter(item.id)}
               className={`flex-1 min-w-[4.5rem] py-2 px-3 rounded-lg text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap ${
                 active
-                  ? "bg-[#1A1510] text-[#D4AF37] border border-[#D4AF37]/35"
-                  : "text-[#8C8070] hover:text-[#E5E0D8] border border-transparent"
+                  ? "bg-[#1A1510] text-fo-accent border border-fo-accent/35"
+                  : "text-fo-subtle hover:text-fo-text border border-transparent"
               }`}
             >
               {item.label}
@@ -198,29 +198,29 @@ export default function SupportTicketCenter() {
       <div className="relative">
         <Search
           size={14}
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8C8070] pointer-events-none"
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-fo-subtle pointer-events-none"
         />
         <input
           type="search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search by user or request text…"
-          className="w-full bg-[#14100D] border border-[#2A241E] rounded-xl pl-9 pr-3 py-2.5 text-sm text-[#E5E0D8] placeholder:text-[#5C5348] focus:outline-none focus:border-[#D4AF37]/50"
+          className="w-full bg-fo-surface border border-fo-border rounded-xl pl-9 pr-3 py-2.5 text-sm text-fo-text placeholder:text-fo-subtle focus:outline-none focus:border-fo-accent/50"
         />
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center gap-2 py-14 text-sm text-[#A69B8D]">
-          <Loader2 size={16} className="animate-spin text-[#D4AF37]" />
+        <div className="flex items-center justify-center gap-2 py-14 text-sm text-fo-muted">
+          <Loader2 size={16} className="animate-spin text-fo-accent" />
           Loading support requests…
         </div>
       ) : tickets.length === 0 ? (
-        <div className="border border-dashed border-[#2A241E] rounded-xl py-14 text-center text-sm text-[#8C8070] px-4 space-y-2">
-          <LifeBuoy className="w-8 h-8 mx-auto text-[#D4AF37]/40" />
+        <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle px-4 space-y-2">
+          <LifeBuoy className="w-8 h-8 mx-auto text-fo-accent/40" />
           <p>No support requests yet.</p>
         </div>
       ) : visibleTickets.length === 0 ? (
-        <div className="border border-dashed border-[#2A241E] rounded-xl py-14 text-center text-sm text-[#8C8070]">
+        <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle">
           No requests match this filter.
         </div>
       ) : (
@@ -234,11 +234,11 @@ export default function SupportTicketCenter() {
             return (
               <article
                 key={ticket.id}
-                className="bg-[#14100D] border border-[#2A241E] hover:border-[#D4AF37]/35 rounded-xl p-3.5 sm:p-4 transition-colors space-y-2.5"
+                className="bg-fo-surface border border-fo-border hover:border-fo-accent/35 rounded-xl p-3.5 sm:p-4 transition-colors space-y-2.5"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 space-y-1">
-                    <div className="flex items-center gap-2 text-[11px] text-[#8C8070] flex-wrap">
+                    <div className="flex items-center gap-2 text-[11px] text-fo-subtle flex-wrap">
                       <span
                         className={`inline-flex items-center gap-1 font-medium ${meta.className}`}
                       >
@@ -246,7 +246,7 @@ export default function SupportTicketCenter() {
                         {meta.label}
                       </span>
                       <span>·</span>
-                      <span className="text-[#A69B8D]">
+                      <span className="text-fo-muted">
                         {requester.replace(/^@+/, "")}
                       </span>
                       {ticket.createdAt ? (
@@ -257,21 +257,21 @@ export default function SupportTicketCenter() {
                       ) : null}
                     </div>
                     {ticket.user?.email ? (
-                      <p className="text-[11px] text-[#8C8070] truncate">
+                      <p className="text-[11px] text-fo-subtle truncate">
                         {ticket.user.email}
                       </p>
                     ) : null}
                   </div>
                 </div>
 
-                <p className="text-sm text-[#E5E0D8] whitespace-pre-wrap break-words leading-relaxed">
+                <p className="text-sm text-fo-text whitespace-pre-wrap break-words leading-relaxed">
                   {ticket.description}
                 </p>
 
                 {ticket.fulfilled?.channel ? (
-                  <p className="text-[11px] text-[#A69B8D]">
+                  <p className="text-[11px] text-fo-muted">
                     Created:{" "}
-                    <span className="text-[#D4AF37]">
+                    <span className="text-fo-accent">
                       {ticket.fulfilled.channel}
                       {ticket.fulfilled.subchannel
                         ? ` / ${ticket.fulfilled.subchannel}`

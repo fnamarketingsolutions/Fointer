@@ -88,8 +88,10 @@ export const canManageCommunity = (community, user) => {
   return String(ownerId) === String(user._id) || user.role === "admin";
 };
 
+export const DISCOVERABLE_COMMUNITY_TYPES = ["public", "private_request"];
+
 export const isDiscoverableCommunityType = (type) =>
-  ["public", "private_request"].includes(String(type || ""));
+  DISCOVERABLE_COMMUNITY_TYPES.includes(String(type || ""));
 
 export const canViewCommunity = (community, user, membership) => {
   if (user?.role === "admin") return true;

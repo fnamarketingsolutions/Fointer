@@ -13,9 +13,17 @@ import {
 import {
   fetchSystemSettings,
   updateSystemSettings,
-} from "../../services/adminService";
+} from "../../../../api/dashboard";
 import { useToast } from "../../../../shared/components/feedback/ToastContext";
 import { useSiteContact } from "../../../../context/SiteContactContext";
+
+const cardClass =
+  "bg-fo-surface border border-fo-border p-5 rounded-xl space-y-3";
+const labelClass =
+  "text-xs font-semibold text-fo-text flex items-center gap-2";
+const inputClass =
+  "w-full bg-fo-surface-hover border border-fo-border rounded-lg p-2.5 text-xs text-fo-text placeholder:text-fo-subtle focus:outline-none focus:border-fo-accent disabled:opacity-60";
+const hintClass = "text-[11px] text-fo-subtle";
 
 export default function SystemSettings() {
   const { showToast } = useToast();
@@ -114,10 +122,10 @@ export default function SystemSettings() {
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-serif text-2xl md:text-3xl font-bold text-amber-50">
+          <h1 className="font-serif text-2xl md:text-3xl font-bold text-fo-text">
             Global System Settings
           </h1>
-          <p className="text-xs text-stone-400 mt-1">
+          <p className="text-xs text-fo-subtle mt-1">
             Configure the public contact details, edit window, and other platform controls.
           </p>
         </div>
@@ -125,7 +133,7 @@ export default function SystemSettings() {
           type="button"
           onClick={handleSave}
           disabled={loading || saving}
-          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 text-stone-950 font-bold text-xs rounded-lg hover:from-amber-400 hover:to-amber-500 transition-all shadow-md disabled:opacity-60"
+          className="flex items-center gap-2 px-4 py-2 bg-fo-brand text-fo-brand-fg font-bold text-xs rounded-lg hover:bg-fo-brand-hover transition-colors shadow-md disabled:opacity-60"
         >
           {saving ? (
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -137,9 +145,9 @@ export default function SystemSettings() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        <div className="bg-[#141210] border border-stone-800/60 p-5 rounded-xl space-y-3">
-          <label className="text-xs font-semibold text-stone-300 flex items-center gap-2">
-            <Mail className="w-4 h-4 text-amber-500" /> Main site email
+        <div className={cardClass}>
+          <label className={labelClass}>
+            <Mail className="w-4 h-4 text-fo-accent" /> Main site email
           </label>
           <input
             type="email"
@@ -147,16 +155,16 @@ export default function SystemSettings() {
             disabled={loading || saving}
             onChange={(e) => setContactEmail(e.target.value)}
             placeholder="e.g. userservices@fointer.net"
-            className="w-full bg-[#0c0a09] border border-stone-800/80 rounded-lg p-2.5 text-xs text-amber-100 focus:outline-none focus:border-amber-500/60 disabled:opacity-60"
+            className={inputClass}
           />
-          <p className="text-[11px] text-stone-500">
+          <p className={hintClass}>
             Shown on Contact Us, About, footer, and policy pages. Leave blank until you have the live address.
           </p>
         </div>
 
-        <div className="bg-[#141210] border border-stone-800/60 p-5 rounded-xl space-y-3">
-          <label className="text-xs font-semibold text-stone-300 flex items-center gap-2">
-            <Phone className="w-4 h-4 text-amber-500" /> Main site phone
+        <div className={cardClass}>
+          <label className={labelClass}>
+            <Phone className="w-4 h-4 text-fo-accent" /> Main site phone
           </label>
           <input
             type="tel"
@@ -164,16 +172,16 @@ export default function SystemSettings() {
             disabled={loading || saving}
             onChange={(e) => setContactPhone(e.target.value)}
             placeholder="e.g. +1 (555) 010-1234"
-            className="w-full bg-[#0c0a09] border border-stone-800/80 rounded-lg p-2.5 text-xs text-amber-100 focus:outline-none focus:border-amber-500/60 disabled:opacity-60"
+            className={inputClass}
           />
-          <p className="text-[11px] text-stone-500">
+          <p className={hintClass}>
             Public support number. Leave blank if the client has not provided one yet.
           </p>
         </div>
 
-        <div className="bg-[#141210] border border-stone-800/60 p-5 rounded-xl space-y-3">
-          <label className="text-xs font-semibold text-stone-300 flex items-center gap-2">
-            <MapPin className="w-4 h-4 text-amber-500" /> Main site location
+        <div className={cardClass}>
+          <label className={labelClass}>
+            <MapPin className="w-4 h-4 text-fo-accent" /> Main site location
           </label>
           <textarea
             rows={3}
@@ -181,16 +189,16 @@ export default function SystemSettings() {
             disabled={loading || saving}
             onChange={(e) => setContactAddress(e.target.value)}
             placeholder="e.g. 123 Unity Street, Suite 4, Civic Center, NY 10001"
-            className="w-full bg-[#0c0a09] border border-stone-800/80 rounded-lg p-2.5 text-xs text-amber-100 focus:outline-none focus:border-amber-500/60 disabled:opacity-60 resize-none"
+            className={`${inputClass} resize-none`}
           />
-          <p className="text-[11px] text-stone-500">
+          <p className={hintClass}>
             Shown in the public footer and Contact Us. Leave blank until an address is confirmed.
           </p>
         </div>
 
-        <div className="bg-[#141210] border border-stone-800/60 p-5 rounded-xl space-y-3">
-          <label className="text-xs font-semibold text-stone-300 flex items-center gap-2">
-            <Clock className="w-4 h-4 text-amber-500" /> Self-Deletion Limit
+        <div className={cardClass}>
+          <label className={labelClass}>
+            <Clock className="w-4 h-4 text-fo-accent" /> Self-Deletion Limit
             (Minutes)
           </label>
           <input
@@ -200,17 +208,17 @@ export default function SystemSettings() {
             value={editLimit}
             disabled={loading || saving}
             onChange={(e) => setEditLimit(e.target.value)}
-            className="w-full bg-[#0c0a09] border border-stone-800/80 rounded-lg p-2.5 text-xs text-amber-100 focus:outline-none focus:border-amber-500/60 disabled:opacity-60"
+            className={inputClass}
           />
-          <p className="text-[11px] text-stone-500">
+          <p className={hintClass}>
             Authors can edit or delete their own posts and comments only within
             this window. After it expires, content is locked for the author.
           </p>
         </div>
 
-        <div className="bg-[#141210] border border-stone-800/60 p-5 rounded-xl space-y-3">
-          <label className="text-xs font-semibold text-stone-300 flex items-center gap-2">
-            <Users className="w-4 h-4 text-amber-500" /> Watch Group Max Capacity
+        <div className={cardClass}>
+          <label className={labelClass}>
+            <Users className="w-4 h-4 text-fo-accent" /> Watch Group Max Capacity
           </label>
           <input
             type="number"
@@ -219,28 +227,28 @@ export default function SystemSettings() {
             value={watchLimit}
             disabled={loading || saving}
             onChange={(e) => setWatchLimit(e.target.value)}
-            className="w-full bg-[#0c0a09] border border-stone-800/80 rounded-lg p-2.5 text-xs text-amber-100 focus:outline-none focus:border-amber-500/60 disabled:opacity-60"
+            className={inputClass}
           />
-          <p className="text-[11px] text-stone-500">
+          <p className={hintClass}>
             Highest number of members a user can set when creating a watch group (2–200).
           </p>
         </div>
 
-        <div className="bg-[#141210] border border-stone-800/60 p-5 rounded-xl space-y-3">
-          <label className="text-xs font-semibold text-stone-300 flex items-center gap-2">
-            <UploadCloud className="w-4 h-4 text-amber-500" /> Max Upload Size
+        <div className={cardClass}>
+          <label className={labelClass}>
+            <UploadCloud className="w-4 h-4 text-fo-accent" /> Max Upload Size
             (MB)
           </label>
           <input
             type="number"
             value={s3Limit}
             onChange={(e) => setS3Limit(e.target.value)}
-            className="w-full bg-[#0c0a09] border border-stone-800/80 rounded-lg p-2.5 text-xs text-amber-100 focus:outline-none focus:border-amber-500/60"
+            className={inputClass}
           />
         </div>
 
-        <div className="bg-[#141210] border border-stone-800/60 p-5 rounded-xl space-y-3">
-          <label className="text-xs font-semibold text-stone-300 flex items-center gap-2">
+        <div className={cardClass}>
+          <label className={labelClass}>
             <ShieldAlert className="w-4 h-4 text-red-400" /> Banned Keywords List
           </label>
           <input
@@ -249,9 +257,9 @@ export default function SystemSettings() {
             disabled={loading || saving}
             onChange={(e) => setBannedKeywords(e.target.value)}
             placeholder="e.g. scam, spam link, free tokens"
-            className="w-full bg-[#0c0a09] border border-stone-800/80 rounded-lg p-2.5 text-xs text-amber-100 focus:outline-none focus:border-amber-500/60 disabled:opacity-60"
+            className={inputClass}
           />
-          <p className="text-[11px] text-stone-500">
+          <p className={hintClass}>
             Comma-separated words that cannot appear in posts, comments, communities, or chat. Save this list to apply it.
           </p>
         </div>

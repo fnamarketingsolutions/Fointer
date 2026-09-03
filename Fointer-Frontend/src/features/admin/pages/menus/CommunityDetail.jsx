@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   LuArrowLeft as ArrowLeft,
   LuChevronDown as ChevronDown,
@@ -31,6 +31,12 @@ import {
 } from '../../../../shared/services/entityLinks';
 import useEntityId from '../../../../shared/hooks/useEntityId';
 import { useToast } from '../../../../shared/components/feedback/ToastContext';
+import ProfileAvatar from '../../../../shared/components/ProfileAvatar';
+
+const cardClass =
+  'rounded-xl border border-fo-border bg-fo-surface p-4 sm:p-5';
+const innerPanelClass =
+  'rounded-lg border border-fo-border bg-fo-surface-hover p-3';
 
 const formatType = formatCommunityType;
 
@@ -233,7 +239,7 @@ export default function CommunityDetail() {
         <button
           type="button"
           onClick={() => navigate('/admin/communities')}
-          className="inline-flex items-center gap-1.5 text-xs text-[#A69B8D] hover:text-[#D4AF37] transition-colors self-start"
+          className="inline-flex items-center gap-1.5 text-xs text-fo-muted hover:text-fo-accent transition-colors self-start"
         >
           <ArrowLeft size={14} /> Back to communities
         </button>
@@ -243,7 +249,7 @@ export default function CommunityDetail() {
             <button
               type="button"
               onClick={handleRefresh}
-              className="p-2 rounded-lg border border-[#2A241E] text-[#A69B8D] hover:text-[#D4AF37] hover:border-[#D4AF37]/40"
+              className="p-2 rounded-lg border border-fo-border text-fo-muted hover:text-fo-accent hover:border-fo-accent/40"
               title="Refresh"
             >
               <RefreshCw size={14} />
@@ -251,7 +257,7 @@ export default function CommunityDetail() {
             <button
               type="button"
               onClick={() => setEditingCommunity(community)}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#2A241E] text-xs text-[#A69B8D] hover:text-[#D4AF37] hover:border-[#D4AF37]/40"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-fo-border text-xs text-fo-muted hover:text-fo-accent hover:border-fo-accent/40"
             >
               <Pencil size={14} />
               Edit
@@ -269,12 +275,12 @@ export default function CommunityDetail() {
       </div>
 
       {loading && !notFound ? (
-        <div className="flex items-center justify-center gap-2 py-20 text-stone-400 text-sm">
+        <div className="flex items-center justify-center gap-2 py-20 text-fo-muted text-sm">
           <Loader2 className="w-4 h-4 animate-spin" />
           Loading community detail...
         </div>
       ) : !detail?.community ? (
-        <div className="border border-dashed border-stone-800 rounded-xl py-12 text-center text-stone-500 text-sm">
+        <div className="border border-dashed border-fo-border rounded-xl py-12 text-center text-fo-subtle text-sm">
           Community not found.
         </div>
       ) : (
@@ -285,30 +291,30 @@ export default function CommunityDetail() {
             {/* LEFT COLUMN (40%): Hero Cover + Description + Members */}
             <div className="space-y-4">
               {/* Cover Image Block (No Text Overlay) */}
-              <div className="relative rounded-xl overflow-hidden border border-[#2A241E] bg-[#0E0C0A]">
+              <div className="relative rounded-xl overflow-hidden border border-fo-border bg-fo-bg">
                 <div className="relative h-64 sm:h-80 lg:h-[380px]">
                   {heroImage ? (
                     <img src={heroImage} alt="" className="w-full h-full object-cover" />
                   ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-stone-900 to-[#0E0C0A]" />
+                    <div className="w-full h-full bg-gradient-to-br from-fo-surface-hover to-fo-bg" />
                   )}
                 </div>
               </div>
 
               {/* Description Section (Below Cover Image) */}
-              <section className="rounded-xl border border-[#2A241E] bg-[#141210] p-4 sm:p-5">
-                <h3 className="text-xs uppercase tracking-wider text-[#A69B8D] mb-2 font-semibold">
+              <section className={cardClass}>
+                <h3 className="text-xs uppercase tracking-wider text-fo-muted mb-2 font-semibold">
                   Description
                 </h3>
-                <p className="whitespace-pre-wrap text-xs sm:text-sm leading-relaxed text-[#E5E0D8]">
+                <p className="whitespace-pre-wrap text-xs sm:text-sm leading-relaxed text-fo-text">
                   {community?.description || 'No description available.'}
                 </p>
               </section>
 
               {/* Members Section (Below Description) */}
-              <section className="rounded-xl border border-[#2A241E] bg-[#141210] p-4 sm:p-5">
+              <section className={cardClass}>
                 <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2 text-[#D4AF37]">
+                  <div className="flex items-center gap-2 text-fo-accent">
                     <Users size={16} />
                     <h3 className="font-semibold text-xs sm:text-sm uppercase tracking-wider">
                       Members ({community?.memberCount || detail.members?.length || 0})
@@ -317,7 +323,7 @@ export default function CommunityDetail() {
                   <button
                     type="button"
                     onClick={() => setMembersOpen((prev) => !prev)}
-                    className="inline-flex items-center gap-1 text-xs text-[#A69B8D] hover:text-[#D4AF37] transition-colors"
+                    className="inline-flex items-center gap-1 text-xs text-fo-muted hover:text-fo-accent transition-colors"
                   >
                     {membersOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                     {membersOpen ? 'Hide' : 'Show'}
@@ -325,29 +331,44 @@ export default function CommunityDetail() {
                 </div>
 
                 {membersOpen && (
-                  <div className="mt-3 space-y-2 max-h-60 overflow-y-auto pr-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-[#2A241E]">
+                  <div className="mt-3 space-y-2 max-h-60 overflow-y-auto pr-1 fointer-scrollbar">
                     {detail.members?.map((member) => (
                       <div
                         key={member.id}
-                        className="flex items-center justify-between rounded-lg border border-[#2A241E] bg-[#0E0C0A] p-2.5"
+                        className="flex items-center justify-between gap-2 rounded-lg border border-fo-border bg-fo-surface-hover p-2.5"
                       >
-                        <div className="min-w-0">
-                          <p className="truncate text-xs sm:text-sm font-medium text-[#E5E0D8]">
-                            {member.user?.name || member.user?.username}
-                          </p>
-                          <p className="truncate text-[10px] sm:text-[11px] text-[#8C8070]">
-                            @{member.user?.username} · {member.role}
-                          </p>
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <ProfileAvatar
+                            src={member.user?.avatar}
+                            name={member.user?.name || member.user?.username}
+                            className="h-8 w-8 shrink-0 rounded-full border border-fo-border object-cover"
+                          />
+                          <div className="min-w-0">
+                            <p className="truncate text-xs sm:text-sm font-medium text-fo-text">
+                              {member.user?.name || member.user?.username}
+                            </p>
+                            <p className="truncate text-[10px] sm:text-[11px] text-fo-subtle">
+                              @{member.user?.username} · {member.role}
+                            </p>
+                          </div>
                         </div>
+                        {member.user?.id ? (
+                          <Link
+                            to={`/admin/users/${member.user.id}`}
+                            className="shrink-0 text-[11px] font-medium text-fo-accent hover:underline"
+                          >
+                            View profile
+                          </Link>
+                        ) : null}
                       </div>
                     ))}
                   </div>
                 )}
 
                 {moderators.length > 0 && (
-                  <p className="mt-3 text-[11px] text-[#8C8070] border-t border-[#2A241E] pt-2">
+                  <p className="mt-3 text-[11px] text-fo-subtle border-t border-fo-border pt-2">
                     Active moderators:{' '}
-                    <span className="text-[#E5E0D8]">
+                    <span className="text-fo-text">
                       {moderators.map((m) => m.user?.username).filter(Boolean).join(', ')}
                     </span>
                   </p>
@@ -361,22 +382,22 @@ export default function CommunityDetail() {
               {/* Header Title + Badges */}
               <div className="flex flex-col gap-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="inline-flex items-center gap-1 rounded bg-[#D4AF37] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-black">
+                  <span className="inline-flex items-center gap-1 rounded bg-fo-accent px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-black">
                     <Shield size={10} /> Admin View
                   </span>
-                  <span className="text-xs font-semibold uppercase tracking-wider text-[#D4AF37]">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-fo-accent">
                     {formatType(community?.type)}
                   </span>
                 </div>
-                <h1 className="font-serif text-2xl sm:text-3xl font-semibold text-[#D4AF37] leading-tight mt-1">
+                <h1 className="font-serif text-2xl sm:text-3xl font-semibold text-fo-accent leading-tight mt-1">
                   {community?.name}
                 </h1>
               </div>
 
               {/* Gallery Thumbnails */}
               {(community?.coverImage || galleryImages.length > 0) && (
-                <div className="rounded-xl border border-[#2A241E] bg-[#141210] p-3.5">
-                  <h3 className="text-[10px] uppercase tracking-wider text-[#A69B8D] mb-2 font-semibold">
+                <div className="rounded-xl border border-fo-border bg-fo-surface p-3.5">
+                  <h3 className="text-[10px] uppercase tracking-wider text-fo-muted mb-2 font-semibold">
                     Gallery Images
                   </h3>
                   <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
@@ -386,8 +407,8 @@ export default function CommunityDetail() {
                         onClick={() => setHeroPreview(community.coverImage)}
                         className={`relative aspect-square overflow-hidden rounded-lg border transition-all ${
                           heroImage === community.coverImage
-                            ? 'border-[#D4AF37] ring-1 ring-[#D4AF37]/50'
-                            : 'border-[#2A241E] hover:border-[#D4AF37]/40'
+                            ? 'border-fo-accent ring-1 ring-fo-accent/50'
+                            : 'border-fo-border hover:border-fo-accent/40'
                         }`}
                       >
                         <img src={community.coverImage} alt="" className="w-full h-full object-cover" />
@@ -400,8 +421,8 @@ export default function CommunityDetail() {
                         onClick={() => setHeroPreview(img)}
                         className={`aspect-square overflow-hidden rounded-lg border transition-all ${
                           heroImage === img
-                            ? 'border-[#D4AF37] ring-1 ring-[#D4AF37]/50'
-                            : 'border-[#2A241E] hover:border-[#D4AF37]/40'
+                            ? 'border-fo-accent ring-1 ring-fo-accent/50'
+                            : 'border-fo-border hover:border-fo-accent/40'
                         }`}
                       >
                         <img src={img} alt="" className="w-full h-full object-cover" />
@@ -412,46 +433,46 @@ export default function CommunityDetail() {
               )}
 
               {/* Community Overview Cards */}
-              <section className="rounded-xl border border-[#2A241E] bg-[#141210] p-4 sm:p-5 space-y-4">
+              <section className={`${cardClass} space-y-4`}>
                 <div className="flex items-center gap-2">
-                  <Shield size={16} className="text-[#D4AF37]" />
-                  <h2 className="font-serif text-base sm:text-lg font-semibold text-[#E5E0D8]">
+                  <Shield size={16} className="text-fo-accent" />
+                  <h2 className="font-serif text-base sm:text-lg font-semibold text-fo-text">
                     Community Overview
                   </h2>
                 </div>
 
                 <div className="grid grid-cols-3 gap-2.5">
-                  <div className="rounded-lg border border-[#2A241E] bg-[#0E0C0A] p-3 text-center">
-                    <p className="text-[10px] uppercase tracking-wider text-[#8C8070]">Type</p>
-                    <p className="mt-1 text-xs sm:text-sm font-semibold text-[#D4AF37] truncate">
+                  <div className={`${innerPanelClass} text-center`}>
+                    <p className="text-[10px] uppercase tracking-wider text-fo-subtle">Type</p>
+                    <p className="mt-1 text-xs sm:text-sm font-semibold text-fo-accent truncate">
                       {formatType(community?.type)}
                     </p>
                   </div>
-                  <div className="rounded-lg border border-[#2A241E] bg-[#0E0C0A] p-3 text-center">
-                    <p className="text-[10px] uppercase tracking-wider text-[#8C8070]">Members</p>
-                    <p className="mt-1 text-xs sm:text-sm font-semibold text-[#E5E0D8]">
+                  <div className={`${innerPanelClass} text-center`}>
+                    <p className="text-[10px] uppercase tracking-wider text-fo-subtle">Members</p>
+                    <p className="mt-1 text-xs sm:text-sm font-semibold text-fo-text">
                       {(community?.memberCount ?? 0).toLocaleString()}
                     </p>
                   </div>
-                  <div className="rounded-lg border border-[#2A241E] bg-[#0E0C0A] p-3 text-center">
-                    <p className="text-[10px] uppercase tracking-wider text-[#8C8070]">Posts</p>
-                    <p className="mt-1 text-xs sm:text-sm font-semibold text-[#E5E0D8]">
+                  <div className={`${innerPanelClass} text-center`}>
+                    <p className="text-[10px] uppercase tracking-wider text-fo-subtle">Posts</p>
+                    <p className="mt-1 text-xs sm:text-sm font-semibold text-fo-text">
                       {postsLoading ? '...' : posts.length}
                     </p>
                   </div>
                 </div>
 
                 {/* Owner Info Block */}
-                <div className="pt-2 border-t border-[#2A241E]">
-                  <div className="text-[10px] uppercase tracking-wider text-[#8C8070] mb-1 font-semibold">
+                <div className="pt-2 border-t border-fo-border">
+                  <div className="text-[10px] uppercase tracking-wider text-fo-subtle mb-1 font-semibold">
                     Owner
                   </div>
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#0E0C0A] border border-[#2A241E] text-xs sm:text-sm text-[#E5E0D8]">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-fo-surface-hover border border-fo-border text-xs sm:text-sm text-fo-text">
                     <span className="font-medium">
                       {community?.owner?.name || community?.owner?.username || 'Unknown owner'}
                     </span>
                     {community?.owner?.username && (
-                      <span className="text-[#8C8070]">
+                      <span className="text-fo-subtle">
                         (@{community.owner.username})
                       </span>
                     )}
@@ -460,16 +481,16 @@ export default function CommunityDetail() {
 
                 {/* Channel & Subchannels Section */}
                 {(channelName || subchannelList.length > 0) && (
-                  <div className="space-y-3 pt-2 border-t border-[#2A241E]">
+                  <div className="space-y-3 pt-2 border-t border-fo-border">
                     {channelName && (
                       <div>
-                        <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-[#8C8070] mb-1 font-bold">
-                          <Layers size={12} className="text-[#D4AF37]" />
+                        <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-fo-subtle mb-1 font-bold">
+                          <Layers size={12} className="text-fo-accent" />
                           Channel
                           <button
                           type="button"
                           onClick={openChannelManagement}
-                          className="inline-flex items-center px-2.5 py-1 rounded-md bg-[#D4AF37]/15 border border-[#D4AF37]/30 text-[#D4AF37] text-xs font-semibold hover:bg-[#D4AF37]/25 transition-colors"
+                          className="inline-flex items-center px-2.5 py-1 rounded-md bg-fo-accent/15 border border-fo-accent/30 text-fo-accent text-xs font-semibold hover:bg-fo-accent/25 transition-colors"
                         >
                           {channelName}
                         </button>
@@ -480,8 +501,8 @@ export default function CommunityDetail() {
 
                     {subchannelList.length > 0 && (
                       <div>
-                        <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-[#8C8070] mb-1.5 font-bold">
-                          <Grid size={12} className="text-[#D4AF37]" />
+                        <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-fo-subtle mb-1.5 font-bold">
+                          <Grid size={12} className="text-fo-accent" />
                           Subchannels ({subchannelList.length})
                         </div>
                         <div className="flex flex-wrap gap-1.5">
@@ -490,7 +511,7 @@ export default function CommunityDetail() {
                               key={sub.id || sub.name}
                               type="button"
                               onClick={() => openSubchannelManagement(sub.name)}
-                              className="px-2 py-0.5 rounded-md bg-[#1C1612] border border-[#2A241E] text-[#E5E0D8] text-[11px] font-medium hover:border-[#D4AF37]/40 hover:text-[#D4AF37] transition-colors"
+                              className="px-2 py-0.5 rounded-md bg-fo-surface-hover border border-fo-border text-fo-text text-[11px] font-medium hover:border-fo-accent/40 hover:text-fo-accent transition-colors"
                             >
                               {sub.name}
                             </button>
@@ -506,7 +527,7 @@ export default function CommunityDetail() {
                                     key={sub.id || sub.name}
                                     type="button"
                                     onClick={() => openSubchannelManagement(sub.name)}
-                                    className="px-2 py-0.5 rounded-md bg-[#1C1612] border border-[#2A241E] text-[#E5E0D8] text-sm font-medium hover:border-[#D4AF37]/40 hover:text-[#D4AF37] transition-colors"
+                                    className="px-2 py-0.5 rounded-md bg-fo-surface-hover border border-fo-border text-fo-text text-sm font-medium hover:border-fo-accent/40 hover:text-fo-accent transition-colors"
                                   >
                                     {sub.name}
                                   </button>
@@ -516,7 +537,7 @@ export default function CommunityDetail() {
                             <button
                               type="button"
                               onClick={() => setSubchannelsExpanded((v) => !v)}
-                              className="mt-2 text-[13px] font-medium text-[#D4AF37] hover:text-[#e0c04a] transition-colors"
+                              className="mt-2 text-[13px] font-medium text-fo-accent hover:text-fo-accent-hover transition-colors"
                             >
                               {subchannelsExpanded
                                 ? 'View less'
@@ -532,8 +553,8 @@ export default function CommunityDetail() {
                 {/* Rules Section (Below Subchannels) */}
              {/* Rules Section */}
 {community?.rules && (
-  <div className="pt-2 border-t border-[#2A241E]">
-    <div className="mb-1.5 text-[10px] uppercase text-[#8C8070] font-semibold">Rules</div>
+  <div className="pt-2 border-t border-fo-border">
+    <div className="mb-1.5 text-[10px] uppercase text-fo-subtle font-semibold">Rules</div>
     {(() => {
       const lines = community.rules.split('\n').map((r) => r.trim()).filter(Boolean);
       const main = lines.slice(0, 3);
@@ -541,17 +562,17 @@ export default function CommunityDetail() {
 
       return (
         <>
-          <ol className="space-y-1 text-sm text-[#E5E0D8]">
-            {main.map((r, i) => <li key={i}><span className="text-[#D4AF37] font-bold">{i + 1}.</span> {r}</li>)}
+          <ol className="space-y-1 text-sm text-fo-text">
+            {main.map((r, i) => <li key={i}><span className="text-fo-accent font-bold">{i + 1}.</span> {r}</li>)}
           </ol>
           {extra.length > 0 && (
             <>
               <Collapsible open={rulesExpanded}>
-                <ol className="space-y-1 pt-1 text-sm text-[#E5E0D8]">
-                  {extra.map((r, i) => <li key={i + 3}><span className="text-[#D4AF37] font-bold">{i + 4}.</span> {r}</li>)}
+                <ol className="space-y-1 pt-1 text-sm text-fo-text">
+                  {extra.map((r, i) => <li key={i + 3}><span className="text-fo-accent font-bold">{i + 4}.</span> {r}</li>)}
                 </ol>
               </Collapsible>
-              <button type="button" onClick={() => setRulesExpanded(!rulesExpanded)} className="mt-1 text-[13px] text-[#D4AF37]">
+              <button type="button" onClick={() => setRulesExpanded(!rulesExpanded)} className="mt-1 text-[13px] text-fo-accent">
                 {rulesExpanded ? 'View less' : `View more (${extra.length})`}
               </button>
             </>
@@ -564,15 +585,15 @@ export default function CommunityDetail() {
 
                 {/* Tags Section (Below Rules) */}
                 {community?.tags?.length > 0 && (
-                  <div className="pt-2 border-t border-[#2A241E]">
-                    <div className="mb-1.5 text-[10px] uppercase tracking-wider text-[#8C8070] font-semibold">
+                  <div className="pt-2 border-t border-fo-border">
+                    <div className="mb-1.5 text-[10px] uppercase tracking-wider text-fo-subtle font-semibold">
                       Tags
                     </div>
                     <div className="flex flex-wrap gap-1.5">
                       {community.tags.map((tag) => (
                         <span
                           key={tag}
-                          className="rounded-md bg-[#D4AF37]/10 border border-[#D4AF37]/20 px-2 py-0.5 text-[11px] text-[#D4AF37]"
+                          className="rounded-md bg-fo-accent/10 border border-fo-accent/20 px-2 py-0.5 text-[11px] text-fo-accent"
                         >
                           #{tag}
                         </span>
@@ -587,7 +608,7 @@ export default function CommunityDetail() {
           {/* Posts Feed Section */}
           <section className="pt-4">
             <div className="mb-3 flex flex-col gap-3 sm:mb-4 sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="font-serif text-xl sm:text-2xl font-semibold text-[#D4AF37]">
+              <h2 className="font-serif text-xl sm:text-2xl font-semibold text-fo-accent">
                 Community Posts
               </h2>
               <div className="flex flex-wrap gap-2">
@@ -600,8 +621,8 @@ export default function CommunityDetail() {
                     onClick={() => setFeedFilter(filter.id)}
                     className={`rounded-full px-3 py-1.5 text-[11px] sm:text-xs font-medium transition-colors ${
                       feedFilter === filter.id
-                        ? 'bg-[#D4AF37] text-black'
-                        : 'border border-[#2A241E] bg-[#141210] text-[#A69B8D] hover:text-[#E5E0D8]'
+                        ? 'bg-fo-accent text-black'
+                        : 'border border-fo-border bg-fo-surface text-fo-muted hover:text-fo-text'
                     }`}
                   >
                     {filter.label}
@@ -611,19 +632,18 @@ export default function CommunityDetail() {
             </div>
 
             {postsLoading ? (
-              <div className="flex items-center justify-center gap-2 py-12 text-sm text-[#A69B8D]">
+              <div className="flex items-center justify-center gap-2 py-12 text-sm text-fo-muted">
                 <Loader2 size={14} className="animate-spin" />
                 Loading posts...
               </div>
             ) : sortedPosts.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-[#2A241E] px-4 py-12 text-center text-xs text-[#8C8070]">
+              <div className="rounded-xl border border-dashed border-fo-border px-4 py-12 text-center text-xs text-fo-subtle">
                 No posts found for this community yet.
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
                 {sortedPosts.map((post) => {
                   const authorName = post.author?.name || post.author?.username || 'Member';
-                  const initial = authorName.charAt(0).toUpperCase();
                   return (
                     <article
                       key={post.id}
@@ -633,53 +653,47 @@ export default function CommunityDetail() {
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') openPost(post);
                       }}
-                      className="cursor-pointer flex flex-col justify-between rounded-xl border border-[#2A241E] bg-[#141210] p-3.5 transition-all hover:border-[#D4AF37]/40 hover:bg-[#181512]"
+                      className="cursor-pointer flex flex-col justify-between rounded-xl border border-fo-border bg-fo-surface p-3.5 transition-all hover:border-fo-accent/40 hover:bg-fo-surface-hover"
                     >
                       <div>
                         <div className="mb-2.5 flex items-center gap-2.5">
-                          {post.author?.avatar ? (
-                            <img
-                              src={post.author.avatar}
-                              alt=""
-                              className="h-7 w-7 shrink-0 rounded-full border border-[#2A241E] object-cover"
-                            />
-                          ) : (
-                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#D4AF37]/30 bg-[#D4AF37]/15 text-xs font-semibold text-[#D4AF37]">
-                              {initial}
-                            </div>
-                          )}
+                          <ProfileAvatar
+                            src={post.author?.avatar}
+                            name={authorName}
+                            className="h-7 w-7 shrink-0 rounded-full border border-fo-border object-cover"
+                          />
                           <div className="min-w-0 flex-1">
-                            <div className="truncate text-xs font-medium text-[#E5E0D8]">{authorName}</div>
-                            <div className="text-[10px] text-[#8C8070]">{timeAgo(post.createdAt)}</div>
+                            <div className="truncate text-xs font-medium text-fo-text">{authorName}</div>
+                            <div className="text-[10px] text-fo-subtle">{timeAgo(post.createdAt)}</div>
                           </div>
                         </div>
 
                         {post.title && (
-                          <h3 className="mb-1 line-clamp-1 font-serif text-xs font-semibold text-[#E5E0D8] sm:text-sm">
+                          <h3 className="mb-1 line-clamp-1 font-serif text-xs font-semibold text-fo-text sm:text-sm">
                             {post.title}
                           </h3>
                         )}
 
                         {post.text && (
-                          <p className="line-clamp-2 text-xs leading-relaxed text-[#A69B8D]">
+                          <p className="line-clamp-2 text-xs leading-relaxed text-fo-muted">
                             {post.text}
                           </p>
                         )}
 
                         {post.media?.length > 0 && (
-                          <div className="mt-2.5 max-h-40 overflow-hidden rounded-lg border border-[#2A241E]">
+                          <div className="mt-2.5 max-h-40 overflow-hidden rounded-lg border border-fo-border">
                             <PostMediaGallery media={post.media} />
                           </div>
                         )}
                       </div>
 
-                      <div className="mt-3 flex items-center gap-3 border-t border-[#2A241E] pt-2.5 text-[10px] text-[#8C8070]">
+                      <div className="mt-3 flex items-center gap-3 border-t border-fo-border pt-2.5 text-[10px] text-fo-subtle">
                         <span className="inline-flex items-center gap-1">
-                          <Heart size={12} className="text-[#D4AF37]/80" />
+                          <Heart size={12} className="text-fo-accent/80" />
                           {formatCount(post.likeCount)}
                         </span>
                         <span className="inline-flex items-center gap-1">
-                          <MessageCircle size={12} className="text-[#D4AF37]/80" />
+                          <MessageCircle size={12} className="text-fo-accent/80" />
                           {formatCount(post.commentCount)}
                         </span>
                       </div>
@@ -709,7 +723,7 @@ export default function CommunityDetail() {
       >
         <p>
           Are you sure you want to delete{' '}
-          <span className="text-[#E5E0D8] font-semibold">
+          <span className="text-fo-text font-semibold">
             {communityToDelete?.name}
           </span>
           ? This action cannot be undone.

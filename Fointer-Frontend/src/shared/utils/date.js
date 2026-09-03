@@ -1,15 +1,3 @@
-export const formatDate = (dateStr, options) => {
-  if (!dateStr) return '';
-  return new Date(dateStr).toLocaleDateString(
-    undefined,
-    options ?? {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    }
-  );
-};
-
 export const formatLongDate = (dateStr) => {
   if (!dateStr) return '—';
   return new Date(dateStr).toLocaleDateString(undefined, {

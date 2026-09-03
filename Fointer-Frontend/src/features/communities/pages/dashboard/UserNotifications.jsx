@@ -35,6 +35,7 @@ import { timeAgo } from "../../../../shared/utils/date";
 import { useToast } from "../../../../shared/components/feedback/ToastContext";
 import { DEFAULT_AVATAR } from "../../../../shared/constants/avatars";
 import { getLiveSocket } from "../../../../shared/services/liveSocket";
+import { getDashboardPathForRole } from "../../../../shared/lib/roles";
 
 const USER_FILTERS = [
   { id: "all", label: "All Activity" },
@@ -57,7 +58,7 @@ const typeIcon = (type) => {
   }
   if (type === "reshare") return { Icon: Repeat, className: "text-emerald-400" };
   if (type === "invite" || type === "invite_accepted" || type === "join_request") {
-    return { Icon: UserPlus, className: "text-[#D4AF37]" };
+    return { Icon: UserPlus, className: "text-fo-accent" };
   }
   if (type === "moderator_assigned" || type === "moderator_revoked") {
     return { Icon: Shield, className: "text-amber-300" };
@@ -68,13 +69,13 @@ const typeIcon = (type) => {
   if (type === "support_ticket" || type === "channel_request") {
     return {
       Icon: type === "channel_request" ? Layers : LifeBuoy,
-      className: "text-[#D4AF37]",
+      className: "text-fo-accent",
     };
   }
   if (type === "content_report") {
     return { Icon: Flag, className: "text-rose-400" };
   }
-  return { Icon: Bell, className: "text-[#D4AF37]" };
+  return { Icon: Bell, className: "text-fo-accent" };
 };
 
 export default function UserNotifications({ onBack }) {
@@ -91,7 +92,7 @@ export default function UserNotifications({ onBack }) {
 
   const handleBack = () => {
     if (onBack) onBack();
-    else navigate(isAdmin ? "/admin" : "/");
+    else navigate(isAdmin ? "/admin" : getDashboardPathForRole("user"));
   };
 
   const load = useCallback(async () => {
@@ -212,13 +213,13 @@ export default function UserNotifications({ onBack }) {
 
   return (
     <div className="w-full max-w-4xl mx-auto space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#2A241E] pb-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-fo-border pb-5">
         <div className="flex items-center gap-4">
           <button
             type="button"
             onClick={handleBack}
             title="Go Back"
-            className="p-2.5 rounded-xl bg-[#14100D] border border-[#2A241E] text-[#A69B8D] hover:text-[#D4AF37] hover:border-[#D4AF37]/50 hover:bg-[#1C1612] transition-all group"
+            className="p-2.5 rounded-xl bg-fo-surface border border-fo-border text-fo-muted hover:text-fo-accent hover:border-fo-accent/50 hover:bg-fo-surface-hover transition-all group"
           >
             <ArrowLeft
               size={18}
@@ -228,16 +229,16 @@ export default function UserNotifications({ onBack }) {
 
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-xl sm:text-2xl font-semibold text-[#E5E0D8]">
+              <h1 className="text-xl sm:text-2xl font-semibold text-fo-text">
                 Notifications
               </h1>
               {unreadCount > 0 && (
-                <span className="bg-[#D4AF37]/15 text-[#D4AF37] border border-[#D4AF37]/30 text-xs font-mono font-bold px-2.5 py-0.5 rounded-full">
+                <span className="bg-fo-accent/15 text-fo-accent border border-fo-accent/30 text-xs font-mono font-bold px-2.5 py-0.5 rounded-full">
                   {unreadCount} new
                 </span>
               )}
             </div>
-            <p className="text-xs text-[#8C8070] mt-1">
+            <p className="text-xs text-fo-subtle mt-1">
               {isAdmin
                 ? "New reports and pending channel requests from the platform."
                 : "Stay updated with mentions, community activity, and account status updates."}
@@ -252,8 +253,8 @@ export default function UserNotifications({ onBack }) {
             disabled={unreadCount === 0}
             className={`flex items-center gap-2 text-xs font-medium px-3 py-2 rounded-lg border transition-all ${
               unreadCount > 0
-                ? "border-[#3D3123] text-[#E5E0D8] bg-[#14100D] hover:border-[#D4AF37] hover:text-[#D4AF37]"
-                : "border-[#2A241E] text-[#5c5246] bg-[#0E0C0A] cursor-not-allowed"
+                ? "border-fo-border text-fo-text bg-fo-surface hover:border-fo-accent hover:text-fo-accent"
+                : "border-fo-border text-fo-subtle bg-fo-bg cursor-not-allowed"
             }`}
           >
             <CheckCheck size={14} /> Mark all as read
@@ -261,8 +262,8 @@ export default function UserNotifications({ onBack }) {
         </div>
       </div>
 
-      <div className="flex items-center gap-2 border-b border-[#2A241E]/60 pb-3 overflow-x-auto">
-        <Filter size={14} className="text-[#8C8070] ml-1 mr-2 shrink-0" />
+      <div className="flex items-center gap-2 border-b border-fo-border/60 pb-3 overflow-x-auto">
+        <Filter size={14} className="text-fo-subtle ml-1 mr-2 shrink-0" />
         {filters.map((tab) => (
           <button
             key={tab.id}
@@ -270,8 +271,8 @@ export default function UserNotifications({ onBack }) {
             onClick={() => setFilter(tab.id)}
             className={`text-xs px-3.5 py-1.5 rounded-full font-medium transition-all shrink-0 ${
               filter === tab.id
-                ? "bg-[#251E17] text-[#D4AF37] border border-[#D4AF37]/40 shadow-sm"
-                : "text-[#8C8070] hover:text-[#E5E0D8] hover:bg-[#1C1612]"
+                ? "bg-fo-surface-3 text-fo-accent border border-fo-accent/40 shadow-sm"
+                : "text-fo-subtle hover:text-fo-text hover:bg-fo-surface-hover"
             }`}
           >
             {tab.label}
@@ -281,7 +282,7 @@ export default function UserNotifications({ onBack }) {
 
       <div className="space-y-3">
         {loading ? (
-          <div className="flex items-center justify-center py-16 text-[#8C8070] gap-2 text-sm">
+          <div className="flex items-center justify-center py-16 text-fo-subtle gap-2 text-sm">
             <Loader2 size={18} className="animate-spin" />
             Loading notifications…
           </div>
@@ -293,12 +294,12 @@ export default function UserNotifications({ onBack }) {
                 key={n.id}
                 className={`group relative border p-4 sm:p-5 rounded-xl transition-all duration-200 flex items-start justify-between gap-4 ${
                   n.isUnread
-                    ? "border-[#D4AF37]/40 bg-[#1A140F] shadow-lg shadow-black/40"
-                    : "border-[#2A241E] bg-[#14100D] hover:border-[#3D3123]"
+                    ? "border-fo-accent/40 bg-fo-accent/10 shadow-md shadow-fo-accent/10"
+                    : "border-fo-border bg-fo-surface hover:border-fo-border"
                 }`}
               >
                 {n.isUnread && (
-                  <span className="absolute left-0 top-3 bottom-3 w-1 bg-[#D4AF37] rounded-r-full shadow-[0_0_8px_#D4AF37]" />
+                  <span className="absolute left-0 top-3 bottom-3 w-1 bg-fo-accent rounded-r-full shadow-[0_0_8px_var(--theme-accent)]" />
                 )}
 
                 <button
@@ -311,15 +312,15 @@ export default function UserNotifications({ onBack }) {
                       <img
                         src={n.actor.avatar || DEFAULT_AVATAR}
                         alt=""
-                        className="w-10 h-10 rounded-full object-cover border border-[#3D3123]"
+                        className="w-10 h-10 rounded-full object-cover border border-fo-border"
                       />
                     ) : (
-                      <div className="w-10 h-10 rounded-full bg-[#1C1612] border border-[#3D3123] flex items-center justify-center">
+                      <div className="w-10 h-10 rounded-full bg-fo-surface-hover border border-fo-border flex items-center justify-center">
                         <Icon size={18} className={iconColor} />
                       </div>
                     )}
                     {n.actor?.avatar ? (
-                      <div className="absolute -bottom-1 -right-1 bg-[#14100D] p-1 rounded-full border border-[#2A241E]">
+                      <div className="absolute -bottom-1 -right-1 bg-fo-surface p-1 rounded-full border border-fo-border">
                         <Icon size={11} className={iconColor} />
                       </div>
                     ) : null}
@@ -327,20 +328,20 @@ export default function UserNotifications({ onBack }) {
 
                   <div className="space-y-1 pr-2 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs font-mono uppercase text-[#D4AF37] font-semibold">
+                      <span className="text-xs font-mono uppercase text-fo-accent font-semibold">
                         {notificationTypeLabel(n)}
                       </span>
-                      <span className="text-[10px] text-[#8C8070]">
+                      <span className="text-[10px] text-fo-subtle">
                         • {timeAgo(n.createdAt)}
                       </span>
                     </div>
 
-                    <h3 className="text-sm font-semibold text-[#E5E0D8] leading-tight">
+                    <h3 className="text-sm font-semibold text-fo-text leading-tight">
                       {n.title}
                     </h3>
 
                     {n.body ? (
-                      <p className="text-xs text-[#A69B8D] leading-relaxed line-clamp-2">
+                      <p className="text-xs text-fo-muted leading-relaxed line-clamp-2">
                         {n.body}
                       </p>
                     ) : null}
@@ -352,7 +353,7 @@ export default function UserNotifications({ onBack }) {
                     type="button"
                     onClick={() => toggleReadStatus(n)}
                     title={n.isUnread ? "Mark as Read" : "Mark as Unread"}
-                    className="p-1.5 text-[#8C8070] hover:text-[#D4AF37] hover:bg-[#2A241E]/60 rounded-lg transition-colors"
+                    className="p-1.5 text-fo-subtle hover:text-fo-accent hover:bg-fo-surface-hover rounded-lg transition-colors"
                   >
                     <CheckCheck size={16} />
                   </button>
@@ -360,7 +361,7 @@ export default function UserNotifications({ onBack }) {
                     type="button"
                     onClick={() => handleDeleteNotification(n)}
                     title="Delete Notification"
-                    className="p-1.5 text-[#8C8070] hover:text-red-400 hover:bg-red-950/30 rounded-lg transition-colors"
+                    className="p-1.5 text-fo-subtle hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
                   >
                     <Trash2 size={16} />
                   </button>
@@ -369,14 +370,14 @@ export default function UserNotifications({ onBack }) {
             );
           })
         ) : (
-          <div className="bg-[#14100D] border border-[#2A241E] rounded-xl p-12 text-center space-y-3">
-            <div className="w-12 h-12 bg-[#1C1612] border border-[#2A241E] rounded-full flex items-center justify-center mx-auto text-[#8C8070]">
+          <div className="bg-fo-surface border border-fo-border rounded-xl p-12 text-center space-y-3">
+            <div className="w-12 h-12 bg-fo-surface-hover border border-fo-border rounded-full flex items-center justify-center mx-auto text-fo-subtle">
               <Bell size={20} />
             </div>
-            <h3 className="text-base font-semibold text-[#E5E0D8]">
+            <h3 className="text-base font-semibold text-fo-text">
               No notifications found
             </h3>
-            <p className="text-xs text-[#8C8070]">
+            <p className="text-xs text-fo-subtle">
               {isAdmin
                 ? "New reports and channel requests will show up here."
                 : "You're all caught up! Check back later for new mentions and community updates."}

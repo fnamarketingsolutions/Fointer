@@ -49,6 +49,47 @@ const userSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
+
+    city: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: 100,
+    },
+
+    state: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: 100,
+    },
+
+    country: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: 100,
+    },
+
+    zipCode: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: 20,
+    },
+
+    phone: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: 30,
+    },
+
+    yearOfBirth: {
+      type: Number,
+      min: 1900,
+      max: new Date().getFullYear(),
+    },
     isEmailVerified: {
       type: Boolean,
       default: false,

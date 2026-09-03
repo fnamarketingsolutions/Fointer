@@ -38,6 +38,7 @@ import { useAuth } from "../../../../context/AuthContext";
 import { timeAgo } from "../../../../shared/utils/date";
 import { formatCount } from "../../../../shared/utils/format";
 import PostActions from "../../../../shared/components/PostActions";
+import UserProfileLink from "../../../../shared/components/UserProfileLink";
 
 const PAGE_SIZE = 15;
 
@@ -61,27 +62,30 @@ function FeedPostRow({ post, onClick, active, onLike, onReshare, onComment }) {
   return (
     <article
       onClick={onClick}
-      className={`group flex gap-3 bg-[#14100D] border rounded-xl overflow-hidden cursor-pointer transition-colors p-3 sm:p-4 ${
+      className={`group flex gap-3 bg-fo-surface border rounded-xl overflow-hidden cursor-pointer transition-colors p-3 sm:p-4 ${
         active
-          ? "border-[#D4AF37]/50"
-          : "border-[#2A241E] hover:border-[#D4AF37]/35"
+          ? "border-fo-accent/50"
+          : "border-fo-border hover:border-fo-accent/35"
       }`}
     >
       <div className="flex-1 min-w-0 space-y-2">
-        <div className="flex items-center gap-2 text-[11px] text-[#8C8070] flex-wrap">
-          <span className="font-semibold text-[#A69B8D] group-hover:text-[#D4AF37] transition-colors">
+        <div className="flex items-center gap-2 text-[11px] text-fo-subtle flex-wrap">
+          <UserProfileLink
+            author={post?.author}
+            className="font-semibold text-fo-muted hover:text-fo-accent transition-colors"
+          >
             {authorName}
-          </span>
+          </UserProfileLink>
           <span>·</span>
           <span>{timeAgo(post?.createdAt)}</span>
         </div>
 
-        <h2 className="text-sm sm:text-base font-semibold text-[#E5E0D8] leading-snug group-hover:text-[#D4AF37] transition-colors line-clamp-2">
+        <h2 className="text-sm sm:text-base font-semibold text-fo-text leading-snug group-hover:text-fo-accent transition-colors line-clamp-2">
           {post?.title || "Untitled"}
         </h2>
 
         {post?.text ? (
-          <p className="text-xs sm:text-sm text-[#A69B8D] line-clamp-2 leading-relaxed">
+          <p className="text-xs sm:text-sm text-fo-muted line-clamp-2 leading-relaxed">
             {post.text}
           </p>
         ) : null}
@@ -98,7 +102,7 @@ function FeedPostRow({ post, onClick, active, onLike, onReshare, onComment }) {
       </div>
 
       {coverImage ? (
-        <div className="hidden sm:block w-24 h-20 shrink-0 rounded-lg overflow-hidden bg-[#0A0806] border border-[#2A241E]">
+        <div className="hidden sm:block w-24 h-20 shrink-0 rounded-lg overflow-hidden bg-fo-surface-2 border border-fo-border">
           <img
             src={coverImage.url}
             alt=""
@@ -130,9 +134,9 @@ function CommunitySidebar({
 
   return (
     <aside className="space-y-4">
-      <div className="bg-[#14100D] border border-[#2A241E] rounded-xl overflow-hidden">
+      <div className="bg-fo-surface border border-fo-border rounded-xl overflow-hidden">
         {community?.coverImage ? (
-          <div className="h-24 bg-[#0A0806]">
+          <div className="h-24 bg-fo-surface-2">
             <img
               src={community.coverImage}
               alt=""
@@ -144,39 +148,44 @@ function CommunitySidebar({
         )}
         <div className="p-4 space-y-3">
           <div>
-            <h3 className="text-sm font-semibold text-[#E5E0D8] leading-snug">
+            <h3 className="text-sm font-semibold text-fo-text leading-snug">
               {community?.name}
             </h3>
-            <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-[#8C8070] capitalize">
-              <TypeIcon size={11} className="text-[#D4AF37]" />
+            <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-fo-subtle capitalize">
+              <TypeIcon size={11} className="text-fo-accent" />
               {typeLabel}
             </p>
           </div>
 
           {community?.description ? (
-            <p className="text-xs text-[#A69B8D] leading-relaxed line-clamp-4">
+            <p className="text-xs text-fo-muted leading-relaxed line-clamp-4">
               {community.description}
             </p>
           ) : null}
 
-          <div className="flex items-center gap-3 text-[11px] text-[#8C8070] pt-1 border-t border-[#2A241E]">
+          <div className="flex items-center gap-3 text-[11px] text-fo-subtle pt-1 border-t border-fo-border">
             <span className="inline-flex items-center gap-1">
-              <Users size={11} className="text-[#D4AF37]" />
+              <Users size={11} className="text-fo-accent" />
               {formatCount(community?.memberCount || 0)} members
             </span>
             <span>·</span>
-            <span>{ownerName}</span>
+            <UserProfileLink
+              author={community?.owner}
+              className="hover:text-fo-accent transition-colors"
+            >
+              {ownerName}
+            </UserProfileLink>
           </div>
         </div>
       </div>
 
       {rules.length > 0 ? (
-        <div className="bg-[#14100D] border border-[#2A241E] rounded-xl p-4 space-y-2">
-          <h4 className="text-sm font-semibold text-[#E5E0D8]">Rules</h4>
+        <div className="bg-fo-surface border border-fo-border rounded-xl p-4 space-y-2">
+          <h4 className="text-sm font-semibold text-fo-text">Rules</h4>
           <ol className="space-y-1.5">
             {rules.map((rule, i) => (
-              <li key={i} className="flex gap-2 text-xs text-[#A69B8D]">
-                <span className="text-[#D4AF37] font-semibold shrink-0">
+              <li key={i} className="flex gap-2 text-xs text-fo-muted">
+                <span className="text-fo-accent font-semibold shrink-0">
                   {i + 1}.
                 </span>
                 <span className="leading-relaxed">{rule}</span>
@@ -186,25 +195,25 @@ function CommunitySidebar({
         </div>
       ) : null}
 
-      <div className="bg-[#14100D] border border-[#2A241E] rounded-xl p-4 space-y-3">
-        <div className="flex items-center gap-2 text-sm font-semibold text-[#E5E0D8]">
+      <div className="bg-fo-surface border border-fo-border rounded-xl p-4 space-y-3">
+        <div className="flex items-center gap-2 text-sm font-semibold text-fo-text">
           <Video size={15} className="text-red-400" />
           Live now
         </div>
         {liveLoading ? (
-          <div className="flex items-center gap-2 text-xs text-[#8C8070]">
-            <Loader2 size={12} className="animate-spin text-[#D4AF37]" />
+          <div className="flex items-center gap-2 text-xs text-fo-subtle">
+            <Loader2 size={12} className="animate-spin text-fo-accent" />
             Loading…
           </div>
         ) : liveEvents.length === 0 ? (
-          <p className="text-xs text-[#8C8070]">No live events.</p>
+          <p className="text-xs text-fo-subtle">No live events.</p>
         ) : (
           <ul className="space-y-2">
             {liveEvents.slice(0, 4).map((ev) => (
               <li key={ev.id}>
                 <Link
                   to={`/live-events/${ev.id}`}
-                  className="block text-xs text-[#E5E0D8] hover:text-[#D4AF37] line-clamp-2"
+                  className="block text-xs text-fo-text hover:text-fo-accent line-clamp-2"
                 >
                   {ev.title}
                 </Link>
@@ -214,25 +223,25 @@ function CommunitySidebar({
         )}
       </div>
 
-      <div className="bg-[#14100D] border border-[#2A241E] rounded-xl p-4 space-y-3">
-        <div className="flex items-center gap-2 text-sm font-semibold text-[#E5E0D8]">
-          <Radio size={15} className="text-[#D4AF37]" />
+      <div className="bg-fo-surface border border-fo-border rounded-xl p-4 space-y-3">
+        <div className="flex items-center gap-2 text-sm font-semibold text-fo-text">
+          <Radio size={15} className="text-fo-accent" />
           Watch groups
         </div>
         {watchLoading ? (
-          <div className="flex items-center gap-2 text-xs text-[#8C8070]">
-            <Loader2 size={12} className="animate-spin text-[#D4AF37]" />
+          <div className="flex items-center gap-2 text-xs text-fo-subtle">
+            <Loader2 size={12} className="animate-spin text-fo-accent" />
             Loading…
           </div>
         ) : watchGroups.length === 0 ? (
-          <p className="text-xs text-[#8C8070]">No watch groups.</p>
+          <p className="text-xs text-fo-subtle">No watch groups.</p>
         ) : (
           <ul className="space-y-2">
             {watchGroups.slice(0, 4).map((g) => (
               <li key={g.id}>
                 <Link
                   to={`/watch-groups/${g.id}`}
-                  className="block text-xs text-[#E5E0D8] hover:text-[#D4AF37] line-clamp-2"
+                  className="block text-xs text-fo-text hover:text-fo-accent line-clamp-2"
                 >
                   {g.name}
                 </Link>
@@ -590,8 +599,8 @@ export default function CommunityFeed() {
 
   if (resolvingCommunity || (communityLoading && !community)) {
     return (
-      <div className="flex items-center justify-center py-16 text-[#A69B8D] text-sm gap-2">
-        <Loader2 size={16} className="animate-spin text-[#D4AF37]" />
+      <div className="flex items-center justify-center py-16 text-fo-muted text-sm gap-2">
+        <Loader2 size={16} className="animate-spin text-fo-accent" />
         Loading community…
       </div>
     );
@@ -600,10 +609,10 @@ export default function CommunityFeed() {
   if (!community) {
     return (
       <div className="max-w-3xl mx-auto text-center py-16 space-y-3">
-        <p className="text-sm text-[#8C8070]">Community not found.</p>
+        <p className="text-sm text-fo-subtle">Community not found.</p>
         <Link
           to="/communities"
-          className="inline-flex items-center gap-1.5 text-sm text-[#D4AF37] hover:text-[#e0c04a]"
+          className="inline-flex items-center gap-1.5 text-sm text-fo-accent hover:text-fo-accent-hover"
         >
           <ArrowLeft size={14} /> Back to Communities
         </Link>
@@ -613,7 +622,7 @@ export default function CommunityFeed() {
 
   if (showCreatePost) {
     return (
-      <div className="text-[#E5E0D8] w-full max-w-6xl mx-auto px-2 sm:px-4 lg:px-6 pb-10">
+      <div className="text-fo-text w-full max-w-6xl mx-auto px-2 sm:px-4 lg:px-6 pb-10">
         <CreatePostForm
           title={postForm.title}
           text={postForm.text}
@@ -637,24 +646,24 @@ export default function CommunityFeed() {
 
   if (viewingPost) {
     return (
-      <div className="text-[#E5E0D8] w-full max-w-6xl mx-auto px-2 sm:px-4 lg:px-6 pb-10">
+      <div className="text-fo-text w-full max-w-6xl mx-auto px-2 sm:px-4 lg:px-6 pb-10">
         <button
           type="button"
           onClick={closePost}
-          className="inline-flex items-center gap-1.5 text-xs text-[#A69B8D] hover:text-[#D4AF37] mb-4"
+          className="inline-flex items-center gap-1.5 text-xs text-fo-muted hover:text-fo-accent mb-4"
         >
           <ArrowLeft size={14} /> Back to {community.name}
         </button>
 
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px] gap-5 items-start">
-          <div className="min-w-0 bg-[#14100D] border border-[#2A241E] rounded-xl overflow-hidden">
+          <div className="min-w-0 bg-fo-surface border border-fo-border rounded-xl overflow-hidden">
             {resolvingPost ? (
-              <div className="flex items-center justify-center gap-2 py-20 text-sm text-[#A69B8D]">
-                <Loader2 size={16} className="animate-spin text-[#D4AF37]" />
+              <div className="flex items-center justify-center gap-2 py-20 text-sm text-fo-muted">
+                <Loader2 size={16} className="animate-spin text-fo-accent" />
                 Loading post…
               </div>
             ) : postNotFound || !openPostId ? (
-              <div className="border border-dashed border-[#2A241E] rounded-xl m-4 py-14 text-center text-sm text-[#8C8070]">
+              <div className="border border-dashed border-fo-border rounded-xl m-4 py-14 text-center text-sm text-fo-subtle">
                 Post not found.
               </div>
             ) : (
@@ -689,21 +698,21 @@ export default function CommunityFeed() {
   }
 
   return (
-    <div className="text-[#E5E0D8] w-full max-w-6xl mx-auto px-2 sm:px-4 lg:px-6 pb-10">
+    <div className="text-fo-text w-full max-w-6xl mx-auto px-2 sm:px-4 lg:px-6 pb-10">
       <div className="mb-5 sm:mb-6 space-y-4">
         <Link
           to="/communities"
-          className="inline-flex items-center gap-1.5 text-xs text-[#A69B8D] hover:text-[#D4AF37]"
+          className="inline-flex items-center gap-1.5 text-xs text-fo-muted hover:text-fo-accent"
         >
           <ArrowLeft size={14} /> Communities
         </Link>
 
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
           <div className="min-w-0 space-y-1">
-            <h1 className="text-2xl sm:text-3xl font-semibold text-[#E5E0D8] leading-tight truncate">
+            <h1 className="text-2xl sm:text-3xl font-semibold text-fo-text leading-tight truncate">
               {community.name}
             </h1>
-            <p className="text-sm text-[#8C8070] max-w-xl line-clamp-2">
+            <p className="text-sm text-fo-subtle max-w-xl line-clamp-2">
               {community.description ||
                 "Posts and discussion from this community."}
             </p>
@@ -713,7 +722,7 @@ export default function CommunityFeed() {
             <button
               type="button"
               onClick={() => setShowCreatePost(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#D4AF37] text-black text-xs font-semibold hover:bg-[#e0c04a] shrink-0"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-fo-accent text-black text-xs font-semibold hover:bg-fo-accent-hover shrink-0"
             >
               <Plus size={14} /> Create post
             </button>
@@ -721,15 +730,15 @@ export default function CommunityFeed() {
         </div>
 
         {inviteId ? (
-          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[#D4AF37]/35 bg-[#D4AF37]/10 px-4 py-3">
-            <p className="text-xs text-[#E5E0D8] flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-fo-accent/35 bg-fo-accent/10 px-4 py-3">
+            <p className="text-xs text-fo-text flex-1 min-w-0">
               You have a pending invite to this community.
             </p>
             <button
               type="button"
               disabled={inviteBusy}
               onClick={handleDeclineInvite}
-              className="px-3 py-1.5 rounded-lg text-xs border border-[#2A241E] text-[#A69B8D] hover:text-[#E5E0D8] disabled:opacity-50"
+              className="px-3 py-1.5 rounded-lg text-xs border border-fo-border text-fo-muted hover:text-fo-text disabled:opacity-50"
             >
               Decline
             </button>
@@ -737,7 +746,7 @@ export default function CommunityFeed() {
               type="button"
               disabled={inviteBusy}
               onClick={handleAcceptInvite}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-[#D4AF37] text-black font-semibold disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-fo-accent text-black font-semibold disabled:opacity-50"
             >
               {inviteBusy ? (
                 <Loader2 size={12} className="animate-spin" />
@@ -748,9 +757,9 @@ export default function CommunityFeed() {
         ) : null}
 
         {!community.isMember && !inviteId ? (
-          <div className="rounded-xl border border-[#2A241E] bg-[#14100D] px-4 py-3 space-y-2">
+          <div className="rounded-xl border border-fo-border bg-fo-surface px-4 py-3 space-y-2">
             {community.joinRequestPending ? (
-              <p className="text-xs text-[#D4AF37]">
+              <p className="text-xs text-fo-accent">
                 Your join request is pending.
               </p>
             ) : canJoinPublic ? (
@@ -758,7 +767,7 @@ export default function CommunityFeed() {
                 type="button"
                 disabled={joining}
                 onClick={handleJoin}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#D4AF37] text-black text-xs font-semibold disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-fo-accent text-black text-xs font-semibold disabled:opacity-50"
               >
                 {joining ? (
                   <Loader2 size={12} className="animate-spin" />
@@ -774,13 +783,13 @@ export default function CommunityFeed() {
                   onChange={(e) => setJoinMessage(e.target.value)}
                   rows={2}
                   placeholder="Optional message to the moderators…"
-                  className="w-full bg-[#0E0C0A] border border-[#2A241E] rounded-lg px-3 py-2 text-xs text-[#E5E0D8] focus:outline-none focus:border-[#D4AF37]/50 placeholder:text-[#5C5348]"
+                  className="w-full bg-fo-bg border border-fo-border rounded-lg px-3 py-2 text-xs text-fo-text focus:outline-none focus:border-fo-accent/50 placeholder:text-fo-subtle"
                 />
                 <button
                   type="button"
                   disabled={joining}
                   onClick={handleJoin}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#D4AF37] text-black text-xs font-semibold disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-fo-accent text-black text-xs font-semibold disabled:opacity-50"
                 >
                   {joining ? (
                     <Loader2 size={12} className="animate-spin" />
@@ -789,7 +798,7 @@ export default function CommunityFeed() {
                 </button>
               </div>
             ) : (
-              <p className="text-xs text-[#8C8070]">
+              <p className="text-xs text-fo-subtle">
                 This community is invite-only.
               </p>
             )}
@@ -808,25 +817,25 @@ export default function CommunityFeed() {
                 <div className="relative flex-1 min-w-0">
                   <Search
                     size={16}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8C8070] pointer-events-none"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-fo-subtle pointer-events-none"
                   />
                   <input
                     type="search"
                     value={searchInput}
                     onChange={(e) => setSearchInput(e.target.value)}
                     placeholder="Search posts in this community…"
-                    className="w-full pl-9 pr-3 py-2.5 rounded-lg bg-[#14100D] border border-[#2A241E] text-[#E5E0D8] text-sm placeholder:text-[#5C5348] focus:outline-none focus:border-[#D4AF37]/50"
+                    className="w-full pl-9 pr-3 py-2.5 rounded-lg bg-fo-surface border border-fo-border text-fo-text text-sm placeholder:text-fo-subtle focus:outline-none focus:border-fo-accent/50"
                   />
                 </div>
                 <button
                   type="submit"
-                  className="px-4 py-2.5 rounded-lg bg-[#D4AF37] text-black text-sm font-semibold hover:bg-[#e0c04a] shrink-0"
+                  className="px-4 py-2.5 rounded-lg bg-fo-accent text-black text-sm font-semibold hover:bg-fo-accent-hover shrink-0"
                 >
                   Search
                 </button>
               </form>
 
-              <div className="flex flex-wrap items-center gap-1.5 border-b border-[#2A241E] pb-3">
+              <div className="flex flex-wrap items-center gap-1.5 border-b border-fo-border pb-3">
                 {SORT_OPTIONS.map((opt) => {
                   const active = sortBy === opt.id;
                   return (
@@ -836,8 +845,8 @@ export default function CommunityFeed() {
                       onClick={() => setSortBy(opt.id)}
                       className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
                         active
-                          ? "bg-[#D4AF37]/15 text-[#D4AF37]"
-                          : "text-[#8C8070] hover:text-[#E5E0D8] hover:bg-[#1C1612]"
+                          ? "bg-fo-accent/15 text-fo-accent"
+                          : "text-fo-subtle hover:text-fo-text hover:bg-fo-surface-hover"
                       }`}
                     >
                       {opt.label}
@@ -847,12 +856,12 @@ export default function CommunityFeed() {
               </div>
 
               {loading ? (
-                <div className="flex items-center justify-center py-16 text-[#A69B8D] text-sm gap-2">
-                  <Loader2 size={18} className="animate-spin text-[#D4AF37]" />
+                <div className="flex items-center justify-center py-16 text-fo-muted text-sm gap-2">
+                  <Loader2 size={18} className="animate-spin text-fo-accent" />
                   Loading posts…
                 </div>
               ) : posts.length === 0 ? (
-                <div className="border border-dashed border-[#2A241E] rounded-xl py-14 text-center text-[#8C8070] text-sm px-4 space-y-3">
+                <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-fo-subtle text-sm px-4 space-y-3">
                   <p>
                     {query
                       ? `No posts match “${query}”.`
@@ -862,7 +871,7 @@ export default function CommunityFeed() {
                     <button
                       type="button"
                       onClick={() => setShowCreatePost(true)}
-                      className="inline-flex items-center gap-2 text-[#D4AF37] hover:text-[#e0c04a] font-medium"
+                      className="inline-flex items-center gap-2 text-fo-accent hover:text-fo-accent-hover font-medium"
                     >
                       <Plus size={14} /> Create the first post
                     </button>
@@ -890,12 +899,12 @@ export default function CommunityFeed() {
                         type="button"
                         onClick={handleLoadMore}
                         disabled={loadingMore}
-                        className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg border border-[#2A241E] text-sm text-[#E5E0D8] hover:border-[#D4AF37]/50 hover:text-[#D4AF37] disabled:opacity-60 transition-colors"
+                        className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg border border-fo-border text-sm text-fo-text hover:border-fo-accent/50 hover:text-fo-accent disabled:opacity-60 transition-colors"
                       >
                         {loadingMore ? (
                           <Loader2
                             size={16}
-                            className="animate-spin text-[#D4AF37]"
+                            className="animate-spin text-fo-accent"
                           />
                         ) : null}
                         Load more
@@ -906,7 +915,7 @@ export default function CommunityFeed() {
               )}
             </>
           ) : (
-            <div className="border border-dashed border-[#2A241E] rounded-xl py-14 text-center text-[#8C8070] text-sm px-4">
+            <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-fo-subtle text-sm px-4">
               Join this community to see its posts and discussions.
             </div>
           )}

@@ -205,7 +205,7 @@ export const createLiveEvent = async (req, res) => {
     const access = String(req.body.access || "community")
       .toLowerCase()
       .trim();
-    const communityId = req.body.communityId;
+    const communityId = parseObjectIdInput(req.body.communityId);
 
     if (!title) {
       return res.status(400).json({
@@ -236,7 +236,7 @@ export const createLiveEvent = async (req, res) => {
     if (!communityId) {
       return res.status(400).json({
         success: false,
-        message: "Community is required.",
+        message: "Valid community id is required.",
       });
     }
 

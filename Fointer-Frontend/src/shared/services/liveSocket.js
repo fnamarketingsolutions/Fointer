@@ -19,10 +19,3 @@ export const getLiveSocket = () => {
 
   return socket;
 };
-
-export const disconnectLiveSocket = () => {
-  if (socket) {
-    socket.disconnect();
-    socket = null;
-  }
-};

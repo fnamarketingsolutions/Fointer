@@ -10,6 +10,7 @@ import {
   LuFlag as Flag
 } from "react-icons/lu";
 import PostAuthorAvatar from "./PostAuthorAvatar";
+import UserProfileLink from "../../../shared/components/UserProfileLink";
 import { timeAgo } from "../../../shared/utils/date";
 
 export default function PostCommentsSection({
@@ -48,24 +49,24 @@ export default function PostCommentsSection({
 
   return (
     <section
-      className={`bg-[#14100D] shadow-xl ${
+      className={`bg-fo-surface shadow-xl ${
         compact
           ? "rounded-lg p-4 space-y-4"
           : "rounded-xl p-5 sm:p-8 space-y-6"
       }`}
     >
       <div
-        className={`flex items-center justify-between gap-3 border-b border-[#2A241E] ${
+        className={`flex items-center justify-between gap-3 border-b border-fo-border ${
           compact ? "pb-3" : "pb-4"
         }`}
       >
         <h2
-          className={`font-serif font-semibold text-[#E5E0D8] ${
+          className={`font-serif font-semibold text-fo-text ${
             compact ? "text-base" : "text-lg sm:text-xl"
           }`}
         >
           Discussion{" "}
-          <span className="text-[#A69B8D] font-sans text-xs sm:text-sm">
+          <span className="text-fo-muted font-sans text-xs sm:text-sm">
             ({post.commentCount || comments.length || 0})
           </span>
         </h2>
@@ -75,7 +76,7 @@ export default function PostCommentsSection({
             <button
               type="button"
               onClick={() => setCommentsExpanded(true)}
-              className="text-xs text-[#D4AF37] hover:text-[#c3a030] transition-colors shrink-0"
+              className="text-xs text-fo-accent hover:text-[#c3a030] transition-colors shrink-0"
             >
               View all comments
             </button>
@@ -90,13 +91,13 @@ export default function PostCommentsSection({
             : "max-h-0 opacity-0 pointer-events-none"
         }`}
       >
-        <div className="rounded-lg border border-[#2A241E] bg-[#0E0C0A] p-4 space-y-3">
+        <div className="rounded-lg border border-fo-border bg-fo-bg p-4 space-y-3">
           <textarea
             value={commentText}
             onChange={(e) => setCommentText(e.target.value)}
             rows={3}
             placeholder="Write a comment..."
-            className="w-full bg-transparent text-sm text-[#E5E0D8] placeholder:text-[#8C8070] focus:outline-none resize-y"
+            className="w-full bg-transparent text-sm text-fo-text placeholder:text-fo-subtle focus:outline-none resize-y"
           />
           <div className="flex justify-end gap-2">
             <button
@@ -106,14 +107,14 @@ export default function PostCommentsSection({
                 if (compact) setCommentsOpen(false);
                 setCommentText("");
               }}
-              className="px-3.5 py-2 rounded-lg text-xs text-[#A69B8D] hover:text-[#E5E0D8] transition-colors"
+              className="px-3.5 py-2 rounded-lg text-xs text-fo-muted hover:text-fo-text transition-colors"
             >
               Cancel
             </button>
             <button
               type="button"
               onClick={() => submitComment(null)}
-              className="px-4 py-2 rounded-lg bg-[#D4AF37] text-[#0E0C0A] text-xs font-bold hover:bg-[#c3a030] transition-colors"
+              className="px-4 py-2 rounded-lg bg-fo-accent text-fo-bg text-xs font-bold hover:bg-[#c3a030] transition-colors"
             >
               Post Comment
             </button>
@@ -123,12 +124,12 @@ export default function PostCommentsSection({
 
       {/* Comments List */}
       {commentsLoading ? (
-        <div className="flex items-center gap-2 text-xs text-[#8C8070] py-4">
-          <Loader2 size={14} className="animate-spin text-[#D4AF37]" />{" "}
+        <div className="flex items-center gap-2 text-xs text-fo-subtle py-4">
+          <Loader2 size={14} className="animate-spin text-fo-accent" />{" "}
           Loading comments...
         </div>
       ) : topLevel.length === 0 ? (
-        <p className="text-xs text-[#8C8070] py-4">No comments yet.</p>
+        <p className="text-xs text-fo-subtle py-4">No comments yet.</p>
       ) : (
         <div className="space-y-6">
           {visibleTopLevel.map((comment) => {
@@ -141,7 +142,7 @@ export default function PostCommentsSection({
                 {/* Parent Comment Item */}
                 <div className="py-2">
                   {editingComment?.id === comment.id ? (
-                    <div className="space-y-3 bg-[#0E0C0A] p-3 rounded-lg border border-[#2A241E]">
+                    <div className="space-y-3 bg-fo-bg p-3 rounded-lg border border-fo-border">
                       <textarea
                         value={editingComment.text}
                         onChange={(e) =>
@@ -151,20 +152,20 @@ export default function PostCommentsSection({
                           }))
                         }
                         rows={2}
-                        className="w-full bg-[#14100D] border border-[#2A241E] rounded-lg px-3 py-2 text-xs text-[#E5E0D8] focus:outline-none focus:border-[#D4AF37]/60 resize-y"
+                        className="w-full bg-fo-surface border border-fo-border rounded-lg px-3 py-2 text-xs text-fo-text focus:outline-none focus:border-fo-accent/60 resize-y"
                       />
                       <div className="flex gap-2 justify-end">
                         <button
                           type="button"
                           onClick={() => setEditingComment(null)}
-                          className="px-3 py-1.5 rounded border border-[#2A241E] text-[11px] text-[#A69B8D] hover:text-[#E5E0D8]"
+                          className="px-3 py-1.5 rounded border border-fo-border text-[11px] text-fo-muted hover:text-fo-text"
                         >
                           Cancel
                         </button>
                         <button
                           type="button"
                           onClick={saveCommentEdit}
-                          className="px-3.5 py-1.5 rounded bg-[#D4AF37] text-[#0E0C0A] text-[11px] font-bold hover:bg-[#c3a030]"
+                          className="px-3.5 py-1.5 rounded bg-fo-accent text-fo-bg text-[11px] font-bold hover:bg-[#c3a030]"
                         >
                           Save
                         </button>
@@ -177,16 +178,19 @@ export default function PostCommentsSection({
                         {/* Header info */}
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-xs font-bold text-[#E5E0D8]">
+                            <UserProfileLink
+                              author={comment.author}
+                              className="text-xs font-bold text-fo-text hover:text-fo-accent transition-colors"
+                            >
                               {comment.author?.name ||
                                 comment.author?.username ||
                                 "Member"}
-                            </span>
-                            <span className="text-[11px] text-[#8C8070]">
+                            </UserProfileLink>
+                            <span className="text-[11px] text-fo-subtle">
                               {timeAgo(comment.createdAt)}
                             </span>
                             {comment.author?.role && (
-                              <span className="text-[9px] uppercase tracking-wider bg-[#D4AF37]/15 text-[#D4AF37] px-1.5 py-0.5 rounded font-mono border border-[#D4AF37]/30">
+                              <span className="text-[9px] uppercase tracking-wider bg-fo-accent/15 text-fo-accent px-1.5 py-0.5 rounded font-mono border border-fo-accent/30">
                                 {comment.author.role}
                               </span>
                             )}
@@ -203,7 +207,7 @@ export default function PostCommentsSection({
                                     label: "this comment",
                                   })
                                 }
-                                className="text-[#8C8070] hover:text-red-400 transition-colors p-1"
+                                className="text-fo-subtle hover:text-red-400 transition-colors p-1"
                                 title="Report comment"
                               >
                                 <Flag size={12} />
@@ -216,7 +220,7 @@ export default function PostCommentsSection({
                                   <button
                                     type="button"
                                     onClick={() => openEditComment(comment)}
-                                    className="text-[#8C8070] hover:text-[#D4AF37] transition-colors p-1"
+                                    className="text-fo-subtle hover:text-fo-accent transition-colors p-1"
                                     title="Edit comment"
                                   >
                                     <Pencil size={12} />
@@ -226,7 +230,7 @@ export default function PostCommentsSection({
                                   <button
                                     type="button"
                                     onClick={() => openDeleteComment(comment)}
-                                    className="text-[#8C8070] hover:text-red-400 transition-colors p-1"
+                                    className="text-fo-subtle hover:text-red-400 transition-colors p-1"
                                     title="Delete comment"
                                   >
                                     <Trash2 size={12} />
@@ -237,18 +241,18 @@ export default function PostCommentsSection({
                           </div>
                         </div>
 
-                        <p className="text-xs sm:text-sm text-[#C9C0B4] leading-relaxed">
+                        <p className="text-xs sm:text-sm text-fo-muted leading-relaxed">
                           {comment.text}
                         </p>
 
                         {/* Action Controls Below Comment */}
-                        <div className="flex items-center gap-4 pt-1 text-[11px] text-[#A69B8D]">
+                        <div className="flex items-center gap-4 pt-1 text-[11px] text-fo-muted">
                           <button
                             type="button"
                             onClick={() => handleLikeComment(comment)}
-                            className={`inline-flex items-center gap-1.5 hover:text-[#E5E0D8] transition-colors ${
+                            className={`inline-flex items-center gap-1.5 hover:text-fo-text transition-colors ${
                               comment.likedByMe
-                                ? "text-[#D4AF37] font-semibold"
+                                ? "text-fo-accent font-semibold"
                                 : ""
                             }`}
                           >
@@ -256,7 +260,7 @@ export default function PostCommentsSection({
                               size={13}
                               className={
                                 comment.likedByMe
-                                  ? "fill-current text-[#D4AF37]"
+                                  ? "fill-current text-fo-accent"
                                   : ""
                               }
                             />
@@ -275,7 +279,7 @@ export default function PostCommentsSection({
                                 setCommentText("");
                               }
                             }}
-                            className="inline-flex items-center gap-1.5 hover:text-[#D4AF37] transition-colors"
+                            className="inline-flex items-center gap-1.5 hover:text-fo-accent transition-colors"
                           >
                             <Reply size={13} />
                             <span>Reply</span>
@@ -294,7 +298,7 @@ export default function PostCommentsSection({
                       : "max-h-0 opacity-0 pointer-events-none"
                   }`}
                 >
-                  <div className="rounded-lg border border-[#2A241E] bg-[#0E0C0A] p-3 space-y-2">
+                  <div className="rounded-lg border border-fo-border bg-fo-bg p-3 space-y-2">
                     <textarea
                       value={commentText}
                       onChange={(e) => setCommentText(e.target.value)}
@@ -302,7 +306,7 @@ export default function PostCommentsSection({
                       placeholder={`Reply to ${
                         comment.author?.name || "member"
                       }...`}
-                      className="w-full bg-transparent text-xs text-[#E5E0D8] placeholder:text-[#8C8070] focus:outline-none resize-y"
+                      className="w-full bg-transparent text-xs text-fo-text placeholder:text-fo-subtle focus:outline-none resize-y"
                     />
                     <div className="flex justify-end gap-2">
                       <button
@@ -311,14 +315,14 @@ export default function PostCommentsSection({
                           setReplyTargetId(null);
                           setCommentText("");
                         }}
-                        className="px-3 py-1 rounded text-[11px] text-[#A69B8D] hover:text-[#E5E0D8]"
+                        className="px-3 py-1 rounded text-[11px] text-fo-muted hover:text-fo-text"
                       >
                         Cancel
                       </button>
                       <button
                         type="button"
                         onClick={() => submitComment(comment.id)}
-                        className="px-3 py-1 rounded bg-[#D4AF37] text-[#0E0C0A] text-[11px] font-bold hover:bg-[#c3a030]"
+                        className="px-3 py-1 rounded bg-fo-accent text-fo-bg text-[11px] font-bold hover:bg-[#c3a030]"
                       >
                         Reply
                       </button>
@@ -332,7 +336,7 @@ export default function PostCommentsSection({
                     <button
                       type="button"
                       onClick={() => toggleRepliesExpand(comment.id)}
-                      className="inline-flex items-center gap-1.5 text-xs text-[#D4AF37] font-medium hover:underline focus:outline-none"
+                      className="inline-flex items-center gap-1.5 text-xs text-fo-accent font-medium hover:underline focus:outline-none"
                     >
                       {isExpanded ? (
                         <>
@@ -352,7 +356,7 @@ export default function PostCommentsSection({
 
                 {/* Expanded Replies Wrapper with smooth transition */}
                 <div
-                  className={`ml-6 sm:ml-10 border-l border-[#2A241E] pl-4 sm:pl-6 space-y-3 overflow-hidden transition-all duration-300 ease-in-out ${
+                  className={`ml-6 sm:ml-10 border-l border-fo-border pl-4 sm:pl-6 space-y-3 overflow-hidden transition-all duration-300 ease-in-out ${
                     isExpanded
                       ? "max-h-[2000px] opacity-100 mt-2"
                       : "max-h-0 opacity-0 pointer-events-none"
@@ -364,7 +368,7 @@ export default function PostCommentsSection({
                     return (
                       <div key={reply.id} className="py-2 space-y-2">
                         {editingComment?.id === reply.id ? (
-                          <div className="space-y-3 bg-[#0E0C0A] p-3 rounded-lg border border-[#2A241E]">
+                          <div className="space-y-3 bg-fo-bg p-3 rounded-lg border border-fo-border">
                             <textarea
                               value={editingComment.text}
                               onChange={(e) =>
@@ -374,20 +378,20 @@ export default function PostCommentsSection({
                                 }))
                               }
                               rows={2}
-                              className="w-full bg-[#14100D] border border-[#2A241E] rounded-lg px-3 py-2 text-xs text-[#E5E0D8] focus:outline-none focus:border-[#D4AF37]/60 resize-y"
+                              className="w-full bg-fo-surface border border-fo-border rounded-lg px-3 py-2 text-xs text-fo-text focus:outline-none focus:border-fo-accent/60 resize-y"
                             />
                             <div className="flex gap-2 justify-end">
                               <button
                                 type="button"
                                 onClick={() => setEditingComment(null)}
-                                className="px-3 py-1.5 rounded border border-[#2A241E] text-[11px] text-[#A69B8D] hover:text-[#E5E0D8]"
+                                className="px-3 py-1.5 rounded border border-fo-border text-[11px] text-fo-muted hover:text-fo-text"
                               >
                                 Cancel
                               </button>
                               <button
                                 type="button"
                                 onClick={saveCommentEdit}
-                                className="px-3.5 py-1.5 rounded bg-[#D4AF37] text-[#0E0C0A] text-[11px] font-bold hover:bg-[#c3a030]"
+                                className="px-3.5 py-1.5 rounded bg-fo-accent text-fo-bg text-[11px] font-bold hover:bg-[#c3a030]"
                               >
                                 Save
                               </button>
@@ -399,16 +403,19 @@ export default function PostCommentsSection({
                             <div className="min-w-0 flex-1 space-y-1.5">
                               <div className="flex items-center justify-between gap-2">
                                 <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="text-xs font-bold text-[#E5E0D8]">
+                                  <UserProfileLink
+                                    author={reply.author}
+                                    className="text-xs font-bold text-fo-text hover:text-fo-accent transition-colors"
+                                  >
                                     {reply.author?.name ||
                                       reply.author?.username ||
                                       "Member"}
-                                  </span>
-                                  <span className="text-[11px] text-[#8C8070]">
+                                  </UserProfileLink>
+                                  <span className="text-[11px] text-fo-subtle">
                                     {timeAgo(reply.createdAt)}
                                   </span>
                                   {reply.author?.role && (
-                                    <span className="text-[9px] uppercase tracking-wider bg-[#D4AF37]/15 text-[#D4AF37] px-1.5 py-0.5 rounded font-mono border border-[#D4AF37]/30">
+                                    <span className="text-[9px] uppercase tracking-wider bg-fo-accent/15 text-fo-accent px-1.5 py-0.5 rounded font-mono border border-fo-accent/30">
                                       {reply.author.role}
                                     </span>
                                   )}
@@ -425,7 +432,7 @@ export default function PostCommentsSection({
                                           label: "this reply",
                                         })
                                       }
-                                      className="text-[#8C8070] hover:text-red-400 transition-colors p-1"
+                                      className="text-fo-subtle hover:text-red-400 transition-colors p-1"
                                       title="Report reply"
                                     >
                                       <Flag size={12} />
@@ -440,7 +447,7 @@ export default function PostCommentsSection({
                                           onClick={() =>
                                             openEditComment(reply)
                                           }
-                                          className="text-[#8C8070] hover:text-[#D4AF37] transition-colors p-1"
+                                          className="text-fo-subtle hover:text-fo-accent transition-colors p-1"
                                           title="Edit reply"
                                         >
                                           <Pencil size={12} />
@@ -452,7 +459,7 @@ export default function PostCommentsSection({
                                           onClick={() =>
                                             openDeleteComment(reply)
                                           }
-                                          className="text-[#8C8070] hover:text-red-400 transition-colors p-1"
+                                          className="text-fo-subtle hover:text-red-400 transition-colors p-1"
                                           title="Delete reply"
                                         >
                                           <Trash2 size={12} />
@@ -463,17 +470,17 @@ export default function PostCommentsSection({
                                 </div>
                               </div>
 
-                              <p className="text-xs sm:text-sm text-[#C9C0B4] leading-relaxed">
+                              <p className="text-xs sm:text-sm text-fo-muted leading-relaxed">
                                 {reply.text}
                               </p>
 
-                              <div className="flex items-center gap-4 pt-1 text-[11px] text-[#A69B8D]">
+                              <div className="flex items-center gap-4 pt-1 text-[11px] text-fo-muted">
                                 <button
                                   type="button"
                                   onClick={() => handleLikeComment(reply)}
-                                  className={`inline-flex items-center gap-1.5 hover:text-[#E5E0D8] transition-colors ${
+                                  className={`inline-flex items-center gap-1.5 hover:text-fo-text transition-colors ${
                                     reply.likedByMe
-                                      ? "text-[#D4AF37] font-semibold"
+                                      ? "text-fo-accent font-semibold"
                                       : ""
                                   }`}
                                 >
@@ -481,7 +488,7 @@ export default function PostCommentsSection({
                                     size={13}
                                     className={
                                       reply.likedByMe
-                                        ? "fill-current text-[#D4AF37]"
+                                        ? "fill-current text-fo-accent"
                                         : ""
                                     }
                                   />
@@ -499,7 +506,7 @@ export default function PostCommentsSection({
                                       setCommentText("");
                                     }
                                   }}
-                                  className="inline-flex items-center gap-1.5 hover:text-[#D4AF37] transition-colors"
+                                  className="inline-flex items-center gap-1.5 hover:text-fo-accent transition-colors"
                                 >
                                   <Reply size={13} />
                                   <span>Reply</span>
@@ -517,7 +524,7 @@ export default function PostCommentsSection({
                               : "max-h-0 opacity-0 pointer-events-none"
                           }`}
                         >
-                          <div className="rounded-lg border border-[#2A241E] bg-[#0E0C0A] p-3 space-y-2">
+                          <div className="rounded-lg border border-fo-border bg-fo-bg p-3 space-y-2">
                             <textarea
                               value={commentText}
                               onChange={(e) => setCommentText(e.target.value)}
@@ -525,7 +532,7 @@ export default function PostCommentsSection({
                               placeholder={`Reply to ${
                                 reply.author?.name || "member"
                               }...`}
-                              className="w-full bg-transparent text-xs text-[#E5E0D8] placeholder:text-[#8C8070] focus:outline-none resize-y"
+                              className="w-full bg-transparent text-xs text-fo-text placeholder:text-fo-subtle focus:outline-none resize-y"
                             />
                             <div className="flex justify-end gap-2">
                               <button
@@ -534,14 +541,14 @@ export default function PostCommentsSection({
                                   setReplyTargetId(null);
                                   setCommentText("");
                                 }}
-                                className="px-3 py-1 rounded text-[11px] text-[#A69B8D] hover:text-[#E5E0D8]"
+                                className="px-3 py-1 rounded text-[11px] text-fo-muted hover:text-fo-text"
                               >
                                 Cancel
                               </button>
                               <button
                                 type="button"
                                 onClick={() => submitComment(comment.id)}
-                                className="px-3 py-1 rounded bg-[#D4AF37] text-[#0E0C0A] text-[11px] font-bold hover:bg-[#c3a030]"
+                                className="px-3 py-1 rounded bg-fo-accent text-fo-bg text-[11px] font-bold hover:bg-[#c3a030]"
                               >
                                 Reply
                               </button>

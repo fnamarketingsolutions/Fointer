@@ -588,7 +588,7 @@ export const approveJoinRequest = async (req, res) => {
         bannedBy: null,
         moderatorExpiresAt: null,
       },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
+      { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
     );
 
     const requester = joinRequest.user;

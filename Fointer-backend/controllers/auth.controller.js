@@ -11,6 +11,107 @@ import { respondIfBanned } from "../utils/bannedKeywords.js";
 const MAX_OTP_ATTEMPTS = 5;
 const getGoogleClient = () => new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
+const normalizeRole = (user) => {
+  const role = String(user?.role || "user").toLowerCase().trim();
+  if (user) user.role = role;
+  return role;
+};
+
+/** Member portal only — admins must use /api/auth/admin/login */
+const rejectIfNotMemberPortal = (res, user) => {
+  if (normalizeRole(user) === "admin") {
+    res.status(403).json({
+      success: false,
+      message: "Admin accounts must sign in through the admin portal.",
+      code: "ADMIN_PORTAL_REQUIRED",
+    });
+    return true;
+  }
+  return false;
+};
+
+/** Admin portal only — members must use the user app */
+const rejectIfNotAdminPortal = (res, user) => {
+  if (normalizeRole(user) !== "admin") {
+    res.status(403).json({
+      success: false,
+      message: "This portal is for administrators only.",
+      code: "MEMBER_PORTAL_REQUIRED",
+    });
+    return true;
+  }
+  return false;
+};
+
+const passwordLogin = async (req, res, { portal }) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({
+      success: false,
+      message: "Email and password are required.",
+    });
+  }
+
+  const user = await User.findOne({
+    email: String(email).trim().toLowerCase(),
+  });
+
+  if (!user) {
+    return res.status(401).json({
+      success: false,
+      message: "Invalid email or password.",
+    });
+  }
+
+  if (!user.isEmailVerified) {
+    return res.status(403).json({
+      success: false,
+      message:
+        "Please verify your email with the 6-digit OTP sent to your inbox.",
+      requiresEmailVerification: true,
+      email: user.email,
+    });
+  }
+
+  if (!user.password) {
+    const providers = [];
+    if (user.googleId) providers.push("Google");
+    if (user.facebookId) providers.push("Facebook");
+    const providerLabel = providers.length
+      ? providers.join(" or ")
+      : "social";
+
+    return res.status(401).json({
+      success: false,
+      message: `This account uses ${providerLabel} sign-in. Please continue with ${providerLabel}.`,
+    });
+  }
+
+  const isMatch = await bcrypt.compare(password, user.password);
+  if (!isMatch) {
+    return res.status(401).json({
+      success: false,
+      message: "Invalid email or password.",
+    });
+  }
+
+  if (user.status === "suspended" || user.status === "banned") {
+    return res.status(403).json({
+      success: false,
+      message: `Your account is ${user.status}. Contact support.`,
+    });
+  }
+
+  if (portal === "admin") {
+    if (rejectIfNotAdminPortal(res, user)) return;
+  } else if (rejectIfNotMemberPortal(res, user)) {
+    return;
+  }
+
+  return sendToken(user, 200, res);
+};
+
 const createEmailVerificationFields = () => {
   const otp = String(crypto.randomInt(100000, 1000000));
   const hashedOtp = crypto.createHash("sha256").update(otp).digest("hex");
@@ -125,70 +226,17 @@ export const signup = async (req, res) => {
 
 export const login = async (req, res) => {
   try {
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({
-        success: false,
-        message: "Email and password are required.",
-      });
-    }
-
-    const user = await User.findOne({
-      email: String(email).trim().toLowerCase(),
-    });
-
-    if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: "Invalid email or password.",
-      });
-    }
-
-    if (!user.isEmailVerified) {
-      return res.status(403).json({
-        success: false,
-        message:
-          "Please verify your email with the 6-digit OTP sent to your inbox.",
-        requiresEmailVerification: true,
-        email: user.email,
-      });
-    }
-
-    if (!user.password) {
-      const providers = [];
-      if (user.googleId) providers.push("Google");
-      if (user.facebookId) providers.push("Facebook");
-      const providerLabel = providers.length
-        ? providers.join(" or ")
-        : "social";
-
-      return res.status(401).json({
-        success: false,
-        message: `This account uses ${providerLabel} sign-in. Please continue with ${providerLabel}.`,
-      });
-    }
-
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return res.status(401).json({
-        success: false,
-        message: "Invalid email or password.",
-      });
-    }
-
-    if (user.status === "suspended" || user.status === "banned") {
-      return res.status(403).json({
-        success: false,
-        message: `Your account is ${user.status}. Contact support.`,
-      });
-    }
-
-    if (user.role) user.role = String(user.role).toLowerCase().trim();
-
-    return sendToken(user, 200, res);
+    return await passwordLogin(req, res, { portal: "member" });
   } catch (error) {
     return sendServerError(res, error, "Login failed. Please try again.");
+  }
+};
+
+export const adminLogin = async (req, res) => {
+  try {
+    return await passwordLogin(req, res, { portal: "admin" });
+  } catch (error) {
+    return sendServerError(res, error, "Admin login failed. Please try again.");
   }
 };
 
@@ -315,6 +363,8 @@ export const googleLogin = async (req, res) => {
         message: `Your account is ${user.status}. Contact support.`,
       });
     }
+
+    if (rejectIfNotMemberPortal(res, user)) return;
 
     return sendToken(user, 200, res);
   } catch (error) {
@@ -469,12 +519,227 @@ export const facebookLogin = async (req, res) => {
       });
     }
 
+    if (rejectIfNotMemberPortal(res, user)) return;
+
     return sendToken(user, 200, res);
   } catch (error) {
     return sendServerError(
       res,
       error,
       "Facebook login failed. Please try again."
+    );
+  }
+};
+
+/**
+ * Admin portal social login — existing admin accounts only (no signup / no new users).
+ */
+const finishAdminSocialLogin = async (res, user, { providerLabel }) => {
+  if (!user) {
+    return res.status(403).json({
+      success: false,
+      message: `No administrator account is linked to this ${providerLabel} login.`,
+      code: "ADMIN_ACCOUNT_REQUIRED",
+    });
+  }
+
+  if (user.status === "suspended" || user.status === "banned") {
+    return res.status(403).json({
+      success: false,
+      message: `Your account is ${user.status}. Contact support.`,
+    });
+  }
+
+  if (rejectIfNotAdminPortal(res, user)) return;
+
+  if (!user.isEmailVerified) {
+    user.isEmailVerified = true;
+    clearEmailVerification(user);
+    await user.save();
+  }
+
+  return sendToken(user, 200, res);
+};
+
+export const adminGoogleLogin = async (req, res) => {
+  try {
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        message: "Google token is required.",
+      });
+    }
+
+    if (!process.env.GOOGLE_CLIENT_ID) {
+      return res.status(503).json({
+        success: false,
+        message: "Google login is not configured.",
+      });
+    }
+
+    let email;
+    let name;
+    let picture;
+    let googleId;
+    let emailVerified = false;
+
+    try {
+      const ticket = await getGoogleClient().verifyIdToken({
+        idToken: token,
+        audience: process.env.GOOGLE_CLIENT_ID,
+      });
+      const payload = ticket.getPayload();
+      googleId = payload.sub;
+      email = payload.email;
+      name = payload.name;
+      picture = payload.picture;
+      emailVerified = payload.email_verified === true;
+    } catch {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid Google token.",
+      });
+    }
+
+    if (!email || !googleId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unable to read Google account details.",
+      });
+    }
+
+    if (!emailVerified) {
+      return res.status(401).json({
+        success: false,
+        message: "Google email is not verified.",
+      });
+    }
+
+    const normalizedEmail = email.toLowerCase();
+    let user =
+      (await User.findOne({ email: normalizedEmail })) ||
+      (await User.findOne({ googleId }));
+
+    if (user) {
+      if (!user.googleId) user.googleId = googleId;
+      if (picture) user.avatar = picture;
+      if (name) user.name = name;
+      normalizeRole(user);
+      await user.save();
+    }
+
+    return finishAdminSocialLogin(res, user, { providerLabel: "Google" });
+  } catch (error) {
+    return sendServerError(
+      res,
+      error,
+      "Admin Google login failed. Please try again."
+    );
+  }
+};
+
+export const adminFacebookLogin = async (req, res) => {
+  try {
+    const { accessToken } = req.body;
+
+    if (!accessToken) {
+      return res.status(400).json({
+        success: false,
+        message: "Facebook access token is required.",
+      });
+    }
+
+    const appId = String(process.env.FACEBOOK_APP_ID || "").trim();
+    const appSecret = String(process.env.FACEBOOK_APP_SECRET || "").trim();
+    if (!appId || !appSecret) {
+      return res.status(503).json({
+        success: false,
+        message: "Facebook login is not configured.",
+      });
+    }
+
+    const debugParams = new URLSearchParams({
+      input_token: accessToken,
+      access_token: `${appId}|${appSecret}`,
+    });
+    const debugRes = await fetch(
+      `https://graph.facebook.com/debug_token?${debugParams.toString()}`
+    );
+    const debugJson = await debugRes.json();
+    const debugData = debugJson?.data;
+    if (
+      !debugRes.ok ||
+      !debugData?.is_valid ||
+      String(debugData.app_id) !== appId
+    ) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid or expired Facebook token.",
+      });
+    }
+
+    const params = new URLSearchParams({
+      fields: "id,name,email,picture.type(large)",
+    });
+    params.set(
+      "appsecret_proof",
+      crypto.createHmac("sha256", appSecret).update(accessToken).digest("hex")
+    );
+
+    const fbRes = await fetch(
+      `https://graph.facebook.com/v19.0/me?${params.toString()}`,
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }
+    );
+    const fbData = await fbRes.json();
+
+    if (!fbRes.ok || fbData.error) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid or expired Facebook token.",
+      });
+    }
+
+    const { id: facebookId, name, email, picture } = fbData;
+    const avatar = picture?.data?.url;
+
+    if (!facebookId || String(facebookId) !== String(debugData.user_id)) {
+      return res.status(401).json({
+        success: false,
+        message: "Unable to read Facebook account details.",
+      });
+    }
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Facebook did not provide an email. Grant email permission or use another sign-in method.",
+      });
+    }
+
+    const normalizedEmail = String(email).toLowerCase();
+    let user = await User.findOne({
+      $or: [{ email: normalizedEmail }, { facebookId }],
+    });
+
+    if (user) {
+      if (!user.facebookId) user.facebookId = facebookId;
+      if (!user.avatar && avatar) user.avatar = avatar;
+      if (name) user.name = name;
+      normalizeRole(user);
+      await user.save();
+    }
+
+    return finishAdminSocialLogin(res, user, { providerLabel: "Facebook" });
+  } catch (error) {
+    return sendServerError(
+      res,
+      error,
+      "Admin Facebook login failed. Please try again."
     );
   }
 };
@@ -556,6 +821,8 @@ export const verifyEmailOtp = async (req, res) => {
     user.isEmailVerified = true;
     clearEmailVerification(user);
     await user.save();
+
+    if (rejectIfNotMemberPortal(res, user)) return;
 
     return sendToken(user, 200, res);
   } catch (error) {

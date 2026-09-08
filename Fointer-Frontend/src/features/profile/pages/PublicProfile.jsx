@@ -73,7 +73,7 @@ export default function PublicProfile() {
     const clean = normalizeUsername(username);
     const me = normalizeUsername(user?.username);
     if (user && clean && me === clean) {
-      navigate(user.role === "admin" ? "/admin/profile" : "/profile", {
+      navigate("/profile", {
         replace: true,
       });
     }

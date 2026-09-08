@@ -174,7 +174,7 @@ export default function HeaderSearch({ className = "" }) {
                 {communities.map((community) => (
                   <Link
                     key={community.id}
-                    to={communityPath(community)}
+                    to={communityPath(community)} 
                     onClick={() => setOpen(false)}
                     className="flex items-center gap-2.5 px-3 py-2 hover:bg-fo-surface-hover transition-colors"
                   >

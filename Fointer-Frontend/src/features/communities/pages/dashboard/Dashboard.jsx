@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useEffect } from "react";
+import React, { Suspense, lazy } from "react";
 import {
   useNavigate,
   useLocation,
@@ -163,12 +163,6 @@ const Dashboard = () => {
     ? firstSegment
     : "postfeed";
 
-  useEffect(() => {
-    if (user?.role === "admin") {
-      navigate("/admin", { replace: true });
-    }
-  }, [user, navigate]);
-
   const requireLogin = (fromPath) => {
     navigate("/login", {
       state: { from: fromPath || location.pathname },
@@ -217,10 +211,6 @@ const Dashboard = () => {
 
   if (!loading && isGuest && location.pathname === FEED_PATH) {
     return <Navigate to={EXPLORE_PATH} replace />;
-  }
-
-  if (!loading && user?.role === "admin") {
-    return <Navigate to="/admin" replace />;
   }
 
   return (

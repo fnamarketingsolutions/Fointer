@@ -103,7 +103,7 @@ function AuthFooter({ isGuest, onLogout, onClose, fromPath }) {
   );
 }
 
-/** Shared user/admin chrome: header + sidebar + mobile drawer. */
+/** Shared member chrome: header + sidebar + mobile drawer. */
 export default function PanelShell({
   navItems,
   onSelectNav,

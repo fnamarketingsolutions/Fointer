@@ -37,10 +37,12 @@ import {
 import { useAuth } from "../../../../context/AuthContext";
 import { timeAgo } from "../../../../shared/utils/date";
 import { formatCount } from "../../../../shared/utils/format";
+import { parseCommunityRules } from "../../../../shared/utils/community";
 import PostActions from "../../../../shared/components/PostActions";
 import UserProfileLink from "../../../../shared/components/UserProfileLink";
 
 const PAGE_SIZE = 15;
+const RULES_PREVIEW_COUNT = 5;
 
 const SORT_OPTIONS = [
   { id: "newest", label: "New" },
@@ -121,16 +123,18 @@ function CommunitySidebar({
   watchGroups,
   watchLoading,
 }) {
+  const [rulesExpanded, setRulesExpanded] = useState(false);
   const typeLabel =
     COMMUNITY_TYPE_LABELS[community?.type] || community?.type || "Community";
   const TypeIcon = TYPE_ICONS[community?.type] || Globe;
   const ownerName =
     community?.owner?.name || community?.owner?.username || "Owner";
-  const rules = (community?.rules || "")
-    .split("\n")
-    .map((r) => r.trim())
-    .filter(Boolean)
-    .slice(0, 5);
+  const rules = parseCommunityRules(community?.rules);
+  const primaryRules = rules.slice(0, RULES_PREVIEW_COUNT);
+  const extraRules = rules.slice(RULES_PREVIEW_COUNT);
+  const visibleRules = rulesExpanded
+    ? rules
+    : primaryRules;
 
   return (
     <aside className="space-y-4">
@@ -183,7 +187,7 @@ function CommunitySidebar({
         <div className="bg-fo-surface border border-fo-border rounded-xl p-4 space-y-2">
           <h4 className="text-sm font-semibold text-fo-text">Rules</h4>
           <ol className="space-y-1.5">
-            {rules.map((rule, i) => (
+            {visibleRules.map((rule, i) => (
               <li key={i} className="flex gap-2 text-xs text-fo-muted">
                 <span className="text-fo-accent font-semibold shrink-0">
                   {i + 1}.
@@ -192,6 +196,17 @@ function CommunitySidebar({
               </li>
             ))}
           </ol>
+          {extraRules.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => setRulesExpanded((v) => !v)}
+              className="text-[11px] font-medium text-fo-accent hover:text-fo-accent-hover"
+            >
+              {rulesExpanded
+                ? "Show less"
+                : `View more (${extraRules.length})`}
+            </button>
+          ) : null}
         </div>
       ) : null}
 

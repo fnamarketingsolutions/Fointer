@@ -1,8 +1,3 @@
-export const canAccessRoles = (userRole, allowedRoles = []) => {
-  if (!userRole || !allowedRoles.length) return false;
-  return allowedRoles.includes(userRole);
-};
+export const FEED_PATH = "/feed";
 
-export const getDashboardPathForRole = (role) => {
-  return role === "admin" ? "/admin" : "/feed";
-};
+export const getDashboardPathForRole = () => FEED_PATH;

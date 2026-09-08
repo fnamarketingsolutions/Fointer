@@ -23,7 +23,6 @@ export const getSafeReturnPath = (from) => {
     bare === "/" ||
     bare === "/explore" ||
     bare === "/feed" ||
-    bare.startsWith("/admin") ||
     bare.startsWith("/communities") ||
     bare.startsWith("/manage-community") ||
     bare.startsWith("/live-events") ||
@@ -34,6 +33,8 @@ export const getSafeReturnPath = (from) => {
     bare.startsWith("/notifications") ||
     bare.startsWith("/users") ||
     bare.startsWith("/search") ||
+    bare.startsWith("/marketplace") ||
+    bare.startsWith("/messages") ||
     bare.startsWith("/post");
 
   return allowed ? bare : null;

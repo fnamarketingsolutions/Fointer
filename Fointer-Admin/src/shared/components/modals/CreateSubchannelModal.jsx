@@ -1,0 +1,106 @@
+import { useState, useEffect } from 'react';
+import {
+  LuLoaderCircle as Loader2,
+  LuX as X
+} from 'react-icons/lu';
+
+export default function CreateSubchannelModal({
+  open,
+  onClose,
+  onSubmit,
+  channels = [],
+  loading = false,
+  subchannel = null,
+}) {
+  const [name, setName] = useState('');
+  const [channelId, setChannelId] = useState('');
+  const isEdit = Boolean(subchannel);
+
+  useEffect(() => {
+    if (!open) return;
+    setName(subchannel?.name || '');
+    setChannelId(
+      String(subchannel?.channelId || subchannel?.channel?.id || channels[0]?.id || '')
+    );
+  }, [open, subchannel, channels]);
+
+  if (!open) return null;
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!name.trim() || !channelId || loading) return;
+    await onSubmit({ name: name.trim(), channelId });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[var(--theme-overlay)] backdrop-blur-sm">
+      <div className="relative w-full max-w-[420px] bg-fo-surface border border-fo-border rounded-2xl p-6 space-y-5 shadow-2xl text-fo-text">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xl font-medium text-fo-text">
+            {isEdit ? 'Edit Subchannel' : 'Create Subchannel'}
+          </h3>
+          <button
+            type="button"
+            disabled={loading}
+            onClick={onClose}
+            className="text-fo-subtle hover:text-fo-text transition-colors p-1"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-[11px] uppercase tracking-wider text-fo-subtle mb-1.5">
+              Parent channel
+            </label>
+            <select
+              value={channelId}
+              onChange={(e) => setChannelId(e.target.value)}
+              className="w-full bg-fo-bg border border-fo-border rounded-lg px-3 py-2.5 text-sm text-fo-text focus:outline-none focus:border-fo-accent/50"
+            >
+              <option value="">Select a channel</option>
+              {channels.map((ch) => (
+                <option key={ch.id} value={ch.id}>
+                  {ch.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-[11px] uppercase tracking-wider text-fo-subtle mb-1.5">
+              Subchannel name
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Cricket"
+              className="w-full bg-fo-bg border border-fo-border rounded-lg px-3 py-2.5 text-sm text-fo-text focus:outline-none focus:border-fo-accent/50 placeholder:text-fo-subtle"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-1">
+            <button
+              type="button"
+              disabled={loading}
+              onClick={onClose}
+              className="px-4 py-2 rounded-lg border border-fo-border text-xs font-semibold text-fo-muted hover:text-fo-text transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading || !name.trim() || !channelId}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-fo-brand text-xs font-semibold text-fo-brand-fg disabled:opacity-50"
+            >
+              {loading ? <Loader2 size={14} className="animate-spin" /> : null}
+              {isEdit ? 'Save' : 'Create'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}

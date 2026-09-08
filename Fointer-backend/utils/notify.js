@@ -5,6 +5,7 @@ import Notification, {
 } from "../models/notification.js";
 import User from "../models/user.js";
 import { getEffectiveMemberRole } from "./communityPermissions.js";
+import { pushNotificationToUser } from "./push.js";
 
 const ADMIN_TYPE_SET = new Set(ADMIN_NOTIFICATION_TYPES);
 const ADMIN_ID_CACHE_MS = 15_000;
@@ -171,6 +172,14 @@ const emitNotification = (io, recipientId, payload) => {
   io.to(userNotificationRoom(recipientId)).emit("notification:new", payload);
 };
 
+const deliverNotification = (io, recipientId, payload) => {
+  emitNotification(io, recipientId, payload);
+  if (!payload) return;
+  pushNotificationToUser(recipientId, payload).catch((error) => {
+    console.error("Failed to send push notification:", error);
+  });
+};
+
 const createOne = async ({
   io,
   recipientId,
@@ -217,12 +226,12 @@ const createOne = async ({
           createdAt: new Date(),
         },
       },
-      { new: true }
+      { returnDocument: "after" }
     );
 
     if (existing) {
       const formatted = formatNotification(existing);
-      emitNotification(io, recipient, formatted);
+      deliverNotification(io, recipient, formatted);
       return formatted;
     }
   }
@@ -239,7 +248,7 @@ const createOne = async ({
   });
 
   const formatted = formatNotification(created);
-  emitNotification(io, recipient, formatted);
+  deliverNotification(io, recipient, formatted);
   return formatted;
 };
 

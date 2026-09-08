@@ -11,7 +11,7 @@ export const userProfilePath = (author, currentUser) => {
 
   const me = normalizeUsername(currentUser?.username);
   if (currentUser && me && me === username) {
-    return currentUser.role === "admin" ? "/admin/profile" : "/profile";
+    return "/profile";
   }
 
   return `/users/${encodeURIComponent(username)}`;

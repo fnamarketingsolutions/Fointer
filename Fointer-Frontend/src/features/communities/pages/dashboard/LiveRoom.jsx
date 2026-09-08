@@ -21,6 +21,7 @@ import { getLiveSocket } from "../../../../shared/services/liveSocket";
 import UserProfileLink from "../../../../shared/components/UserProfileLink";
 import { useToast } from "../../../../shared/components/feedback/ToastContext";
 import { useAuth } from "../../../../context/AuthContext";
+import EventCall from "./EventCall";
 
 const categoryLabel = (event) => {
   if (!event) return "";
@@ -255,7 +256,7 @@ export default function LiveRoom() {
     String(msg.author?.id) === String(user?.id || user?._id);
 
   return (
-    <div className="flex flex-col h-[calc(100vh-6rem)] max-w-3xl mx-auto">
+    <div className="flex flex-col h-[calc(100vh-6rem)] max-w-5xl mx-auto">
       <div className="flex items-start justify-between gap-3 mb-4 shrink-0">
         <div className="min-w-0">
           <button
@@ -334,7 +335,14 @@ export default function LiveRoom() {
         )}
       </div>
 
-      <div className="flex-1 min-h-0 border border-fo-border rounded-2xl bg-fo-surface flex flex-col overflow-hidden">
+      <div className="flex-1 min-h-0 overflow-y-auto grid grid-cols-1 lg:grid-cols-[minmax(0,1.15fr)_minmax(280px,0.85fr)] gap-3 lg:overflow-hidden">
+      <EventCall
+        eventId={eventId}
+        isLive={isLive}
+        callMode={event.callMode || "chat"}
+      />
+
+      <div className="min-h-[280px] lg:min-h-0 border border-fo-border rounded-2xl bg-fo-surface flex flex-col overflow-hidden">
         <div className="px-4 py-2.5 border-b border-fo-border flex items-center gap-2 text-xs text-fo-muted">
           <Radio size={14} className="text-red-500" />
           Live Commentary
@@ -441,6 +449,7 @@ export default function LiveRoom() {
             )}
           </button>
         </form>
+      </div>
       </div>
     </div>
   );

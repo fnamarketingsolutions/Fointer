@@ -5,7 +5,6 @@ import {
   LuArrowRight as ArrowRight,
   LuHash as Hash,
   LuLoaderCircle as Loader2,
-  LuSearch as Search,
   LuUsers as Users
 } from "react-icons/lu";
 import {
@@ -151,8 +150,6 @@ export default function DashboardFeed() {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [query, setQuery] = useState("");
-  const [searchInput, setSearchInput] = useState("");
   const [sortBy, setSortBy] = useState("newest");
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
@@ -189,8 +186,6 @@ export default function DashboardFeed() {
     if (nextMode === "personalized") next.set("mode", "personalized");
     else next.delete("mode");
     setSearchParams(next, { replace: true });
-    setQuery("");
-    setSearchInput("");
     setSortBy("newest");
     setPosts([]);
   };
@@ -211,7 +206,6 @@ export default function DashboardFeed() {
 
   const load = useCallback(
     async ({
-      q = "",
       pageNum = 1,
       append = false,
       sort = "newest",
@@ -226,7 +220,6 @@ export default function DashboardFeed() {
           limit: PAGE_SIZE,
           sortBy: sort,
         };
-        if (q.trim()) params.q = q.trim();
         if (channel) params.channel = channel;
         const data =
           feedMode === "personalized"
@@ -252,14 +245,13 @@ export default function DashboardFeed() {
 
   useEffect(() => {
     load({
-      q: query,
       pageNum: 1,
       append: false,
       sort: sortBy,
       feedMode: mode,
       channel: selectedChannel,
     });
-  }, [load, query, sortBy, mode, selectedChannel]);
+  }, [load, sortBy, mode, selectedChannel]);
 
   useEffect(() => {
     let cancelled = false;
@@ -312,15 +304,9 @@ export default function DashboardFeed() {
     navigate(feedBase);
   }, [navigate, feedBase]);
 
-  const handleSearch = (e) => {
-    e.preventDefault();
-    setQuery(searchInput.trim());
-  };
-
   const handleLoadMore = () => {
     if (loadingMore || !hasMore) return;
     load({
-      q: query,
       pageNum: page + 1,
       append: true,
       sort: sortBy,
@@ -428,7 +414,6 @@ export default function DashboardFeed() {
       onDeleted={() => {
         closePost();
         load({
-          q: query,
           pageNum: 1,
           append: false,
           sort: sortBy,
@@ -543,35 +528,6 @@ export default function DashboardFeed() {
 
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px] gap-3 lg:gap-5 items-start">
         <div className="min-w-0 space-y-3 sm:space-y-4">
-          <form
-            onSubmit={handleSearch}
-            className="flex items-center gap-2"
-          >
-            <div className="relative flex-1 min-w-0">
-              <Search
-                size={16}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-fo-subtle pointer-events-none"
-              />
-              <input
-                type="search"
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                placeholder={
-                  isPersonalized
-                    ? "Search posts in your communities…"
-                    : "Search posts…"
-                }
-                className="w-full pl-9 pr-3 py-2.5 rounded-lg bg-fo-surface border border-fo-border text-fo-text text-sm placeholder:text-fo-subtle focus:outline-none focus:border-fo-accent/50"
-              />
-            </div>
-            <button
-              type="submit"
-              className="px-4 py-2.5 rounded-lg bg-fo-accent text-black text-sm font-semibold hover:bg-fo-accent-hover shrink-0"
-            >
-              Search
-            </button>
-          </form>
-
           <div className="flex flex-wrap items-center gap-1.5 border-b border-fo-border pb-2 sm:pb-3">
             {SORT_OPTIONS.map((opt) => {
               const active = sortBy === opt.id;
@@ -601,9 +557,7 @@ export default function DashboardFeed() {
             </div>
           ) : posts.length === 0 ? (
             <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-fo-subtle text-sm px-4 space-y-3">
-              {query ? (
-                <p>No posts match “{query}”.</p>
-              ) : selectedChannel ? (
+              {selectedChannel ? (
                 <>
                   <p>No posts found in {selectedChannel}.</p>
                   <button

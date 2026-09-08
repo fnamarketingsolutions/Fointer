@@ -1,5 +1,6 @@
 import LiveEvent, {
   LIVE_EVENT_ACCESS,
+  LIVE_EVENT_CALL_MODES,
   LIVE_EVENT_CATEGORIES,
 } from "../models/liveEvent.js";
 import LiveMessage from "../models/liveMessage.js";
@@ -14,6 +15,7 @@ import {
 } from "../utils/communityPermissions.js";
 import { parseObjectIdInput, resolveDocumentId } from "../utils/shortCode.js";
 import { sendServerError } from "../utils/safeError.js";
+import { clearEventCall } from "../sockets/liveCallState.js";
 import { respondIfBanned } from "../utils/bannedKeywords.js";
 
 const formatUser = (user) => {
@@ -47,6 +49,7 @@ export const formatLiveEvent = (event, extras = {}) => ({
   category: event.category,
   customCategory: event.customCategory || "",
   access: event.access,
+  callMode: event.callMode || "chat",
   status: event.status,
   community: formatCommunity(event.community),
   host: formatUser(event.host),
@@ -205,6 +208,9 @@ export const createLiveEvent = async (req, res) => {
     const access = String(req.body.access || "community")
       .toLowerCase()
       .trim();
+    const callMode = String(req.body.callMode || "chat")
+      .toLowerCase()
+      .trim();
     const communityId = parseObjectIdInput(req.body.communityId);
 
     if (!title) {
@@ -231,6 +237,12 @@ export const createLiveEvent = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "Access must be public or community.",
+      });
+    }
+    if (!LIVE_EVENT_CALL_MODES.includes(callMode)) {
+      return res.status(400).json({
+        success: false,
+        message: "Call mode must be chat, audio, or video.",
       });
     }
     if (!communityId) {
@@ -261,6 +273,7 @@ export const createLiveEvent = async (req, res) => {
       category,
       customCategory: category === "custom" ? customCategory : "",
       access: access === "public" ? "public" : "community",
+      callMode,
       community: community._id,
       host: req.user._id,
       status: "live",
@@ -310,7 +323,9 @@ export const endLiveEvent = async (req, res) => {
     await event.save();
 
     const payload = await attachPermissions(event, req.user);
-    req.app.get("io")?.to(`live:${event._id}`).emit("event_ended", {
+    const io = req.app.get("io");
+    clearEventCall(io, event._id);
+    io?.to(`live:${event._id}`).emit("event_ended", {
       eventId: String(event._id),
       event: payload,
     });
@@ -347,7 +362,9 @@ export const deleteLiveEvent = async (req, res) => {
     await LiveMessage.deleteMany({ event: event._id });
     await event.deleteOne();
 
-    req.app.get("io")?.to(`live:${eventId}`).emit("event_deleted", {
+    const io = req.app.get("io");
+    clearEventCall(io, eventId);
+    io?.to(`live:${eventId}`).emit("event_deleted", {
       eventId,
     });
 

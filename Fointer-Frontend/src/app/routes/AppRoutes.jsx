@@ -1,7 +1,5 @@
 import React, { Suspense, lazy } from 'react';
 import { Routes, Route } from 'react-router-dom';
-import ProtectedRoute from '../../guards/ProtectedRoute';
-import RoleRoute from '../../guards/RoleRoute';
 import PublicSiteLayout from '../../shared/layouts/PublicSiteLayout';
 import HomePage from '../../features/public/pages/home/HomePage';
 import { SITE_LINKS } from '../../shared/constants/siteLinks';
@@ -10,9 +8,6 @@ const SignUp = lazy(() => import('../../features/auth/components/SignUp'));
 const Login = lazy(() => import('../../features/auth/components/Login'));
 const Dashboard = lazy(() =>
   import('../../features/communities/pages/dashboard/Dashboard')
-);
-const AdminDashboard = lazy(() =>
-  import('../../features/admin/pages/AdminDashboard')
 );
 
 const AboutHero = lazy(() =>
@@ -84,17 +79,6 @@ export default function AppRoutes() {
             />
           ))}
         </Route>
-
-        <Route
-          path="/admin/*"
-          element={
-            <ProtectedRoute>
-              <RoleRoute roles={['admin']}>
-                <AdminDashboard />
-              </RoleRoute>
-            </ProtectedRoute>
-          }
-        />
 
         <Route path="/*" element={<Dashboard />} />
       </Routes>

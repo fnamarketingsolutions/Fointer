@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   LuBell as Bell,
   LuCheckCheck as CheckCheck,
@@ -44,13 +44,6 @@ const USER_FILTERS = [
   { id: "system", label: "System & Access" },
 ];
 
-const ADMIN_FILTERS = [
-  { id: "all", label: "All" },
-  { id: "unread", label: "Unread" },
-  { id: "reports", label: "Reports" },
-  { id: "requests", label: "Channel requests" },
-];
-
 const typeIcon = (type) => {
   if (type === "like") return { Icon: Heart, className: "text-rose-400" };
   if (type === "comment" || type === "reply" || type === "mention") {
@@ -80,19 +73,17 @@ const typeIcon = (type) => {
 
 export default function UserNotifications({ onBack }) {
   const navigate = useNavigate();
-  const location = useLocation();
   const { showToast } = useToast();
   const { unreadCount, refreshUnread, adjustUnread, setUnread } =
     useNotifications();
   const [filter, setFilter] = useState("all");
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
-  const isAdmin = location.pathname.startsWith("/admin");
-  const filters = isAdmin ? ADMIN_FILTERS : USER_FILTERS;
+  const filters = USER_FILTERS;
 
   const handleBack = () => {
     if (onBack) onBack();
-    else navigate(isAdmin ? "/admin" : getDashboardPathForRole("user"));
+    else navigate(getDashboardPathForRole());
   };
 
   const load = useCallback(async () => {
@@ -128,17 +119,10 @@ export default function UserNotifications({ onBack }) {
             String(n.id) === String(payload.id) ? { ...n, ...payload } : n
           );
         }
-        if (isAdmin && !isAdminNotification(payload.type)) return prev;
-        if (!isAdmin && isAdminNotification(payload.type)) return prev;
+        if (isAdminNotification(payload.type)) return prev;
         if (filter === "unread" && !payload.isUnread) return prev;
         if (filter === "mentions" && payload.type !== "mention") return prev;
         if (filter === "system" && !isSystemNotification(payload.type)) {
-          return prev;
-        }
-        if (filter === "reports" && payload.type !== "content_report") {
-          return prev;
-        }
-        if (filter === "requests" && payload.type !== "channel_request") {
           return prev;
         }
         return [payload, ...prev];
@@ -146,7 +130,7 @@ export default function UserNotifications({ onBack }) {
     };
     socket.on("notification:new", onNew);
     return () => socket.off("notification:new", onNew);
-  }, [filter, isAdmin]);
+  }, [filter]);
 
   const handleMarkAllAsRead = async () => {
     if (unreadCount === 0) return;
@@ -203,7 +187,7 @@ export default function UserNotifications({ onBack }) {
         refreshUnread();
       }
     }
-    navigate(notificationPath(item, { isAdmin }));
+    navigate(notificationPath(item));
   };
 
   const visible = notifications.filter((n) => {
@@ -239,9 +223,7 @@ export default function UserNotifications({ onBack }) {
               )}
             </div>
             <p className="text-xs text-fo-subtle mt-1">
-              {isAdmin
-                ? "New reports and pending channel requests from the platform."
-                : "Stay updated with mentions, community activity, and account status updates."}
+              Stay updated with mentions, community activity, and account status updates.
             </p>
           </div>
         </div>
@@ -378,9 +360,7 @@ export default function UserNotifications({ onBack }) {
               No notifications found
             </h3>
             <p className="text-xs text-fo-subtle">
-              {isAdmin
-                ? "New reports and channel requests will show up here."
-                : "You're all caught up! Check back later for new mentions and community updates."}
+              You're all caught up! Check back later for new mentions and community updates.
             </p>
           </div>
         )}

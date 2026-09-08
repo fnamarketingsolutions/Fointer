@@ -22,8 +22,12 @@ export function useSocialAuth() {
     try {
       const response = await authApiCall(token);
       if (response?.success && response.user) {
-        loginSuccess(response.user);
-        navigate(getDashboardPathForRole(response.user.role));
+        const ok = loginSuccess(response.user);
+        if (!ok) {
+          setError('Admin accounts must sign in through the admin portal.');
+          return;
+        }
+        navigate(getDashboardPathForRole());
         return;
       }
       if (response?.requiresEmailVerification && response?.email) {

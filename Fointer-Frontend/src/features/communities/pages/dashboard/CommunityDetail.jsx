@@ -34,6 +34,7 @@ import CreatePostForm from "../../../../shared/components/forms/CreatePostForm";
 import { COMMUNITY_TYPE_LABELS } from "../../../../shared/constants/community";
 import { formatLongDate, timeAgo } from "../../../../shared/utils/date";
 import { formatCount } from "../../../../shared/utils/format";
+import { parseCommunityRules } from "../../../../shared/utils/community";
 import PostActions from "../../../../shared/components/PostActions";
 import UserProfileLink from "../../../../shared/components/UserProfileLink";
 import {
@@ -243,10 +244,7 @@ export default function CommunityDetail({
   const primarySubchannels = subchannelList.slice(0, 2);
   const extraSubchannels = subchannelList.slice(2);
 
-  const ruleLines = (community?.rules || "")
-    .split("\n")
-    .map((r) => r.trim())
-    .filter(Boolean);
+  const ruleLines = parseCommunityRules(community?.rules);
   const primaryRules = ruleLines.slice(0, 3);
   const extraRules = ruleLines.slice(3);
   const aboutNeedsToggle = (community?.description || "").length > 180;

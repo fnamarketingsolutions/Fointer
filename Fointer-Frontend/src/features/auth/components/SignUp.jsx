@@ -100,8 +100,12 @@ export default function SignUp() {
     try {
       const response = await verifyEmailOtp(activeVerificationEmail, otp);
       if (response?.success && response.user) {
-        loginSuccess(response.user);
-        navigate(getDashboardPathForRole(response.user.role));
+        const ok = loginSuccess(response.user);
+        if (!ok) {
+          showToast('Admin accounts must sign in through the admin portal.');
+          return;
+        }
+        navigate(getDashboardPathForRole());
       }
     } catch (error) {
       showToast(error?.response?.data?.message || 'OTP verification failed.');

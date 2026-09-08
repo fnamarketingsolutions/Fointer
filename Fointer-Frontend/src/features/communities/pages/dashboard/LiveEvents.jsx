@@ -3,8 +3,10 @@ import { useNavigate } from "react-router-dom";
 import {
   LuLoaderCircle as Loader2,
   LuMessageCircle as MessageCircle,
+  LuPhone as Phone,
   LuPlus as Plus,
   LuRadio as Radio,
+  LuVideo as Video,
   LuRefreshCw as RefreshCw,
   LuSearch as Search,
   LuTrash2 as Trash2,
@@ -37,6 +39,12 @@ const CATEGORIES = [
   { value: "custom", label: "Custom" },
 ];
 
+const CALL_OPTIONS = [
+  { value: "video", label: "Video call", hint: "Camera and microphone in the room" },
+  { value: "audio", label: "Audio call", hint: "Voice only, camera stays off" },
+  { value: "chat", label: "Commentary only", hint: "Chat, with optional call join" },
+];
+
 const ACCESS_OPTIONS = [
   { value: "public", label: "Public", hint: "Anyone signed in can join" },
   {
@@ -51,7 +59,14 @@ const emptyForm = {
   category: "sports",
   customCategory: "",
   access: "community",
+  callMode: "video",
   communityId: "",
+};
+
+const callLabel = (event) => {
+  if (event.callMode === "audio") return "Audio call";
+  if (event.callMode === "video") return "Video call";
+  return "Commentary";
 };
 
 const categoryLabel = (event) => {
@@ -229,6 +244,7 @@ export default function LiveEvents() {
         category: form.category,
         customCategory: form.customCategory.trim(),
         access: form.access,
+        callMode: form.callMode,
         communityId: form.communityId,
       });
       showToast("Live commentary started.");
@@ -257,7 +273,7 @@ export default function LiveEvents() {
             Live Events
           </h1>
           <p className="text-sm text-fo-subtle">
-            Real-time commentary streams happening right now.
+            Live rooms with commentary, plus audio and video calls.
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -377,6 +393,17 @@ export default function LiveEvents() {
                     <span className={isPublic ? "text-emerald-400" : ""}>
                       {isPublic ? "Public" : "Community"}
                     </span>
+                    <span>·</span>
+                    <span className="inline-flex items-center gap-1">
+                      {event.callMode === "audio" ? (
+                        <Phone size={11} />
+                      ) : event.callMode === "video" ? (
+                        <Video size={11} />
+                      ) : (
+                        <MessageCircle size={11} />
+                      )}
+                      {callLabel(event)}
+                    </span>
                     {event.community?.name ? (
                       <>
                         <span>·</span>
@@ -413,7 +440,14 @@ export default function LiveEvents() {
                     onClick={() => goToEvent(event.id)}
                     className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-fo-accent/35 text-fo-accent text-xs font-semibold hover:bg-fo-accent/10 transition-colors"
                   >
-                    <MessageCircle size={12} /> Join stream
+                    {event.callMode === "audio" ? (
+                      <Phone size={12} />
+                    ) : event.callMode === "video" ? (
+                      <Video size={12} />
+                    ) : (
+                      <MessageCircle size={12} />
+                    )}{" "}
+                    Join event
                   </button>
 
                   {event.canEnd ? (
@@ -530,6 +564,41 @@ export default function LiveEvents() {
                     className="w-full mt-2 bg-fo-bg border border-fo-border rounded-xl px-3 py-2.5 text-sm text-fo-text focus:outline-none focus:border-fo-accent/50 placeholder:text-fo-subtle"
                   />
                 ) : null}
+              </div>
+
+              <div>
+                <label className="block text-[11px] uppercase tracking-wide text-fo-subtle mb-1.5">
+                  Call
+                </label>
+                <div className="space-y-2">
+                  {CALL_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() =>
+                        setForm((f) => ({ ...f, callMode: opt.value }))
+                      }
+                      className={`w-full text-left px-3 py-2.5 rounded-xl text-xs border transition-colors ${
+                        form.callMode === opt.value
+                          ? "border-fo-accent bg-fo-accent/10"
+                          : "border-fo-border hover:border-fo-accent/40"
+                      }`}
+                    >
+                      <span
+                        className={
+                          form.callMode === opt.value
+                            ? "text-fo-accent font-semibold"
+                            : "text-fo-text"
+                        }
+                      >
+                        {opt.label}
+                      </span>
+                      <span className="block text-fo-subtle mt-0.5">
+                        {opt.hint}
+                      </span>
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div>

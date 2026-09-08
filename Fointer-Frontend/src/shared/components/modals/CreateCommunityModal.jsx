@@ -319,9 +319,9 @@ export default function CreateCommunityModal({ open, onClose, onSuccess }) {
   const selectedChannel = channels.find((c) => c.id === form.channelId);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-      <div className="relative w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-[#120F0D] border border-fo-border rounded-2xl shadow-2xl text-fo-text [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-[#120F0D] [&::-webkit-scrollbar-thumb]:bg-[#2A241E] [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-fo-accent/50">
-        <div className="sticky top-0 z-20 flex items-center justify-between gap-3 px-5 py-4 border-b border-fo-border bg-[#120F0D]/95 backdrop-blur">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[var(--theme-overlay)] backdrop-blur-sm">
+      <div className="relative w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-fo-surface border border-fo-border rounded-2xl shadow-2xl text-fo-text fointer-scrollbar">
+        <div className="sticky top-0 z-20 flex items-center justify-between gap-3 px-5 py-4 border-b border-fo-border bg-fo-surface/95 backdrop-blur">
           <div>
             <h3 className="text-lg sm:text-xl font-serif font-semibold text-fo-text">
               Create Community
@@ -369,7 +369,7 @@ export default function CreateCommunityModal({ open, onClose, onSuccess }) {
               </button>
 
               {channelDropdownOpen && !loadingChannels && (
-                <div className="absolute left-0 right-0 top-full mt-1.5 z-30 max-h-48 overflow-y-auto bg-fo-bg border border-fo-border rounded-lg shadow-xl py-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-[#2A241E] [&::-webkit-scrollbar-thumb]:rounded-full">
+                <div className="absolute left-0 right-0 top-full mt-1.5 z-30 max-h-48 overflow-y-auto bg-fo-bg border border-fo-border rounded-lg shadow-xl py-1 fointer-scrollbar">
                   {channels.length === 0 ? (
                     <div className="px-3 py-2 text-xs text-fo-subtle">
                       No channels available
@@ -383,7 +383,7 @@ export default function CreateCommunityModal({ open, onClose, onSuccess }) {
                         className={`w-full text-left px-3.5 py-2 text-xs sm:text-sm transition-colors flex items-center justify-between ${
                           form.channelId === ch.id
                             ? 'bg-fo-accent/15 text-fo-accent font-semibold'
-                            : 'text-fo-text hover:bg-[#1a1510]'
+                            : 'text-fo-text hover:bg-fo-surface-hover'
                         }`}
                       >
                         <span className="truncate">{ch.name}</span>
@@ -433,7 +433,7 @@ export default function CreateCommunityModal({ open, onClose, onSuccess }) {
                   </button>
 
                   {subchannelDropdownOpen && !loadingSubchannels && (
-                    <div className="absolute left-0 right-0 top-full mt-1.5 z-30 max-h-48 overflow-y-auto bg-fo-bg border border-fo-border rounded-lg shadow-xl py-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-[#2A241E] [&::-webkit-scrollbar-thumb]:rounded-full">
+                    <div className="absolute left-0 right-0 top-full mt-1.5 z-30 max-h-48 overflow-y-auto bg-fo-bg border border-fo-border rounded-lg shadow-xl py-1 fointer-scrollbar">
                       {subchannels.length === 0 ? (
                         <div className="px-3 py-2 text-xs text-fo-subtle">
                           No subchannels for this channel yet.
@@ -447,14 +447,14 @@ export default function CreateCommunityModal({ open, onClose, onSuccess }) {
                               className={`flex items-center gap-2.5 px-3.5 py-2 text-xs sm:text-sm cursor-pointer transition-colors ${
                                 selected
                                   ? 'bg-fo-accent/15 text-fo-accent font-medium'
-                                  : 'text-fo-text hover:bg-[#1a1510]'
+                                  : 'text-fo-text hover:bg-fo-surface-hover'
                               }`}
                             >
                               <input
                                 type="checkbox"
                                 checked={selected}
                                 onChange={() => toggleSubchannel(sub.id)}
-                                className="accent-[#D4AF37] rounded border-fo-border bg-[#120F0D]"
+                                className="accent-fo-accent rounded border-fo-border bg-fo-bg"
                               />
                               <span className="truncate">{sub.name}</span>
                             </label>
@@ -569,7 +569,7 @@ export default function CreateCommunityModal({ open, onClose, onSuccess }) {
               value={form.name}
               onChange={(e) => handleInputChange('name', e.target.value)}
               placeholder="e.g. Sovereign Wealth Circle"
-              className="w-full px-3.5 py-2.5 rounded-lg bg-fo-bg border border-fo-border text-xs sm:text-sm text-fo-text placeholder-[#5A5046] focus:outline-none focus:border-fo-accent/80"
+              className="w-full px-3.5 py-2.5 rounded-lg bg-fo-bg border border-fo-border text-xs sm:text-sm text-fo-text placeholder:text-fo-subtle focus:outline-none focus:border-fo-accent/80"
               required
             />
           </div>
@@ -583,7 +583,7 @@ export default function CreateCommunityModal({ open, onClose, onSuccess }) {
               onChange={(e) => handleInputChange('description', e.target.value)}
               rows={3}
               placeholder="Define the purpose of your community..."
-              className="w-full px-3.5 py-2.5 rounded-lg bg-fo-bg border border-fo-border text-xs sm:text-sm text-fo-text placeholder-[#5A5046] focus:outline-none focus:border-fo-accent/80 resize-y"
+              className="w-full px-3.5 py-2.5 rounded-lg bg-fo-bg border border-fo-border text-xs sm:text-sm text-fo-text placeholder:text-fo-subtle focus:outline-none focus:border-fo-accent/80 resize-y"
             />
           </div>
 
@@ -596,7 +596,7 @@ export default function CreateCommunityModal({ open, onClose, onSuccess }) {
               onChange={(e) => handleInputChange('rules', e.target.value)}
               rows={3}
               placeholder="House rules and expectations..."
-              className="w-full px-3.5 py-2.5 rounded-lg bg-fo-bg border border-fo-border text-xs sm:text-sm text-fo-text placeholder-[#5A5046] focus:outline-none focus:border-fo-accent/80 resize-y"
+              className="w-full px-3.5 py-2.5 rounded-lg bg-fo-bg border border-fo-border text-xs sm:text-sm text-fo-text placeholder:text-fo-subtle focus:outline-none focus:border-fo-accent/80 resize-y"
             />
           </div>
 
@@ -623,7 +623,7 @@ export default function CreateCommunityModal({ open, onClose, onSuccess }) {
                 onKeyDown={handleTagKeyDown}
                 onBlur={() => addTag(tagInput)}
                 placeholder={form.tags.length ? '' : 'finance, startups'}
-                className="flex-1 min-w-[120px] bg-transparent text-xs text-fo-text placeholder-[#5A5046] focus:outline-none px-1"
+                className="flex-1 min-w-[120px] bg-transparent text-xs text-fo-text placeholder:text-fo-subtle focus:outline-none px-1"
               />
             </div>
           </div>
@@ -643,7 +643,7 @@ export default function CreateCommunityModal({ open, onClose, onSuccess }) {
                     className={`p-3 rounded-xl border text-left transition-all ${
                       selected
                         ? 'bg-fo-surface-3 border-fo-accent text-fo-text'
-                        : 'bg-fo-bg border-fo-border text-fo-subtle hover:border-[#3D332A]'
+                        : 'bg-fo-bg border-fo-border text-fo-subtle hover:border-fo-accent/40'
                     }`}
                   >
                     <Icon
@@ -672,7 +672,7 @@ export default function CreateCommunityModal({ open, onClose, onSuccess }) {
             <button
               type="submit"
               disabled={saving}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-[#D4AF37] to-[#AA820A] text-black text-xs sm:text-sm font-bold disabled:opacity-60"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-fo-brand text-fo-brand-fg text-xs sm:text-sm font-bold disabled:opacity-60"
             >
               {saving && <Loader2 size={16} className="animate-spin" />}
               Create Community

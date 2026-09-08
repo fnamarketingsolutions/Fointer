@@ -34,13 +34,9 @@ export default function Login() {
   const [verifyLoading, setVerifyLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
 
-  const redirectAfterLogin = (role) => {
-    if (role === 'admin') {
-      navigate(getDashboardPathForRole(role), { replace: true });
-      return;
-    }
+  const redirectAfterLogin = () => {
     const safe = getSafeReturnPath(location.state?.from);
-    navigate(safe || getDashboardPathForRole(role), { replace: true });
+    navigate(safe || getDashboardPathForRole(), { replace: true });
   };
 
   const activeVerificationEmail = verificationEmail || pendingVerification?.email || '';
@@ -63,8 +59,12 @@ export default function Login() {
     try {
       const response = await loginUser(formData);
       if (response?.success && response.user) {
-        loginSuccess(response.user);
-        redirectAfterLogin(response.user.role);
+        const ok = loginSuccess(response.user);
+        if (!ok) {
+          showToast('Admin accounts must sign in through the admin portal.');
+          return;
+        }
+        redirectAfterLogin();
       } else {
         showToast(response?.message || 'Invalid email or password.');
       }
@@ -103,8 +103,12 @@ export default function Login() {
     try {
       const response = await verifyEmailOtp(activeVerificationEmail, otp);
       if (response?.success && response.user) {
-        loginSuccess(response.user);
-        redirectAfterLogin(response.user.role);
+        const ok = loginSuccess(response.user);
+        if (!ok) {
+          showToast('Admin accounts must sign in through the admin portal.');
+          return;
+        }
+        redirectAfterLogin();
       }
     } catch (error) {
       showToast(error?.response?.data?.message || 'OTP verification failed.');

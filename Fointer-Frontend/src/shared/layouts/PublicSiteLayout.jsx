@@ -35,7 +35,7 @@ export default function PublicSiteLayout({ children }) {
   const exploreTo = isGuest ? EXPLORE_PATH : FEED_PATH;
   const exploreActive =
     pathname === EXPLORE_PATH || pathname === FEED_PATH;
-  const profileTo = user?.role === 'admin' ? '/admin/profile' : '/profile';
+  const profileTo = '/profile';
 
   useEffect(() => {
     setMobileOpen(false);

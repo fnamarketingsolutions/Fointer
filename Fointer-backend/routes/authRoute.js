@@ -2,6 +2,9 @@ import express from "express";
 import {
   signup,
   login,
+  adminLogin,
+  adminGoogleLogin,
+  adminFacebookLogin,
   logout,
   getMe,
   googleLogin,
@@ -19,6 +22,9 @@ const router = express.Router();
 
 router.post("/signup", authRateLimit, signup);
 router.post("/login", authRateLimit, login);
+router.post("/admin/login", authRateLimit, adminLogin);
+router.post("/admin/google", authRateLimit, adminGoogleLogin);
+router.post("/admin/facebook", authRateLimit, adminFacebookLogin);
 router.post("/verify-email-otp", otpRateLimit, verifyEmailOtp);
 router.post("/resend-verification", otpRateLimit, resendVerificationEmail);
 router.post("/google", authRateLimit, googleLogin);

@@ -1,9 +1,12 @@
 // src/context/AuthContext.jsx
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { getMe, logoutUser } from '../features/auth/services/authService';
+import { getMe, logoutUser } from '../api/auth';
 import { setUnauthorizedHandler } from '../shared/services/http/client';
 
 const AuthContext = createContext(null);
+
+const isMemberUser = (user) =>
+  String(user?.role || '').toLowerCase().trim() === 'user';
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -14,10 +17,21 @@ export function AuthProvider({ children }) {
   }, []);
 
   const loginSuccess = useCallback((nextUser) => {
+    if (!isMemberUser(nextUser)) {
+      setUser(null);
+      return false;
+    }
     setUser(nextUser);
+    return true;
   }, []);
 
   const logout = useCallback(async () => {
+    try {
+      const { unregisterCurrentPush } = await import('../shared/services/pushClient');
+      await unregisterCurrentPush();
+    } catch {
+      /* still log out */
+    }
     try {
       await logoutUser();
     } catch {
@@ -30,20 +44,26 @@ export function AuthProvider({ children }) {
   const refreshUser = useCallback(async () => {
     try {
       const data = await getMe();
-      if (data?.success && data.user) {
+      if (data?.success && isMemberUser(data.user)) {
         setUser(data.user);
       } else {
-        setUser(prev => (prev ? null : prev)); // Prevent unnecessary re-render loop
+        if (data?.success && data.user && !isMemberUser(data.user)) {
+          try {
+            await logoutUser();
+          } catch {
+            /* ignore */
+          }
+        }
+        setUser((prev) => (prev ? null : prev));
       }
     } catch {
-      setUser(prev => (prev ? null : prev));
+      setUser((prev) => (prev ? null : prev));
     }
   }, []);
 
   useEffect(() => {
-    // Prevent state updates if user is already null
     setUnauthorizedHandler(() => {
-      setUser(prev => (prev ? null : prev));
+      setUser((prev) => (prev ? null : prev));
     });
 
     let cancelled = false;
@@ -51,9 +71,18 @@ export function AuthProvider({ children }) {
     (async () => {
       try {
         const data = await getMe();
-        if (!cancelled && data?.success && data.user) {
+        if (cancelled) return;
+
+        if (data?.success && isMemberUser(data.user)) {
           setUser(data.user);
-        } else if (!cancelled) {
+        } else {
+          if (data?.success && data.user && !isMemberUser(data.user)) {
+            try {
+              await logoutUser();
+            } catch {
+              /* ignore */
+            }
+          }
           setUser(null);
         }
       } catch {

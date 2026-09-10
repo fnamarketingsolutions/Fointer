@@ -65,7 +65,7 @@ export default function SocialAuthButtons({
           type="button"
           onClick={onFacebookClick}
           disabled={facebookLoading}
-          className="w-full py-3 px-4 bg-[#1877F2] text-white font-medium text-xs rounded-lg hover:bg-[#165ec2] transition-colors flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50"
+          className="w-full py-3 px-4 bg-[#1877F2] text-fo-text font-medium text-xs rounded-lg hover:bg-[#165ec2] transition-colors flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50"
         >
           <FaFacebookF size={15} />
           <span>{facebookLoading ? 'Connecting...' : 'Facebook'}</span>
@@ -76,7 +76,7 @@ export default function SocialAuthButtons({
         <button
           type="button"
           disabled={googleLoading}
-          className="w-full py-3 px-4 bg-[#1c140d] border border-amber-900/30 text-gray-200 font-medium text-xs rounded-lg pointer-events-none flex items-center justify-center gap-2.5 disabled:opacity-50"
+          className="w-full py-3 px-4 bg-fo-surface-hover border border-fo-border/60 text-fo-muted font-medium text-xs rounded-lg pointer-events-none flex items-center justify-center gap-2.5 disabled:opacity-50"
         >
           <FcGoogle size={18} />
           <span>{googleLoading ? 'Connecting...' : 'Continue with Google'}</span>

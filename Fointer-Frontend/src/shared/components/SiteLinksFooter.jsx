@@ -40,7 +40,7 @@ function SocialNav() {
         const Icon = SOCIAL_ICONS[item.id];
         const ready = Boolean(item.href);
         const iconClass =
-          "inline-flex items-center justify-center w-8 h-8 rounded-lg border border-[#2A241E] text-[#8C8070] transition-colors";
+          "inline-flex items-center justify-center w-8 h-8 rounded-lg border border-fo-border text-fo-subtle transition-colors";
 
         if (!ready) {
           return (
@@ -61,7 +61,7 @@ function SocialNav() {
             href={item.href}
             target="_blank"
             rel="noopener noreferrer"
-            className={`${iconClass} hover:text-[#D4AF37] hover:border-[#D4AF37]/40`}
+            className={`${iconClass} hover:text-fo-accent hover:border-fo-accent/40`}
             title={item.label}
             aria-label={item.label}
           >
@@ -85,8 +85,8 @@ function FooterLinks({ onNavigate, activeSegment }) {
             onClick={onNavigate}
             className={`text-[11px] transition-colors ${
               active
-                ? "text-[#D4AF37]"
-                : "text-[#8C8070] hover:text-[#D4AF37]"
+                ? "text-fo-accent"
+                : "text-fo-subtle hover:text-fo-accent"
             }`}
           >
             {link.label}
@@ -135,7 +135,7 @@ function ContactDetails() {
 
   return (
     <div className="w-full sm:w-auto sm:min-w-[240px] sm:max-w-[280px]">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#A69B8D] mb-3">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-fo-muted mb-3">
         Contact
       </p>
       <ul className="space-y-3">
@@ -145,16 +145,16 @@ function ContactDetails() {
           const valueProps = row.href ? { href: row.href } : {};
           return (
             <li key={row.key} className="flex items-start gap-3">
-              <span className="inline-flex w-7 h-7 shrink-0 items-center justify-center rounded-md border border-[#2A241E] text-[#D4AF37]">
+              <span className="inline-flex w-7 h-7 shrink-0 items-center justify-center rounded-md border border-fo-border text-fo-accent">
                 <Icon size={13} />
               </span>
               <div className="min-w-0 pt-0.5">
-                <p className="text-[10px] uppercase tracking-[0.14em] text-[#5C5348] leading-none mb-1">
+                <p className="text-[10px] uppercase tracking-[0.14em] text-fo-subtle leading-none mb-1">
                   {row.label}
                 </p>
                 <ValueTag
                   {...valueProps}
-                  className="block text-[12px] leading-snug text-[#C8BFB3] hover:text-[#D4AF37] transition-colors break-words"
+                  className="block text-[12px] leading-snug text-[#C8BFB3] hover:text-fo-accent transition-colors break-words"
                 >
                   {row.value}
                 </ValueTag>
@@ -184,7 +184,7 @@ export default function SiteLinksFooter({
           </div>
           <ContactDetails />
         </div>
-        <p className="text-[10px] text-[#5C5348]">
+        <p className="text-[10px] text-fo-subtle">
           Fointer © {new Date().getFullYear()}. All rights reserved.
         </p>
       </div>
@@ -195,7 +195,7 @@ export default function SiteLinksFooter({
     <div className={`space-y-3 ${className}`}>
       <FooterLinks onNavigate={onNavigate} activeSegment={activeSegment} />
       <SocialNav />
-      <p className="text-[10px] text-[#5C5348]">
+      <p className="text-[10px] text-fo-subtle">
         Fointer © {new Date().getFullYear()}. All rights reserved.
       </p>
     </div>

@@ -5,6 +5,10 @@ import Notification, {
 } from "../models/notification.js";
 import { formatNotification } from "../utils/notify.js";
 import {
+  adminCanReceiveNotificationType,
+  allowedAdminNotificationTypes,
+} from "../utils/adminAccess.js";
+import {
   parsePagination,
   buildPaginationMeta,
 } from "../utils/pagination.js";
@@ -16,7 +20,9 @@ const isAdminRole = (user) => String(user?.role || "").toLowerCase() === "admin"
 const recipientScope = (user) => {
   const query = { recipient: user._id };
   if (isAdminRole(user)) {
-    query.type = { $in: ADMIN_NOTIFICATION_TYPES };
+    const types = allowedAdminNotificationTypes(user, ADMIN_NOTIFICATION_TYPES);
+    // Impossible match keeps list/unread empty when no tabs map to any type.
+    query.type = { $in: types.length ? types : ["__none__"] };
   }
   return query;
 };
@@ -37,14 +43,25 @@ export const listNotifications = async (req, res) => {
     });
     const filter = String(req.query.filter || "all").toLowerCase();
     const query = recipientScope(req.user);
+    const allowedTypes = isAdminRole(req.user)
+      ? allowedAdminNotificationTypes(req.user, ADMIN_NOTIFICATION_TYPES)
+      : [];
 
     if (isAdminRole(req.user)) {
       if (filter === "unread") {
         query.readAt = null;
       } else if (filter === "reports") {
-        query.type = "content_report";
+        query.type = allowedTypes.includes("content_report")
+          ? "content_report"
+          : "__none__";
       } else if (filter === "requests" || filter === "channel") {
-        query.type = "channel_request";
+        query.type = allowedTypes.includes("channel_request")
+          ? "channel_request"
+          : "__none__";
+      } else if (filter === "warnings") {
+        query.type = allowedTypes.includes("user_warning")
+          ? "user_warning"
+          : "__none__";
       }
     } else if (filter === "unread") {
       query.readAt = null;
@@ -97,7 +114,11 @@ export const getUnreadCount = async (req, res) => {
 export const markNotificationRead = async (req, res) => {
   try {
     const notification = await ownedNotification(req.params.id, req.user._id);
-    if (!notification) {
+    if (
+      !notification ||
+      (isAdminRole(req.user) &&
+        !adminCanReceiveNotificationType(req.user, notification.type))
+    ) {
       return res.status(404).json({
         success: false,
         message: "Notification not found.",
@@ -121,7 +142,11 @@ export const markNotificationRead = async (req, res) => {
 export const markNotificationUnread = async (req, res) => {
   try {
     const notification = await ownedNotification(req.params.id, req.user._id);
-    if (!notification) {
+    if (
+      !notification ||
+      (isAdminRole(req.user) &&
+        !adminCanReceiveNotificationType(req.user, notification.type))
+    ) {
       return res.status(404).json({
         success: false,
         message: "Notification not found.",
@@ -159,7 +184,11 @@ export const markAllNotificationsRead = async (req, res) => {
 export const deleteNotification = async (req, res) => {
   try {
     const notification = await ownedNotification(req.params.id, req.user._id);
-    if (!notification) {
+    if (
+      !notification ||
+      (isAdminRole(req.user) &&
+        !adminCanReceiveNotificationType(req.user, notification.type))
+    ) {
       return res.status(404).json({
         success: false,
         message: "Notification not found.",

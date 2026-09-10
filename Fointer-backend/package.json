@@ -6,6 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
+    "smoke:auth": "node scripts/smoke-auth-portals.js",
+    "seed:super-admins": "node scripts/seed-super-admins.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -20,6 +22,7 @@
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "express-rate-limit": "^8.6.2",
+    "firebase-admin": "^14.3.0",
     "google-auth-library": "^10.9.0",
     "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.3",

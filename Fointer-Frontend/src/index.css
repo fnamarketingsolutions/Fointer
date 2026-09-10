@@ -1,15 +1,126 @@
 @import "tailwindcss";
 
+/* ── Theme tokens (light = default) ── */
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+  --theme-bg: #f7f4ef;
+  --theme-surface: #ffffff;
+  --theme-surface-2: #f0ebe3;
+  --theme-surface-3: #e8e0d4;
+  --theme-surface-hover: #ede6dc;
+  --theme-border: #ddd4c8;
+  --theme-text: #1a1612;
+  --theme-muted: #5c5348;
+  --theme-subtle: #7a7168;
+  --theme-accent: #b8941f;
+  --theme-accent-hover: #9a7d18;
+  --theme-brand: #d49200;
+  --theme-brand-hover: #b87d00;
+  --theme-brand-fg: #ffffff;
+  --theme-auth-bg: #f7f4ef;
+  --theme-auth-fg: #1a1612;
+  --theme-auth-muted: #6b7280;
+  --theme-overlay: rgb(26 22 18 / 0.45);
+  --theme-scrollbar-track: #e8e0d4;
+  --theme-scrollbar-thumb: rgb(184 148 31 / 0.45);
+  --theme-scrollbar-thumb-hover: rgb(184 148 31 / 0.65);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --theme-bg: #0e0c0a;
+  --theme-surface: #14100d;
+  --theme-surface-2: #0a0806;
+  --theme-surface-3: #251e17;
+  --theme-surface-hover: #1c1612;
+  --theme-border: #2a241e;
+  --theme-text: #e5e0d8;
+  --theme-muted: #a69b8d;
+  --theme-subtle: #8c8070;
+  --theme-accent: #d4af37;
+  --theme-accent-hover: #e0c04a;
+  --theme-brand: #f8a201;
+  --theme-brand-hover: #e09200;
+  --theme-brand-fg: #130d08;
+  --theme-auth-bg: #130d08;
+  --theme-auth-fg: #ffffff;
+  --theme-auth-muted: #d1d5db;
+  --theme-overlay: rgb(0 0 0 / 0.75);
+  --theme-scrollbar-track: #1a1714;
+  --theme-scrollbar-thumb: rgb(212 175 55 / 0.55);
+  --theme-scrollbar-thumb-hover: rgb(212 175 55 / 0.75);
+}
+
+@theme {
+  --color-fo-bg: var(--theme-bg);
+  --color-fo-surface: var(--theme-surface);
+  --color-fo-surface-2: var(--theme-surface-2);
+  --color-fo-surface-3: var(--theme-surface-3);
+  --color-fo-surface-hover: var(--theme-surface-hover);
+  --color-fo-border: var(--theme-border);
+  --color-fo-text: var(--theme-text);
+  --color-fo-muted: var(--theme-muted);
+  --color-fo-subtle: var(--theme-subtle);
+  --color-fo-accent: var(--theme-accent);
+  --color-fo-accent-hover: var(--theme-accent-hover);
+  --color-fo-brand: var(--theme-brand);
+  --color-fo-brand-hover: var(--theme-brand-hover);
+  --color-fo-brand-fg: var(--theme-brand-fg);
+  --color-fo-auth: var(--theme-auth-bg);
+  --color-fo-auth-fg: var(--theme-auth-fg);
+  --color-fo-auth-muted: var(--theme-auth-muted);
+}
+
 html,
 body,
 #root {
   min-height: 100%;
-  background-color: #0e0c0a;
+  background-color: var(--theme-bg);
+  color: var(--theme-text);
+}
+
+.auth-page {
+  background-color: var(--theme-auth-bg);
+  color: var(--theme-auth-fg);
+}
+
+.auth-page .auth-muted {
+  color: var(--theme-auth-muted);
+}
+
+/* Auth hero (image panel) — always dark overlay, light text regardless of theme */
+.auth-hero {
+  color: #e5e0d8;
+}
+
+.auth-hero .auth-hero-title {
+  color: rgb(245 240 232 / 0.92);
+}
+
+.auth-hero .auth-hero-lead {
+  color: #c9c0b4;
+}
+
+.auth-hero .auth-hero-meta {
+  color: #b8aea3;
+}
+
+.auth-hero .auth-hero-meta strong {
+  color: var(--theme-brand);
+}
+
+.auth-hero .auth-hero-separator {
+  border-color: rgb(255 255 255 / 0.12);
+}
+
+.auth-hero .auth-hero-avatar {
+  --tw-ring-color: rgb(19 13 8 / 0.85);
 }
 
 .fointer-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: rgba(212, 175, 55, 0.55) #1a1714;
+  scrollbar-color: var(--theme-scrollbar-thumb) var(--theme-scrollbar-track);
 }
 
 .fointer-scrollbar::-webkit-scrollbar {
@@ -17,15 +128,15 @@ body,
 }
 
 .fointer-scrollbar::-webkit-scrollbar-track {
-  background: #1a1714;
+  background: var(--theme-scrollbar-track);
   border-radius: 8px;
 }
 
 .fointer-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(212, 175, 55, 0.55);
+  background: var(--theme-scrollbar-thumb);
   border-radius: 8px;
 }
 
 .fointer-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(212, 175, 55, 0.75);
+  background: var(--theme-scrollbar-thumb-hover);
 }

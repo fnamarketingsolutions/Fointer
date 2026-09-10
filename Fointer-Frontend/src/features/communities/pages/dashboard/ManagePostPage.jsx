@@ -13,8 +13,8 @@ export default function ManagePostPage() {
 
   if (resolving) {
     return (
-      <div className="flex items-center justify-center gap-2 py-20 text-sm text-[#A69B8D]">
-        <Loader2 size={16} className="animate-spin text-[#D4AF37]" />
+      <div className="flex items-center justify-center gap-2 py-20 text-sm text-fo-muted">
+        <Loader2 size={16} className="animate-spin text-fo-accent" />
         Loading post…
       </div>
     );
@@ -22,7 +22,7 @@ export default function ManagePostPage() {
 
   if (notFound || !postId) {
     return (
-      <div className="border border-dashed border-[#2A241E] rounded-xl py-14 text-center text-sm text-[#8C8070]">
+      <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle">
         Post not found.
       </div>
     );

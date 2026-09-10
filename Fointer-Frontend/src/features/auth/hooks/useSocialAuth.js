@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { googleAuth, facebookAuth } from '../services/authService';
 import { loginWithFacebook, ensureFacebookSdk } from '../../../shared/lib/facebookSdk';
 import { useAuth } from '../../../context/AuthContext';
+import { getDashboardPathForRole } from '../../../shared/lib/roles';
 
 export function useSocialAuth() {
   const navigate = useNavigate();
@@ -21,8 +22,12 @@ export function useSocialAuth() {
     try {
       const response = await authApiCall(token);
       if (response?.success && response.user) {
-        loginSuccess(response.user);
-        navigate(response.user.role === 'admin' ? '/admin' : '/');
+        const ok = loginSuccess(response.user);
+        if (!ok) {
+          setError('Admin accounts must sign in through the admin portal.');
+          return;
+        }
+        navigate(getDashboardPathForRole());
         return;
       }
       if (response?.requiresEmailVerification && response?.email) {

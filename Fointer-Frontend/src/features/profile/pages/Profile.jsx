@@ -27,19 +27,23 @@ import {
   postSegment,
 } from "../../../shared/services/entityLinks";
 import { timeAgo } from "../../../shared/utils/date";
+import FollowUserList from "../components/FollowUserList";
+import ThemeToggle from "../../../shared/components/ThemeToggle";
 
 const TABS = [
   { id: "profile", label: "Profile" },
   { id: "security", label: "Security" },
   { id: "communities", label: "Communities" },
   { id: "posts", label: "My Posts" },
+  { id: "followers", label: "Followers" },
+  { id: "following", label: "Following" },
 ];
 
 const fieldClass =
-  "w-full bg-[#0E0C0A] border border-[#2A241E] rounded-lg px-3 py-2.5 text-sm text-[#E5E0D8] focus:outline-none focus:border-[#D4AF37]/50 placeholder:text-[#5C5348]";
+  "w-full bg-fo-bg border border-fo-border rounded-lg px-3 py-2.5 text-sm text-fo-text focus:outline-none focus:border-fo-accent/50 placeholder:text-fo-subtle";
 
 const labelClass =
-  "block text-[11px] uppercase tracking-wide text-[#8C8070] mb-1.5";
+  "block text-[11px] uppercase tracking-wide text-fo-subtle mb-1.5";
 
 export default function Profile() {
   const { refreshUser } = useAuth();
@@ -55,6 +59,12 @@ export default function Profile() {
     username: "",
     bio: "",
     interests: "",
+    city: "",
+    state: "",
+    country: "",
+    zipCode: "",
+    phone: "",
+    yearOfBirth: "",
   });
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: "",
@@ -80,6 +90,15 @@ export default function Profile() {
         username: p?.username || "",
         bio: p?.bio || "",
         interests: (p?.interests || []).join(", "),
+        city: p?.city || "",
+        state: p?.state || "",
+        country: p?.country || "",
+        zipCode: p?.zipCode || "",
+        phone: p?.phone || "",
+        yearOfBirth:
+          p?.yearOfBirth !== null && p?.yearOfBirth !== undefined
+            ? String(p.yearOfBirth)
+            : "",
       });
     } catch (err) {
       showToast(err?.response?.data?.message || "Failed to load profile.");
@@ -126,12 +145,27 @@ export default function Profile() {
       username: form.username.trim().replace(/^@+/, ""),
       bio: form.bio.trim(),
       interests: interestList,
+      city: form.city.trim(),
+      state: form.state.trim(),
+      country: form.country.trim(),
+      zipCode: form.zipCode.trim(),
+      phone: form.phone.trim(),
+      yearOfBirth: form.yearOfBirth.trim(),
     };
     const prevInterests = profile?.interests || [];
     const unchanged =
       next.name === (profile?.name || "") &&
       next.username === String(profile?.username || "").replace(/^@+/, "") &&
       next.bio === (profile?.bio || "") &&
+      next.city === (profile?.city || "") &&
+      next.state === (profile?.state || "") &&
+      next.country === (profile?.country || "") &&
+      next.zipCode === (profile?.zipCode || "") &&
+      next.phone === (profile?.phone || "") &&
+      next.yearOfBirth ===
+        (profile?.yearOfBirth !== null && profile?.yearOfBirth !== undefined
+          ? String(profile.yearOfBirth)
+          : "") &&
       next.interests.length === prevInterests.length &&
       next.interests.every((t, i) => t === prevInterests[i]);
 
@@ -161,6 +195,15 @@ export default function Profile() {
           interests: Array.isArray(updated.interests)
             ? updated.interests.join(", ")
             : form.interests,
+          city: updated.city ?? form.city,
+          state: updated.state ?? form.state,
+          country: updated.country ?? form.country,
+          zipCode: updated.zipCode ?? form.zipCode,
+          phone: updated.phone ?? form.phone,
+          yearOfBirth:
+            updated.yearOfBirth !== null && updated.yearOfBirth !== undefined
+              ? String(updated.yearOfBirth)
+              : "",
         });
       }
 
@@ -234,8 +277,8 @@ export default function Profile() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center gap-2 py-14 text-sm text-[#A69B8D]">
-        <Loader2 size={16} className="animate-spin text-[#D4AF37]" />
+      <div className="flex items-center justify-center gap-2 py-14 text-sm text-fo-muted">
+        <Loader2 size={16} className="animate-spin text-fo-accent" />
         Loading profile…
       </div>
     );
@@ -243,15 +286,27 @@ export default function Profile() {
 
   const communityCount = profile?.stats?.communitiesJoined || 0;
   const postCount = profile?.stats?.posts || 0;
+  const followerCount = profile?.stats?.followers ?? 0;
+  const followingCount = profile?.stats?.following ?? 0;
+
+  const tabItems = TABS.map((item) => {
+    if (item.id === "followers") {
+      return { ...item, label: `Followers (${followerCount})` };
+    }
+    if (item.id === "following") {
+      return { ...item, label: `Following (${followingCount})` };
+    }
+    return item;
+  });
 
   return (
     <div className="w-full max-w-3xl mx-auto space-y-5">
       <header className="flex items-start justify-between gap-3">
         <div className="space-y-1 min-w-0">
-          <h1 className="text-xl sm:text-2xl font-semibold text-[#E5E0D8]">
+          <h1 className="text-xl sm:text-2xl font-semibold text-fo-text">
             Profile
           </h1>
-          <p className="text-sm text-[#8C8070]">
+          <p className="text-sm text-fo-subtle">
             Identity, security, communities, and posts.
           </p>
         </div>
@@ -259,7 +314,7 @@ export default function Profile() {
           type="button"
           onClick={load}
           disabled={loading}
-          className="p-2 rounded-lg border border-[#2A241E] text-[#A69B8D] hover:text-[#D4AF37] hover:border-[#D4AF37]/40 transition-colors disabled:opacity-50 shrink-0"
+          className="p-2 rounded-lg border border-fo-border text-fo-muted hover:text-fo-accent hover:border-fo-accent/40 transition-colors disabled:opacity-50 shrink-0"
           title="Refresh"
         >
           <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
@@ -267,7 +322,7 @@ export default function Profile() {
       </header>
 
       {/* Identity strip */}
-      <div className="flex items-center gap-4 bg-[#14100D] border border-[#2A241E] rounded-xl p-3.5 sm:p-4">
+      <div className="flex items-center gap-4 bg-fo-surface border border-fo-border rounded-xl p-3.5 sm:p-4">
         <button
           type="button"
           onClick={() => avatarInputRef.current?.click()}
@@ -279,18 +334,18 @@ export default function Profile() {
             <img
               src={profile.avatar}
               alt={profile?.name || "Profile"}
-              className="w-16 h-16 rounded-full object-cover border border-[#2A241E]"
+              className="w-16 h-16 rounded-full object-cover border border-fo-border"
             />
           ) : (
-            <div className="w-16 h-16 rounded-full bg-[#1A1510] border border-[#2A241E] flex items-center justify-center text-[#D4AF37] text-xl font-semibold">
+            <div className="w-16 h-16 rounded-full bg-[#1A1510] border border-fo-border flex items-center justify-center text-fo-accent text-xl font-semibold">
               {(profile?.name || "U").charAt(0).toUpperCase()}
             </div>
           )}
           <span className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
             {avatarSaving ? (
-              <Loader2 size={16} className="animate-spin text-[#D4AF37]" />
+              <Loader2 size={16} className="animate-spin text-fo-accent" />
             ) : (
-              <Camera size={16} className="text-[#E5E0D8]" />
+              <Camera size={16} className="text-fo-text" />
             )}
           </span>
         </button>
@@ -304,26 +359,22 @@ export default function Profile() {
         />
 
         <div className="min-w-0 flex-1">
-          <h2 className="text-base sm:text-lg font-semibold text-[#E5E0D8] truncate">
+          <h2 className="text-base sm:text-lg font-semibold text-fo-text truncate">
             {profile?.name || "Member"}
           </h2>
-          <p className="text-xs text-[#8C8070] truncate">
+          <p className="text-xs text-fo-subtle truncate">
             @{String(profile?.username || "").replace(/^@+/, "")}
             {profile?.email ? ` · ${profile.email}` : ""}
           </p>
-          <div className="flex items-center gap-3 mt-1.5 text-[11px] text-[#8C8070]">
-            <span className="capitalize">{profile?.role || "user"}</span>
-            <span>·</span>
-            <span>{communityCount} communities</span>
-            <span>·</span>
-            <span>{postCount} posts</span>
-          </div>
+          <p className="text-xs text-fo-subtle mt-2">
+            {postCount} posts · {communityCount} communities
+          </p>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 p-1 rounded-xl bg-[#0E0C0A] border border-[#2A241E] overflow-x-auto">
-        {TABS.map((t) => {
+      <div className="flex gap-1 p-1 rounded-xl bg-fo-bg border border-fo-border overflow-x-auto">
+        {tabItems.map((t) => {
           const active = tab === t.id;
           return (
             <button
@@ -332,8 +383,8 @@ export default function Profile() {
               onClick={() => setTab(t.id)}
               className={`flex-1 min-w-[4.5rem] py-2 px-3 rounded-lg text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap ${
                 active
-                  ? "bg-[#1A1510] text-[#D4AF37] border border-[#D4AF37]/35"
-                  : "text-[#8C8070] hover:text-[#E5E0D8] border border-transparent"
+                  ? "bg-[#1A1510] text-fo-accent border border-fo-accent/35"
+                  : "text-fo-subtle hover:text-fo-text border border-transparent"
               }`}
             >
               {t.label}
@@ -347,7 +398,7 @@ export default function Profile() {
         <div className="space-y-4">
           <form
             onSubmit={handleSaveProfile}
-            className="bg-[#14100D] border border-[#2A241E] rounded-xl p-4 sm:p-5 space-y-4"
+            className="bg-fo-surface border border-fo-border rounded-xl p-4 sm:p-5 space-y-4"
           >
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
@@ -381,6 +432,101 @@ export default function Profile() {
               />
             </div>
 
+            <div className="pt-1 space-y-3">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-fo-muted">
+                Appearance
+              </h3>
+              <div className="flex items-center justify-between gap-4 rounded-xl border border-fo-border bg-fo-bg px-4 py-3">
+                <div>
+                  <p className="text-sm font-medium text-fo-text">Theme</p>
+                  <p className="text-xs text-fo-subtle mt-0.5">
+                    Switch between dark and light mode.
+                  </p>
+                </div>
+                <ThemeToggle showLabel />
+              </div>
+            </div>
+
+            <div className="pt-1 space-y-4">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-fo-muted">
+                Contact & location
+              </h3>
+
+              <div>
+                <label className={labelClass}>Phone number</label>
+                <input
+                  type="tel"
+                  value={form.phone}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, phone: e.target.value }))
+                  }
+                  placeholder="+1 (555) 123-4567"
+                  className={fieldClass}
+                />
+              </div>
+
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div>
+                  <label className={labelClass}>City</label>
+                  <input
+                    value={form.city}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, city: e.target.value }))
+                    }
+                    className={fieldClass}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>State</label>
+                  <input
+                    value={form.state}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, state: e.target.value }))
+                    }
+                    className={fieldClass}
+                  />
+                </div>
+              </div>
+
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div>
+                  <label className={labelClass}>Country</label>
+                  <input
+                    value={form.country}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, country: e.target.value }))
+                    }
+                    className={fieldClass}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Zip code</label>
+                  <input
+                    value={form.zipCode}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, zipCode: e.target.value }))
+                    }
+                    className={fieldClass}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className={labelClass}>Year of birth</label>
+                <input
+                  type="number"
+                  min={1900}
+                  max={new Date().getFullYear()}
+                  value={form.yearOfBirth}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, yearOfBirth: e.target.value }))
+                  }
+                  placeholder="e.g. 1990"
+                  className={fieldClass}
+                />
+              </div>
+            </div>
+
             <div>
               <label className={labelClass}>Bio</label>
               <textarea
@@ -393,7 +539,7 @@ export default function Profile() {
                 placeholder="Tell others about yourself…"
                 className={`${fieldClass} resize-y`}
               />
-              <p className="text-[10px] text-[#5C5348] text-right mt-1">
+              <p className="text-[10px] text-fo-subtle text-right mt-1">
                 {form.bio.length}/500
               </p>
             </div>
@@ -405,7 +551,7 @@ export default function Profile() {
                   {interestList.map((tag) => (
                     <span
                       key={tag}
-                      className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-[#2A241E] bg-[#0E0C0A] text-[11px] text-[#A69B8D]"
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-fo-border bg-fo-bg text-[11px] text-fo-muted"
                     >
                       {tag}
                       <button
@@ -436,7 +582,7 @@ export default function Profile() {
                 <button
                   type="button"
                   onClick={addInterest}
-                  className="px-3 py-2 rounded-lg border border-[#2A241E] text-xs text-[#A69B8D] hover:text-[#D4AF37] hover:border-[#D4AF37]/40 shrink-0"
+                  className="px-3 py-2 rounded-lg border border-fo-border text-xs text-fo-muted hover:text-fo-accent hover:border-fo-accent/40 shrink-0"
                 >
                   Add
                 </button>
@@ -446,7 +592,7 @@ export default function Profile() {
             <button
               type="submit"
               disabled={saving}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#D4AF37] text-black text-sm font-semibold disabled:opacity-60"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-fo-accent text-black text-sm font-semibold disabled:opacity-60"
             >
               {saving ? (
                 <Loader2 size={14} className="animate-spin" />
@@ -458,15 +604,15 @@ export default function Profile() {
           </form>
 
           {/* Achievements */}
-          <section className="bg-[#14100D] border border-[#2A241E] rounded-xl p-4 sm:p-5 space-y-3">
+          <section className="bg-fo-surface border border-fo-border rounded-xl p-4 sm:p-5 space-y-3">
             <div className="flex items-center gap-2">
-              <Award size={15} className="text-[#D4AF37]" />
-              <h3 className="text-sm font-semibold text-[#E5E0D8]">
+              <Award size={15} className="text-fo-accent" />
+              <h3 className="text-sm font-semibold text-fo-text">
                 Achievements
               </h3>
             </div>
             {!profile?.achievements?.length ? (
-              <p className="text-xs text-[#8C8070]">
+              <p className="text-xs text-fo-subtle">
                 Join communities and post to unlock badges.
               </p>
             ) : (
@@ -474,15 +620,15 @@ export default function Profile() {
                 {profile.achievements.map((badge) => (
                   <div
                     key={badge.id}
-                    className="flex items-start gap-3 p-3 rounded-lg border border-[#2A241E] bg-[#0E0C0A]"
+                    className="flex items-start gap-3 p-3 rounded-lg border border-fo-border bg-fo-bg"
                     title={badge.description}
                   >
-                    <Award size={14} className="text-[#D4AF37] mt-0.5 shrink-0" />
+                    <Award size={14} className="text-fo-accent mt-0.5 shrink-0" />
                     <div className="min-w-0">
-                      <p className="text-xs font-semibold text-[#E5E0D8]">
+                      <p className="text-xs font-semibold text-fo-text">
                         {badge.label}
                       </p>
-                      <p className="text-[11px] text-[#8C8070] mt-0.5">
+                      <p className="text-[11px] text-fo-subtle mt-0.5">
                         {badge.description}
                       </p>
                     </div>
@@ -496,16 +642,16 @@ export default function Profile() {
 
       {/* Security */}
       {tab === "security" && (
-        <section className="bg-[#14100D] border border-[#2A241E] rounded-xl p-4 sm:p-5 space-y-4">
+        <section className="bg-fo-surface border border-fo-border rounded-xl p-4 sm:p-5 space-y-4">
           <div className="flex items-center gap-2">
-            <Shield size={15} className="text-[#D4AF37]" />
-            <h3 className="text-sm font-semibold text-[#E5E0D8]">
+            <Shield size={15} className="text-fo-accent" />
+            <h3 className="text-sm font-semibold text-fo-text">
               Change password
             </h3>
           </div>
 
           {!profile?.hasPassword ? (
-            <p className="text-sm text-[#8C8070]">
+            <p className="text-sm text-fo-subtle">
               This account uses social login. Password changes are not
               available.
             </p>
@@ -543,7 +689,7 @@ export default function Profile() {
                   <button
                     type="button"
                     onClick={() => togglePasswordVisibility(key)}
-                    className="absolute inset-y-0 right-0 px-3 text-[#A69B8D] hover:text-[#D4AF37] transition-colors"
+                    className="absolute inset-y-0 right-0 px-3 text-fo-muted hover:text-fo-accent transition-colors"
                     title={
                       passwordVisibility[key] ? "Hide password" : "Show password"
                     }
@@ -559,7 +705,7 @@ export default function Profile() {
               <button
                 type="submit"
                 disabled={passwordSaving}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-[#D4AF37]/40 text-[#D4AF37] text-sm font-semibold disabled:opacity-60"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-fo-accent/40 text-fo-accent text-sm font-semibold disabled:opacity-60"
               >
                 {passwordSaving ? (
                   <Loader2 size={14} className="animate-spin" />
@@ -575,15 +721,15 @@ export default function Profile() {
       {tab === "communities" && (
         <section className="space-y-2.5">
           <div className="flex items-center gap-2 px-0.5">
-            <Users size={15} className="text-[#D4AF37]" />
-            <h3 className="text-sm font-semibold text-[#E5E0D8]">
+            <Users size={15} className="text-fo-accent" />
+            <h3 className="text-sm font-semibold text-fo-text">
               Communities
             </h3>
-            <span className="text-[11px] text-[#8C8070]">({communityCount})</span>
+            <span className="text-[11px] text-fo-subtle">({communityCount})</span>
           </div>
 
           {!profile?.communities?.length ? (
-            <div className="border border-dashed border-[#2A241E] rounded-xl py-14 text-center text-sm text-[#8C8070]">
+            <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle">
               No communities joined yet.
             </div>
           ) : (
@@ -593,13 +739,13 @@ export default function Profile() {
                 <Link
                   key={c.id}
                   to={to}
-                  className="group flex items-center justify-between gap-3 bg-[#14100D] border border-[#2A241E] hover:border-[#D4AF37]/35 rounded-xl p-3.5 sm:p-4 transition-colors"
+                  className="group flex items-center justify-between gap-3 bg-fo-surface border border-fo-border hover:border-fo-accent/35 rounded-xl p-3.5 sm:p-4 transition-colors"
                 >
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-[#E5E0D8] group-hover:text-[#D4AF37] transition-colors truncate">
+                    <p className="text-sm font-medium text-fo-text group-hover:text-fo-accent transition-colors truncate">
                       {c.name}
                     </p>
-                    <p className="text-[11px] text-[#8C8070] capitalize mt-0.5">
+                    <p className="text-[11px] text-fo-subtle capitalize mt-0.5">
                       {c.membershipRole || "member"}
                     </p>
                   </div>
@@ -614,13 +760,13 @@ export default function Profile() {
       {tab === "posts" && (
         <section className="space-y-2.5">
           <div className="flex items-center gap-2 px-0.5">
-            <FileText size={15} className="text-[#D4AF37]" />
-            <h3 className="text-sm font-semibold text-[#E5E0D8]">Posts</h3>
-            <span className="text-[11px] text-[#8C8070]">({postCount})</span>
+            <FileText size={15} className="text-fo-accent" />
+            <h3 className="text-sm font-semibold text-fo-text">Posts</h3>
+            <span className="text-[11px] text-fo-subtle">({postCount})</span>
           </div>
 
           {!profile?.posts?.length ? (
-            <div className="border border-dashed border-[#2A241E] rounded-xl py-14 text-center text-sm text-[#8C8070]">
+            <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle">
               No posts yet.
             </div>
           ) : (
@@ -636,12 +782,12 @@ export default function Profile() {
                 <Link
                   key={p.id}
                   to={to}
-                  className="group block bg-[#14100D] border border-[#2A241E] hover:border-[#D4AF37]/35 rounded-xl p-3.5 sm:p-4 transition-colors space-y-1"
+                  className="group block bg-fo-surface border border-fo-border hover:border-fo-accent/35 rounded-xl p-3.5 sm:p-4 transition-colors space-y-1"
                 >
-                  <p className="text-sm font-medium text-[#E5E0D8] group-hover:text-[#D4AF37] transition-colors line-clamp-2">
+                  <p className="text-sm font-medium text-fo-text group-hover:text-fo-accent transition-colors line-clamp-2">
                     {p.title || "Untitled"}
                   </p>
-                  <p className="text-[11px] text-[#8C8070]">
+                  <p className="text-[11px] text-fo-subtle">
                     {p.community?.name || "Community"}
                     {p.createdAt ? ` · ${timeAgo(p.createdAt)}` : ""}
                   </p>
@@ -651,6 +797,14 @@ export default function Profile() {
           )}
         </section>
       )}
+
+      {tab === "followers" && profile?.username ? (
+        <FollowUserList username={profile.username} mode="followers" />
+      ) : null}
+
+      {tab === "following" && profile?.username ? (
+        <FollowUserList username={profile.username} mode="following" />
+      ) : null}
     </div>
   );
 }

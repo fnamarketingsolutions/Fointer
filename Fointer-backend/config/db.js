@@ -3,6 +3,7 @@ import Community from "../models/community.js";
 import Post from "../models/post.js";
 import Comment from "../models/comment.js";
 import Reaction from "../models/reaction.js";
+import User from "../models/user.js";
 import { backfillShortCodes } from "../utils/shortCode.js";
 
 // Records created before short codes existed have none, and their URLs cannot
@@ -108,6 +109,35 @@ const backfillEngagementCounts = async () => {
   }
 };
 
+/**
+ * Phase 1 Admin Management: promote existing platform admins that were never
+ * flagged (legacy docs) to super admin so they keep full panel access.
+ */
+const backfillSuperAdmins = async () => {
+  try {
+    // Only legacy docs missing the flag — never overwrite limited admins.
+    const result = await User.updateMany(
+      {
+        role: { $regex: /^admin$/i },
+        $or: [{ isSuperAdmin: { $exists: false } }, { isSuperAdmin: null }],
+      },
+      {
+        $set: { isSuperAdmin: true, adminTabs: [] },
+      }
+    );
+
+    const matched = result.matchedCount ?? result.n ?? 0;
+    const modified = result.modifiedCount ?? result.nModified ?? 0;
+    if (matched || modified) {
+      console.log(
+        `Super-admin backfill: matched ${matched}, updated ${modified}`
+      );
+    }
+  } catch (error) {
+    console.log(`Super-admin backfill failed: ${error.message}`);
+  }
+};
+
 const connectDB = async () => {
   try {
     const conn = await mongoose.connect(process.env.MONGO_URI);
@@ -115,6 +145,7 @@ const connectDB = async () => {
     console.log(`MongoDB Connected ${conn.connection.host}`);
     await backfillMissingShortCodes();
     await backfillEngagementCounts();
+    await backfillSuperAdmins();
   } catch (error) {
     console.log(error.message);
     process.exit(1);

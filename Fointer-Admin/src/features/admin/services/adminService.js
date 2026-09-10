@@ -1,0 +1,252 @@
+import api from '../../../shared/services/http/client';
+
+export const fetchUsers = async (params = {}) => {
+  const response = await api.get('/admin/users', { params });
+  return response.data;
+};
+
+export const updateUserStatus = async (userId, status) => {
+  const response = await api.patch(`/admin/users/${userId}/status`, {
+    status,
+  });
+  return response.data;
+};
+
+export const fetchAdminUserDetail = async (userId) => {
+  const response = await api.get(`/admin/users/${userId}/detail`);
+  return response.data;
+};
+
+export const fetchAdminCommunityDetail = async (communityId) => {
+  const response = await api.get(`/admin/communities/${communityId}/detail`);
+  return response.data;
+};
+
+export const fetchSystemSettings = async () => {
+  const response = await api.get('/admin/settings');
+  return response.data;
+};
+
+export const updateSystemSettings = async (payload) => {
+  const response = await api.patch('/admin/settings', payload);
+  return response.data;
+};
+
+export const fetchAdminChannels = async (params = {}) => {
+  const response = await api.get('/admin/channels', { params });
+  return response.data;
+};
+
+export const createAdminChannel = async (payload) => {
+  const response = await api.post('/admin/channels', payload);
+  return response.data;
+};
+
+export const updateAdminChannel = async (channelId, payload) => {
+  const response = await api.put(`/admin/channels/${channelId}`, payload);
+  return response.data;
+};
+
+export const fetchAdminSubchannels = async (params = {}) => {
+  const response = await api.get('/admin/subchannels', { params });
+  return response.data;
+};
+
+export const createAdminSubchannel = async (payload) => {
+  const response = await api.post('/admin/subchannels', payload);
+  return response.data;
+};
+
+export const updateAdminSubchannel = async (subchannelId, payload) => {
+  const response = await api.put(`/admin/subchannels/${subchannelId}`, payload);
+  return response.data;
+};
+
+export const fetchAdminSupportTickets = async (params = {}) => {
+  const response = await api.get('/admin/support', { params });
+  return response.data;
+};
+
+export const updateAdminSupportTicketStatus = async (ticketId, payload) => {
+  const body =
+    typeof payload === "string" ? { status: payload } : payload || {};
+  const response = await api.patch(`/admin/support/${ticketId}/status`, body);
+  return response.data;
+};
+
+export const fetchAdminLiveEvents = async (params = {}) => {
+  const response = await api.get('/admin/live-events', { params });
+  return response.data;
+};
+
+export const endAdminLiveEvent = async (eventId) => {
+  const response = await api.post(`/admin/live-events/${eventId}/end`);
+  return response.data;
+};
+
+export const deleteAdminLiveEvent = async (eventId) => {
+  const response = await api.delete(`/admin/live-events/${eventId}`);
+  return response.data;
+};
+
+export const fetchAdminLiveMessages = async (eventId, params = {}) => {
+  const response = await api.get(`/admin/live-events/${eventId}/messages`, {
+    params,
+  });
+  return response.data;
+};
+
+export const deleteAdminLiveMessage = async (eventId, messageId) => {
+  const response = await api.delete(
+    `/admin/live-events/${eventId}/messages/${messageId}`
+  );
+  return response.data;
+};
+
+export const fetchAdminWatchGroups = async (params = {}) => {
+  const response = await api.get('/admin/watch-groups', { params });
+  return response.data;
+};
+
+export const deleteAdminWatchGroup = async (groupId) => {
+  const response = await api.delete(`/admin/watch-groups/${groupId}`);
+  return response.data;
+};
+
+export const fetchAdminWatchMessages = async (groupId, params = {}) => {
+  const response = await api.get(`/admin/watch-groups/${groupId}/messages`, {
+    params,
+  });
+  return response.data;
+};
+
+export const deleteAdminWatchMessage = async (groupId, messageId) => {
+  const response = await api.delete(
+    `/admin/watch-groups/${groupId}/messages/${messageId}`
+  );
+  return response.data;
+};
+
+export const fetchAdminWatchParticipants = async (groupId) => {
+  const response = await api.get(`/admin/watch-groups/${groupId}/participants`);
+  return response.data;
+};
+
+export const removeAdminWatchParticipant = async (groupId, memberId) => {
+  const response = await api.delete(
+    `/admin/watch-groups/${groupId}/participants/${memberId}`
+  );
+  return response.data;
+};
+
+export const fetchAdminModerationPosts = async (params = {}) => {
+  const response = await api.get('/admin/moderation/posts', { params });
+  return response.data;
+};
+
+export const deleteAdminModerationPost = async (postId) => {
+  const response = await api.delete(`/admin/moderation/posts/${postId}`);
+  return response.data;
+};
+
+export const fetchAdminModerationComments = async (params = {}) => {
+  const response = await api.get('/admin/moderation/comments', { params });
+  return response.data;
+};
+
+export const deleteAdminModerationComment = async (commentId) => {
+  const response = await api.delete(`/admin/moderation/comments/${commentId}`);
+  return response.data;
+};
+
+export const fetchAdminReports = async (params = {}) => {
+  const response = await api.get('/admin/reports', { params });
+  return response.data;
+};
+
+export const updateAdminReport = async (reportId, payload) => {
+  const response = await api.patch(`/admin/reports/${reportId}`, payload);
+  return response.data;
+};
+
+export const fetchAdminAnalytics = async () => {
+  const response = await api.get('/admin/analytics');
+  return response.data;
+};
+
+export const fetchAdminMarketplaceListings = async (params = {}) => {
+  const response = await api.get('/admin/marketplace/listings', { params });
+  return response.data;
+};
+
+export const fetchAdminMarketplaceListing = async (id) => {
+  const response = await api.get(`/admin/marketplace/listings/${id}`);
+  return response.data;
+};
+
+export const updateAdminMarketplaceListing = async (id, payload) => {
+  const response = await api.patch(`/admin/marketplace/listings/${id}`, payload);
+  return response.data;
+};
+
+export const removeAdminMarketplaceListing = async (id) => {
+  const response = await api.post(`/admin/marketplace/listings/${id}/remove`);
+  return response.data;
+};
+
+export const restoreAdminMarketplaceListing = async (id) => {
+  const response = await api.post(`/admin/marketplace/listings/${id}/restore`);
+  return response.data;
+};
+
+export const warnAdminMarketplaceSeller = async (id, payload) => {
+  const response = await api.post(`/admin/marketplace/listings/${id}/warn`, payload);
+  return response.data;
+};
+
+export const fetchAdminReportedConversations = async () => {
+  const response = await api.get('/admin/marketplace/reported-conversations');
+  return response.data;
+};
+
+export const fetchAdminConversationMessages = async (id) => {
+  const response = await api.get(`/admin/conversations/${id}/messages`);
+  return response.data;
+};
+
+export const fetchAdmins = async (params = {}) => {
+  const response = await api.get('/admin/admins', { params });
+  return response.data;
+};
+
+export const createAdmin = async (payload) => {
+  const response = await api.post('/admin/admins', payload);
+  return response.data;
+};
+
+export const updateAdminTabs = async (adminId, adminTabs) => {
+  const response = await api.patch(`/admin/admins/${adminId}/tabs`, {
+    adminTabs,
+  });
+  return response.data;
+};
+
+export const updateAdminSuper = async (adminId, payload) => {
+  const response = await api.patch(`/admin/admins/${adminId}/super`, payload);
+  return response.data;
+};
+
+export const fetchAdminWarnings = async (params = {}) => {
+  const response = await api.get('/admin/warnings', { params });
+  return response.data;
+};
+
+export const fetchWarningPolicy = async () => {
+  const response = await api.get('/admin/warnings/policy');
+  return response.data;
+};
+
+export const createAdminWarning = async (payload) => {
+  const response = await api.post('/admin/warnings', payload);
+  return response.data;
+};

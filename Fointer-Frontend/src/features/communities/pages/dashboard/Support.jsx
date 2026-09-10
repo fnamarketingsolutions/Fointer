@@ -16,8 +16,8 @@ const STATUS_META = {
   pending: {
     label: "Pending",
     icon: Clock,
-    className: "text-[#D4AF37]",
-    dot: "bg-[#D4AF37]",
+    className: "text-fo-accent",
+    dot: "bg-fo-accent",
   },
   approved: {
     label: "Created",
@@ -34,14 +34,14 @@ const STATUS_META = {
   open: {
     label: "Pending",
     icon: Clock,
-    className: "text-[#D4AF37]",
-    dot: "bg-[#D4AF37]",
+    className: "text-fo-accent",
+    dot: "bg-fo-accent",
   },
   in_review: {
     label: "Pending",
     icon: Clock,
-    className: "text-[#D4AF37]",
-    dot: "bg-[#D4AF37]",
+    className: "text-fo-accent",
+    dot: "bg-fo-accent",
   },
   resolved: {
     label: "Created",
@@ -114,10 +114,10 @@ export default function Support() {
     <div className="w-full max-w-3xl mx-auto space-y-5">
       <header className="flex items-start justify-between gap-3">
         <div className="space-y-1 min-w-0">
-          <h1 className="text-xl sm:text-2xl font-semibold text-[#E5E0D8]">
+          <h1 className="text-xl sm:text-2xl font-semibold text-fo-text">
             Support
           </h1>
-          <p className="text-sm text-[#8C8070]">
+          <p className="text-sm text-fo-subtle">
             Track your channel and subchannel requests.
           </p>
         </div>
@@ -125,7 +125,7 @@ export default function Support() {
           type="button"
           onClick={loadTickets}
           disabled={loading}
-          className="p-2 rounded-lg border border-[#2A241E] text-[#A69B8D] hover:text-[#D4AF37] hover:border-[#D4AF37]/40 transition-colors disabled:opacity-50 shrink-0"
+          className="p-2 rounded-lg border border-fo-border text-fo-muted hover:text-fo-accent hover:border-fo-accent/40 transition-colors disabled:opacity-50 shrink-0"
           title="Refresh"
         >
           <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
@@ -133,7 +133,7 @@ export default function Support() {
       </header>
 
       {/* Filters */}
-      <div className="flex gap-1 p-1 rounded-xl bg-[#0E0C0A] border border-[#2A241E] overflow-x-auto">
+      <div className="flex gap-1 p-1 rounded-xl bg-fo-bg border border-fo-border overflow-x-auto">
         {FILTERS.map((tab) => {
           const active = filter === tab.id;
           return (
@@ -143,8 +143,8 @@ export default function Support() {
               onClick={() => setFilter(tab.id)}
               className={`flex-1 min-w-[4.5rem] py-2 px-3 rounded-lg text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap ${
                 active
-                  ? "bg-[#1A1510] text-[#D4AF37] border border-[#D4AF37]/35"
-                  : "text-[#8C8070] hover:text-[#E5E0D8] border border-transparent"
+                  ? "bg-[#1A1510] text-fo-accent border border-fo-accent/35"
+                  : "text-fo-subtle hover:text-fo-text border border-transparent"
               }`}
             >
               {tab.label}
@@ -159,22 +159,22 @@ export default function Support() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center gap-2 py-14 text-sm text-[#A69B8D]">
-          <Loader2 size={16} className="animate-spin text-[#D4AF37]" />
+        <div className="flex items-center justify-center gap-2 py-14 text-sm text-fo-muted">
+          <Loader2 size={16} className="animate-spin text-fo-accent" />
           Loading support requests…
         </div>
       ) : tickets.length === 0 ? (
-        <div className="border border-dashed border-[#2A241E] rounded-xl py-14 text-center px-4 space-y-2">
-          <LifeBuoy className="w-8 h-8 mx-auto text-[#D4AF37]/50" />
-          <p className="text-sm text-[#8C8070]">
+        <div className="border border-dashed border-fo-border rounded-xl py-14 text-center px-4 space-y-2">
+          <LifeBuoy className="w-8 h-8 mx-auto text-fo-accent/50" />
+          <p className="text-sm text-fo-subtle">
             You haven’t submitted any support requests yet.
           </p>
-          <p className="text-xs text-[#5C5348]">
+          <p className="text-xs text-fo-subtle">
             Use Help on Manage Communities to send a message.
           </p>
         </div>
       ) : visible.length === 0 ? (
-        <div className="border border-dashed border-[#2A241E] rounded-xl py-14 text-center text-sm text-[#8C8070]">
+        <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle">
           No {FILTERS.find((f) => f.id === filter)?.label.toLowerCase()}{" "}
           requests.
         </div>
@@ -188,7 +188,7 @@ export default function Support() {
             return (
               <article
                 key={ticket.id}
-                className="bg-[#14100D] border border-[#2A241E] hover:border-[#D4AF37]/35 rounded-xl p-3.5 sm:p-4 transition-colors space-y-2.5"
+                className="bg-fo-surface border border-fo-border hover:border-fo-accent/35 rounded-xl p-3.5 sm:p-4 transition-colors space-y-2.5"
               >
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <div
@@ -202,19 +202,19 @@ export default function Support() {
                     {meta.label}
                   </div>
                   {ticket.createdAt ? (
-                    <span className="text-[11px] text-[#8C8070]">
+                    <span className="text-[11px] text-fo-subtle">
                       {timeAgo(ticket.createdAt)}
                     </span>
                   ) : null}
                 </div>
 
-                <p className="text-sm text-[#E5E0D8] whitespace-pre-wrap break-words leading-relaxed">
+                <p className="text-sm text-fo-text whitespace-pre-wrap break-words leading-relaxed">
                   {ticket.description}
                 </p>
                 {ticket.fulfilled?.channel ? (
-                  <p className="text-[11px] text-[#A69B8D]">
+                  <p className="text-[11px] text-fo-muted">
                     Available now:{" "}
-                    <span className="text-[#D4AF37]">
+                    <span className="text-fo-accent">
                       {ticket.fulfilled.channel}
                       {ticket.fulfilled.subchannel
                         ? ` / ${ticket.fulfilled.subchannel}`

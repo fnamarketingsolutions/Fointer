@@ -50,7 +50,7 @@ export const initWatchGroupSocket = (io) => {
 
         // Must be a member to chat (admins can join without membership)
         const isMember = await userIsMember(group, socket.user);
-        if (!isMember && socket.user.role !== "admin") {
+        if (!isMember) {
           throw new Error("Join the watch group before entering chat.");
         }
 
@@ -105,7 +105,7 @@ export const initWatchGroupSocket = (io) => {
         if (!group) throw new Error("Watch group not found.");
 
         const isMember = await userIsMember(group, socket.user);
-        if (!isMember && socket.user.role !== "admin") {
+        if (!isMember) {
           throw new Error("Join the watch group to chat.");
         }
 

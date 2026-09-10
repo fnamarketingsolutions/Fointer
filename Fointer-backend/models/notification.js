@@ -12,20 +12,23 @@ export const NOTIFICATION_TYPES = [
   "like",
   "reshare",
   "mention",
+  "follow",
   "moderator_assigned",
   "moderator_revoked",
   "member_removed",
   "member_banned",
   "member_unbanned",
   "support_ticket",
+  "user_warning",
   "content_report",
   "channel_request",
+  "listing_inquiry",
+  "direct_message",
 ];
-
-/** Platform events shown only on the admin notification feed. */
 export const ADMIN_NOTIFICATION_TYPES = [
   "content_report",
   "channel_request",
+  "user_warning",
 ];
 
 export const SYSTEM_NOTIFICATION_TYPES = [
@@ -41,6 +44,7 @@ export const SYSTEM_NOTIFICATION_TYPES = [
   "member_banned",
   "member_unbanned",
   "support_ticket",
+  "user_warning",
 ];
 
 export const ENTITY_KINDS = [
@@ -51,6 +55,9 @@ export const ENTITY_KINDS = [
   "invite",
   "support_ticket",
   "report",
+  "user",
+  "listing",
+  "conversation",
 ];
 
 const actorSnapshotSchema = new mongoose.Schema(

@@ -49,6 +49,47 @@ const userSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
+
+    city: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: 100,
+    },
+
+    state: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: 100,
+    },
+
+    country: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: 100,
+    },
+
+    zipCode: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: 20,
+    },
+
+    phone: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: 30,
+    },
+
+    yearOfBirth: {
+      type: Number,
+      min: 1900,
+      max: new Date().getFullYear(),
+    },
     isEmailVerified: {
       type: Boolean,
       default: false,
@@ -74,10 +115,32 @@ const userSchema = new mongoose.Schema(
       set: (v) => String(v || "user").toLowerCase().trim(),
     },
 
+    /** Full admin-panel access + Admin Management. Only meaningful when role === "admin". */
+    isSuperAdmin: {
+      type: Boolean,
+      default: false,
+    },
+
+    /**
+     * Tab ids this limited admin may use (e.g. users, support).
+     * Ignored when isSuperAdmin is true.
+     */
+    adminTabs: {
+      type: [String],
+      default: [],
+    },
+
     status: {
       type: String,
       enum: ["active", "suspended", "banned"],
       default: "active",
+    },
+
+    /** Denormalized count of platform warnings issued to this user. */
+    warningCount: {
+      type: Number,
+      default: 0,
+      min: 0,
     },
   },
   {

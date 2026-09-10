@@ -2,10 +2,10 @@ import { Link, useLocation } from 'react-router-dom';
 import { LuLogIn as LogIn, LuUserPlus as UserPlus } from 'react-icons/lu';
 
 const LOGIN_CLASS =
-  'inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#2A241E] text-xs font-semibold text-[#E5E0D8] hover:border-[#D4AF37]/40 hover:text-[#D4AF37]';
+  'inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-fo-border text-xs font-semibold text-fo-text hover:border-fo-accent/40 hover:text-fo-accent';
 
 const SIGNUP_CLASS =
-  'inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#D4AF37] text-black text-xs font-semibold hover:bg-[#e0c04a]';
+  'inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-fo-accent text-black text-xs font-semibold hover:bg-fo-accent-hover';
 
 /** Guest Log in / Sign up — same look as the explore panel. */
 export default function GuestAuthButtons({ from, className = '' }) {

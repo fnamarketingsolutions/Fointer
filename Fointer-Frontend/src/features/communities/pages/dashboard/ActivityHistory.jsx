@@ -20,6 +20,7 @@ import {
   togglePostReshare,
 } from "../../../../api/posts";
 import PostDetail from "../../../posts/pages/PostDetail";
+import UserProfileLink from "../../../../shared/components/UserProfileLink";
 import ConfirmDeleteModal from "../../../../shared/components/modals/ConfirmDeleteModal";
 import EditWindowExpiredModal from "../../../../shared/components/modals/EditWindowExpiredModal";
 import { timeAgo } from "../../../../shared/utils/date";
@@ -44,7 +45,7 @@ const getEditWindowLabel = (createdAt, canEdit, editWindowMinutes = 60) => {
 
 function EmptyState({ children }) {
   return (
-    <div className="border border-dashed border-[#2A241E] rounded-xl py-14 text-center text-sm text-[#8C8070]">
+    <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle">
       {children}
     </div>
   );
@@ -52,8 +53,8 @@ function EmptyState({ children }) {
 
 function LoadingState({ label }) {
   return (
-    <div className="flex items-center justify-center gap-2 py-14 text-sm text-[#A69B8D]">
-      <Loader2 size={16} className="animate-spin text-[#D4AF37]" />
+    <div className="flex items-center justify-center gap-2 py-14 text-sm text-fo-muted">
+      <Loader2 size={16} className="animate-spin text-fo-accent" />
       {label}
     </div>
   );
@@ -61,7 +62,7 @@ function LoadingState({ label }) {
 
 function MetaLine({ children }) {
   return (
-    <div className="flex items-center gap-2 text-[11px] text-[#8C8070] flex-wrap">
+    <div className="flex items-center gap-2 text-[11px] text-fo-subtle flex-wrap">
       {children}
     </div>
   );
@@ -70,9 +71,9 @@ function MetaLine({ children }) {
 function ActionButton({ onClick, disabled, tone = "default", children }) {
   const tones = {
     default:
-      "border-[#2A241E] text-[#A69B8D] hover:border-[#D4AF37]/40 hover:text-[#D4AF37]",
+      "border-fo-border text-fo-muted hover:border-fo-accent/40 hover:text-fo-accent",
     danger:
-      "border-[#2A241E] text-[#A69B8D] hover:border-red-500/40 hover:text-red-400",
+      "border-fo-border text-fo-muted hover:border-red-500/40 hover:text-red-400",
   };
   return (
     <button
@@ -293,16 +294,16 @@ export default function ActivityHistory() {
   return (
     <div className="w-full max-w-3xl mx-auto space-y-5">
       <header className="space-y-1">
-        <h1 className="text-xl sm:text-2xl font-semibold text-[#E5E0D8]">
+        <h1 className="text-xl sm:text-2xl font-semibold text-fo-text">
           Activity
         </h1>
-        <p className="text-sm text-[#8C8070]">
+        <p className="text-sm text-fo-subtle">
           Your posts, comments, likes, and reposts in one place.
         </p>
       </header>
 
       {/* Tabs */}
-      <div className="flex gap-1 p-1 rounded-xl bg-[#0E0C0A] border border-[#2A241E] overflow-x-auto">
+      <div className="flex gap-1 p-1 rounded-xl bg-fo-bg border border-fo-border overflow-x-auto">
         {TABS.map((tab) => {
           const active = subTab === tab.id;
           return (
@@ -312,8 +313,8 @@ export default function ActivityHistory() {
               onClick={() => setSubTab(tab.id)}
               className={`flex-1 min-w-[4.75rem] py-2 px-3 rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap transition-colors ${
                 active
-                  ? "bg-[#1A1510] text-[#D4AF37] border border-[#D4AF37]/35"
-                  : "text-[#8C8070] hover:text-[#E5E0D8] border border-transparent"
+                  ? "bg-[#1A1510] text-fo-accent border border-fo-accent/35"
+                  : "text-fo-subtle hover:text-fo-text border border-transparent"
               }`}
             >
               {tab.label}
@@ -345,7 +346,7 @@ export default function ActivityHistory() {
               return (
                 <article
                   key={post.id}
-                  className="group flex gap-3 bg-[#14100D] border border-[#2A241E] hover:border-[#D4AF37]/35 rounded-xl p-3.5 sm:p-4 transition-colors"
+                  className="group flex gap-3 bg-fo-surface border border-fo-border hover:border-fo-accent/35 rounded-xl p-3.5 sm:p-4 transition-colors"
                 >
                   <button
                     type="button"
@@ -353,24 +354,24 @@ export default function ActivityHistory() {
                     className="flex-1 min-w-0 text-left space-y-2"
                   >
                     <MetaLine>
-                      <span className="text-[#A69B8D] group-hover:text-[#D4AF37] transition-colors">
+                      <span className="text-fo-muted group-hover:text-fo-accent transition-colors">
                         {post.community?.name || "Personal post"}
                       </span>
                       <span>·</span>
                       <span>{timeAgo(post.createdAt)}</span>
                     </MetaLine>
 
-                    <h2 className="text-sm sm:text-base font-semibold text-[#E5E0D8] leading-snug group-hover:text-[#D4AF37] transition-colors line-clamp-2">
+                    <h2 className="text-sm sm:text-base font-semibold text-fo-text leading-snug group-hover:text-fo-accent transition-colors line-clamp-2">
                       {post.title || "Untitled"}
                     </h2>
 
                     {post.text ? (
-                      <p className="text-xs sm:text-sm text-[#A69B8D] line-clamp-2 leading-relaxed">
+                      <p className="text-xs sm:text-sm text-fo-muted line-clamp-2 leading-relaxed">
                         {post.text}
                       </p>
                     ) : null}
 
-                    <div className="flex items-center gap-4 pt-0.5 text-xs text-[#8C8070]">
+                    <div className="flex items-center gap-4 pt-0.5 text-xs text-fo-subtle">
                       <span className="inline-flex items-center gap-1.5">
                         <Heart size={13} />
                         {post.likeCount || 0}
@@ -385,7 +386,7 @@ export default function ActivityHistory() {
                       </span>
                       <span
                         className={`inline-flex items-center gap-1 ${
-                          post.canEdit ? "text-[#D4AF37]/80" : ""
+                          post.canEdit ? "text-fo-accent/80" : ""
                         }`}
                       >
                         <Clock size={12} />
@@ -395,7 +396,7 @@ export default function ActivityHistory() {
                   </button>
 
                   {cover ? (
-                    <div className="hidden sm:block w-20 h-16 shrink-0 rounded-lg overflow-hidden bg-[#0A0806] border border-[#2A241E]">
+                    <div className="hidden sm:block w-20 h-16 shrink-0 rounded-lg overflow-hidden bg-fo-surface-2 border border-fo-border">
                       <img
                         src={cover.url}
                         alt=""
@@ -451,10 +452,10 @@ export default function ActivityHistory() {
               return (
                 <article
                   key={comment.id}
-                  className="bg-[#14100D] border border-[#2A241E] hover:border-[#D4AF37]/35 rounded-xl p-3.5 sm:p-4 transition-colors space-y-2.5"
+                  className="bg-fo-surface border border-fo-border hover:border-fo-accent/35 rounded-xl p-3.5 sm:p-4 transition-colors space-y-2.5"
                 >
                   <MetaLine>
-                    <span className="text-[#A69B8D]">
+                    <span className="text-fo-muted">
                       {comment.post?.community?.name ||
                         (comment.post ? "Post" : "Deleted post")}
                     </span>
@@ -474,25 +475,25 @@ export default function ActivityHistory() {
                     <button
                       type="button"
                       onClick={() => setViewingPostId(comment.post.id)}
-                      className="text-left text-xs text-[#8C8070] hover:text-[#D4AF37] transition-colors truncate block max-w-full"
+                      className="text-left text-xs text-fo-subtle hover:text-fo-accent transition-colors truncate block max-w-full"
                     >
                       on {comment.post.title || "Untitled post"}
                     </button>
                   ) : null}
 
-                  <p className="text-sm text-[#E5E0D8] whitespace-pre-wrap break-words leading-relaxed">
+                  <p className="text-sm text-fo-text whitespace-pre-wrap break-words leading-relaxed">
                     {comment.text}
                   </p>
 
                   <div className="flex items-center justify-between gap-3 pt-1">
-                    <div className="flex items-center gap-3 text-xs text-[#8C8070]">
+                    <div className="flex items-center gap-3 text-xs text-fo-subtle">
                       <span className="inline-flex items-center gap-1.5">
                         <Heart size={13} />
                         {comment.likeCount || 0}
                       </span>
                       <span
                         className={`inline-flex items-center gap-1 ${
-                          comment.canEdit ? "text-[#D4AF37]/80" : ""
+                          comment.canEdit ? "text-fo-accent/80" : ""
                         }`}
                       >
                         <Clock size={12} />
@@ -532,7 +533,7 @@ export default function ActivityHistory() {
               return (
                 <article
                   key={post.id}
-                  className="group flex gap-3 bg-[#14100D] border border-[#2A241E] hover:border-[#D4AF37]/35 rounded-xl p-3.5 sm:p-4 transition-colors"
+                  className="group flex gap-3 bg-fo-surface border border-fo-border hover:border-fo-accent/35 rounded-xl p-3.5 sm:p-4 transition-colors"
                 >
                   <button
                     type="button"
@@ -540,11 +541,16 @@ export default function ActivityHistory() {
                     className="flex-1 min-w-0 text-left space-y-2"
                   >
                     <MetaLine>
-                      <span className="text-[#A69B8D] group-hover:text-[#D4AF37] transition-colors">
+                      <span className="text-fo-muted group-hover:text-fo-accent transition-colors">
                         {post.community?.name || "Personal post"}
                       </span>
                       <span>·</span>
-                      <span>{author}</span>
+                      <UserProfileLink
+                        author={post.author}
+                        className="hover:text-fo-accent transition-colors"
+                      >
+                        {author}
+                      </UserProfileLink>
                       {post.likedAt ? (
                         <>
                           <span>·</span>
@@ -553,18 +559,18 @@ export default function ActivityHistory() {
                       ) : null}
                     </MetaLine>
 
-                    <h2 className="text-sm sm:text-base font-semibold text-[#E5E0D8] leading-snug group-hover:text-[#D4AF37] transition-colors line-clamp-2">
+                    <h2 className="text-sm sm:text-base font-semibold text-fo-text leading-snug group-hover:text-fo-accent transition-colors line-clamp-2">
                       {post.title || "Untitled"}
                     </h2>
 
                     {post.text ? (
-                      <p className="text-xs sm:text-sm text-[#A69B8D] line-clamp-2 leading-relaxed">
+                      <p className="text-xs sm:text-sm text-fo-muted line-clamp-2 leading-relaxed">
                         {post.text}
                       </p>
                     ) : null}
 
-                    <div className="flex items-center gap-4 pt-0.5 text-xs text-[#8C8070]">
-                      <span className="inline-flex items-center gap-1.5 text-[#D4AF37]">
+                    <div className="flex items-center gap-4 pt-0.5 text-xs text-fo-subtle">
+                      <span className="inline-flex items-center gap-1.5 text-fo-accent">
                         <Heart size={13} className="fill-current" />
                         {post.likeCount || 0}
                       </span>
@@ -580,7 +586,7 @@ export default function ActivityHistory() {
                   </button>
 
                   {cover ? (
-                    <div className="hidden sm:block w-20 h-16 shrink-0 rounded-lg overflow-hidden bg-[#0A0806] border border-[#2A241E]">
+                    <div className="hidden sm:block w-20 h-16 shrink-0 rounded-lg overflow-hidden bg-fo-surface-2 border border-fo-border">
                       <img
                         src={cover.url}
                         alt=""
@@ -598,7 +604,7 @@ export default function ActivityHistory() {
                       {unlikingId === post.id ? (
                         <Loader2 size={12} className="animate-spin" />
                       ) : (
-                        <Heart size={12} className="fill-current text-[#D4AF37]" />
+                        <Heart size={12} className="fill-current text-fo-accent" />
                       )}
                       <span className="hidden sm:inline">Unlike</span>
                     </ActionButton>
@@ -626,7 +632,7 @@ export default function ActivityHistory() {
               return (
                 <article
                   key={post.id}
-                  className="group flex gap-3 bg-[#14100D] border border-[#2A241E] hover:border-[#D4AF37]/35 rounded-xl p-3.5 sm:p-4 transition-colors"
+                  className="group flex gap-3 bg-fo-surface border border-fo-border hover:border-fo-accent/35 rounded-xl p-3.5 sm:p-4 transition-colors"
                 >
                   <button
                     type="button"
@@ -634,11 +640,16 @@ export default function ActivityHistory() {
                     className="flex-1 min-w-0 text-left space-y-2"
                   >
                     <MetaLine>
-                      <span className="text-[#A69B8D] group-hover:text-[#D4AF37] transition-colors">
+                      <span className="text-fo-muted group-hover:text-fo-accent transition-colors">
                         {post.community?.name || "Personal post"}
                       </span>
                       <span>·</span>
-                      <span>{author}</span>
+                      <UserProfileLink
+                        author={post.author}
+                        className="hover:text-fo-accent transition-colors"
+                      >
+                        {author}
+                      </UserProfileLink>
                       {post.resharedAt ? (
                         <>
                           <span>·</span>
@@ -647,22 +658,22 @@ export default function ActivityHistory() {
                       ) : null}
                     </MetaLine>
 
-                    <h2 className="text-sm sm:text-base font-semibold text-[#E5E0D8] leading-snug group-hover:text-[#D4AF37] transition-colors line-clamp-2">
+                    <h2 className="text-sm sm:text-base font-semibold text-fo-text leading-snug group-hover:text-fo-accent transition-colors line-clamp-2">
                       {post.title || "Untitled"}
                     </h2>
 
                     {post.text ? (
-                      <p className="text-xs sm:text-sm text-[#A69B8D] line-clamp-2 leading-relaxed">
+                      <p className="text-xs sm:text-sm text-fo-muted line-clamp-2 leading-relaxed">
                         {post.text}
                       </p>
                     ) : null}
 
-                    <div className="flex items-center gap-4 pt-0.5 text-xs text-[#8C8070]">
+                    <div className="flex items-center gap-4 pt-0.5 text-xs text-fo-subtle">
                       <span className="inline-flex items-center gap-1.5">
                         <Heart size={13} />
                         {post.likeCount || 0}
                       </span>
-                      <span className="inline-flex items-center gap-1.5 text-[#D4AF37]">
+                      <span className="inline-flex items-center gap-1.5 text-fo-accent">
                         <Repeat2 size={13} />
                         {post.reshareCount || 0}
                       </span>
@@ -674,7 +685,7 @@ export default function ActivityHistory() {
                   </button>
 
                   {cover ? (
-                    <div className="hidden sm:block w-20 h-16 shrink-0 rounded-lg overflow-hidden bg-[#0A0806] border border-[#2A241E]">
+                    <div className="hidden sm:block w-20 h-16 shrink-0 rounded-lg overflow-hidden bg-fo-surface-2 border border-fo-border">
                       <img
                         src={cover.url}
                         alt=""
@@ -692,7 +703,7 @@ export default function ActivityHistory() {
                       {unrepostingId === post.id ? (
                         <Loader2 size={12} className="animate-spin" />
                       ) : (
-                        <Repeat2 size={12} className="text-[#D4AF37]" />
+                        <Repeat2 size={12} className="text-fo-accent" />
                       )}
                       <span className="hidden sm:inline">Undo</span>
                     </ActionButton>

@@ -79,40 +79,40 @@ export default function CookiePolicy() {
   ];
 
   return (
-    <div className="bg-[#0E0C0A] text-white min-h-screen py-16 font-sans relative overflow-hidden">
+    <div className="bg-fo-bg text-fo-text min-h-screen py-16 font-sans relative overflow-hidden">
       
       {/* Background Ambient Glows */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-[#D4AF37]/10 rounded-full blur-[180px] pointer-events-none z-0" />
-      <div className="absolute bottom-10 right-0 w-[500px] h-[500px] bg-[#D4AF37]/5 rounded-full blur-[160px] pointer-events-none z-0" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-fo-accent/10 rounded-full blur-[180px] pointer-events-none z-0" />
+      <div className="absolute bottom-10 right-0 w-[500px] h-[500px] bg-fo-accent/5 rounded-full blur-[160px] pointer-events-none z-0" />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 space-y-12">
         
         {/* Header Section */}
         <div className="text-center space-y-4 max-w-3xl mx-auto pt-8">
-          <h1 className="text-4xl sm:text-6xl font-serif text-amber-50 leading-tight">
-            Fointer <span className="italic font-normal text-[#D4AF37]">Cookie Notice</span>
+          <h1 className="text-4xl sm:text-6xl font-serif text-fo-text leading-tight">
+            Fointer <span className="italic font-normal text-fo-accent">Cookie Notice</span>
           </h1>
           
-          <p className="text-xs sm:text-sm font-mono text-[#D4AF37]">
+          <p className="text-xs sm:text-sm font-mono text-fo-accent">
             Last Updated: {new Date().getFullYear()}-{new Date().getMonth() + 1}-{new Date().getDate()}
           </p>
 
-          <p className="text-gray-300 text-sm sm:text-base md:text-lg font-light leading-relaxed pt-2">
+          <p className="text-fo-muted text-sm sm:text-base md:text-lg font-light leading-relaxed pt-2">
             This Cookie Notice explains how Fointer Networks ("Fointer," "we," "us," or "our") uses cookies and similar technologies to enhance your experience while you navigate through our platform. This notice also outlines the choices you have regarding these technologies.
           </p>
         </div>
 
         {/* Overview Box */}
-        <div className="bg-[#14100D]/90 border border-[#D4AF37]/30 rounded-3xl p-6 sm:p-10 backdrop-blur-md shadow-2xl space-y-4">
-          <div className="flex items-center gap-4 border-b border-white/10 pb-6">
-            <div className="p-3 rounded-2xl bg-[#D4AF37]/10 text-[#D4AF37] border border-[#D4AF37]/30 flex-shrink-0">
+        <div className="bg-fo-surface/90 border border-fo-accent/30 rounded-3xl p-6 sm:p-10 backdrop-blur-md shadow-2xl space-y-4">
+          <div className="flex items-center gap-4 border-b border-fo-border pb-6">
+            <div className="p-3 rounded-2xl bg-fo-accent/10 text-fo-accent border border-fo-accent/30 flex-shrink-0">
               <HelpCircle className="w-6 h-6 sm:w-8 sm:h-8" />
             </div>
-            <h2 className="text-2xl sm:text-3xl font-serif text-amber-50">
+            <h2 className="text-2xl sm:text-3xl font-serif text-fo-text">
               What are cookies and how does Fointer use them?
             </h2>
           </div>
-          <p className="text-xs sm:text-sm text-gray-300 font-light leading-relaxed">
+          <p className="text-xs sm:text-sm text-fo-muted font-light leading-relaxed">
             A cookie is a small text file stored on your computer or mobile device when you visit our site. Like many other online platforms, Fointer utilizes cookies and similar technologies (such as local storage and pixels) to remember information about your visit, which helps us improve your experience and analyze site usage.
           </p>
         </div>
@@ -120,8 +120,8 @@ export default function CookiePolicy() {
         {/* Cookie Types Section */}
         <div className="space-y-6">
           <div className="flex items-center gap-3 justify-center">
-            <Cookie className="w-7 h-7 text-[#D4AF37]" />
-            <h2 className="text-2xl sm:text-3xl font-serif text-amber-50 text-center">
+            <Cookie className="w-7 h-7 text-fo-accent" />
+            <h2 className="text-2xl sm:text-3xl font-serif text-fo-text text-center">
               Types of Cookies We Use
             </h2>
           </div>
@@ -132,27 +132,27 @@ export default function CookiePolicy() {
               return (
                 <div 
                   key={idx}
-                  className="bg-[#14100D]/90 border border-[#D4AF37]/25 hover:border-[#D4AF37]/50 rounded-3xl p-6 sm:p-8 backdrop-blur-md shadow-2xl transition-all duration-300 relative overflow-hidden space-y-4"
+                  className="bg-fo-surface/90 border border-fo-accent/25 hover:border-fo-accent/50 rounded-3xl p-6 sm:p-8 backdrop-blur-md shadow-2xl transition-all duration-300 relative overflow-hidden space-y-4"
                 >
-                  <div className="flex items-center gap-4 border-b border-white/10 pb-4">
-                    <div className="p-3 rounded-2xl bg-[#D4AF37]/10 text-[#D4AF37] border border-[#D4AF37]/30 flex-shrink-0">
+                  <div className="flex items-center gap-4 border-b border-fo-border pb-4">
+                    <div className="p-3 rounded-2xl bg-fo-accent/10 text-fo-accent border border-fo-accent/30 flex-shrink-0">
                       <IconComponent className="w-6 h-6 sm:w-7 sm:h-7" />
                     </div>
-                    <h3 className="text-xl sm:text-2xl font-serif text-amber-50">
+                    <h3 className="text-xl sm:text-2xl font-serif text-fo-text">
                       {item.title}
                     </h3>
                   </div>
 
-                  <p className="text-xs sm:text-sm text-gray-300 font-light leading-relaxed">
+                  <p className="text-xs sm:text-sm text-fo-muted font-light leading-relaxed">
                     {item.description}
                   </p>
 
                   {/* Example Highlight Box */}
-                  <div className="bg-[#0E0C0A]/80 border border-white/10 rounded-2xl p-4 space-y-1">
-                    <span className="text-xs font-mono text-[#D4AF37] font-semibold uppercase tracking-wider">
+                  <div className="bg-fo-bg/80 border border-fo-border rounded-2xl p-4 space-y-1">
+                    <span className="text-xs font-mono text-fo-accent font-semibold uppercase tracking-wider">
                       Example: {item.exampleTitle}
                     </span>
-                    <p className="text-xs text-gray-300 font-light leading-relaxed">
+                    <p className="text-xs text-fo-muted font-light leading-relaxed">
                       {item.exampleDesc}
                     </p>
                   </div>
@@ -163,12 +163,12 @@ export default function CookiePolicy() {
         </div>
 
         {/* Managing Cookie Preferences Section */}
-        <div className="bg-[#14100D]/90 border border-[#D4AF37]/30 rounded-3xl p-6 sm:p-10 backdrop-blur-md shadow-2xl space-y-6">
-          <div className="flex items-center gap-4 border-b border-white/10 pb-6">
-            <div className="p-3 rounded-2xl bg-[#D4AF37]/10 text-[#D4AF37] border border-[#D4AF37]/30 flex-shrink-0">
+        <div className="bg-fo-surface/90 border border-fo-accent/30 rounded-3xl p-6 sm:p-10 backdrop-blur-md shadow-2xl space-y-6">
+          <div className="flex items-center gap-4 border-b border-fo-border pb-6">
+            <div className="p-3 rounded-2xl bg-fo-accent/10 text-fo-accent border border-fo-accent/30 flex-shrink-0">
               <Sliders className="w-6 h-6 sm:w-8 sm:h-8" />
             </div>
-            <h2 className="text-2xl sm:text-3xl font-serif text-amber-50">
+            <h2 className="text-2xl sm:text-3xl font-serif text-fo-text">
               Managing Your Cookie Preferences
             </h2>
           </div>
@@ -177,16 +177,16 @@ export default function CookiePolicy() {
             {managementOptions.map((opt, oIdx) => {
               const IconComponent = opt.icon;
               return (
-                <div key={oIdx} className="bg-[#0E0C0A]/80 border border-white/10 rounded-2xl p-5 space-y-3">
+                <div key={oIdx} className="bg-fo-bg/80 border border-fo-border rounded-2xl p-5 space-y-3">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-xl bg-[#D4AF37]/10 text-[#D4AF37] border border-[#D4AF37]/20">
+                    <div className="p-2 rounded-xl bg-fo-accent/10 text-fo-accent border border-fo-accent/20">
                       <IconComponent className="w-5 h-5" />
                     </div>
-                    <h3 className="text-sm sm:text-base font-serif text-amber-50 font-semibold">
+                    <h3 className="text-sm sm:text-base font-serif text-fo-text font-semibold">
                       {opt.title}
                     </h3>
                   </div>
-                  <p className="text-xs text-gray-300 font-light leading-relaxed">
+                  <p className="text-xs text-fo-muted font-light leading-relaxed">
                     {opt.content}
                   </p>
                 </div>
@@ -196,21 +196,21 @@ export default function CookiePolicy() {
         </div>
 
         {/* Footer / Contact Information Box */}
-        <div className="bg-[#14100D]/90 border border-[#D4AF37]/30 rounded-3xl p-6 sm:p-10 backdrop-blur-md shadow-2xl space-y-4">
-          <div className="flex items-center gap-4 border-b border-white/10 pb-6">
-            <div className="p-3 rounded-2xl bg-[#D4AF37]/10 text-[#D4AF37] border border-[#D4AF37]/30 flex-shrink-0">
+        <div className="bg-fo-surface/90 border border-fo-accent/30 rounded-3xl p-6 sm:p-10 backdrop-blur-md shadow-2xl space-y-4">
+          <div className="flex items-center gap-4 border-b border-fo-border pb-6">
+            <div className="p-3 rounded-2xl bg-fo-accent/10 text-fo-accent border border-fo-accent/30 flex-shrink-0">
               <Mail className="w-6 h-6 sm:w-8 sm:h-8" />
             </div>
-            <h2 className="text-2xl sm:text-3xl font-serif text-amber-50">
+            <h2 className="text-2xl sm:text-3xl font-serif text-fo-text">
               Questions & Privacy Controls
             </h2>
           </div>
 
-          <p className="text-xs sm:text-sm text-gray-300 font-light leading-relaxed">
+          <p className="text-xs sm:text-sm text-fo-muted font-light leading-relaxed">
             For more detailed information on how we use, store, and keep your personal data secure, refer to our Privacy Policy. If you have any questions about our use of cookies or other technologies, please email us at <SiteEmail />.
           </p>
 
-          <p className="text-xs sm:text-sm text-gray-300 font-light leading-relaxed pt-2">
+          <p className="text-xs sm:text-sm text-fo-muted font-light leading-relaxed pt-2">
             Thank you for being part of Fointer. We're committed to providing you with a personalized experience while respecting your privacy preferences.
           </p>
         </div>

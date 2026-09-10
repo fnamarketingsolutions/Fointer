@@ -190,10 +190,10 @@ export default function PostManagement() {
     <div className="w-full max-w-3xl mx-auto space-y-5">
       <header className="flex items-start justify-between gap-3">
         <div className="space-y-1 min-w-0">
-          <h1 className="text-xl sm:text-2xl font-semibold text-[#E5E0D8]">
+          <h1 className="text-xl sm:text-2xl font-semibold text-fo-text">
             Post Management
           </h1>
-          <p className="text-sm text-[#8C8070]">
+          <p className="text-sm text-fo-subtle">
             Create and manage your posts. Community is optional.
           </p>
         </div>
@@ -202,7 +202,7 @@ export default function PostManagement() {
             type="button"
             onClick={refreshAll}
             disabled={loading}
-            className="p-2 rounded-lg border border-[#2A241E] text-[#A69B8D] hover:text-[#D4AF37] hover:border-[#D4AF37]/40 transition-colors disabled:opacity-50"
+            className="p-2 rounded-lg border border-fo-border text-fo-muted hover:text-fo-accent hover:border-fo-accent/40 transition-colors disabled:opacity-50"
             title="Refresh"
           >
             <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
@@ -210,14 +210,14 @@ export default function PostManagement() {
           <button
             type="button"
             onClick={openCreate}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#D4AF37] text-black text-xs font-semibold hover:bg-[#e0c04a] transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-fo-accent text-black text-xs font-semibold hover:bg-fo-accent-hover transition-colors"
           >
             <Plus size={14} /> Create
           </button>
         </div>
       </header>
 
-      <div className="flex gap-1 p-1 rounded-xl bg-[#0E0C0A] border border-[#2A241E] overflow-x-auto">
+      <div className="flex gap-1 p-1 rounded-xl bg-fo-bg border border-fo-border overflow-x-auto">
         {SORT_OPTIONS.map((opt) => {
           const active = sortBy === opt.value;
           return (
@@ -227,8 +227,8 @@ export default function PostManagement() {
               onClick={() => setSortBy(opt.value)}
               className={`flex-1 min-w-[4.5rem] py-2 px-3 rounded-lg text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap ${
                 active
-                  ? "bg-[#1A1510] text-[#D4AF37] border border-[#D4AF37]/35"
-                  : "text-[#8C8070] hover:text-[#E5E0D8] border border-transparent"
+                  ? "bg-[#1A1510] text-fo-accent border border-fo-accent/35"
+                  : "text-fo-subtle hover:text-fo-text border border-transparent"
               }`}
             >
               {opt.label}
@@ -240,25 +240,25 @@ export default function PostManagement() {
       <form onSubmit={handleSearch} className="relative">
         <Search
           size={14}
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8C8070] pointer-events-none"
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-fo-subtle pointer-events-none"
         />
         <input
           type="search"
           placeholder="Search posts…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full bg-[#14100D] border border-[#2A241E] rounded-xl pl-9 pr-3 py-2.5 text-sm text-[#E5E0D8] placeholder:text-[#5C5348] focus:outline-none focus:border-[#D4AF37]/50"
+          className="w-full bg-fo-surface border border-fo-border rounded-xl pl-9 pr-3 py-2.5 text-sm text-fo-text placeholder:text-fo-subtle focus:outline-none focus:border-fo-accent/50"
         />
       </form>
 
       {loading ? (
-        <div className="flex items-center justify-center gap-2 py-14 text-sm text-[#A69B8D]">
-          <Loader2 size={16} className="animate-spin text-[#D4AF37]" />
+        <div className="flex items-center justify-center gap-2 py-14 text-sm text-fo-muted">
+          <Loader2 size={16} className="animate-spin text-fo-accent" />
           Loading posts…
         </div>
       ) : posts.length === 0 ? (
-        <div className="border border-dashed border-[#2A241E] rounded-xl py-14 text-center text-sm text-[#8C8070] px-4 space-y-3">
-          <FileText className="w-8 h-8 mx-auto text-[#D4AF37]/40" />
+        <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle px-4 space-y-3">
+          <FileText className="w-8 h-8 mx-auto text-fo-accent/40" />
           <p>
             {query
               ? "No posts match your search."
@@ -268,7 +268,7 @@ export default function PostManagement() {
             <button
               type="button"
               onClick={openCreate}
-              className="inline-flex items-center gap-2 text-[#D4AF37] hover:text-[#e0c04a] font-medium"
+              className="inline-flex items-center gap-2 text-fo-accent hover:text-fo-accent-hover font-medium"
             >
               <Plus size={14} /> Create Post
             </button>
@@ -295,9 +295,9 @@ export default function PostManagement() {
                       openPost(post);
                     }
                   }}
-                  className="group flex items-center gap-3 bg-[#14100D] border border-[#2A241E] hover:border-[#D4AF37]/35 rounded-xl p-3.5 sm:p-4 transition-colors cursor-pointer"
+                  className="group flex items-center gap-3 bg-fo-surface border border-fo-border hover:border-fo-accent/35 rounded-xl p-3.5 sm:p-4 transition-colors cursor-pointer"
                 >
-                  <div className="w-14 h-14 sm:w-16 sm:h-16 shrink-0 rounded-lg overflow-hidden bg-[#0E0C0A] border border-[#2A241E] flex items-center justify-center text-[#5A5046]">
+                  <div className="w-14 h-14 sm:w-16 sm:h-16 shrink-0 rounded-lg overflow-hidden bg-fo-bg border border-fo-border flex items-center justify-center text-[#5A5046]">
                     {cover ? (
                       cover.type === "video" ? (
                         <video
@@ -318,9 +318,9 @@ export default function PostManagement() {
                   </div>
 
                   <div className="min-w-0 flex-1 space-y-1">
-                    <div className="flex items-center gap-2 flex-wrap text-[11px] text-[#8C8070]">
+                    <div className="flex items-center gap-2 flex-wrap text-[11px] text-fo-subtle">
                       {post.community?.name ? (
-                        <span className="text-[#D4AF37]/90 truncate max-w-[12rem]">
+                        <span className="text-fo-accent/90 truncate max-w-[12rem]">
                           {post.community.name}
                         </span>
                       ) : (
@@ -334,17 +334,17 @@ export default function PostManagement() {
                       ) : null}
                     </div>
 
-                    <h2 className="text-sm font-semibold text-[#E5E0D8] group-hover:text-[#D4AF37] transition-colors line-clamp-2 leading-snug">
+                    <h2 className="text-sm font-semibold text-fo-text group-hover:text-fo-accent transition-colors line-clamp-2 leading-snug">
                       {post.title || "Untitled"}
                     </h2>
 
                     {post.text ? (
-                      <p className="text-[11px] text-[#8C8070] line-clamp-1">
+                      <p className="text-[11px] text-fo-subtle line-clamp-1">
                         {post.text}
                       </p>
                     ) : null}
 
-                    <div className="flex items-center gap-3 pt-0.5 text-[11px] text-[#8C8070]">
+                    <div className="flex items-center gap-3 pt-0.5 text-[11px] text-fo-subtle">
                       <span className="inline-flex items-center gap-1">
                         <Heart size={11} /> {post.likeCount || 0}
                       </span>
@@ -367,10 +367,10 @@ export default function PostManagement() {
                 type="button"
                 onClick={handleLoadMore}
                 disabled={loadingMore}
-                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg border border-[#2A241E] text-xs text-[#E5E0D8] hover:border-[#D4AF37]/50 hover:text-[#D4AF37] disabled:opacity-60 transition-colors"
+                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg border border-fo-border text-xs text-fo-text hover:border-fo-accent/50 hover:text-fo-accent disabled:opacity-60 transition-colors"
               >
                 {loadingMore ? (
-                  <Loader2 size={14} className="animate-spin text-[#D4AF37]" />
+                  <Loader2 size={14} className="animate-spin text-fo-accent" />
                 ) : null}
                 Load more
               </button>

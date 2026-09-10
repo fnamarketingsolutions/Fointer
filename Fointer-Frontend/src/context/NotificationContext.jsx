@@ -7,14 +7,19 @@ import {
   useState,
 } from 'react';
 import { useAuth } from './AuthContext';
-import { fetchUnreadCount } from '../features/notifications/services/notificationService';
+import { fetchUnreadCount } from '../api/notifications';
 import { getLiveSocket } from '../shared/services/liveSocket';
+import { syncPushRegistration } from '../shared/services/pushClient';
+import PushPermissionPrompt, {
+  wasPushPromptDismissed,
+} from '../shared/components/PushPermissionPrompt';
 
 const NotificationContext = createContext(null);
 
 export function NotificationProvider({ children }) {
   const { user, loading } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
+  const [askPush, setAskPush] = useState(false);
 
   const refreshUnread = useCallback(async () => {
     if (!user) {
@@ -43,9 +48,22 @@ export function NotificationProvider({ children }) {
     if (loading) return undefined;
     if (!user) {
       setUnreadCount(0);
+      setAskPush(false);
       return undefined;
     }
     refreshUnread();
+    if (
+      typeof Notification !== 'undefined' &&
+      Notification.permission === 'granted'
+    ) {
+      syncPushRegistration(user.id);
+    } else if (
+      typeof Notification !== 'undefined' &&
+      Notification.permission === 'default' &&
+      !wasPushPromptDismissed()
+    ) {
+      setAskPush(true);
+    }
     return undefined;
   }, [loading, user, refreshUnread]);
 
@@ -84,6 +102,7 @@ export function NotificationProvider({ children }) {
   return (
     <NotificationContext.Provider value={value}>
       {children}
+      <PushPermissionPrompt open={askPush} onClose={() => setAskPush(false)} />
     </NotificationContext.Provider>
   );
 }

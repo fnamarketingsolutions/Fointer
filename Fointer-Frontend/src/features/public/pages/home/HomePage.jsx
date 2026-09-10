@@ -74,7 +74,7 @@ function PrimaryButton({ to, children }) {
   return (
     <Link
       to={to}
-      className="inline-flex items-center justify-center gap-2 w-full sm:w-auto h-12 px-6 rounded-lg bg-[#D4AF37] text-black text-sm font-semibold hover:bg-[#e0c04a] transition-colors"
+      className="inline-flex items-center justify-center gap-2 w-full sm:w-auto h-12 px-6 rounded-lg bg-fo-accent text-black text-sm font-semibold hover:bg-fo-accent-hover transition-colors"
     >
       {children}
     </Link>
@@ -85,7 +85,7 @@ function SecondaryButton({ to, children }) {
   return (
     <Link
       to={to}
-      className="inline-flex items-center justify-center gap-2 w-full sm:w-auto h-12 px-6 rounded-lg border border-[#2A241E] text-[#E5E0D8] text-sm font-semibold hover:border-[#D4AF37]/40 hover:text-[#D4AF37] transition-colors"
+      className="inline-flex items-center justify-center gap-2 w-full sm:w-auto h-12 px-6 rounded-lg border border-fo-border text-fo-text text-sm font-semibold hover:border-fo-accent/40 hover:text-fo-accent transition-colors"
     >
       {children}
     </Link>
@@ -110,7 +110,7 @@ function CommunityThumb({ community, name }) {
     );
   }
   return (
-    <div className="w-10 h-10 rounded-xl bg-[#241C16] text-[#D4AF37] flex items-center justify-center font-semibold">
+    <div className="w-10 h-10 rounded-xl bg-fo-surface-3 text-fo-accent flex items-center justify-center font-semibold">
       {(name || "?").charAt(0).toUpperCase()}
     </div>
   );
@@ -123,17 +123,17 @@ function HeroPreview({ communities, loading }) {
   ].slice(0, 4);
 
   return (
-    <div className="relative rounded-xl border border-[#2A241E] bg-[#14100D] p-4 sm:p-6 min-w-0">
+    <div className="relative rounded-xl border border-fo-border bg-fo-surface p-4 sm:p-6 min-w-0">
         <div className="flex items-center justify-between gap-3 mb-5">
           <div>
-            <p className="text-sm font-semibold text-[#E5E0D8]">Communities</p>
-            <p className="text-xs text-[#8C8070] mt-0.5">
+            <p className="text-sm font-semibold text-fo-text">Communities</p>
+            <p className="text-xs text-fo-subtle mt-0.5">
               Around what you love
             </p>
           </div>
           <Link
             to={EXPLORE_PATH}
-            className="text-[11px] font-medium text-[#D4AF37] bg-[#D4AF37]/10 border border-[#D4AF37]/20 px-2.5 py-1 rounded-full hover:bg-[#D4AF37]/15 shrink-0"
+            className="text-[11px] font-medium text-fo-accent bg-fo-accent/10 border border-fo-accent/20 px-2.5 py-1 rounded-full hover:bg-fo-accent/15 shrink-0"
           >
             Explore
           </Link>
@@ -144,7 +144,7 @@ function HeroPreview({ communities, loading }) {
             {channels.map((tag) => (
               <span
                 key={tag}
-                className="text-xs text-[#C9C0B4] bg-[#1F1914] border border-[#2A241E] rounded-full px-3 py-1"
+                className="text-xs text-fo-muted bg-fo-surface-hover border border-fo-border rounded-full px-3 py-1"
               >
                 {tag}
               </span>
@@ -157,11 +157,11 @@ function HeroPreview({ communities, loading }) {
             [0, 1, 2, 3].map((key) => (
               <div
                 key={key}
-                className="h-[58px] rounded-2xl bg-[#1C1612] border border-[#2A241E] animate-pulse"
+                className="h-[58px] rounded-2xl bg-fo-surface-hover border border-fo-border animate-pulse"
               />
             ))
           ) : preview.length === 0 ? (
-            <p className="text-sm text-[#8C8070] py-6 text-center">
+            <p className="text-sm text-fo-subtle py-6 text-center">
               Public communities will show up here as they are created.
             </p>
           ) : (
@@ -173,25 +173,25 @@ function HeroPreview({ communities, loading }) {
                 <Link
                   key={community.id || segment}
                   to={`/communities/${segment}`}
-                  className="flex items-center gap-3 rounded-2xl bg-[#1C1612] border border-[#2A241E] p-3 hover:border-[#D4AF37]/35 transition-colors"
+                  className="flex items-center gap-3 rounded-2xl bg-fo-surface-hover border border-fo-border p-3 hover:border-fo-accent/35 transition-colors"
                 >
                   <CommunityThumb community={community} name={name} />
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-[#E5E0D8] truncate">
+                    <p className="text-sm font-medium text-fo-text truncate">
                       {name}
                     </p>
-                    <p className="text-xs text-[#8C8070] truncate">
+                    <p className="text-xs text-fo-subtle truncate">
                       {channel ||
                         community.description ||
                         `${formatCount(community.memberCount || 0)} members`}
                     </p>
                   </div>
                   {index === 0 ? (
-                    <span className="hidden sm:inline text-[10px] text-[#D4AF37] font-medium">
+                    <span className="hidden sm:inline text-[10px] text-fo-accent font-medium">
                       Popular
                     </span>
                   ) : (
-                    <span className="hidden sm:inline text-[10px] text-[#8C8070]">
+                    <span className="hidden sm:inline text-[10px] text-fo-subtle">
                       {formatCount(community.memberCount || 0)}
                     </span>
                   )}
@@ -258,7 +258,7 @@ export default function HomePage() {
   }, []);
 
   return (
-    <div className="bg-[#0E0C0A] text-[#E5E0D8] overflow-x-hidden">
+    <div className="bg-fo-bg text-fo-text overflow-x-hidden">
       <section className="pt-8 sm:pt-16 lg:pt-20 pb-12 sm:pb-16 lg:pb-24">
         <div className={`${SHELL} grid lg:grid-cols-2 gap-8 lg:gap-16 items-center`}>
           <motion.div
@@ -267,21 +267,21 @@ export default function HomePage() {
             transition={{ duration: 0.5 }}
             className="min-w-0"
           >
-            <h1 className="text-[1.75rem] sm:text-5xl lg:text-[64px] font-semibold tracking-tight leading-[1.15] sm:leading-[1.08] text-white">
+            <h1 className="text-[1.75rem] sm:text-5xl lg:text-[64px] font-semibold tracking-tight leading-[1.15] sm:leading-[1.08] text-fo-text">
               Find Your Interests.{' '}
               <span className="sm:block">Find Your Community.</span>
             </h1>
-            <p className="mt-4 sm:mt-5 text-[15px] sm:text-lg text-[#A69B8D] max-w-xl leading-relaxed">
+            <p className="mt-4 sm:mt-5 text-[15px] sm:text-lg text-fo-muted max-w-xl leading-relaxed">
               Fointer - from FOcused INTERests - brings people together around
               the things they care about.
             </p>
-            <p className="mt-3 sm:mt-4 text-[15px] sm:text-base text-[#A69B8D] max-w-xl leading-relaxed">
+            <p className="mt-3 sm:mt-4 text-[15px] sm:text-base text-fo-muted max-w-xl leading-relaxed">
               Discover communities built around your interests, hobbies and
               passions. Share ideas, join conversations, follow live events,
               connect with people who share your interests, or create a
               community of your own.
             </p>
-            <p className="mt-3 sm:mt-4 text-sm sm:text-base text-[#8C8070] max-w-xl">
+            <p className="mt-3 sm:mt-4 text-sm sm:text-base text-fo-subtle max-w-xl">
               Whatever you&apos;re into, there&apos;s a place for you on Fointer.
             </p>
             <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row gap-3">
@@ -290,9 +290,9 @@ export default function HomePage() {
               </PrimaryButton>
               <SecondaryButton to={EXPLORE_PATH}>Explore Communities</SecondaryButton>
             </div>
-            <p className="mt-5 text-sm text-[#8C8070]">
+            <p className="mt-5 text-sm text-fo-subtle">
               Already a Fointer?{" "}
-              <Link to="/login" className="text-[#D4AF37] font-medium hover:underline">
+              <Link to="/login" className="text-fo-accent font-medium hover:underline">
                 Log in
               </Link>
             </p>
@@ -312,18 +312,18 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="py-12 sm:py-16 lg:py-24 border-t border-[#2A241E]">
+      <section className="py-12 sm:py-16 lg:py-24 border-t border-fo-border">
         <div className={SHELL}>
           <div className="max-w-3xl min-w-0">
-            <h2 className="text-2xl sm:text-4xl font-semibold tracking-tight text-white leading-tight">
+            <h2 className="text-2xl sm:text-4xl font-semibold tracking-tight text-fo-text leading-tight">
               What are you into?
             </h2>
-            <p className="mt-4 text-base sm:text-lg text-[#A69B8D] leading-relaxed">
+            <p className="mt-4 text-base sm:text-lg text-fo-muted leading-relaxed">
               Sports. Music. Entertainment. Politics. Business. Technology.
               Fashion. Books. Travel. Schools. Professional groups. Families.
               Towns and communities - and just about anything else.
             </p>
-            <p className="mt-4 text-[#A69B8D] leading-relaxed">
+            <p className="mt-4 text-fo-muted leading-relaxed">
               Fointer turns focused interests into communities. Join the
               conversation, share what you know, discover what others are
               saying, and connect with people who care about the same things
@@ -336,11 +336,11 @@ export default function HomePage() {
               [0, 1, 2, 3].map((key) => (
                 <div
                   key={key}
-                  className="rounded-2xl border border-[#2A241E] bg-[#14100D] p-5 h-36 animate-pulse"
+                  className="rounded-2xl border border-fo-border bg-fo-surface p-5 h-36 animate-pulse"
                 />
               ))
             ) : channels.length === 0 ? (
-              <p className="sm:col-span-2 lg:col-span-4 text-sm text-[#8C8070]">
+              <p className="sm:col-span-2 lg:col-span-4 text-sm text-fo-subtle">
                 Channels will appear here as they are added.
               </p>
             ) : (
@@ -351,15 +351,15 @@ export default function HomePage() {
                   <Link
                     key={channel.id || name}
                     to={`${EXPLORE_PATH}?channel=${encodeURIComponent(name)}`}
-                    className="group rounded-2xl border border-[#2A241E] bg-[#14100D] p-5 hover:border-[#D4AF37]/35 hover:bg-[#1A140F] transition-colors"
+                    className="group rounded-2xl border border-fo-border bg-fo-surface p-5 hover:border-fo-accent/35 hover:bg-fo-surface-hover transition-colors"
                   >
-                    <div className="w-10 h-10 rounded-xl bg-[#D4AF37]/10 text-[#D4AF37] flex items-center justify-center mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-fo-accent/10 text-fo-accent flex items-center justify-center mb-4">
                       <Icon size={20} />
                     </div>
-                    <h3 className="text-base font-semibold text-white group-hover:text-[#D4AF37] transition-colors">
+                    <h3 className="text-base font-semibold text-fo-text group-hover:text-fo-accent transition-colors">
                       {name}
                     </h3>
-                    <p className="mt-1.5 text-sm text-[#8C8070] leading-relaxed">
+                    <p className="mt-1.5 text-sm text-fo-subtle leading-relaxed">
                       Communities and conversations around {name.toLowerCase()}.
                     </p>
                   </Link>
@@ -370,13 +370,13 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="py-12 sm:py-16 lg:py-24 border-t border-[#2A241E]">
+      <section className="py-12 sm:py-16 lg:py-24 border-t border-fo-border">
         <div className={SHELL}>
           <div className="max-w-3xl min-w-0">
-            <h2 className="text-2xl sm:text-4xl font-semibold tracking-tight text-white leading-tight">
+            <h2 className="text-2xl sm:text-4xl font-semibold tracking-tight text-fo-text leading-tight">
               More than a social feed
             </h2>
-            <p className="mt-4 text-[#A69B8D] leading-relaxed">
+            <p className="mt-4 text-fo-muted leading-relaxed">
               On Fointer, you don&apos;t just follow people - you participate in
               communities built around what matters to you.
             </p>
@@ -388,12 +388,12 @@ export default function HomePage() {
               return (
                 <div
                   key={item.text}
-                  className="rounded-2xl border border-[#2A241E] bg-[#14100D] p-5 sm:p-6"
+                  className="rounded-2xl border border-fo-border bg-fo-surface p-5 sm:p-6"
                 >
-                  <div className="w-10 h-10 rounded-xl bg-[#D4AF37]/10 text-[#D4AF37] flex items-center justify-center mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-fo-accent/10 text-fo-accent flex items-center justify-center mb-4">
                     <Icon size={20} />
                   </div>
-                  <p className="text-sm text-[#C9C0B4] leading-relaxed">{item.text}</p>
+                  <p className="text-sm text-fo-muted leading-relaxed">{item.text}</p>
                 </div>
               );
             })}
@@ -402,24 +402,24 @@ export default function HomePage() {
       </section>
 
       {!communitiesLoading && communities.length > 0 ? (
-        <section className="py-12 sm:py-16 lg:py-24 border-t border-[#2A241E]">
+        <section className="py-12 sm:py-16 lg:py-24 border-t border-fo-border">
           <div className={SHELL}>
             <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
               <div className="min-w-0">
-                <p className="text-sm font-medium text-[#D4AF37]">Active communities</p>
-                <h2 className="mt-3 text-2xl sm:text-4xl font-semibold tracking-tight text-white leading-tight">
+                <p className="text-sm font-medium text-fo-accent">Active communities</p>
+                <h2 className="mt-3 text-2xl sm:text-4xl font-semibold tracking-tight text-fo-text leading-tight">
                   Find the people who share it.
                 </h2>
               </div>
               <Link
                 to={EXPLORE_PATH}
-                className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#D4AF37] hover:underline"
+                className="inline-flex items-center gap-1.5 text-sm font-semibold text-fo-accent hover:underline"
               >
                 Explore all <ArrowRight size={16} />
               </Link>
             </div>
 
-            <div className="mt-10 divide-y divide-[#2A241E] border border-[#2A241E] rounded-2xl overflow-hidden bg-[#14100D]">
+            <div className="mt-10 divide-y divide-fo-border border border-fo-border rounded-2xl overflow-hidden bg-fo-surface">
               {communities.map((community) => {
                 const segment = communitySegment(community) || community.id;
                 const name = community.name || "Community";
@@ -427,7 +427,7 @@ export default function HomePage() {
                   <Link
                     key={community.id || segment}
                     to={`/communities/${segment}`}
-                    className="flex items-center gap-4 px-4 sm:px-5 py-4 hover:bg-[#1C1612] transition-colors"
+                    className="flex items-center gap-4 px-4 sm:px-5 py-4 hover:bg-fo-surface-hover transition-colors"
                   >
                     {community.coverImage ? (
                       <img
@@ -436,24 +436,24 @@ export default function HomePage() {
                         className="w-11 h-11 rounded-xl object-cover shrink-0"
                       />
                     ) : (
-                      <div className="w-11 h-11 rounded-xl bg-[#241C16] text-[#D4AF37] flex items-center justify-center font-semibold shrink-0">
+                      <div className="w-11 h-11 rounded-xl bg-fo-surface-3 text-fo-accent flex items-center justify-center font-semibold shrink-0">
                         {name.charAt(0).toUpperCase()}
                       </div>
                     )}
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-white truncate">{name}</p>
+                      <p className="text-sm font-semibold text-fo-text truncate">{name}</p>
                       {community.description ? (
-                        <p className="text-xs text-[#8C8070] truncate mt-0.5">
+                        <p className="text-xs text-fo-subtle truncate mt-0.5">
                           {community.description}
                         </p>
                       ) : null}
                     </div>
                     {typeof community.memberCount === "number" ? (
-                      <p className="hidden sm:block text-xs text-[#A69B8D] shrink-0">
+                      <p className="hidden sm:block text-xs text-fo-muted shrink-0">
                         {formatCount(community.memberCount)} members
                       </p>
                     ) : null}
-                    <ArrowRight size={16} className="text-[#5C5348] shrink-0" />
+                    <ArrowRight size={16} className="text-fo-subtle shrink-0" />
                   </Link>
                 );
               })}
@@ -462,26 +462,27 @@ export default function HomePage() {
         </section>
       ) : null}
 
-      <section className="py-12 sm:py-16 lg:py-24 border-t border-[#2A241E]">
+      <section className="py-12 sm:py-16 lg:py-24 border-t border-fo-border">
         <div className={`${SHELL} grid lg:grid-cols-2 gap-8 lg:gap-20 items-center`}>
           <div className="min-w-0">
-            <p className="text-sm font-medium text-[#D4AF37] inline-flex items-center gap-2">
+            <p className="text-sm font-medium text-fo-accent inline-flex items-center gap-2">
               <ShoppingBag size={14} /> Fointer Marketplace
             </p>
-            <h2 className="mt-3 text-2xl sm:text-4xl font-semibold tracking-tight text-white leading-tight">
+            <h2 className="mt-3 text-2xl sm:text-4xl font-semibold tracking-tight text-fo-text leading-tight">
               Discover and sell — without losing the community.
             </h2>
-            <p className="mt-4 text-[#A69B8D] leading-relaxed max-w-lg">
+            <p className="mt-4 text-fo-muted leading-relaxed max-w-lg">
               The Marketplace is an important way Fointers share goods and
               services around their interests. It supports the community. It is
               not what Fointer is.
             </p>
-            <div className="mt-8">
-              <PrimaryButton to="/signup">Join Fointer</PrimaryButton>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <PrimaryButton to="/marketplace">Browse Marketplace</PrimaryButton>
+              <SecondaryButton to="/signup">Join Fointer</SecondaryButton>
             </div>
           </div>
-          <div className="rounded-2xl sm:rounded-3xl border border-[#2A241E] bg-[#14100D] p-5 sm:p-8 min-w-0">
-            <p className="text-sm font-semibold text-white">Around your interests</p>
+          <div className="rounded-2xl sm:rounded-3xl border border-fo-border bg-fo-surface p-5 sm:p-8 min-w-0">
+            <p className="text-sm font-semibold text-fo-text">Around your interests</p>
             <div className="mt-5 space-y-3">
               {[
                 "Goods from people in your communities",
@@ -490,9 +491,9 @@ export default function HomePage() {
               ].map((line) => (
                 <div
                   key={line}
-                  className="flex items-start gap-3 text-sm text-[#A69B8D]"
+                  className="flex items-start gap-3 text-sm text-fo-muted"
                 >
-                  <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-[#D4AF37] shrink-0" />
+                  <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-fo-accent shrink-0" />
                   {line}
                 </div>
               ))}
@@ -501,26 +502,26 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="py-12 sm:py-16 lg:py-24 border-t border-[#2A241E]">
+      <section className="py-12 sm:py-16 lg:py-24 border-t border-fo-border">
         <div className={`${SHELL} grid lg:grid-cols-2 gap-8 lg:gap-20`}>
           <div className="min-w-0">
-            <p className="text-sm font-medium text-[#D4AF37]">FOINTER</p>
-            <h2 className="mt-3 text-2xl sm:text-4xl font-semibold tracking-tight text-white leading-tight">
-              <span className="text-[#D4AF37]">FO</span>cused +{" "}
-              <span className="text-[#D4AF37]">INTER</span>ests
+            <p className="text-sm font-medium text-fo-accent">FOINTER</p>
+            <h2 className="mt-3 text-2xl sm:text-4xl font-semibold tracking-tight text-fo-text leading-tight">
+              <span className="text-fo-accent">FO</span>cused +{" "}
+              <span className="text-fo-accent">INTER</span>ests
             </h2>
-            <p className="mt-4 text-[#A69B8D] leading-relaxed">
+            <p className="mt-4 text-fo-muted leading-relaxed">
               Your interests. Your communities. Your conversations.
             </p>
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-medium text-[#D4AF37]">Our mission</p>
-            <p className="mt-4 text-lg text-[#C9C0B4] leading-relaxed">
+            <p className="text-sm font-medium text-fo-accent">Our mission</p>
+            <p className="mt-4 text-lg text-fo-muted leading-relaxed">
               To bring community, belonging and empowerment to everyone by
               connecting people through the interests, hobbies and passions that
               matter to them.
             </p>
-            <p className="mt-6 text-sm text-[#8C8070]">
+            <p className="mt-6 text-sm text-fo-subtle">
               Find what interests you. Find the people who share it. Join the
               conversation.
             </p>
@@ -530,12 +531,12 @@ export default function HomePage() {
 
       <section className="pb-16 sm:pb-20 lg:pb-28">
         <div className={SHELL}>
-          <div className="rounded-2xl sm:rounded-3xl bg-[#D4AF37] px-5 py-8 sm:px-12 sm:py-14 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6 sm:gap-8">
+          <div className="rounded-2xl sm:rounded-3xl bg-fo-accent px-5 py-8 sm:px-12 sm:py-14 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6 sm:gap-8">
             <div className="min-w-0">
-              <h2 className="text-2xl sm:text-4xl font-semibold tracking-tight text-[#0E0C0A] leading-tight">
+              <h2 className="text-2xl sm:text-4xl font-semibold tracking-tight text-fo-bg leading-tight">
                 Find your place on Fointer.
               </h2>
-              <p className="mt-3 text-[#0E0C0A]/75 max-w-md text-sm sm:text-base">
+              <p className="mt-3 text-fo-bg/75 max-w-md text-sm sm:text-base">
                 Join communities built around what you care about — or start one
                 of your own.
               </p>
@@ -543,13 +544,13 @@ export default function HomePage() {
             <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto shrink-0">
               <Link
                 to="/signup"
-                className="inline-flex items-center justify-center w-full sm:w-auto h-12 px-6 rounded-lg bg-[#0E0C0A] text-[#D4AF37] text-sm font-semibold hover:bg-[#1C1612] transition-colors"
+                className="inline-flex items-center justify-center w-full sm:w-auto h-12 px-6 rounded-lg bg-fo-bg text-fo-accent text-sm font-semibold hover:bg-fo-surface-hover transition-colors"
               >
                 Join Fointer
               </Link>
               <Link
                 to={EXPLORE_PATH}
-                className="inline-flex items-center justify-center w-full sm:w-auto h-12 px-6 rounded-lg border border-[#0E0C0A]/20 text-[#0E0C0A] text-sm font-semibold hover:bg-[#0E0C0A]/5 transition-colors"
+                className="inline-flex items-center justify-center w-full sm:w-auto h-12 px-6 rounded-lg border border-fo-bg/20 text-fo-bg text-sm font-semibold hover:bg-fo-bg/5 transition-colors"
               >
                 Explore communities
               </Link>

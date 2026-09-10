@@ -1,5 +1,9 @@
 import CommunityMember from "../models/communityMember.js";
 import SystemSetting from "../models/systemSetting.js";
+import {
+  hasCommunitiesAdminPower,
+  hasContentAdminPower,
+} from "./adminAccess.js";
 
 const DEFAULT_EDIT_WINDOW_MINUTES = 60;
 const CACHE_MS = 30_000;
@@ -85,20 +89,24 @@ export const canManageCommunity = (community, user) => {
     community.owner && community.owner._id
       ? community.owner._id
       : community.owner;
-  return String(ownerId) === String(user._id) || user.role === "admin";
+  return (
+    String(ownerId) === String(user._id) || hasCommunitiesAdminPower(user)
+  );
 };
 
+export const DISCOVERABLE_COMMUNITY_TYPES = ["public", "private_request"];
+
 export const isDiscoverableCommunityType = (type) =>
-  ["public", "private_request"].includes(String(type || ""));
+  DISCOVERABLE_COMMUNITY_TYPES.includes(String(type || ""));
 
 export const canViewCommunity = (community, user, membership) => {
-  if (user?.role === "admin") return true;
+  if (hasContentAdminPower(user)) return true;
   if (getEffectiveMemberRole(membership)) return true;
   return isDiscoverableCommunityType(community?.type);
 };
 
 export const getActorCommunityRole = async (communityId, user) => {
-  if (user.role === "admin") return "admin";
+  if (hasContentAdminPower(user)) return "admin";
   const membership = await getMembership(communityId, user._id);
   return getEffectiveMemberRole(membership);
 };
@@ -136,13 +144,13 @@ export const formatMember = (membership) => {
 };
 
 export const canEngageInCommunity = async (communityId, user) => {
-  if (user.role === "admin") return true;
+  if (hasContentAdminPower(user)) return true;
   const membership = await getMembership(communityId, user._id);
   return Boolean(getEffectiveMemberRole(membership));
 };
 
 export const canManagePostsInCommunity = async (communityId, user) => {
-  if (user.role === "admin") return true;
+  if (hasContentAdminPower(user)) return true;
   const membership = await getMembership(communityId, user._id);
   const role = getEffectiveMemberRole(membership);
   return role === "owner" || role === "moderator";

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   LuArrowLeft as ArrowLeft,
   LuChevronDown as ChevronDown,
@@ -21,6 +21,7 @@ import { fetchPosts } from '../../../../api/posts';
 import PostMediaGallery from '../../../../shared/components/media/PostMediaGallery';
 import ConfirmDeleteModal from '../../../../shared/components/modals/ConfirmDeleteModal';
 import EditCommunityModal from '../../../../shared/components/modals/EditCommunityModal';
+import AdminUserLink from '../../../../shared/components/AdminUserLink';
 import { formatCommunityType, parseCommunityRules } from '../../../../shared/utils/community';
 import { timeAgo } from '../../../../shared/utils/date';
 import { formatCount } from '../../../../shared/utils/format';
@@ -353,12 +354,12 @@ export default function CommunityDetail() {
                           </div>
                         </div>
                         {member.user?.id ? (
-                          <Link
-                            to={`/users/${member.user.id}`}
+                          <AdminUserLink
+                            userId={member.user.id}
                             className="shrink-0 text-[11px] font-medium text-fo-accent hover:underline"
                           >
                             View profile
-                          </Link>
+                          </AdminUserLink>
                         ) : null}
                       </div>
                     ))}

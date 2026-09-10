@@ -14,9 +14,3 @@ export const updateMyPassword = async (payload) => {
   const response = await api.patch('/profile/password', payload);
   return response.data;
 };
-
-export const fetchPublicProfile = async (username) => {
-  const clean = String(username || '').trim().replace(/^@+/, '');
-  const response = await api.get(`/users/${encodeURIComponent(clean)}`);
-  return response.data;
-};

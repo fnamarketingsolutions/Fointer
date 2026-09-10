@@ -14,6 +14,7 @@ import {
   updateAdminSupportTicketStatus,
 } from "../../services/adminService";
 import ApproveChannelRequestModal from "../../../../shared/components/modals/ApproveChannelRequestModal";
+import AdminActionBtn from "../../../../shared/components/AdminActionBtn";
 import { useToast } from "../../../../shared/components/feedback/ToastContext";
 import { getErrorMessage } from "../../../../shared/utils/errors";
 import { timeAgo } from "../../../../shared/utils/date";
@@ -46,27 +47,6 @@ const STATUS_META = {
 const getRequesterName = (ticket) =>
   ticket?.user?.username || ticket?.user?.name || "Unknown user";
 
-function ActionBtn({ onClick, disabled, tone = "ghost", children }) {
-  const tones = {
-    ghost:
-      "border border-fo-border text-fo-muted hover:text-fo-text hover:border-fo-accent/30",
-    success:
-      "border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10",
-    danger:
-      "border border-red-500/30 text-red-400 hover:bg-red-500/10",
-  };
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors disabled:opacity-50 ${tones[tone]}`}
-    >
-      {children}
-    </button>
-  );
-}
-
 export default function SupportTicketCenter() {
   const { showToast } = useToast();
   const [tickets, setTickets] = useState([]);
@@ -80,12 +60,8 @@ export default function SupportTicketCenter() {
   const loadTickets = useCallback(async () => {
     setLoading(true);
     try {
-      const [ticketData, channelData] = await Promise.all([
-        fetchAdminSupportTickets(),
-        fetchAdminChannels(),
-      ]);
+      const ticketData = await fetchAdminSupportTickets();
       setTickets(ticketData?.tickets || []);
-      setChannels(channelData?.channels || []);
     } catch (err) {
       showToast(getErrorMessage(err, "Failed to load support requests."));
       setTickets([]);
@@ -94,9 +70,21 @@ export default function SupportTicketCenter() {
     }
   }, [showToast]);
 
+  const loadChannels = useCallback(async () => {
+    try {
+      const channelData = await fetchAdminChannels();
+      setChannels(channelData?.channels || []);
+    } catch {
+      // Support-only admins can still approve via "New channel";
+      // existing-channel picker stays empty if this fails.
+      setChannels([]);
+    }
+  }, []);
+
   useEffect(() => {
     loadTickets();
-  }, [loadTickets]);
+    loadChannels();
+  }, [loadTickets, loadChannels]);
 
   const counts = useMemo(() => {
     const base = { all: tickets.length, pending: 0, approved: 0, rejected: 0 };
@@ -134,6 +122,7 @@ export default function SupportTicketCenter() {
       );
       setApprovingTicket(null);
       await loadTickets();
+      await loadChannels();
     } catch (err) {
       showToast(getErrorMessage(err, "Failed to update support request."));
     } finally {
@@ -164,7 +153,10 @@ export default function SupportTicketCenter() {
         </div>
         <button
           type="button"
-          onClick={loadTickets}
+          onClick={() => {
+            loadTickets();
+            loadChannels();
+          }}
           disabled={loading}
           className="p-2 rounded-lg border border-fo-border text-fo-muted hover:text-fo-accent hover:border-fo-accent/40 transition-colors disabled:opacity-50 shrink-0"
           title="Refresh"
@@ -282,15 +274,15 @@ export default function SupportTicketCenter() {
 
                 {ticket.status === "pending" ? (
                   <div className="flex flex-wrap gap-1.5">
-                    <ActionBtn
+                    <AdminActionBtn
                       tone="success"
                       disabled={isUpdating}
                       onClick={() => setApprovingTicket(ticket)}
                     >
                       <CheckCircle2 size={12} />
                       Approve
-                    </ActionBtn>
-                    <ActionBtn
+                    </AdminActionBtn>
+                    <AdminActionBtn
                       tone="danger"
                       disabled={isUpdating}
                       onClick={() =>
@@ -303,7 +295,7 @@ export default function SupportTicketCenter() {
                         <XCircle size={12} />
                       )}
                       Reject
-                    </ActionBtn>
+                    </AdminActionBtn>
                   </div>
                 ) : null}
               </article>

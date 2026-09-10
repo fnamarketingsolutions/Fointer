@@ -23,7 +23,7 @@ export const LISTING_CONDITIONS = [
   "poor",
 ];
 
-export const LISTING_STATUSES = ["active", "sold", "draft", "removed"];
+export const LISTING_STATUSES = ["active", "sold", "draft", "removed", "hidden"];
 
 const mediaSchema = new mongoose.Schema(
   {
@@ -121,6 +121,21 @@ const listingSchema = new mongoose.Schema(
     removedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
+      default: null,
+    },
+    /** Set when listing is soft-hidden (ban or admin). */
+    hiddenAt: {
+      type: Date,
+      default: null,
+    },
+    /**
+     * Why the listing is hidden:
+     * - account_ban: seller banned / auto-ban — restored on activate
+     * - admin: manual hide — not restored on unban
+     */
+    hiddenReason: {
+      type: String,
+      enum: ["account_ban", "admin", null],
       default: null,
     },
   },

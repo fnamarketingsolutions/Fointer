@@ -16,11 +16,42 @@ import DirectMessage from "../models/directMessage.js";
 import { sendServerError } from "../utils/safeError.js";
 import { parseObjectIdInput } from "../utils/shortCode.js";
 import { canViewPost } from "./post.controller.js";
-import { notifyAdmins, notify, personName, snippet } from "../utils/notify.js";
+import { notifyAdmins, personName, snippet } from "../utils/notify.js";
 import {
   hideActiveListingsForSeller,
 } from "./adminMarketplace.controller.js";
 import { userInConversation, formatListingSnapshot } from "./conversation.controller.js";
+import { resolveIsSuperAdmin, hasUsersAdminPower } from "../utils/adminAccess.js";
+
+const assertCanBanTargetUser = async (actor, targetUserId) => {
+  if (!hasUsersAdminPower(actor)) {
+    return {
+      ok: false,
+      status: 403,
+      message: "User Management access is required to ban accounts.",
+    };
+  }
+  const target = await User.findById(targetUserId).select("role status");
+  if (!target) {
+    return {
+      ok: false,
+      status: 404,
+      message: "User not found.",
+    };
+  }
+  const targetIsAdmin =
+    String(target.role || "")
+      .toLowerCase()
+      .trim() === "admin";
+  if (targetIsAdmin && !resolveIsSuperAdmin(actor)) {
+    return {
+      ok: false,
+      status: 403,
+      message: "Only a super admin can ban an admin account.",
+    };
+  }
+  return { ok: true, target };
+};
 
 const formatUser = (user) => {
   if (!user || typeof user !== "object" || !user._id) {
@@ -524,6 +555,18 @@ export const updateAdminReport = async (req, res) => {
       action === "delete_and_ban" ||
       action === "remove_listing"
     ) {
+      if (action === "delete_and_ban" && report.snapshot?.authorId) {
+        const banGate = await assertCanBanTargetUser(
+          req.user,
+          report.snapshot.authorId
+        );
+        if (!banGate.ok) {
+          return res.status(banGate.status).json({
+            success: false,
+            message: banGate.message,
+          });
+        }
+      }
       const result = await deleteTargetContent(
         report.targetType,
         report.targetId
@@ -533,10 +576,7 @@ export const updateAdminReport = async (req, res) => {
         await User.findByIdAndUpdate(report.snapshot.authorId, {
           status: "banned",
         });
-        await hideActiveListingsForSeller(
-          report.snapshot.authorId,
-          req.user._id
-        );
+        await hideActiveListingsForSeller(report.snapshot.authorId);
         actionTaken += "; author banned";
       }
       report.status = "actioned";
@@ -547,21 +587,25 @@ export const updateAdminReport = async (req, res) => {
           message: "Seller information is unavailable for this report.",
         });
       }
-      const warning = adminNote || "Your marketplace listing may violate Fointer policies. Please review and update it.";
-      await notify({
-        io: req.app.get("io"),
-        recipientId: report.snapshot.authorId,
+      const warning =
+        adminNote ||
+        "Your marketplace listing may violate Fointer policies. Please review and update it.";
+      const { issueUserWarning } = await import("../utils/userWarnings.js");
+      const result = await issueUserWarning({
+        userId: report.snapshot.authorId,
         actor: req.user,
-        type: "support_ticket",
-        title: "Marketplace policy notice",
-        body: snippet(warning, 200),
-        entity: {
-          kind: "listing",
-          _id: report.targetId,
+        message: warning,
+        source: "report",
+        relatedEntity: {
+          kind: report.targetType || "listing",
+          targetId: report.targetId,
           title: report.snapshot?.title || "",
         },
+        io: req.app.get("io"),
       });
-      actionTaken = "Warning sent to seller";
+      actionTaken = result.banned
+        ? `Warning sent; author auto-banned (${result.warningCount}/${result.maxWarningsBeforeBan})`
+        : `Warning sent to seller (${result.warningCount}/${result.maxWarningsBeforeBan})`;
       report.status = "actioned";
     } else if (action === "ban_author") {
       if (!report.snapshot?.authorId) {
@@ -570,13 +614,20 @@ export const updateAdminReport = async (req, res) => {
           message: "Author information is unavailable for this report.",
         });
       }
+      const banGate = await assertCanBanTargetUser(
+        req.user,
+        report.snapshot.authorId
+      );
+      if (!banGate.ok) {
+        return res.status(banGate.status).json({
+          success: false,
+          message: banGate.message,
+        });
+      }
       await User.findByIdAndUpdate(report.snapshot.authorId, {
         status: "banned",
       });
-      await hideActiveListingsForSeller(
-        report.snapshot.authorId,
-        req.user._id
-      );
+      await hideActiveListingsForSeller(report.snapshot.authorId);
       actionTaken = "Author banned; active listings hidden";
       report.status = "actioned";
     } else if (status && REPORT_STATUSES.includes(status)) {

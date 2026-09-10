@@ -26,6 +26,8 @@ const formatAdminSettings = (settings, postEditWindowMinutes) => ({
   ...formatContact(settings),
   bannedKeywords: parseBannedKeywords(settings?.bannedKeywords || []),
   watchGroupMaxCapacity: Number(settings?.watchGroupMaxCapacity) || 50,
+  maxWarningsBeforeBan: Number(settings?.maxWarningsBeforeBan) || 3,
+  autoBanOnMaxWarnings: settings?.autoBanOnMaxWarnings !== false,
 });
 
 const getOrCreateGlobalSettings = async () => {
@@ -92,6 +94,14 @@ export const updateSystemSettings = async (req, res) => {
       body,
       "watchGroupMaxCapacity"
     );
+    const hasMaxWarnings = Object.prototype.hasOwnProperty.call(
+      body,
+      "maxWarningsBeforeBan"
+    );
+    const hasAutoBan = Object.prototype.hasOwnProperty.call(
+      body,
+      "autoBanOnMaxWarnings"
+    );
 
     if (
       !hasMinutes &&
@@ -99,7 +109,9 @@ export const updateSystemSettings = async (req, res) => {
       !hasPhone &&
       !hasAddress &&
       !hasBanned &&
-      !hasWatchMax
+      !hasWatchMax &&
+      !hasMaxWarnings &&
+      !hasAutoBan
     ) {
       return res.status(400).json({
         success: false,
@@ -166,6 +178,21 @@ export const updateSystemSettings = async (req, res) => {
         });
       }
       settings.watchGroupMaxCapacity = Math.floor(max);
+    }
+
+    if (hasMaxWarnings) {
+      const maxWarn = Number(body.maxWarningsBeforeBan);
+      if (!Number.isFinite(maxWarn) || maxWarn < 1 || maxWarn > 20) {
+        return res.status(400).json({
+          success: false,
+          message: "maxWarningsBeforeBan must be between 1 and 20.",
+        });
+      }
+      settings.maxWarningsBeforeBan = Math.floor(maxWarn);
+    }
+
+    if (hasAutoBan) {
+      settings.autoBanOnMaxWarnings = Boolean(body.autoBanOnMaxWarnings);
     }
 
     await settings.save();

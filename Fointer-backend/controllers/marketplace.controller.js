@@ -23,6 +23,7 @@ import {
   acceptSignedMediaList,
   destroyManyFromCloudinary,
 } from "../utils/cloudinary.js";
+import { hasMarketplaceAdminPower } from "../utils/adminAccess.js";
 
 const LISTING_SORT_MAP = {
   newest: { createdAt: -1 },
@@ -44,6 +45,9 @@ const formatUser = (user, { includeContact = false } = {}) => {
     state: user.state || "",
     country: user.country || "",
   };
+  if (user.status) {
+    payload.status = user.status;
+  }
   if (includeContact) {
     payload.phone = user.phone || "";
     payload.email = user.email || "";
@@ -72,6 +76,8 @@ export const formatListing = (listing, extras = {}) => ({
   country: listing.country || "",
   media: formatMedia(listing.media),
   status: listing.status,
+  hiddenAt: listing.hiddenAt || null,
+  hiddenReason: listing.hiddenReason || null,
   soldAt: listing.soldAt || null,
   seller: formatUser(listing.seller, {
     includeContact: extras.includeSellerContact ?? false,
@@ -89,7 +95,7 @@ export const findListingByParam = async (param) => {
   if (!id) return null;
   return Listing.findById(id).populate(
     "seller",
-    "username name avatar city state country phone email"
+    "username name avatar city state country phone email status"
   );
 };
 
@@ -97,7 +103,7 @@ const buildListingFlags = (listing, user) => {
   const isOwner =
     Boolean(user) &&
     String(listing.seller?._id || listing.seller) === String(user._id);
-  const isAdmin = user?.role === "admin";
+  const isAdmin = hasMarketplaceAdminPower(user);
   return {
     isOwner,
     isAdmin,
@@ -111,8 +117,7 @@ const buildListingFlags = (listing, user) => {
 const SELLER_EDITABLE_STATUSES = new Set(["active", "sold", "draft"]);
 
 const validateListingStatusChange = (listing, nextStatus, user) => {
-  const isAdmin = user?.role === "admin";
-  if (isAdmin) return null;
+  if (hasMarketplaceAdminPower(user)) return null;
 
   if (!SELLER_EDITABLE_STATUSES.has(nextStatus)) {
     return "You cannot set this listing status.";
@@ -124,6 +129,10 @@ const validateListingStatusChange = (listing, nextStatus, user) => {
 
   if (listing.status === "removed") {
     return "Removed listings cannot be changed by the seller.";
+  }
+
+  if (listing.status === "hidden") {
+    return "This listing is hidden while the seller account is restricted.";
   }
 
   return null;
@@ -274,7 +283,7 @@ export const getListing = async (req, res) => {
 
     const flags = buildListingFlags(listing, req.user);
     const isOwner = flags.isOwner;
-    const isAdmin = req.user?.role === "admin";
+    const isAdmin = flags.isAdmin;
 
     if (listing.status !== "active" && !isOwner && !isAdmin) {
       return res.status(404).json({
@@ -347,10 +356,13 @@ export const createListing = async (req, res) => {
         message: "Invalid status.",
       });
     }
-    if (cleanStatus === "removed" && req.user?.role !== "admin") {
+    if (
+      (cleanStatus === "removed" || cleanStatus === "hidden") &&
+      req.user?.role !== "admin"
+    ) {
       return res.status(403).json({
         success: false,
-        message: "You cannot create a listing as removed.",
+        message: "You cannot create a listing with that status.",
       });
     }
 
@@ -695,7 +707,7 @@ export const resolveListingCode = async (req, res) => {
     const isOwner =
       req.user &&
       String(listing.seller) === String(req.user._id);
-    const isAdmin = req.user?.role === "admin";
+    const isAdmin = hasMarketplaceAdminPower(req.user);
 
     if (listing.status !== "active" && !isOwner && !isAdmin) {
       return res.status(404).json({

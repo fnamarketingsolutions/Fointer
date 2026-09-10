@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import User from "../models/user.js";
 import Listing from "../models/listing.js";
 import CommunityMember from "../models/communityMember.js";
@@ -8,9 +9,10 @@ import {
   buildPaginationMeta,
 } from "../utils/pagination.js";
 import { escapeRegex } from "../utils/validate.js";
+import { resolveIsSuperAdmin } from "../utils/adminAccess.js";
 
 const formatAdminUser = (u) => ({
-  id: u._id,
+  id: String(u._id),
   username: u.username,
   name: u.name,
   email: u.email,
@@ -19,6 +21,7 @@ const formatAdminUser = (u) => ({
   avatar: u.avatar || "",
   googleId: u.googleId || null,
   facebookId: u.facebookId || null,
+  warningCount: u.warningCount ?? 0,
   createdAt: u.createdAt,
   updatedAt: u.updatedAt,
 });
@@ -183,7 +186,7 @@ export const listUsers = async (req, res) => {
     const [users, total, summary] = await Promise.all([
       User.find(filter)
         .select(
-          "username name email role status avatar googleId facebookId createdAt updatedAt"
+          "username name email role status avatar googleId facebookId warningCount createdAt updatedAt"
         )
         .sort({ createdAt: -1 })
         .skip(pageSkip)
@@ -238,6 +241,19 @@ export const updateUserStatus = async (req, res) => {
       });
     }
 
+    const targetIsAdmin =
+      String(target.role || "")
+        .toLowerCase()
+        .trim() === "admin";
+
+    // Only super admins may ban / unban other platform admins.
+    if (targetIsAdmin && !resolveIsSuperAdmin(req.user)) {
+      return res.status(403).json({
+        success: false,
+        message: "Only a super admin can change another admin's status.",
+      });
+    }
+
     target.status = status;
     await target.save();
 
@@ -245,7 +261,12 @@ export const updateUserStatus = async (req, res) => {
       const { hideActiveListingsForSeller } = await import(
         "./adminMarketplace.controller.js"
       );
-      await hideActiveListingsForSeller(target._id, req.user._id);
+      await hideActiveListingsForSeller(target._id);
+    } else if (status === "active") {
+      const { restoreHiddenListingsForSeller } = await import(
+        "./adminMarketplace.controller.js"
+      );
+      await restoreHiddenListingsForSeller(target._id);
     }
 
     return res.status(200).json({
@@ -260,9 +281,17 @@ export const updateUserStatus = async (req, res) => {
 
 export const getAdminUserDetail = async (req, res) => {
   try {
-    const user = await User.findById(req.params.id)
+    const rawId = String(req.params.id || "").trim();
+    if (!rawId || !mongoose.Types.ObjectId.isValid(rawId)) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found.",
+      });
+    }
+
+    const user = await User.findById(rawId)
       .select(
-        "username name email role status avatar googleId facebookId createdAt updatedAt"
+        "username name email role status avatar googleId facebookId warningCount createdAt updatedAt"
       )
       .lean();
 

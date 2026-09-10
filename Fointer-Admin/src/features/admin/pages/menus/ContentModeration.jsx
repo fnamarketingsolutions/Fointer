@@ -1,5 +1,21 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import {
+  deleteAdminModerationComment,
+  deleteAdminModerationPost,
+  fetchAdminModerationComments,
+  fetchAdminModerationPosts,
+  updateUserStatus,
+  createAdminWarning,
+  fetchWarningPolicy,
+} from "../../../../api/dashboard";
+import { useAuth } from "../../../../context/AuthContext";
+import { useToast } from "../../../../shared/components/feedback/ToastContext";
+import AdminActionBtn from "../../../../shared/components/AdminActionBtn";
+import AdminUserLink from "../../../../shared/components/AdminUserLink";
+import { getErrorMessage } from "../../../../shared/utils/errors";
+import { timeAgo } from "../../../../shared/utils/date";
+import ConfirmDeleteModal from "../../../../shared/components/modals/ConfirmDeleteModal";
+import WarnUserModal from "../../../../shared/components/modals/WarnUserModal";
 import {
   LuBan as Ban,
   LuFileText as FileText,
@@ -11,19 +27,9 @@ import {
   LuReply as Reply,
   LuSearch as Search,
   LuTrash2 as Trash2,
+  LuTriangleAlert as AlertTriangle,
   LuX as X
 } from "react-icons/lu";
-import {
-  deleteAdminModerationComment,
-  deleteAdminModerationPost,
-  fetchAdminModerationComments,
-  fetchAdminModerationPosts,
-  updateUserStatus,
-} from "../../../../api/dashboard";
-import { useToast } from "../../../../shared/components/feedback/ToastContext";
-import { getErrorMessage } from "../../../../shared/utils/errors";
-import { timeAgo } from "../../../../shared/utils/date";
-import ConfirmDeleteModal from "../../../../shared/components/modals/ConfirmDeleteModal";
 
 const TABS = [
   { id: "posts", label: "Posts" },
@@ -38,29 +44,9 @@ const SCOPE_FILTERS = [
 
 const PAGE_SIZE = 20;
 
-function ActionBtn({ onClick, disabled, tone = "ghost", children }) {
-  const tones = {
-    ghost:
-      "border border-fo-border text-fo-muted hover:text-fo-text hover:border-fo-accent/30",
-    danger:
-      "border border-red-500/30 text-red-400 hover:bg-red-500/10",
-    primary:
-      "border border-fo-accent/35 text-fo-accent hover:bg-fo-accent/10",
-  };
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors disabled:opacity-50 ${tones[tone]}`}
-    >
-      {children}
-    </button>
-  );
-}
-
 export default function ContentModeration() {
   const { showToast } = useToast();
+  const { isSuperAdmin } = useAuth();
   const [tab, setTab] = useState("posts");
   const [scope, setScope] = useState("all");
   const [searchInput, setSearchInput] = useState("");
@@ -83,6 +69,24 @@ export default function ContentModeration() {
   const [deleting, setDeleting] = useState(false);
   const [banBusyId, setBanBusyId] = useState(null);
   const [preview, setPreview] = useState(null);
+  const [warnTarget, setWarnTarget] = useState(null);
+  const [warnSaving, setWarnSaving] = useState(false);
+  const [warnPolicy, setWarnPolicy] = useState({
+    maxWarningsBeforeBan: 3,
+    autoBanOnMaxWarnings: true,
+  });
+
+  useEffect(() => {
+    fetchWarningPolicy()
+      .then((data) => {
+        if (!data?.policy) return;
+        setWarnPolicy({
+          maxWarningsBeforeBan: data.policy.maxWarningsBeforeBan ?? 3,
+          autoBanOnMaxWarnings: data.policy.autoBanOnMaxWarnings !== false,
+        });
+      })
+      .catch(() => {});
+  }, []);
 
   const loadPosts = useCallback(
     async ({ pageNum = 1, append = false, q = "", scopeFilter = "all" } = {}) => {
@@ -206,6 +210,14 @@ export default function ContentModeration() {
   const handleBanAuthor = async (author) => {
     const userId = author?.id;
     if (!userId) return;
+    const authorIsAdmin =
+      String(author?.role || "")
+        .toLowerCase()
+        .trim() === "admin";
+    if (authorIsAdmin && !isSuperAdmin) {
+      showToast("Only a super admin can ban an admin account.");
+      return;
+    }
     if (author.status === "banned" || author.authorStatus === "banned") {
       showToast("This user is already banned.");
       return;
@@ -246,6 +258,60 @@ export default function ContentModeration() {
       showToast(getErrorMessage(err, "Failed to ban user."));
     } finally {
       setBanBusyId(null);
+    }
+  };
+
+  const canBanAuthor = (author) => {
+    if (!author?.id) return false;
+    const authorIsAdmin =
+      String(author?.role || "")
+        .toLowerCase()
+        .trim() === "admin";
+    if (authorIsAdmin && !isSuperAdmin) return false;
+    return true;
+  };
+
+  const openWarnAuthor = (author) => {
+    if (!canBanAuthor(author)) {
+      showToast("Only a super admin can warn an admin account.");
+      return;
+    }
+    setWarnTarget({
+      id: author.id,
+      name: author.name,
+      username: author.username,
+      warningCount: author.warningCount || 0,
+    });
+  };
+
+  const submitWarn = async (message) => {
+    if (!warnTarget?.id) return;
+    setWarnSaving(true);
+    try {
+      const data = await createAdminWarning({
+        userId: warnTarget.id,
+        message,
+        source: "moderation",
+      });
+      showToast(data?.message || "Warning issued.");
+      setWarnTarget(null);
+      if (data?.banned) {
+        const userId = warnTarget.id;
+        const markBanned = (item) => {
+          if (String(item.author?.id) !== String(userId)) return item;
+          return {
+            ...item,
+            authorStatus: "banned",
+            author: { ...item.author, status: "banned" },
+          };
+        };
+        setPosts((prev) => prev.map(markBanned));
+        setComments((prev) => prev.map(markBanned));
+      }
+    } catch (err) {
+      showToast(getErrorMessage(err, "Failed to issue warning."));
+    } finally {
+      setWarnSaving(false);
     }
   };
 
@@ -445,27 +511,36 @@ export default function ContentModeration() {
                   </button>
 
                   <div className="flex flex-col gap-1.5 shrink-0 justify-start">
-                    <ActionBtn
+                    <AdminActionBtn
                       tone="primary"
                       onClick={() => setPreview({ kind: "post", ...post })}
                     >
                       Review
-                    </ActionBtn>
-                    {post.author?.id && !isBanned(post) ? (
-                      <ActionBtn
-                        tone="danger"
-                        disabled={banBusyId === post.author.id}
-                        onClick={() => handleBanAuthor(post.author)}
-                      >
-                        {banBusyId === post.author.id ? (
-                          <Loader2 size={12} className="animate-spin" />
-                        ) : (
-                          <Ban size={12} />
-                        )}
-                        Ban
-                      </ActionBtn>
+                    </AdminActionBtn>
+                    {post.author?.id && !isBanned(post) && canBanAuthor(post.author) ? (
+                      <>
+                        <AdminActionBtn
+                          disabled={banBusyId === post.author.id}
+                          onClick={() => openWarnAuthor(post.author)}
+                        >
+                          <AlertTriangle size={12} />
+                          Warn
+                        </AdminActionBtn>
+                        <AdminActionBtn
+                          tone="danger"
+                          disabled={banBusyId === post.author.id}
+                          onClick={() => handleBanAuthor(post.author)}
+                        >
+                          {banBusyId === post.author.id ? (
+                            <Loader2 size={12} className="animate-spin" />
+                          ) : (
+                            <Ban size={12} />
+                          )}
+                          Ban
+                        </AdminActionBtn>
+                      </>
                     ) : null}
-                    <ActionBtn
+                    <AdminActionBtn
                       tone="danger"
                       onClick={() =>
                         setDeleteTarget({
@@ -477,7 +552,7 @@ export default function ContentModeration() {
                     >
                       <Trash2 size={12} />
                       Delete
-                    </ActionBtn>
+                    </AdminActionBtn>
                   </div>
                 </article>
               );
@@ -549,29 +624,38 @@ export default function ContentModeration() {
                 </button>
 
                 <div className="flex flex-wrap gap-1.5">
-                  <ActionBtn
+                  <AdminActionBtn
                     tone="primary"
                     onClick={() =>
                       setPreview({ kind: "comment", ...comment })
                     }
                   >
                     Review
-                  </ActionBtn>
-                  {comment.author?.id && !isBanned(comment) ? (
-                    <ActionBtn
-                      tone="danger"
-                      disabled={banBusyId === comment.author.id}
-                      onClick={() => handleBanAuthor(comment.author)}
-                    >
-                      {banBusyId === comment.author.id ? (
-                        <Loader2 size={12} className="animate-spin" />
-                      ) : (
-                        <Ban size={12} />
-                      )}
-                      Ban
-                    </ActionBtn>
+                  </AdminActionBtn>
+                  {comment.author?.id && !isBanned(comment) && canBanAuthor(comment.author) ? (
+                    <>
+                      <AdminActionBtn
+                        disabled={banBusyId === comment.author.id}
+                        onClick={() => openWarnAuthor(comment.author)}
+                      >
+                        <AlertTriangle size={12} />
+                        Warn
+                      </AdminActionBtn>
+                      <AdminActionBtn
+                        tone="danger"
+                        disabled={banBusyId === comment.author.id}
+                        onClick={() => handleBanAuthor(comment.author)}
+                      >
+                        {banBusyId === comment.author.id ? (
+                          <Loader2 size={12} className="animate-spin" />
+                        ) : (
+                          <Ban size={12} />
+                        )}
+                        Ban
+                      </AdminActionBtn>
+                    </>
                   ) : null}
-                  <ActionBtn
+                  <AdminActionBtn
                     tone="danger"
                     onClick={() =>
                       setDeleteTarget({
@@ -583,7 +667,7 @@ export default function ContentModeration() {
                   >
                     <Trash2 size={12} />
                     Delete
-                  </ActionBtn>
+                  </AdminActionBtn>
                 </div>
               </article>
             ))}
@@ -643,12 +727,12 @@ export default function ContentModeration() {
                   {preview.author?.id ? (
                     <>
                       {" · "}
-                      <Link
-                        to={`/users/${preview.author.id}`}
+                      <AdminUserLink
+                        userId={preview.author.id}
                         className="text-fo-accent hover:underline"
                       >
                         View user
-                      </Link>
+                      </AdminUserLink>
                     </>
                   ) : null}
                 </p>
@@ -690,16 +774,24 @@ export default function ContentModeration() {
             </div>
 
             <div className="shrink-0 flex flex-wrap gap-2 px-4 py-3 border-t border-fo-border">
-              {preview.author?.id && !isBanned(preview) ? (
-                <ActionBtn
-                  tone="danger"
-                  disabled={banBusyId === preview.author.id}
-                  onClick={() => handleBanAuthor(preview.author)}
-                >
-                  <Ban size={12} /> Ban author
-                </ActionBtn>
+              {preview.author?.id && !isBanned(preview) && canBanAuthor(preview.author) ? (
+                <>
+                  <AdminActionBtn
+                    disabled={banBusyId === preview.author.id}
+                    onClick={() => openWarnAuthor(preview.author)}
+                  >
+                    <AlertTriangle size={12} /> Warn author
+                  </AdminActionBtn>
+                  <AdminActionBtn
+                    tone="danger"
+                    disabled={banBusyId === preview.author.id}
+                    onClick={() => handleBanAuthor(preview.author)}
+                  >
+                    <Ban size={12} /> Ban author
+                  </AdminActionBtn>
+                </>
               ) : null}
-              <ActionBtn
+              <AdminActionBtn
                 tone="danger"
                 onClick={() => {
                   setDeleteTarget({
@@ -713,7 +805,7 @@ export default function ContentModeration() {
                 }}
               >
                 <Trash2 size={12} /> Delete
-              </ActionBtn>
+              </AdminActionBtn>
             </div>
           </div>
         </div>
@@ -734,6 +826,17 @@ export default function ContentModeration() {
           ? "This comment and its replies will be permanently removed."
           : `“${deleteTarget?.label || "This post"}” and all of its comments and likes will be permanently removed.`}
       </ConfirmDeleteModal>
+
+      <WarnUserModal
+        open={Boolean(warnTarget)}
+        user={warnTarget}
+        warningCount={warnTarget?.warningCount || 0}
+        maxWarningsBeforeBan={warnPolicy.maxWarningsBeforeBan}
+        autoBanOnMaxWarnings={warnPolicy.autoBanOnMaxWarnings}
+        loading={warnSaving}
+        onClose={() => !warnSaving && setWarnTarget(null)}
+        onSubmit={submitWarn}
+      />
     </div>
   );
 }

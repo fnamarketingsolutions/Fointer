@@ -179,6 +179,11 @@ export const fetchAdminMarketplaceListings = async (params = {}) => {
   return response.data;
 };
 
+export const fetchAdminMarketplaceListing = async (id) => {
+  const response = await api.get(`/admin/marketplace/listings/${id}`);
+  return response.data;
+};
+
 export const updateAdminMarketplaceListing = async (id, payload) => {
   const response = await api.patch(`/admin/marketplace/listings/${id}`, payload);
   return response.data;
@@ -206,5 +211,42 @@ export const fetchAdminReportedConversations = async () => {
 
 export const fetchAdminConversationMessages = async (id) => {
   const response = await api.get(`/admin/conversations/${id}/messages`);
+  return response.data;
+};
+
+export const fetchAdmins = async (params = {}) => {
+  const response = await api.get('/admin/admins', { params });
+  return response.data;
+};
+
+export const createAdmin = async (payload) => {
+  const response = await api.post('/admin/admins', payload);
+  return response.data;
+};
+
+export const updateAdminTabs = async (adminId, adminTabs) => {
+  const response = await api.patch(`/admin/admins/${adminId}/tabs`, {
+    adminTabs,
+  });
+  return response.data;
+};
+
+export const updateAdminSuper = async (adminId, payload) => {
+  const response = await api.patch(`/admin/admins/${adminId}/super`, payload);
+  return response.data;
+};
+
+export const fetchAdminWarnings = async (params = {}) => {
+  const response = await api.get('/admin/warnings', { params });
+  return response.data;
+};
+
+export const fetchWarningPolicy = async () => {
+  const response = await api.get('/admin/warnings/policy');
+  return response.data;
+};
+
+export const createAdminWarning = async (payload) => {
+  const response = await api.post('/admin/warnings', payload);
   return response.data;
 };

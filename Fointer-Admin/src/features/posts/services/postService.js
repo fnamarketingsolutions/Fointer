@@ -10,21 +10,6 @@ export const fetchPost = async (id) => {
   return response.data;
 };
 
-export const fetchPublicPosts = async (params = {}) => {
-  const response = await api.get('/posts/public', { params });
-  return response.data;
-};
-
-export const fetchPublicPost = async (id) => {
-  const response = await api.get(`/posts/public/${id}`);
-  return response.data;
-};
-
-export const createPost = async (payload) => {
-  const response = await api.post('/posts', payload);
-  return response.data;
-};
-
 export const updatePost = async (id, payload) => {
   const response = await api.patch(`/posts/${id}`, payload);
   return response.data;
@@ -67,20 +52,5 @@ export const togglePostReshare = async (postId) => {
 
 export const toggleCommentLike = async (commentId) => {
   const response = await api.post(`/posts/comments/${commentId}/like`);
-  return response.data;
-};
-
-export const fetchMyComments = async (params = {}) => {
-  const response = await api.get('/posts/activity/comments', { params });
-  return response.data;
-};
-
-export const fetchMyLikedPosts = async (params = {}) => {
-  const response = await api.get('/posts/activity/likes', { params });
-  return response.data;
-};
-
-export const fetchMyResharedPosts = async (params = {}) => {
-  const response = await api.get('/posts/activity/reshares', { params });
   return response.data;
 };

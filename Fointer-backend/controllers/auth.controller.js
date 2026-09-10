@@ -7,6 +7,7 @@ import sendVerificationEmail from "../utils/sendVerificationEmail.js";
 import { sendServerError } from "../utils/safeError.js";
 import { getAuthCookieOptions } from "../utils/cookieOptions.js";
 import { respondIfBanned } from "../utils/bannedKeywords.js";
+import { getAdminAccessPayload } from "../utils/adminAccess.js";
 
 const MAX_OTP_ATTEMPTS = 5;
 const getGoogleClient = () => new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
@@ -622,11 +623,11 @@ export const adminGoogleLogin = async (req, res) => {
       (await User.findOne({ email: normalizedEmail })) ||
       (await User.findOne({ googleId }));
 
-    if (user) {
+    // Do not mutate non-admin accounts before portal role check.
+    if (user && normalizeRole(user) === "admin") {
       if (!user.googleId) user.googleId = googleId;
       if (picture) user.avatar = picture;
       if (name) user.name = name;
-      normalizeRole(user);
       await user.save();
     }
 
@@ -726,11 +727,11 @@ export const adminFacebookLogin = async (req, res) => {
       $or: [{ email: normalizedEmail }, { facebookId }],
     });
 
-    if (user) {
+    // Do not mutate non-admin accounts before portal role check.
+    if (user && normalizeRole(user) === "admin") {
       if (!user.facebookId) user.facebookId = facebookId;
       if (!user.avatar && avatar) user.avatar = avatar;
       if (name) user.name = name;
-      normalizeRole(user);
       await user.save();
     }
 
@@ -891,6 +892,8 @@ export const getMe = async (req, res) => {
       });
     }
 
+    const adminAccess = getAdminAccessPayload(user);
+
     return res.status(200).json({
       success: true,
       user: {
@@ -909,6 +912,8 @@ export const getMe = async (req, res) => {
         zipCode: user.zipCode || "",
         phone: user.phone || "",
         yearOfBirth: user.yearOfBirth ?? null,
+        isSuperAdmin: adminAccess.isSuperAdmin,
+        adminTabs: adminAccess.adminTabs,
       },
     });
   } catch (error) {

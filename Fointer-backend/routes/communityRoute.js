@@ -35,6 +35,7 @@ import {
   isAuthenticated,
   authorize,
   optionalAuthenticate,
+  requireAdminTab,
 } from "../middleware/auth.middleware.js";
 import inviteRoute from "./inviteRoute.js";
 
@@ -54,7 +55,13 @@ router.get("/join-requests/mine", isAuthenticated, listMyJoinRequests);
 router.get("/invites/mine", isAuthenticated, listMyInvites);
 router.post("/invites/:inviteId/accept", isAuthenticated, acceptCommunityInvite);
 router.post("/invites/:inviteId/decline", isAuthenticated, declineCommunityInvite);
-router.get("/", isAuthenticated, authorize("admin"), listAllCommunities);
+router.get(
+  "/",
+  isAuthenticated,
+  authorize("admin"),
+  requireAdminTab("communities"),
+  listAllCommunities
+);
 router.get("/:id/manage", isAuthenticated, getCommunityManage);
 router.get("/:id/members", isAuthenticated, listCommunityMembers);
 router.post("/:id/moderators", isAuthenticated, assignModerator);

@@ -5,20 +5,6 @@ const cleanUsername = (username) =>
     .trim()
     .replace(/^@+/, '');
 
-export const followUser = async (username) => {
-  const response = await api.post(
-    `/users/${encodeURIComponent(cleanUsername(username))}/follow`
-  );
-  return response.data;
-};
-
-export const unfollowUser = async (username) => {
-  const response = await api.delete(
-    `/users/${encodeURIComponent(cleanUsername(username))}/follow`
-  );
-  return response.data;
-};
-
 export const fetchFollowers = async (username, params = {}) => {
   const response = await api.get(
     `/users/${encodeURIComponent(cleanUsername(username))}/followers`,

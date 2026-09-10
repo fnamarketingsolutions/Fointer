@@ -4,12 +4,16 @@ import Notification, {
   ADMIN_NOTIFICATION_TYPES,
 } from "../models/notification.js";
 import User from "../models/user.js";
+import {
+  adminCanReceiveNotificationType,
+} from "./adminAccess.js";
 import { getEffectiveMemberRole } from "./communityPermissions.js";
 import { pushNotificationToUser } from "./push.js";
 
 const ADMIN_TYPE_SET = new Set(ADMIN_NOTIFICATION_TYPES);
 const ADMIN_ID_CACHE_MS = 15_000;
 let adminIdCache = { ids: [], at: 0 };
+let adminRecipientCache = { rows: [], at: 0 };
 
 export const userNotificationRoom = (userId) => `user:${String(userId)}`;
 
@@ -165,6 +169,29 @@ export const getAdminIds = async () => {
   return ids;
 };
 
+const getActiveAdminRecipients = async () => {
+  const now = Date.now();
+  if (
+    adminRecipientCache.at &&
+    now - adminRecipientCache.at < ADMIN_ID_CACHE_MS
+  ) {
+    return adminRecipientCache.rows;
+  }
+  const rows = await User.find({ role: "admin", status: "active" })
+    .select("_id role isSuperAdmin adminTabs")
+    .lean();
+  adminRecipientCache = { rows, at: now };
+  return rows;
+};
+
+/** Active admins who should receive this admin notification type. */
+export const getAdminIdsForNotificationType = async (type) => {
+  const rows = await getActiveAdminRecipients();
+  return rows
+    .filter((admin) => adminCanReceiveNotificationType(admin, type))
+    .map((admin) => String(admin._id));
+};
+
 const isAdminNotificationType = (type) => ADMIN_TYPE_SET.has(type);
 
 const emitNotification = (io, recipientId, payload) => {
@@ -278,10 +305,10 @@ export const notifyMany = async (recipientIds, opts) => {
   );
 };
 
-/** Fan-out a platform event to every active admin. Never throws. */
+/** Fan-out a platform event to admins who can handle that notification type. */
 export const notifyAdmins = async (opts) => {
   try {
-    const ids = await getAdminIds();
+    const ids = await getAdminIdsForNotificationType(opts?.type);
     await notifyMany(ids, opts);
   } catch (error) {
     console.error("Failed to notify admins:", error);

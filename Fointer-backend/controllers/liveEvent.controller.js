@@ -13,6 +13,7 @@ import {
   getActorCommunityRole,
   getEffectiveMemberRole,
 } from "../utils/communityPermissions.js";
+import { hasLiveEventsAdminPower } from "../utils/adminAccess.js";
 import { parseObjectIdInput, resolveDocumentId } from "../utils/shortCode.js";
 import { sendServerError } from "../utils/safeError.js";
 import { clearEventCall } from "../sockets/liveCallState.js";
@@ -83,7 +84,7 @@ export const findLiveEventByParam = async (param) => {
 
 export const userCanAccessLiveEvent = async (event, user) => {
   if (!user) return false;
-  if (user.role === "admin") return true;
+  if (hasLiveEventsAdminPower(user)) return true;
   if (event.access === "public") return true;
 
   const communityId = event.community?._id || event.community;
@@ -99,7 +100,7 @@ export const userCanModerateLiveEvent = async (event, user) => {
 
 export const userCanEndOrDeleteLiveEvent = async (event, user) => {
   if (!user) return false;
-  if (user.role === "admin") return true;
+  if (hasLiveEventsAdminPower(user)) return true;
 
   const community = event.community;
   if (community && canManageCommunity(community, user)) return true;
@@ -463,7 +464,7 @@ export const deleteLiveMessage = async (req, res) => {
 /** Communities where the user can start live commentary (owner/moderator). */
 export const listHostableCommunities = async (req, res) => {
   try {
-    if (req.user.role === "admin") {
+    if (hasLiveEventsAdminPower(req.user)) {
       const communities = await Community.find()
         .select("name shortCode coverImage")
         .sort({ name: 1 })

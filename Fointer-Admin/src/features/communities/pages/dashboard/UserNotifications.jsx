@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   LuBell as Bell,
@@ -6,16 +6,13 @@ import {
   LuTrash2 as Trash2,
   LuFilter as Filter,
   LuArrowLeft as ArrowLeft,
-  LuHeart as Heart,
-  LuMessageCircle as MessageCircle,
-  LuRepeat as Repeat,
-  LuUserPlus as UserPlus,
   LuShield as Shield,
   LuBan as Ban,
   LuLifeBuoy as LifeBuoy,
   LuFlag as Flag,
   LuLayers as Layers,
   LuLoaderCircle as Loader2,
+  LuTriangleAlert as AlertTriangle,
 } from "react-icons/lu";
 import {
   deleteNotification,
@@ -27,7 +24,6 @@ import {
 import {
   notificationPath,
   notificationTypeLabel,
-  isSystemNotification,
   isAdminNotification,
 } from "../../../notifications/notificationLinks";
 import { useNotifications } from "../../../../context/NotificationContext";
@@ -41,31 +37,27 @@ const ADMIN_FILTERS = [
   { id: "unread", label: "Unread" },
   { id: "reports", label: "Reports" },
   { id: "requests", label: "Channel requests" },
+  { id: "warnings", label: "Warnings" },
 ];
 
 const typeIcon = (type) => {
-  if (type === "like") return { Icon: Heart, className: "text-rose-400" };
-  if (type === "comment" || type === "reply" || type === "mention") {
-    return { Icon: MessageCircle, className: "text-sky-400" };
+  if (type === "channel_request") {
+    return { Icon: Layers, className: "text-fo-accent" };
   }
-  if (type === "reshare") return { Icon: Repeat, className: "text-emerald-400" };
-  if (type === "invite" || type === "invite_accepted" || type === "join_request") {
-    return { Icon: UserPlus, className: "text-fo-accent" };
+  if (type === "support_ticket") {
+    return { Icon: LifeBuoy, className: "text-fo-accent" };
+  }
+  if (type === "content_report") {
+    return { Icon: Flag, className: "text-rose-400" };
+  }
+  if (type === "user_warning") {
+    return { Icon: AlertTriangle, className: "text-amber-400" };
   }
   if (type === "moderator_assigned" || type === "moderator_revoked") {
     return { Icon: Shield, className: "text-amber-300" };
   }
   if (type === "member_banned" || type === "member_removed") {
     return { Icon: Ban, className: "text-red-400" };
-  }
-  if (type === "support_ticket" || type === "channel_request") {
-    return {
-      Icon: type === "channel_request" ? Layers : LifeBuoy,
-      className: "text-fo-accent",
-    };
-  }
-  if (type === "content_report") {
-    return { Icon: Flag, className: "text-rose-400" };
   }
   return { Icon: Bell, className: "text-fo-accent" };
 };
@@ -78,8 +70,6 @@ export default function UserNotifications({ onBack }) {
   const [filter, setFilter] = useState("all");
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
-  const isAdmin = true;
-  const filters = ADMIN_FILTERS;
 
   const handleBack = () => {
     if (onBack) onBack();
@@ -119,17 +109,15 @@ export default function UserNotifications({ onBack }) {
             String(n.id) === String(payload.id) ? { ...n, ...payload } : n
           );
         }
-        if (isAdmin && !isAdminNotification(payload.type)) return prev;
-        if (!isAdmin && isAdminNotification(payload.type)) return prev;
+        if (!isAdminNotification(payload.type)) return prev;
         if (filter === "unread" && !payload.isUnread) return prev;
-        if (filter === "mentions" && payload.type !== "mention") return prev;
-        if (filter === "system" && !isSystemNotification(payload.type)) {
-          return prev;
-        }
         if (filter === "reports" && payload.type !== "content_report") {
           return prev;
         }
         if (filter === "requests" && payload.type !== "channel_request") {
+          return prev;
+        }
+        if (filter === "warnings" && payload.type !== "user_warning") {
           return prev;
         }
         return [payload, ...prev];
@@ -137,7 +125,7 @@ export default function UserNotifications({ onBack }) {
     };
     socket.on("notification:new", onNew);
     return () => socket.off("notification:new", onNew);
-  }, [filter, isAdmin]);
+  }, [filter]);
 
   const handleMarkAllAsRead = async () => {
     if (unreadCount === 0) return;
@@ -194,7 +182,7 @@ export default function UserNotifications({ onBack }) {
         refreshUnread();
       }
     }
-    navigate(notificationPath(item, { isAdmin }));
+    navigate(notificationPath(item));
   };
 
   const visible = notifications.filter((n) => {
@@ -230,9 +218,7 @@ export default function UserNotifications({ onBack }) {
               )}
             </div>
             <p className="text-xs text-fo-subtle mt-1">
-              {isAdmin
-                ? "New reports and pending channel requests from the platform."
-                : "Stay updated with mentions, community activity, and account status updates."}
+              Reports, channel requests, and warnings for your admin tabs.
             </p>
           </div>
         </div>
@@ -255,7 +241,7 @@ export default function UserNotifications({ onBack }) {
 
       <div className="flex items-center gap-2 border-b border-fo-border/60 pb-3 overflow-x-auto">
         <Filter size={14} className="text-fo-subtle ml-1 mr-2 shrink-0" />
-        {filters.map((tab) => (
+        {ADMIN_FILTERS.map((tab) => (
           <button
             key={tab.id}
             type="button"
@@ -369,9 +355,8 @@ export default function UserNotifications({ onBack }) {
               No notifications found
             </h3>
             <p className="text-xs text-fo-subtle">
-              {isAdmin
-                ? "New reports and channel requests will show up here."
-                : "You're all caught up! Check back later for new mentions and community updates."}
+              New reports, channel requests, and warnings for your tabs will
+              show up here.
             </p>
           </div>
         )}

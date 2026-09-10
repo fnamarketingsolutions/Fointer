@@ -6,6 +6,13 @@ import {
   getAdminCommunityDetail,
 } from "../controllers/dashboard.controller.js";
 import {
+  listAdmins,
+  createAdmin,
+  updateAdminTabs,
+  updateAdminSuper,
+  promoteUserToAdmin,
+} from "../controllers/adminManagement.controller.js";
+import {
   getPublicSiteContact,
   getSystemSettings,
   updateSystemSettings,
@@ -49,246 +56,247 @@ import {
   getAdminConversationMessages,
   warnListingSeller,
 } from "../controllers/adminMarketplace.controller.js";
-import { isAuthenticated, authorize } from "../middleware/auth.middleware.js";
+import {
+  listWarnings,
+  createWarning,
+  getWarningPolicySettings,
+} from "../controllers/warning.controller.js";
+import {
+  isAuthenticated,
+  authorize,
+  requireAdminTab,
+  requireSuperAdmin,
+} from "../middleware/auth.middleware.js";
+import { adminModerationRateLimit } from "../middleware/rateLimit.middleware.js";
 
 const router = express.Router();
 
+const adminGate = (tab) => [
+  isAuthenticated,
+  authorize("admin"),
+  requireAdminTab(tab),
+];
+
+const superAdminGate = [
+  isAuthenticated,
+  authorize("admin"),
+  requireSuperAdmin,
+];
+
 router.get("/site/contact", getPublicSiteContact);
 
-router.get(
-  "/admin/settings",
-  isAuthenticated,
-  authorize("admin"),
-  getSystemSettings
-);
-
+router.get("/admin/settings", ...adminGate("settings"), getSystemSettings);
 router.patch(
   "/admin/settings",
-  isAuthenticated,
-  authorize("admin"),
+  ...adminGate("settings"),
   updateSystemSettings
 );
 
+router.get("/admin/warnings", ...adminGate("warnings"), listWarnings);
 router.get(
-  "/admin/users",
+  "/admin/warnings/policy",
   isAuthenticated,
   authorize("admin"),
-  listUsers
+  // Readable by any tab that can issue warnings (not full System Settings).
+  requireAdminTab("warnings", "users", "moderation", "marketplace"),
+  getWarningPolicySettings
+);
+router.post(
+  "/admin/warnings",
+  isAuthenticated,
+  authorize("admin"),
+  // Generic warn-any-user: Warnings, Users, Content Moderation only.
+  // Marketplace uses /admin/marketplace/listings/:id/warn (seller-scoped).
+  requireAdminTab("warnings", "users", "moderation"),
+  adminModerationRateLimit,
+  createWarning
 );
 
+router.get("/admin/users", ...adminGate("users"), listUsers);
 router.patch(
   "/admin/users/:id/status",
-  isAuthenticated,
-  authorize("admin"),
+  ...adminGate("users"),
   updateUserStatus
 );
-
 router.get(
   "/admin/users/:id/detail",
-  isAuthenticated,
-  authorize("admin"),
+  ...adminGate("users"),
   getAdminUserDetail
 );
 
 router.get(
   "/admin/communities/:id/detail",
-  isAuthenticated,
-  authorize("admin"),
+  ...adminGate("communities"),
   getAdminCommunityDetail
+);
+
+router.get("/admin/admins", ...superAdminGate, listAdmins);
+router.post("/admin/admins", ...superAdminGate, createAdmin);
+router.patch(
+  "/admin/admins/:id/tabs",
+  ...superAdminGate,
+  updateAdminTabs
+);
+router.patch(
+  "/admin/admins/:id/super",
+  ...superAdminGate,
+  updateAdminSuper
+);
+router.post(
+  "/admin/admins/:id/promote",
+  ...superAdminGate,
+  promoteUserToAdmin
 );
 
 router.get(
   "/admin/live-events",
-  isAuthenticated,
-  authorize("admin"),
+  ...adminGate("commentary"),
   adminListLiveEvents
 );
-
 router.get(
   "/admin/live-events/:id",
-  isAuthenticated,
-  authorize("admin"),
+  ...adminGate("commentary"),
   getLiveEvent
 );
-
 router.post(
   "/admin/live-events/:id/end",
-  isAuthenticated,
-  authorize("admin"),
+  ...adminGate("commentary"),
   endLiveEvent
 );
-
 router.delete(
   "/admin/live-events/:id",
-  isAuthenticated,
-  authorize("admin"),
+  ...adminGate("commentary"),
   deleteLiveEvent
 );
-
 router.get(
   "/admin/live-events/:id/messages",
-  isAuthenticated,
-  authorize("admin"),
+  ...adminGate("commentary"),
   listLiveMessages
 );
-
 router.delete(
   "/admin/live-events/:id/messages/:messageId",
-  isAuthenticated,
-  authorize("admin"),
+  ...adminGate("commentary"),
   deleteLiveMessage
 );
 
 router.get(
   "/admin/watch-groups",
-  isAuthenticated,
-  authorize("admin"),
+  ...adminGate("watchgroups"),
   adminListWatchGroups
 );
-
 router.get(
   "/admin/watch-groups/:id",
-  isAuthenticated,
-  authorize("admin"),
+  ...adminGate("watchgroups"),
   getWatchGroup
 );
-
 router.delete(
   "/admin/watch-groups/:id",
-  isAuthenticated,
-  authorize("admin"),
+  ...adminGate("watchgroups"),
   deleteWatchGroup
 );
-
 router.get(
   "/admin/watch-groups/:id/messages",
-  isAuthenticated,
-  authorize("admin"),
+  ...adminGate("watchgroups"),
   listWatchMessages
 );
-
 router.delete(
   "/admin/watch-groups/:id/messages/:messageId",
-  isAuthenticated,
-  authorize("admin"),
+  ...adminGate("watchgroups"),
   deleteWatchMessage
 );
-
 router.get(
   "/admin/watch-groups/:id/participants",
-  isAuthenticated,
-  authorize("admin"),
+  ...adminGate("watchgroups"),
   listParticipants
 );
-
 router.delete(
   "/admin/watch-groups/:id/participants/:memberId",
-  isAuthenticated,
-  authorize("admin"),
+  ...adminGate("watchgroups"),
   removeParticipant
 );
 
 router.get(
   "/admin/moderation/posts",
-  isAuthenticated,
-  authorize("admin"),
+  ...adminGate("moderation"),
   adminListModerationPosts
 );
-
 router.delete(
   "/admin/moderation/posts/:id",
-  isAuthenticated,
-  authorize("admin"),
+  ...adminGate("moderation"),
   deletePost
 );
-
 router.get(
   "/admin/moderation/comments",
-  isAuthenticated,
-  authorize("admin"),
+  ...adminGate("moderation"),
   adminListModerationComments
 );
-
 router.delete(
   "/admin/moderation/comments/:id",
-  isAuthenticated,
-  authorize("admin"),
+  ...adminGate("moderation"),
   deleteComment
 );
-
-router.get(
-  "/admin/reports",
-  isAuthenticated,
-  authorize("admin"),
-  listAdminReports
-);
-
+// Reports are owned by Reporting & Analytics (same as content_report notifications).
+router.get("/admin/reports", ...adminGate("analytics"), listAdminReports);
 router.patch(
   "/admin/reports/:id",
-  isAuthenticated,
-  authorize("admin"),
+  ...adminGate("analytics"),
+  adminModerationRateLimit,
   updateAdminReport
 );
 
 router.get(
   "/admin/analytics",
-  isAuthenticated,
-  authorize("admin"),
+  ...adminGate("analytics"),
   getReportingAnalytics
 );
 
 router.get(
   "/admin/marketplace/listings",
-  isAuthenticated,
-  authorize("admin"),
+  ...adminGate("marketplace"),
   listAdminListings
 );
 router.get(
   "/admin/marketplace/listings/:id",
-  isAuthenticated,
-  authorize("admin"),
+  ...adminGate("marketplace"),
   getAdminListing
 );
 router.patch(
   "/admin/marketplace/listings/:id",
-  isAuthenticated,
-  authorize("admin"),
+  ...adminGate("marketplace"),
   updateAdminListing
 );
 router.post(
   "/admin/marketplace/listings/:id/remove",
-  isAuthenticated,
-  authorize("admin"),
+  ...adminGate("marketplace"),
   removeAdminListing
 );
 router.post(
   "/admin/marketplace/listings/:id/restore",
-  isAuthenticated,
-  authorize("admin"),
+  ...adminGate("marketplace"),
   restoreAdminListing
 );
 router.post(
   "/admin/marketplace/listings/:id/warn",
-  isAuthenticated,
-  authorize("admin"),
+  ...adminGate("marketplace"),
+  adminModerationRateLimit,
   warnListingSeller
 );
 router.get(
   "/admin/users/:userId/listings",
-  isAuthenticated,
-  authorize("admin"),
+  ...adminGate("marketplace"),
   listAdminUserListings
 );
 router.get(
   "/admin/marketplace/reported-conversations",
-  isAuthenticated,
-  authorize("admin"),
+  ...adminGate("marketplace"),
   listReportedConversations
 );
 router.get(
   "/admin/conversations/:id/messages",
   isAuthenticated,
   authorize("admin"),
+  // Marketplace reported chats + Analytics conversation reports (+ moderation if reused).
+  requireAdminTab("marketplace", "analytics", "moderation"),
   getAdminConversationMessages
 );
 

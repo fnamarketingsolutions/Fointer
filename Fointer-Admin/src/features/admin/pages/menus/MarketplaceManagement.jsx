@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
-  LuFlag as Flag,
   LuLoaderCircle as Loader2,
   LuMessageCircle as MessageCircle,
   LuPencil as Pencil,
@@ -10,19 +9,22 @@ import {
   LuSearch as Search,
   LuShoppingBag as ShoppingBag,
   LuTrash2 as Trash2,
+  LuTriangleAlert as AlertTriangle,
   LuX as X,
 } from "react-icons/lu";
 import {
   fetchAdminConversationMessages,
   fetchAdminMarketplaceListings,
   fetchAdminReportedConversations,
+  fetchWarningPolicy,
   removeAdminMarketplaceListing,
   restoreAdminMarketplaceListing,
-  updateAdminMarketplaceListing,
   warnAdminMarketplaceSeller,
 } from "../../../../api/dashboard";
-import { LISTING_CATEGORIES, formatPrice } from "../../../marketplace/constants";
+import { formatPrice } from "../../../marketplace/constants";
 import { useToast } from "../../../../shared/components/feedback/ToastContext";
+import AdminActionBtn from "../../../../shared/components/AdminActionBtn";
+import WarnUserModal from "../../../../shared/components/modals/WarnUserModal";
 import { getErrorMessage } from "../../../../shared/utils/errors";
 import { timeAgo } from "../../../../shared/utils/date";
 
@@ -31,31 +33,12 @@ const STATUS_FILTERS = [
   { id: "active", label: "Active" },
   { id: "sold", label: "Sold" },
   { id: "draft", label: "Draft" },
+  { id: "hidden", label: "Hidden" },
   { id: "removed", label: "Removed" },
 ];
 
-function ActionBtn({ onClick, disabled, tone = "ghost", children }) {
-  const tones = {
-    ghost:
-      "border border-fo-border text-fo-muted hover:text-fo-text hover:border-fo-accent/30",
-    danger:
-      "border border-red-500/30 text-red-400 hover:bg-red-500/10",
-    primary:
-      "border border-fo-accent/35 text-fo-accent hover:bg-fo-accent/10",
-  };
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors disabled:opacity-50 ${tones[tone]}`}
-    >
-      {children}
-    </button>
-  );
-}
-
 export default function MarketplaceManagement() {
+  const navigate = useNavigate();
   const { showToast } = useToast();
   const [tab, setTab] = useState("listings");
   const [listings, setListings] = useState([]);
@@ -66,12 +49,16 @@ export default function MarketplaceManagement() {
   const [query, setQuery] = useState("");
   const [reportedOnly, setReportedOnly] = useState(false);
   const [busyId, setBusyId] = useState(null);
-  const [selected, setSelected] = useState(null);
-  const [editForm, setEditForm] = useState(null);
   const [reportedConversations, setReportedConversations] = useState([]);
   const [convLoading, setConvLoading] = useState(false);
   const [convMessages, setConvMessages] = useState([]);
   const [activeConversationId, setActiveConversationId] = useState(null);
+  const [warnTarget, setWarnTarget] = useState(null);
+  const [warnSaving, setWarnSaving] = useState(false);
+  const [warnPolicy, setWarnPolicy] = useState({
+    maxWarningsBeforeBan: 3,
+    autoBanOnMaxWarnings: true,
+  });
 
   const loadListings = useCallback(async () => {
     setLoading(true);
@@ -109,33 +96,21 @@ export default function MarketplaceManagement() {
     else loadReportedConversations();
   }, [tab, loadListings, loadReportedConversations]);
 
-  const openEdit = (listing) => {
-    setSelected(listing);
-    setEditForm({
-      title: listing.title || "",
-      description: listing.description || "",
-      price: listing.price ?? "",
-      status: listing.status || "active",
-    });
-  };
+  useEffect(() => {
+    fetchWarningPolicy()
+      .then((data) => {
+        if (!data?.policy) return;
+        setWarnPolicy({
+          maxWarningsBeforeBan: data.policy.maxWarningsBeforeBan ?? 3,
+          autoBanOnMaxWarnings: data.policy.autoBanOnMaxWarnings !== false,
+        });
+      })
+      .catch(() => {});
+  }, []);
 
-  const handleSave = async () => {
-    if (!selected || !editForm) return;
-    setBusyId(selected.id);
-    try {
-      await updateAdminMarketplaceListing(selected.id, {
-        ...editForm,
-        price: Number(editForm.price),
-      });
-      showToast("Listing updated.");
-      setSelected(null);
-      setEditForm(null);
-      await loadListings();
-    } catch (err) {
-      showToast(getErrorMessage(err, "Failed to update listing."));
-    } finally {
-      setBusyId(null);
-    }
+  const openListing = (listing, { edit = false } = {}) => {
+    const id = listing.shortCode || listing.id;
+    navigate(edit ? `/marketplace/${id}?edit=1` : `/marketplace/${id}`);
   };
 
   const handleRemove = async (listing) => {
@@ -165,20 +140,20 @@ export default function MarketplaceManagement() {
     }
   };
 
-  const handleWarn = async (listing) => {
-    const message = window.prompt(
-      "Warning message for the seller:",
-      "Your listing may violate Fointer marketplace policies. Please review and update it."
-    );
-    if (!message?.trim()) return;
-    setBusyId(listing.id);
+  const handleWarn = async (message) => {
+    if (!warnTarget?.id) return;
+    setWarnSaving(true);
     try {
-      await warnAdminMarketplaceSeller(listing.id, { message: message.trim() });
-      showToast("Warning sent.");
+      const data = await warnAdminMarketplaceSeller(warnTarget.id, {
+        message: message.trim(),
+      });
+      showToast(data?.message || "Warning sent.");
+      setWarnTarget(null);
+      await loadListings();
     } catch (err) {
       showToast(getErrorMessage(err, "Failed to send warning."));
     } finally {
-      setBusyId(null);
+      setWarnSaving(false);
     }
   };
 
@@ -192,8 +167,6 @@ export default function MarketplaceManagement() {
       showToast(getErrorMessage(err, "Failed to load messages."));
     }
   };
-
-  const visibleListings = useMemo(() => listings, [listings]);
 
   return (
     <div className="w-full max-w-3xl mx-auto space-y-5">
@@ -288,13 +261,13 @@ export default function MarketplaceManagement() {
             <div className="flex justify-center py-14">
               <Loader2 size={18} className="animate-spin text-fo-accent" />
             </div>
-          ) : visibleListings.length === 0 ? (
+          ) : listings.length === 0 ? (
             <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle">
               No listings found.
             </div>
           ) : (
             <div className="space-y-2.5">
-              {visibleListings.map((listing) => (
+              {listings.map((listing) => (
                 <article
                   key={listing.id}
                   className="bg-fo-surface border border-fo-border rounded-xl p-4 space-y-2"
@@ -331,34 +304,48 @@ export default function MarketplaceManagement() {
                     ) : null}
                   </div>
                   <div className="flex flex-wrap gap-1.5">
-                    <ActionBtn onClick={() => openEdit(listing)}>
+                    <AdminActionBtn onClick={() => openListing(listing, { edit: true })}>
                       <Pencil size={12} /> Edit
-                    </ActionBtn>
+                    </AdminActionBtn>
                     {listing.status !== "removed" ? (
-                      <ActionBtn
+                      <AdminActionBtn
                         tone="danger"
                         disabled={busyId === listing.id}
                         onClick={() => handleRemove(listing)}
                       >
                         <Trash2 size={12} /> Remove
-                      </ActionBtn>
-                    ) : (
-                      <ActionBtn
+                      </AdminActionBtn>
+                    ) : null}
+                    {listing.status === "removed" ||
+                    listing.status === "hidden" ? (
+                      <AdminActionBtn
                         disabled={busyId === listing.id}
                         onClick={() => handleRestore(listing)}
                       >
                         <RotateCcw size={12} /> Restore
-                      </ActionBtn>
-                    )}
-                    <ActionBtn onClick={() => handleWarn(listing)}>
-                      <Flag size={12} /> Warn seller
-                    </ActionBtn>
-                    <Link
-                      to={`/marketplace/${listing.shortCode || listing.id}`}
-                      className="inline-flex items-center px-2.5 py-1.5 rounded-lg border border-fo-border text-xs text-fo-muted hover:text-fo-accent"
+                      </AdminActionBtn>
+                    ) : null}
+                    <AdminActionBtn
+                      onClick={() =>
+                        setWarnTarget({
+                          id: listing.id,
+                          name:
+                            listing.seller?.name ||
+                            listing.seller?.username ||
+                            "Seller",
+                          username: listing.seller?.username || "",
+                          warningCount: listing.seller?.warningCount || 0,
+                        })
+                      }
+                    >
+                      <AlertTriangle size={12} /> Warn seller
+                    </AdminActionBtn>
+                    <AdminActionBtn
+                      tone="primary"
+                      onClick={() => openListing(listing)}
                     >
                       View
-                    </Link>
+                    </AdminActionBtn>
                   </div>
                 </article>
               ))}
@@ -389,67 +376,13 @@ export default function MarketplaceManagement() {
               {item.details ? (
                 <p className="text-xs text-fo-subtle">{item.details}</p>
               ) : null}
-              <ActionBtn onClick={() => openConversation(item.conversationId)}>
+              <AdminActionBtn onClick={() => openConversation(item.conversationId)}>
                 <MessageCircle size={12} /> Review messages
-              </ActionBtn>
+              </AdminActionBtn>
             </article>
           ))}
         </div>
       )}
-
-      {selected && editForm ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/75" onClick={() => setSelected(null)} />
-          <div className="relative w-full max-w-md bg-fo-surface border border-fo-border rounded-2xl p-5 space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold">Edit listing</h2>
-              <button type="button" onClick={() => setSelected(null)}>
-                <X size={18} />
-              </button>
-            </div>
-            <input
-              value={editForm.title}
-              onChange={(e) => setEditForm((f) => ({ ...f, title: e.target.value }))}
-              className="w-full rounded-lg border border-fo-border bg-fo-bg px-3 py-2 text-sm"
-              placeholder="Title"
-            />
-            <textarea
-              value={editForm.description}
-              onChange={(e) =>
-                setEditForm((f) => ({ ...f, description: e.target.value }))
-              }
-              rows={3}
-              className="w-full rounded-lg border border-fo-border bg-fo-bg px-3 py-2 text-sm resize-y"
-              placeholder="Description"
-            />
-            <input
-              type="number"
-              value={editForm.price}
-              onChange={(e) => setEditForm((f) => ({ ...f, price: e.target.value }))}
-              className="w-full rounded-lg border border-fo-border bg-fo-bg px-3 py-2 text-sm"
-            />
-            <select
-              value={editForm.status}
-              onChange={(e) => setEditForm((f) => ({ ...f, status: e.target.value }))}
-              className="w-full rounded-lg border border-fo-border bg-fo-bg px-3 py-2 text-sm"
-            >
-              {STATUS_FILTERS.filter((s) => s.id !== "all").map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={busyId === selected.id}
-              className="w-full py-2.5 rounded-xl bg-fo-accent text-black text-sm font-semibold"
-            >
-              Save changes
-            </button>
-          </div>
-        </div>
-      ) : null}
 
       {activeConversationId ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -479,6 +412,20 @@ export default function MarketplaceManagement() {
           </div>
         </div>
       ) : null}
+
+      <WarnUserModal
+        open={Boolean(warnTarget)}
+        user={warnTarget}
+        loading={warnSaving}
+        warningCount={warnTarget?.warningCount || 0}
+        maxWarningsBeforeBan={warnPolicy.maxWarningsBeforeBan}
+        autoBanOnMaxWarnings={warnPolicy.autoBanOnMaxWarnings}
+        onClose={() => {
+          if (warnSaving) return;
+          setWarnTarget(null);
+        }}
+        onSubmit={handleWarn}
+      />
     </div>
   );
 }

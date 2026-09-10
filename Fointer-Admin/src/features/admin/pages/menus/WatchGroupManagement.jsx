@@ -20,6 +20,7 @@ import {
   removeAdminWatchParticipant,
 } from "../../../../api/dashboard";
 import { useToast } from "../../../../shared/components/feedback/ToastContext";
+import AdminActionBtn from "../../../../shared/components/AdminActionBtn";
 import { getErrorMessage } from "../../../../shared/utils/errors";
 import { timeAgo } from "../../../../shared/utils/date";
 
@@ -28,27 +29,6 @@ const TYPE_FILTERS = [
   { id: "public", label: "Public" },
   { id: "private", label: "Private" },
 ];
-
-function ActionBtn({ onClick, disabled, tone = "ghost", children }) {
-  const tones = {
-    ghost:
-      "border border-fo-border text-fo-muted hover:text-fo-text hover:border-fo-accent/30",
-    primary:
-      "border border-fo-accent/35 text-fo-accent hover:bg-fo-accent/10",
-    danger:
-      "border border-red-500/30 text-red-400 hover:bg-red-500/10",
-  };
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors disabled:opacity-50 ${tones[tone]}`}
-    >
-      {children}
-    </button>
-  );
-}
 
 export default function WatchGroupManagement() {
   const { showToast } = useToast();
@@ -318,14 +298,14 @@ export default function WatchGroupManagement() {
                 </div>
 
                 <div className="flex flex-wrap gap-1.5">
-                  <ActionBtn
+                  <AdminActionBtn
                     tone="primary"
                     onClick={() => openDetail(group, "messages")}
                   >
                     <MessageSquare size={12} />
                     Manage
-                  </ActionBtn>
-                  <ActionBtn
+                  </AdminActionBtn>
+                  <AdminActionBtn
                     tone="danger"
                     disabled={isBusy}
                     onClick={() => handleDelete(group)}
@@ -336,7 +316,7 @@ export default function WatchGroupManagement() {
                       <Trash2 size={12} />
                     )}
                     Delete
-                  </ActionBtn>
+                  </AdminActionBtn>
                 </div>
               </article>
             );

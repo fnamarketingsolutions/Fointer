@@ -9,6 +9,7 @@ import {
   LuMail as Mail,
   LuMapPin as MapPin,
   LuPhone as Phone,
+  LuTriangleAlert as AlertTriangle,
 } from "react-icons/lu";
 import {
   fetchSystemSettings,
@@ -35,6 +36,8 @@ export default function SystemSettings() {
   const [watchLimit, setWatchLimit] = useState(50);
   const [s3Limit, setS3Limit] = useState(25);
   const [bannedKeywords, setBannedKeywords] = useState("");
+  const [maxWarnings, setMaxWarnings] = useState(3);
+  const [autoBanOnMaxWarnings, setAutoBanOnMaxWarnings] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -59,6 +62,12 @@ export default function SystemSettings() {
               ? data.settings.bannedKeywords.join(", ")
               : data.settings.bannedKeywords || ""
           );
+          if (data.settings.maxWarningsBeforeBan != null) {
+            setMaxWarnings(data.settings.maxWarningsBeforeBan);
+          }
+          if (data.settings.autoBanOnMaxWarnings != null) {
+            setAutoBanOnMaxWarnings(Boolean(data.settings.autoBanOnMaxWarnings));
+          }
         }
       } catch (err) {
         if (!cancelled) {
@@ -87,6 +96,11 @@ export default function SystemSettings() {
       showToast("Watch group max capacity must be between 2 and 200.");
       return;
     }
+    const warnMax = Number(maxWarnings);
+    if (!Number.isFinite(warnMax) || warnMax < 1 || warnMax > 20) {
+      showToast("Max warnings before ban must be between 1 and 20.");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -97,6 +111,8 @@ export default function SystemSettings() {
         contactAddress: contactAddress.trim(),
         bannedKeywords,
         watchGroupMaxCapacity: Math.floor(watchMax),
+        maxWarningsBeforeBan: Math.floor(warnMax),
+        autoBanOnMaxWarnings: Boolean(autoBanOnMaxWarnings),
       });
       const next = data?.settings || {};
       setEditLimit(next.postEditWindowMinutes ?? Math.floor(minutes));
@@ -108,6 +124,12 @@ export default function SystemSettings() {
       }
       if (next.watchGroupMaxCapacity != null) {
         setWatchLimit(next.watchGroupMaxCapacity);
+      }
+      if (next.maxWarningsBeforeBan != null) {
+        setMaxWarnings(next.maxWarningsBeforeBan);
+      }
+      if (next.autoBanOnMaxWarnings != null) {
+        setAutoBanOnMaxWarnings(Boolean(next.autoBanOnMaxWarnings));
       }
       await refreshPublicContact();
       showToast("Settings saved.");
@@ -245,6 +267,35 @@ export default function SystemSettings() {
             onChange={(e) => setS3Limit(e.target.value)}
             className={inputClass}
           />
+        </div>
+
+        <div className={cardClass}>
+          <label className={labelClass}>
+            <AlertTriangle className="w-4 h-4 text-amber-400" /> Max warnings
+            before ban
+          </label>
+          <input
+            type="number"
+            min={1}
+            max={20}
+            value={maxWarnings}
+            disabled={loading || saving}
+            onChange={(e) => setMaxWarnings(e.target.value)}
+            className={inputClass}
+          />
+          <p className={hintClass}>
+            How many platform warnings a user can receive before auto-ban (1–20).
+          </p>
+          <label className="flex items-center gap-2 pt-2 text-xs text-fo-text cursor-pointer">
+            <input
+              type="checkbox"
+              checked={autoBanOnMaxWarnings}
+              disabled={loading || saving}
+              onChange={(e) => setAutoBanOnMaxWarnings(e.target.checked)}
+              className="rounded border-fo-border text-fo-accent"
+            />
+            Auto-ban when the warning limit is reached
+          </label>
         </div>
 
         <div className={cardClass}>

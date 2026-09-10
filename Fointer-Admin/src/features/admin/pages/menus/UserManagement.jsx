@@ -1,26 +1,26 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  LuBan as Ban,
-  LuBuilding2 as Building2,
-  LuCircleCheck as CheckCircle2,
-  LuChevronDown as ChevronDown,
-  LuChevronUp as ChevronUp,
-  LuExternalLink as ExternalLink,
-  LuLoaderCircle as Loader2,
-  LuRefreshCw as RefreshCw,
-  LuSearch as Search,
-  LuUsers as Users
-} from "react-icons/lu";
-import {
-  fetchAdminUserDetail,
   fetchUsers,
   updateUserStatus,
+  createAdminWarning,
+  fetchWarningPolicy,
 } from "../../../../api/dashboard";
 import { useAuth } from "../../../../context/AuthContext";
 import { useToast } from "../../../../shared/components/feedback/ToastContext";
-import { COMMUNITY_TYPE_LABELS } from "../../../../shared/constants/community";
-import { communitySegment } from "../../../../shared/services/entityLinks";
+import AdminActionBtn from "../../../../shared/components/AdminActionBtn";
+import WarnUserModal from "../../../../shared/components/modals/WarnUserModal";
+import { isSuperAdminUser } from "../../../../shared/lib/roles";
+import {
+  LuBan as Ban,
+  LuCircleCheck as CheckCircle2,
+  LuChevronLeft as ChevronLeft,
+  LuChevronRight as ChevronRight,
+  LuLoaderCircle as Loader2,
+  LuRefreshCw as RefreshCw,
+  LuSearch as Search,
+  LuTriangleAlert as AlertTriangle,
+} from "react-icons/lu";
 
 const FILTERS = [
   { id: "all", label: "All" },
@@ -30,7 +30,7 @@ const FILTERS = [
   { id: "moderators", label: "Moderators" },
 ];
 
-const TYPE_LABELS = COMMUNITY_TYPE_LABELS;
+const PAGE_SIZE = 25;
 
 const statusMeta = (status) => {
   if (status === "banned") {
@@ -42,29 +42,8 @@ const statusMeta = (status) => {
   return { label: "Active", className: "text-emerald-400" };
 };
 
-function ActionBtn({ onClick, disabled, tone = "ghost", children }) {
-  const tones = {
-    ghost:
-      "border border-fo-border text-fo-muted hover:text-fo-text hover:border-fo-accent/30",
-    danger:
-      "border border-red-500/30 text-red-400 hover:bg-red-500/10",
-    success:
-      "border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10",
-  };
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors disabled:opacity-50 ${tones[tone]}`}
-    >
-      {children}
-    </button>
-  );
-}
-
 const UserManagement = () => {
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, isSuperAdmin } = useAuth();
   const navigate = useNavigate();
   const { showToast } = useToast();
   const [users, setUsers] = useState([]);
@@ -76,22 +55,42 @@ const UserManagement = () => {
     moderators: 0,
   });
   const [matchedCount, setMatchedCount] = useState(0);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
-  const [expandedUserId, setExpandedUserId] = useState(null);
-  const [detailByUserId, setDetailByUserId] = useState({});
-  const [detailLoadingId, setDetailLoadingId] = useState(null);
-  const [expandedCommunityId, setExpandedCommunityId] = useState(null);
+  const [warnTarget, setWarnTarget] = useState(null);
+  const [warnSaving, setWarnSaving] = useState(false);
+  const [warnPolicy, setWarnPolicy] = useState({
+    maxWarningsBeforeBan: 3,
+    autoBanOnMaxWarnings: true,
+  });
+
+  useEffect(() => {
+    fetchWarningPolicy()
+      .then((data) => {
+        if (!data?.policy) return;
+        setWarnPolicy({
+          maxWarningsBeforeBan: data.policy.maxWarningsBeforeBan ?? 3,
+          autoBanOnMaxWarnings: data.policy.autoBanOnMaxWarnings !== false,
+        });
+      })
+      .catch(() => {});
+  }, []);
 
   const loadUsers = useCallback(
     async (opts = {}) => {
       const nextFilter = opts.filter ?? filter;
       const nextSearch = opts.search ?? search;
+      const nextPage = opts.page ?? page;
       setLoading(true);
       try {
-        const params = {};
+        const params = {
+          page: nextPage,
+          limit: PAGE_SIZE,
+        };
         if (nextSearch.trim()) params.q = nextSearch.trim();
         if (nextFilter === "active" || nextFilter === "banned") {
           params.status = nextFilter;
@@ -111,18 +110,28 @@ const UserManagement = () => {
             moderators: 0,
           }
         );
-        setMatchedCount(data?.pagination?.total ?? data?.users?.length ?? 0);
+        const total = data?.pagination?.total ?? data?.users?.length ?? 0;
+        const pages = Math.max(
+          1,
+          data?.pagination?.totalPages ??
+            Math.ceil(total / PAGE_SIZE) ??
+            1
+        );
+        setMatchedCount(total);
+        setTotalPages(pages);
+        setPage(data?.pagination?.page ?? nextPage);
       } catch (err) {
         showToast(err?.response?.data?.message || "Failed to load users.");
       } finally {
         setLoading(false);
       }
     },
-    [filter, search, showToast]
+    [filter, search, page, showToast]
   );
 
   useEffect(() => {
-    loadUsers({ filter });
+    setPage(1);
+    loadUsers({ filter, page: 1 });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reload when filter chips change
   }, [filter]);
 
@@ -134,10 +143,18 @@ const UserManagement = () => {
       showToast("You cannot ban your own account.");
       return;
     }
+    const targetIsAdmin =
+      String(u.role || "")
+        .toLowerCase()
+        .trim() === "admin";
+    if (targetIsAdmin && !(isSuperAdmin || isSuperAdminUser(currentUser))) {
+      showToast("Only a super admin can change another admin's status.");
+      return;
+    }
     setBusyId(u.id);
     try {
       await updateUserStatus(u.id, status);
-      await loadUsers();
+      await loadUsers({ page });
     } catch (err) {
       showToast(err?.response?.data?.message || "Failed to update status.");
     } finally {
@@ -145,39 +162,51 @@ const UserManagement = () => {
     }
   };
 
-  const toggleUserDetail = async (u) => {
-    if (expandedUserId === u.id) {
-      setExpandedUserId(null);
-      setExpandedCommunityId(null);
+  const openUserProfile = (u) => {
+    const userId = u?.id ? String(u.id) : "";
+    if (!userId) {
+      showToast("User id missing.");
       return;
     }
-
-    setExpandedUserId(u.id);
-    setExpandedCommunityId(null);
-
-    if (detailByUserId[u.id]) return;
-
-    setDetailLoadingId(u.id);
-    try {
-      const data = await fetchAdminUserDetail(u.id);
-      setDetailByUserId((prev) => ({ ...prev, [u.id]: data }));
-    } catch (err) {
-      showToast(err?.response?.data?.message || "Failed to load user detail.");
-    } finally {
-      setDetailLoadingId(null);
-    }
-  };
-
-  const toggleCommunityMembers = (communityId) => {
-    setExpandedCommunityId((prev) =>
-      prev === communityId ? null : communityId
-    );
+    navigate(`/users/${userId}`);
   };
 
   const handleSearch = (e) => {
     e.preventDefault();
-    loadUsers({ search });
+    setPage(1);
+    loadUsers({ search, page: 1 });
   };
+
+  const goToPage = (nextPage) => {
+    if (nextPage < 1 || nextPage > totalPages || nextPage === page || loading) {
+      return;
+    }
+    setPage(nextPage);
+    loadUsers({ page: nextPage });
+  };
+
+  const submitWarn = async (message) => {
+    if (!warnTarget?.id) return;
+    setWarnSaving(true);
+    try {
+      const data = await createAdminWarning({
+        userId: warnTarget.id,
+        message,
+        source: "admin_panel",
+      });
+      showToast(data?.message || "Warning issued.");
+      setWarnTarget(null);
+      await loadUsers({ page });
+    } catch (err) {
+      showToast(err?.response?.data?.message || "Failed to issue warning.");
+    } finally {
+      setWarnSaving(false);
+    }
+  };
+
+  const rangeStart =
+    matchedCount === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const rangeEnd = Math.min(page * PAGE_SIZE, matchedCount);
 
   return (
     <div className="w-full max-w-3xl mx-auto space-y-5">
@@ -189,12 +218,14 @@ const UserManagement = () => {
           <p className="text-sm text-fo-subtle">
             {search.trim()
               ? `${matchedCount} result${matchedCount === 1 ? "" : "s"} for this search`
-              : `Showing ${matchedCount} of ${summary[filter] ?? summary.all} users`}
+              : matchedCount === 0
+                ? "No users in this filter"
+                : `Showing ${rangeStart}–${rangeEnd} of ${matchedCount}`}
           </p>
         </div>
         <button
           type="button"
-          onClick={() => loadUsers()}
+          onClick={() => loadUsers({ page })}
           disabled={loading}
           className="p-2 rounded-lg border border-fo-border text-fo-muted hover:text-fo-accent hover:border-fo-accent/40 transition-colors disabled:opacity-50 shrink-0"
           title="Refresh"
@@ -249,29 +280,28 @@ const UserManagement = () => {
         </div>
       ) : (
         <div className="space-y-2.5">
-          {users.map((u, index) => {
+          {users.map((u) => {
             const isSelf =
               String(u.id) === String(currentUser?.id || currentUser?._id);
             const busy = busyId === u.id;
-            const detail = detailByUserId[u.id];
-            const detailLoading = detailLoadingId === u.id;
-            const expanded = expandedUserId === u.id;
             const status = statusMeta(u.status);
+            const targetIsAdmin =
+              String(u.role || "")
+                .toLowerCase()
+                .trim() === "admin";
+            const canModerateStatus =
+              !targetIsAdmin ||
+              Boolean(isSuperAdmin || isSuperAdminUser(currentUser));
 
             return (
               <article
                 key={u.id}
-                className={`bg-fo-surface border rounded-xl overflow-hidden transition-colors ${
-                  expanded
-                    ? "border-fo-accent/40"
-                    : "border-fo-border hover:border-fo-accent/35"
-                }`}
+                className="bg-fo-surface border border-fo-border hover:border-fo-accent/35 rounded-xl overflow-hidden transition-colors"
               >
                 <div className="flex gap-3 p-3.5 sm:p-4 items-center">
-                 
                   <button
                     type="button"
-                    onClick={() => toggleUserDetail(u)}
+                    onClick={() => openUserProfile(u)}
                     className="flex items-center gap-3 min-w-0 flex-1 text-left"
                   >
                     {u.avatar ? (
@@ -300,24 +330,35 @@ const UserManagement = () => {
                         >
                           {status.label}
                         </span>
+                        {(u.warningCount || 0) > 0 ? (
+                          <span className="text-[10px] font-medium text-amber-300">
+                            {u.warningCount} warn
+                            {u.warningCount === 1 ? "" : "s"}
+                          </span>
+                        ) : null}
                       </div>
                       <p className="text-[11px] text-fo-subtle truncate">
                         {u.name || "No display name"}
                         {u.email ? ` · ${u.email}` : ""}
                       </p>
-                    </div>
-                    <span className="text-fo-subtle shrink-0 hidden sm:block">
-                      {expanded ? (
-                        <ChevronUp size={16} />
-                      ) : (
-                        <ChevronDown size={16} />
-                      )}
-                    </span>
+                    </div> 
                   </button>
 
                   <div className="flex items-center gap-1.5 shrink-0">
-                    {u.status !== "banned" ? (
-                      <ActionBtn
+                    {canModerateStatus && u.status !== "banned" ? (
+                      <AdminActionBtn
+                        disabled={busy || isSelf}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setWarnTarget(u);
+                        }}
+                      >
+                        <AlertTriangle size={12} />
+                        Warn
+                      </AdminActionBtn>
+                    ) : null}
+                    {canModerateStatus && u.status !== "banned" ? (
+                      <AdminActionBtn
                         tone="danger"
                         disabled={busy || isSelf}
                         onClick={(e) => {
@@ -331,10 +372,10 @@ const UserManagement = () => {
                           <Ban size={12} />
                         )}
                         Ban
-                      </ActionBtn>
+                      </AdminActionBtn>
                     ) : null}
-                    {u.status !== "active" ? (
-                      <ActionBtn
+                    {canModerateStatus && u.status !== "active" ? (
+                      <AdminActionBtn
                         tone="success"
                         disabled={busy}
                         onClick={(e) => {
@@ -348,150 +389,54 @@ const UserManagement = () => {
                           <CheckCircle2 size={12} />
                         )}
                         Activate
-                      </ActionBtn>
+                      </AdminActionBtn>
                     ) : null}
                   </div>
                 </div>
-
-                {expanded ? (
-                  <div className="border-t border-fo-border px-3.5 sm:px-4 py-4 space-y-4 bg-fo-bg/50">
-                    {detailLoading ? (
-                      <div className="flex items-center gap-2 text-xs text-fo-subtle py-2">
-                        <Loader2 size={12} className="animate-spin" />
-                        Loading user detail…
-                      </div>
-                    ) : detail?.user ? (
-                      <>
-                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-fo-subtle">
-                          <span>
-                            Name:{" "}
-                            <span className="text-fo-muted">
-                              {detail.user.name || "—"}
-                            </span>
-                          </span>
-                          <span>·</span>
-                          <span>
-                            @{detail.user.username}
-                          </span>
-                          <span>·</span>
-                          <span>
-                            {detail.communityCount || 0} communities owned
-                          </span>
-                        </div>
-
-                        <section className="space-y-2.5">
-                          <div className="flex items-center gap-2">
-                            <Building2 size={14} className="text-fo-accent" />
-                            <h3 className="text-sm font-semibold text-fo-text">
-                              Owned communities
-                            </h3>
-                          </div>
-
-                          {!detail.ownedCommunities?.length ? (
-                            <p className="text-xs text-fo-subtle">
-                              This user does not own any communities.
-                            </p>
-                          ) : (
-                            detail.ownedCommunities.map((community) => {
-                              const membersOpen =
-                                expandedCommunityId === community.id;
-                              return (
-                                <div
-                                  key={community.id}
-                                  className="border border-fo-border rounded-xl bg-fo-surface overflow-hidden"
-                                >
-                                  <div className="flex items-center gap-3 p-3">
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        toggleCommunityMembers(community.id)
-                                      }
-                                      className="min-w-0 flex-1 text-left"
-                                    >
-                                      <p className="text-sm font-medium text-fo-text truncate">
-                                        {community.name}
-                                      </p>
-                                      <p className="text-[11px] text-fo-subtle mt-0.5">
-                                        {TYPE_LABELS[community.type] ||
-                                          community.type}{" "}
-                                        · {community.memberCount || 0} members
-                                      </p>
-                                    </button>
-                                    <div className="flex items-center gap-1.5 shrink-0">
-                                      <ActionBtn
-                                        onClick={() =>
-                                          navigate(
-                                            `/communities/${communitySegment(community)}`
-                                          )
-                                        }
-                                      >
-                                        <ExternalLink size={12} />
-                                        Open
-                                      </ActionBtn>
-                                      <ActionBtn
-                                        onClick={() =>
-                                          toggleCommunityMembers(community.id)
-                                        }
-                                      >
-                                        <Users size={12} />
-                                        {membersOpen ? (
-                                          <ChevronUp size={12} />
-                                        ) : (
-                                          <ChevronDown size={12} />
-                                        )}
-                                      </ActionBtn>
-                                    </div>
-                                  </div>
-
-                                  {membersOpen ? (
-                                    <div className="border-t border-fo-border px-3 py-3 space-y-2 bg-fo-bg/40">
-                                      {community.members?.length ? (
-                                        community.members.map((member) => (
-                                          <div
-                                            key={member.id}
-                                            className="flex items-center justify-between gap-3 text-xs"
-                                          >
-                                            <div className="min-w-0">
-                                              <p className="text-fo-text truncate">
-                                                {member.user?.name ||
-                                                  "Unnamed member"}
-                                              </p>
-                                              <p className="text-[11px] text-fo-subtle truncate">
-                                                @
-                                                {member.user?.username ||
-                                                  "unknown"}
-                                              </p>
-                                            </div>
-                                            <span className="text-[10px] uppercase tracking-wide text-fo-subtle shrink-0">
-                                              {member.role}
-                                            </span>
-                                          </div>
-                                        ))
-                                      ) : (
-                                        <p className="text-xs text-fo-subtle">
-                                          No active members found.
-                                        </p>
-                                      )}
-                                    </div>
-                                  ) : null}
-                                </div>
-                              );
-                            })
-                          )}
-                        </section>
-                      </>
-                    ) : (
-                      <p className="text-xs text-fo-subtle">
-                        No detail available.
-                      </p>
-                    )}
-                  </div>
-                ) : null}
               </article>
             );
           })}
         </div>
       )}
+
+      {!loading && matchedCount > 0 ? (
+        <div className="flex items-center justify-between gap-3 pt-1">
+          <p className="text-xs text-fo-subtle">
+            Page {page} of {totalPages}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => goToPage(page - 1)}
+              disabled={loading || page <= 1}
+              className="inline-flex items-center gap-1 px-3 py-2 rounded-lg border border-fo-border text-xs text-fo-muted hover:text-fo-accent hover:border-fo-accent/40 disabled:opacity-50"
+            >
+              <ChevronLeft size={14} />
+              Prev
+            </button>
+            <button
+              type="button"
+              onClick={() => goToPage(page + 1)}
+              disabled={loading || page >= totalPages}
+              className="inline-flex items-center gap-1 px-3 py-2 rounded-lg border border-fo-border text-xs text-fo-muted hover:text-fo-accent hover:border-fo-accent/40 disabled:opacity-50"
+            >
+              Next
+              <ChevronRight size={14} />
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      <WarnUserModal
+        open={Boolean(warnTarget)}
+        user={warnTarget}
+        warningCount={warnTarget?.warningCount || 0}
+        maxWarningsBeforeBan={warnPolicy.maxWarningsBeforeBan}
+        autoBanOnMaxWarnings={warnPolicy.autoBanOnMaxWarnings}
+        loading={warnSaving}
+        onClose={() => !warnSaving && setWarnTarget(null)}
+        onSubmit={submitWarn}
+      />
     </div>
   );
 };

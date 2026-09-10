@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { useCallback, useEffect, useState } from "react";
 import {
   LuBan as Ban,
   LuChartColumn as BarChart3,
@@ -23,6 +22,8 @@ import {
   updateAdminReport,
 } from "../../../../api/dashboard";
 import { useToast } from "../../../../shared/components/feedback/ToastContext";
+import AdminActionBtn from "../../../../shared/components/AdminActionBtn";
+import AdminUserLink from "../../../../shared/components/AdminUserLink";
 import { getErrorMessage } from "../../../../shared/utils/errors";
 import { timeAgo } from "../../../../shared/utils/date";
 
@@ -44,27 +45,6 @@ const VIEWS = [
   { id: "reports", label: "Reports" },
   { id: "analytics", label: "Analytics" },
 ];
-
-function ActionBtn({ onClick, disabled, tone = "ghost", children }) {
-  const tones = {
-    ghost:
-      "border border-fo-border text-fo-muted hover:text-fo-text hover:border-fo-accent/30",
-    danger:
-      "border border-red-500/30 text-red-400 hover:bg-red-500/10",
-    primary:
-      "border border-fo-accent/35 text-fo-accent hover:bg-fo-accent/10",
-  };
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors disabled:opacity-50 ${tones[tone]}`}
-    >
-      {children}
-    </button>
-  );
-}
 
 export default function ReportingAnalytics() {
   const { showToast } = useToast();
@@ -173,8 +153,6 @@ export default function ReportingAnalytics() {
       cancelled = true;
     };
   }, [selected]);
-
-  const visibleReports = useMemo(() => reports, [reports]);
 
   const handleAction = async (report, action) => {
     const labels = {
@@ -474,7 +452,7 @@ export default function ReportingAnalytics() {
               <Loader2 size={16} className="animate-spin text-fo-accent" />
               Loading reports…
             </div>
-          ) : visibleReports.length === 0 ? (
+          ) : reports.length === 0 ? (
             <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle px-4 space-y-2">
               <Shield className="w-8 h-8 mx-auto text-fo-accent/40" />
               <p>
@@ -487,7 +465,7 @@ export default function ReportingAnalytics() {
             </div>
           ) : (
             <div className="space-y-2.5">
-              {visibleReports.map((report) => {
+              {reports.map((report) => {
                 const meta = STATUS_META[report.status] || STATUS_META.pending;
                 return (
                   <article
@@ -538,21 +516,21 @@ export default function ReportingAnalytics() {
                     </button>
 
                     <div className="flex flex-wrap gap-1.5">
-                      <ActionBtn
+                      <AdminActionBtn
                         tone="primary"
                         onClick={() => openReport(report)}
                       >
                         Review
-                      </ActionBtn>
+                      </AdminActionBtn>
                       {report.status === "pending" ? (
                         <>
-                          <ActionBtn
+                          <AdminActionBtn
                             disabled={busyId === report.id}
                             onClick={() => handleAction(report, "dismiss")}
                           >
                             <XCircle size={12} /> Dismiss
-                          </ActionBtn>
-                          <ActionBtn
+                          </AdminActionBtn>
+                          <AdminActionBtn
                             tone="danger"
                             disabled={
                               busyId === report.id || !report.targetExists
@@ -562,7 +540,7 @@ export default function ReportingAnalytics() {
                             }
                           >
                             <Trash2 size={12} /> Delete
-                          </ActionBtn>
+                          </AdminActionBtn>
                         </>
                       ) : null}
                     </div>
@@ -665,12 +643,12 @@ export default function ReportingAnalytics() {
                   {selected.snapshot?.authorId ? (
                     <>
                       {" · "}
-                      <Link
-                        to={`/users/${selected.snapshot.authorId}`}
+                      <AdminUserLink
+                        userId={selected.snapshot.authorId}
                         className="text-fo-accent hover:underline"
                       >
                         View user
-                      </Link>
+                      </AdminUserLink>
                     </>
                   ) : null}
                 </p>
@@ -728,13 +706,13 @@ export default function ReportingAnalytics() {
 
             {selected.status === "pending" ? (
               <div className="shrink-0 flex flex-wrap gap-1.5 px-4 py-3 border-t border-fo-border">
-                <ActionBtn
+                <AdminActionBtn
                   disabled={busyId === selected.id}
                   onClick={() => handleAction(selected, "dismiss")}
                 >
                   <XCircle size={12} /> Dismiss
-                </ActionBtn>
-                <ActionBtn
+                </AdminActionBtn>
+                <AdminActionBtn
                   tone="danger"
                   disabled={busyId === selected.id || !selected.targetExists}
                   onClick={() =>
@@ -748,18 +726,18 @@ export default function ReportingAnalytics() {
                 >
                   <Trash2 size={12} />{" "}
                   {selected.targetType === "listing" ? "Remove" : "Delete"}
-                </ActionBtn>
+                </AdminActionBtn>
                 {selected.targetType === "listing" ? (
-                  <ActionBtn
+                  <AdminActionBtn
                     disabled={
                       busyId === selected.id || !selected.snapshot?.authorId
                     }
                     onClick={() => handleAction(selected, "warn_seller")}
                   >
                     <Flag size={12} /> Warn seller
-                  </ActionBtn>
+                  </AdminActionBtn>
                 ) : null}
-                <ActionBtn
+                <AdminActionBtn
                   tone="danger"
                   disabled={
                     busyId === selected.id || !selected.snapshot?.authorId
@@ -767,8 +745,8 @@ export default function ReportingAnalytics() {
                   onClick={() => handleAction(selected, "ban_author")}
                 >
                   <Ban size={12} /> Ban
-                </ActionBtn>
-                <ActionBtn
+                </AdminActionBtn>
+                <AdminActionBtn
                   tone="danger"
                   disabled={
                     busyId === selected.id ||
@@ -778,7 +756,7 @@ export default function ReportingAnalytics() {
                   onClick={() => handleAction(selected, "delete_and_ban")}
                 >
                   <Shield size={12} /> Delete & ban
-                </ActionBtn>
+                </AdminActionBtn>
               </div>
             ) : null}
           </div>

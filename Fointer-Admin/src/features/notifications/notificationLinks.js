@@ -1,29 +1,12 @@
 import { communitySegment, postSegment } from '../../shared/services/entityLinks';
 
-const SYSTEM_TYPES = new Set([
-  'join_request',
-  'join_request_approved',
-  'join_request_denied',
-  'invite',
-  'invite_accepted',
-  'invite_declined',
-  'moderator_assigned',
-  'moderator_revoked',
-  'member_removed',
-  'member_banned',
-  'member_unbanned',
-  'support_ticket',
-]);
-
-const ADMIN_TYPES = new Set(['content_report', 'channel_request']);
+const ADMIN_TYPES = new Set(['content_report', 'channel_request', 'user_warning']);
 
 const TYPE_LABELS = {
   content_report: 'Content report',
   channel_request: 'Channel request',
-  support_ticket: 'Support',
+  user_warning: 'User warning',
 };
-
-export const isSystemNotification = (type) => SYSTEM_TYPES.has(type);
 
 export const isAdminNotification = (type) => ADMIN_TYPES.has(type);
 
@@ -35,7 +18,7 @@ export const notificationTypeLabel = (notification) => {
 };
 
 /** Admin portal notification → path (always admin routes). */
-export const notificationPath = (notification, { isAdmin: _isAdmin = true } = {}) => {
+export const notificationPath = (notification) => {
   const type = notification?.type;
   const community = notification?.community;
   const entity = notification?.entity;
@@ -46,6 +29,8 @@ export const notificationPath = (notification, { isAdmin: _isAdmin = true } = {}
   if (type === 'channel_request' || type === 'support_ticket') {
     return '/support';
   }
+  if (type === 'user_warning') return '/warnings';
+  // Owned by Reporting & Analytics (API: /admin/reports, tab: analytics)
   if (type === 'content_report') return '/analytics';
   if (community) return communityPath || '/communities';
 

@@ -8,6 +8,7 @@ import {
 import { fetchAdminUserDetail } from '../../../../api/dashboard';
 import { useToast } from '../../../../shared/components/feedback/ToastContext';
 import ProfileAvatar from '../../../../shared/components/ProfileAvatar';
+import { communitySegment } from '../../../../shared/services/entityLinks';
 
 const cardClass =
   'bg-fo-surface border border-fo-border rounded-xl p-4 sm:p-5';
@@ -84,7 +85,14 @@ export default function UserDetail() {
             {detail.ownedCommunities?.length ? (
               <div className="space-y-3">
                 {detail.ownedCommunities.map((community) => (
-                  <div key={community.id} className={innerItemClass}>
+                  <button
+                    key={community.id}
+                    type="button"
+                    onClick={() =>
+                      navigate(`/communities/${communitySegment(community)}`)
+                    }
+                    className={`${innerItemClass} w-full text-left hover:border-fo-accent/40 transition-colors cursor-pointer`}
+                  >
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <p className="text-sm font-semibold text-fo-text">{community.name}</p>
@@ -96,7 +104,7 @@ export default function UserDetail() {
                         {community.memberCount || 0} members
                       </p>
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             ) : (

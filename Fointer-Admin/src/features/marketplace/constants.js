@@ -24,6 +24,7 @@ export const LISTING_STATUSES = [
   { value: "active", label: "Active" },
   { value: "sold", label: "Sold" },
   { value: "draft", label: "Draft" },
+  { value: "hidden", label: "Hidden" },
   { value: "removed", label: "Removed" },
 ];
 

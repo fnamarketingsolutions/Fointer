@@ -51,6 +51,16 @@ export default function ListingCard({ listing, onClick }) {
             Sold
           </span>
         )}
+        {listing.status === "hidden" && (
+          <span className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-amber-900/80 text-amber-100 text-[10px] font-semibold uppercase tracking-wide">
+            Hidden
+          </span>
+        )}
+        {listing.status === "removed" && (
+          <span className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-red-900/80 text-red-100 text-[10px] font-semibold uppercase tracking-wide">
+            Removed
+          </span>
+        )}
       </div>
       <div className="p-3">
         <p className="text-base font-semibold text-fo-text">

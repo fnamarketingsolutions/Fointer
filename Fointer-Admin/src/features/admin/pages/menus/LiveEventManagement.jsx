@@ -18,6 +18,7 @@ import {
   fetchAdminLiveMessages,
 } from "../../../../api/dashboard";
 import { useToast } from "../../../../shared/components/feedback/ToastContext";
+import AdminActionBtn from "../../../../shared/components/AdminActionBtn";
 import { getErrorMessage } from "../../../../shared/utils/errors";
 import { timeAgo } from "../../../../shared/utils/date";
 
@@ -40,29 +41,6 @@ const categoryLabel = (event) => {
   }
   return CATEGORY_LABELS[event.category] || event.category || "—";
 };
-
-function ActionBtn({ onClick, disabled, tone = "ghost", children }) {
-  const tones = {
-    ghost:
-      "border border-fo-border text-fo-muted hover:text-fo-text hover:border-fo-accent/30",
-    primary:
-      "border border-fo-accent/35 text-fo-accent hover:bg-fo-accent/10",
-    danger:
-      "border border-red-500/30 text-red-400 hover:bg-red-500/10",
-    warn:
-      "border border-amber-500/30 text-amber-400 hover:bg-amber-500/10",
-  };
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors disabled:opacity-50 ${tones[tone]}`}
-    >
-      {children}
-    </button>
-  );
-}
 
 export default function LiveEventManagement() {
   const { showToast } = useToast();
@@ -357,15 +335,15 @@ export default function LiveEventManagement() {
                 </div>
 
                 <div className="flex flex-wrap gap-1.5">
-                  <ActionBtn
+                  <AdminActionBtn
                     tone="primary"
                     onClick={() => openMessages(event)}
                   >
                     <MessageSquare size={12} />
                     Messages
-                  </ActionBtn>
+                  </AdminActionBtn>
                   {isLive ? (
-                    <ActionBtn
+                    <AdminActionBtn
                       tone="warn"
                       disabled={isBusy}
                       onClick={() => handleEnd(event)}
@@ -376,9 +354,9 @@ export default function LiveEventManagement() {
                         <XCircle size={12} />
                       )}
                       End
-                    </ActionBtn>
+                    </AdminActionBtn>
                   ) : null}
-                  <ActionBtn
+                  <AdminActionBtn
                     tone="danger"
                     disabled={isBusy}
                     onClick={() => handleDelete(event)}
@@ -389,7 +367,7 @@ export default function LiveEventManagement() {
                       <Trash2 size={12} />
                     )}
                     Delete
-                  </ActionBtn>
+                  </AdminActionBtn>
                 </div>
               </article>
             );

@@ -8,11 +8,14 @@ import React, {
 } from 'react';
 import { getMe, logoutUser } from '../api/auth';
 import { setUnauthorizedHandler } from '../shared/services/http/client';
+import {
+  canAccessAdminTab,
+  getAdminTabs,
+  isAdminUser,
+  isSuperAdminUser,
+} from '../shared/lib/roles';
 
 const AuthContext = createContext(null);
-
-const isAdminUser = (user) =>
-  String(user?.role || '').toLowerCase().trim() === 'admin';
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -103,6 +106,9 @@ export function AuthProvider({ children }) {
       user,
       loading,
       isAuthenticated: Boolean(user),
+      isSuperAdmin: isSuperAdminUser(user),
+      adminTabs: getAdminTabs(user),
+      canAccessTab: (tabId) => canAccessAdminTab(user, tabId),
       loginSuccess,
       logout,
       clearUser,

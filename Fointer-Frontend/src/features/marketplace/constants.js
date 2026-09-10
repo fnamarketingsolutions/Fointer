@@ -24,8 +24,14 @@ export const LISTING_STATUSES = [
   { value: "active", label: "Active" },
   { value: "sold", label: "Sold" },
   { value: "draft", label: "Draft" },
+  { value: "hidden", label: "Hidden" },
   { value: "removed", label: "Removed" },
 ];
+
+/** Statuses a seller may set in create/edit forms. */
+export const SELLER_EDITABLE_LISTING_STATUSES = LISTING_STATUSES.filter((s) =>
+  ["active", "sold", "draft"].includes(s.value)
+);
 
 export const categoryLabel = (value) =>
   LISTING_CATEGORIES.find((c) => c.value === value)?.label || value;

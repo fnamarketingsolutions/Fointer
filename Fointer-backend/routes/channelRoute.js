@@ -15,66 +15,65 @@ import {
   listAdminSupportTickets,
   updateSupportTicketStatus,
 } from "../controllers/support.controller.js";
-import { isAuthenticated, authorize, optionalAuthenticate } from "../middleware/auth.middleware.js";
+import {
+  isAuthenticated,
+  authorize,
+  optionalAuthenticate,
+  requireAdminTab,
+} from "../middleware/auth.middleware.js";
+import { memberReportRateLimit } from "../middleware/rateLimit.middleware.js";
 
 const router = express.Router();
+
+const adminGate = (tab) => [
+  isAuthenticated,
+  authorize("admin"),
+  requireAdminTab(tab),
+];
 
 router.get("/channels", optionalAuthenticate, listChannels);
 router.get("/subchannels", isAuthenticated, listSubchannels);
 
 // Admin channel CRUD
-router.post(
-  "/admin/channels",
-  isAuthenticated,
-  authorize("admin"),
-  createChannel
-);
+router.post("/admin/channels", ...adminGate("channels"), createChannel);
+// Support needs the list to attach subchannels to an existing parent when approving.
 router.get(
   "/admin/channels",
   isAuthenticated,
   authorize("admin"),
+  requireAdminTab("channels", "support"),
   listChannels
 );
-router.put(
-  "/admin/channels/:id",
-  isAuthenticated,
-  authorize("admin"),
-  updateChannel
-);
+router.put("/admin/channels/:id", ...adminGate("channels"), updateChannel);
 
 // Admin subchannel CRUD
 router.post(
   "/admin/subchannels",
-  isAuthenticated,
-  authorize("admin"),
+  ...adminGate("channels"),
   createSubchannel
 );
 router.get(
   "/admin/subchannels",
-  isAuthenticated,
-  authorize("admin"),
+  ...adminGate("channels"),
   listSubchannels
 );
 router.put(
   "/admin/subchannels/:id",
-  isAuthenticated,
-  authorize("admin"),
+  ...adminGate("channels"),
   updateSubchannel
 );
 
 // Support tickets
-router.post("/support", isAuthenticated, createSupportTicket);
+router.post("/support", isAuthenticated, memberReportRateLimit, createSupportTicket);
 router.get("/support/mine", isAuthenticated, listMySupportTickets);
 router.get(
   "/admin/support",
-  isAuthenticated,
-  authorize("admin"),
+  ...adminGate("support"),
   listAdminSupportTickets
 );
 router.patch(
   "/admin/support/:id/status",
-  isAuthenticated,
-  authorize("admin"),
+  ...adminGate("support"),
   updateSupportTicketStatus
 );
 

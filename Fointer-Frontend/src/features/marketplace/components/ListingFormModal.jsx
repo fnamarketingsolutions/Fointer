@@ -4,7 +4,7 @@ import MediaPicker from "../../../shared/components/media/MediaPicker";
 import {
   LISTING_CATEGORIES,
   LISTING_CONDITIONS,
-  LISTING_STATUSES,
+  SELLER_EDITABLE_LISTING_STATUSES,
 } from "../constants";
 
 const emptyForm = () => ({
@@ -250,7 +250,7 @@ export default function ListingFormModal({
                 }
                 className="w-full rounded-lg border border-fo-border bg-fo-bg px-3 py-2 text-sm text-fo-text"
               >
-                {LISTING_STATUSES.map((s) => (
+                {SELLER_EDITABLE_LISTING_STATUSES.map((s) => (
                   <option key={s.value} value={s.value}>
                     {s.label}
                   </option>

@@ -19,6 +19,7 @@ export const NOTIFICATION_TYPES = [
   "member_banned",
   "member_unbanned",
   "support_ticket",
+  "user_warning",
   "content_report",
   "channel_request",
   "listing_inquiry",
@@ -27,6 +28,7 @@ export const NOTIFICATION_TYPES = [
 export const ADMIN_NOTIFICATION_TYPES = [
   "content_report",
   "channel_request",
+  "user_warning",
 ];
 
 export const SYSTEM_NOTIFICATION_TYPES = [
@@ -42,6 +44,7 @@ export const SYSTEM_NOTIFICATION_TYPES = [
   "member_banned",
   "member_unbanned",
   "support_ticket",
+  "user_warning",
 ];
 
 export const ENTITY_KINDS = [

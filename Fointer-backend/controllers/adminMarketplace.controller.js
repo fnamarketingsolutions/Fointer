@@ -16,18 +16,48 @@ import {
 import { escapeRegex } from "../utils/validate.js";
 import { sendServerError } from "../utils/safeError.js";
 import { respondIfBanned } from "../utils/bannedKeywords.js";
-import { destroyManyFromCloudinary } from "../utils/cloudinary.js";
-import { notify, personName } from "../utils/notify.js";
+import {
+  acceptSignedMediaList,
+  destroyManyFromCloudinary,
+} from "../utils/cloudinary.js";
 
-export const hideActiveListingsForSeller = async (sellerId, removedBy = null) => {
-  const update = {
-    status: "removed",
-    removedAt: new Date(),
-  };
-  if (removedBy) update.removedBy = removedBy;
+/**
+ * Soft-hide seller's public listings on account ban.
+ * Uses status "hidden" + hiddenReason "account_ban" (not moderation "removed").
+ */
+export const hideActiveListingsForSeller = async (sellerId) => {
   await Listing.updateMany(
     { seller: sellerId, status: "active" },
-    { $set: update }
+    {
+      $set: {
+        status: "hidden",
+        hiddenAt: new Date(),
+        hiddenReason: "account_ban",
+      },
+    }
+  );
+};
+
+/**
+ * Restore listings soft-hidden by account ban only.
+ * Does not restore admin-hidden (`hiddenReason: "admin"`), removed, sold, or draft.
+ * Legacy rows without hiddenReason are treated as ban-hidden.
+ */
+export const restoreHiddenListingsForSeller = async (sellerId) => {
+  await Listing.updateMany(
+    {
+      seller: sellerId,
+      status: "hidden",
+      $or: [
+        { hiddenReason: "account_ban" },
+        { hiddenReason: null },
+        { hiddenReason: { $exists: false } },
+      ],
+    },
+    {
+      $set: { status: "active" },
+      $unset: { hiddenAt: 1, hiddenReason: 1 },
+    }
   );
 };
 
@@ -218,15 +248,47 @@ export const updateAdminListing = async (req, res) => {
       }
     }
 
+    if (req.body.media !== undefined) {
+      const acceptedMedia = acceptSignedMediaList(
+        req.user._id,
+        Array.isArray(req.body.media) ? req.body.media : [],
+        listing.media || []
+      );
+      if (!acceptedMedia.ok) {
+        return res.status(400).json({
+          success: false,
+          message: acceptedMedia.message,
+        });
+      }
+      const nextUrls = new Set(acceptedMedia.items.map((item) => item.url));
+      const removed = (listing.media || [])
+        .map((item) => item.url)
+        .filter((url) => url && !nextUrls.has(url));
+      listing.media = acceptedMedia.items;
+      if (removed.length) {
+        await destroyManyFromCloudinary(removed);
+      }
+    }
+
     if (await respondIfBanned(res, listing.title, listing.description)) return;
 
     if (req.body.status === "removed") {
       listing.removedAt = new Date();
       listing.removedBy = req.user._id;
+      listing.hiddenAt = null;
+      listing.hiddenReason = null;
+    }
+    if (req.body.status === "hidden") {
+      listing.hiddenAt = new Date();
+      listing.hiddenReason = "admin";
+      listing.removedAt = null;
+      listing.removedBy = null;
     }
     if (req.body.status === "active") {
       listing.removedAt = null;
       listing.removedBy = null;
+      listing.hiddenAt = null;
+      listing.hiddenReason = null;
     }
 
     await listing.save();
@@ -262,6 +324,8 @@ export const removeAdminListing = async (req, res) => {
     listing.status = "removed";
     listing.removedAt = new Date();
     listing.removedBy = req.user._id;
+    listing.hiddenAt = null;
+    listing.hiddenReason = null;
     await listing.save();
 
     return res.json({
@@ -296,6 +360,8 @@ export const restoreAdminListing = async (req, res) => {
     listing.status = "active";
     listing.removedAt = null;
     listing.removedBy = null;
+    listing.hiddenAt = null;
+    listing.hiddenReason = null;
     await listing.save();
 
     return res.json({
@@ -400,11 +466,13 @@ export const getAdminConversationMessages = async (req, res) => {
     const hasReport = await Report.exists({
       targetType: "conversation",
       targetId: conversationId,
+      status: "pending",
     });
     if (!hasReport) {
       return res.status(403).json({
         success: false,
-        message: "Conversation messages are only available for reported threads.",
+        message:
+          "Conversation messages are only available for threads with a pending report.",
       });
     }
 
@@ -441,26 +509,36 @@ export const warnListingSeller = async (req, res) => {
       });
     }
 
-    await notify({
-      io: req.app.get("io"),
-      recipientId: sellerId,
+    const { issueUserWarning } = await import("../utils/userWarnings.js");
+    const result = await issueUserWarning({
+      userId: sellerId,
       actor: req.user,
-      type: "support_ticket",
-      title: "Marketplace listing policy notice",
-      body: note.slice(0, 200),
-      entity: {
+      message: note,
+      source: "marketplace",
+      relatedEntity: {
         kind: "listing",
-        _id: listing._id,
+        targetId: listing._id,
         title: listing.title || "",
-        shortCode: listing.shortCode || "",
       },
+      io: req.app.get("io"),
     });
 
     return res.json({
       success: true,
-      message: "Warning sent to seller.",
+      message: result.banned
+        ? "Warning sent. Seller was auto-banned after reaching the limit."
+        : "Warning sent to seller.",
+      warningCount: result.warningCount,
+      banned: result.banned,
     });
   } catch (error) {
+    const status = error.status || 500;
+    if (status >= 400 && status < 500) {
+      return res.status(status).json({
+        success: false,
+        message: error.message || "Failed to warn seller.",
+      });
+    }
     return sendServerError(res, error, "Failed to warn seller.");
   }
 };

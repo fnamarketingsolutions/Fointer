@@ -115,10 +115,32 @@ const userSchema = new mongoose.Schema(
       set: (v) => String(v || "user").toLowerCase().trim(),
     },
 
+    /** Full admin-panel access + Admin Management. Only meaningful when role === "admin". */
+    isSuperAdmin: {
+      type: Boolean,
+      default: false,
+    },
+
+    /**
+     * Tab ids this limited admin may use (e.g. users, support).
+     * Ignored when isSuperAdmin is true.
+     */
+    adminTabs: {
+      type: [String],
+      default: [],
+    },
+
     status: {
       type: String,
       enum: ["active", "suspended", "banned"],
       default: "active",
+    },
+
+    /** Denormalized count of platform warnings issued to this user. */
+    warningCount: {
+      type: Number,
+      default: 0,
+      min: 0,
     },
   },
   {

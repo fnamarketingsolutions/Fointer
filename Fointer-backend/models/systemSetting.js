@@ -42,6 +42,20 @@ const systemSettingSchema = new mongoose.Schema(
       min: 2,
       max: 200,
     },
+
+    /** After this many platform warnings, auto-ban (if enabled). */
+    maxWarningsBeforeBan: {
+      type: Number,
+      default: 3,
+      min: 1,
+      max: 20,
+    },
+
+    /** When true, issuing the Nth warning bans the account automatically. */
+    autoBanOnMaxWarnings: {
+      type: Boolean,
+      default: true,
+    },
   },
   {
     timestamps: true,

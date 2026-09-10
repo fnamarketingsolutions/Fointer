@@ -13,6 +13,7 @@ const SYSTEM_TYPES = new Set([
   'member_banned',
   'member_unbanned',
   'support_ticket',
+  'user_warning',
 ]);
 
 const ADMIN_TYPES = new Set(['content_report', 'channel_request']);
@@ -21,6 +22,7 @@ const TYPE_LABELS = {
   content_report: 'Content report',
   channel_request: 'Channel request',
   support_ticket: 'Support',
+  user_warning: 'Account warning',
 };
 
 export const isSystemNotification = (type) => SYSTEM_TYPES.has(type);
@@ -85,6 +87,9 @@ export const notificationPath = (notification) => {
   }
   if (type === 'support_ticket') {
     return '/support';
+  }
+  if (type === 'user_warning') {
+    return '/notifications';
   }
   if (
     type === 'moderator_assigned' ||

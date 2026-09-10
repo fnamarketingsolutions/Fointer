@@ -44,6 +44,13 @@ const USER_FILTERS = [
   { id: "system", label: "System & Access" },
 ];
 
+const ADMIN_FILTERS = [
+  { id: "all", label: "All" },
+  { id: "unread", label: "Unread" },
+  { id: "reports", label: "Reports" },
+  { id: "requests", label: "Channel requests" },
+];
+
 const typeIcon = (type) => {
   if (type === "like") return { Icon: Heart, className: "text-rose-400" };
   if (type === "comment" || type === "reply" || type === "mention") {
@@ -123,6 +130,12 @@ export default function UserNotifications({ onBack }) {
         if (filter === "unread" && !payload.isUnread) return prev;
         if (filter === "mentions" && payload.type !== "mention") return prev;
         if (filter === "system" && !isSystemNotification(payload.type)) {
+          return prev;
+        }
+        if (filter === "reports" && payload.type !== "content_report") {
+          return prev;
+        }
+        if (filter === "requests" && payload.type !== "channel_request") {
           return prev;
         }
         return [payload, ...prev];

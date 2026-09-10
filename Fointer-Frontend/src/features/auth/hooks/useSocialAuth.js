@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { googleAuth, facebookAuth } from '../../../api/auth';
+import { googleAuth, facebookAuth } from '../services/authService';
 import { loginWithFacebook, ensureFacebookSdk } from '../../../shared/lib/facebookSdk';
 import { useAuth } from '../../../context/AuthContext';
 import { getDashboardPathForRole } from '../../../shared/lib/roles';

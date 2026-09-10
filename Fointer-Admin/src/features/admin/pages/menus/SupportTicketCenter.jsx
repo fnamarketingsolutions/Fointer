@@ -12,7 +12,7 @@ import {
   fetchAdminChannels,
   fetchAdminSupportTickets,
   updateAdminSupportTicketStatus,
-} from "../../../../api/dashboard";
+} from "../../services/adminService";
 import ApproveChannelRequestModal from "../../../../shared/components/modals/ApproveChannelRequestModal";
 import { useToast } from "../../../../shared/components/feedback/ToastContext";
 import { getErrorMessage } from "../../../../shared/utils/errors";
@@ -158,7 +158,7 @@ export default function SupportTicketCenter() {
           <h1 className="text-xl sm:text-2xl font-semibold text-fo-text">
             Support
           </h1>
-          <p className="text-sm text-fo-subtle">
+          <p className="text-sm text-[#8C8070]">
             Create the requested channel and subchannel, then approve. Reject if it should not be added.
           </p>
         </div>
@@ -269,9 +269,9 @@ export default function SupportTicketCenter() {
                 </p>
 
                 {ticket.fulfilled?.channel ? (
-                  <p className="text-[11px] text-fo-muted">
+                  <p className="text-[11px] text-[#A69B8D]">
                     Created:{" "}
-                    <span className="text-fo-accent">
+                    <span className="text-[#D4AF37]">
                       {ticket.fulfilled.channel}
                       {ticket.fulfilled.subchannel
                         ? ` / ${ticket.fulfilled.subchannel}`

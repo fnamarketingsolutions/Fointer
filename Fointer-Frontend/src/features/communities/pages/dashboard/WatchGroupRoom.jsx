@@ -27,6 +27,7 @@ import {
 import { getLiveSocket } from "../../../../shared/services/liveSocket";
 import { useToast } from "../../../../shared/components/feedback/ToastContext";
 import { useAuth } from "../../../../context/AuthContext";
+import UserProfileLink from "../../../../shared/components/UserProfileLink";
 
 export default function WatchGroupRoom() {
   const { groupId } = useParams();
@@ -335,7 +336,7 @@ export default function WatchGroupRoom() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-16 text-[#A69B8D] text-sm gap-2">
+      <div className="flex items-center justify-center py-16 text-fo-muted text-sm gap-2">
         <Loader2 size={16} className="animate-spin" />
         Opening watch group...
       </div>
@@ -358,19 +359,19 @@ export default function WatchGroupRoom() {
           <button
             type="button"
             onClick={() => navigate("/watch-groups")}
-            className="inline-flex items-center gap-1.5 text-xs text-[#A69B8D] hover:text-[#D4AF37] mb-2"
+            className="inline-flex items-center gap-1.5 text-xs text-fo-muted hover:text-fo-accent mb-2"
           >
             <ArrowLeft size={14} /> Back to Watch Groups
           </button>
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide bg-[#D4AF37]/15 text-[#D4AF37] border border-[#D4AF37]/30 px-2 py-0.5 rounded-full capitalize">
+            <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide bg-fo-accent/15 text-fo-accent border border-fo-accent/30 px-2 py-0.5 rounded-full capitalize">
               {group.type}
             </span>
-            <span className="text-[10px] text-[#8C8070] flex items-center gap-1">
+            <span className="text-[10px] text-fo-subtle flex items-center gap-1">
               <Users size={11} /> {group.participantCount}/
               {group.maxParticipants}
             </span>
-            <span className="text-[10px] text-[#8C8070]">
+            <span className="text-[10px] text-fo-subtle">
               {onlineCount} online
             </span>
             <span
@@ -379,7 +380,7 @@ export default function WatchGroupRoom() {
               {connected ? "Connected" : "Reconnecting…"}
             </span>
           </div>
-          <h1 className="text-xl sm:text-2xl font-serif font-semibold text-[#E5E0D8] mt-1 truncate">
+          <h1 className="text-xl sm:text-2xl font-serif font-semibold text-fo-text mt-1 truncate">
             {group.name}
           </h1>
         </div>
@@ -388,7 +389,7 @@ export default function WatchGroupRoom() {
           <button
             type="button"
             onClick={() => setPanelOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border border-[#2A241E] text-[#A69B8D] hover:text-[#D4AF37] hover:border-[#D4AF37]/40"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border border-fo-border text-fo-muted hover:text-fo-accent hover:border-fo-accent/40"
           >
             <Users size={14} /> Members
           </button>
@@ -397,7 +398,7 @@ export default function WatchGroupRoom() {
               type="button"
               disabled={actionBusy}
               onClick={handleLeave}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border border-[#2A241E] text-[#A69B8D] hover:text-red-400 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border border-fo-border text-fo-muted hover:text-red-400 disabled:opacity-50"
             >
               Leave
             </button>
@@ -415,11 +416,11 @@ export default function WatchGroupRoom() {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 border border-[#2A241E] rounded-2xl bg-[#14100D] flex flex-col overflow-hidden">
-        <div className="px-4 py-2.5 border-b border-[#2A241E] flex items-center gap-2 text-xs text-[#A69B8D]">
-          <Radio size={14} className="text-[#D4AF37]" />
+      <div className="flex-1 min-h-0 border border-fo-border rounded-2xl bg-fo-surface flex flex-col overflow-hidden">
+        <div className="px-4 py-2.5 border-b border-fo-border flex items-center gap-2 text-xs text-fo-muted">
+          <Radio size={14} className="text-fo-accent" />
           Watch Group Chat
-          <MessageCircle size={12} className="ml-auto text-[#8C8070]" />
+          <MessageCircle size={12} className="ml-auto text-fo-subtle" />
           <span>{messages.length}</span>
         </div>
 
@@ -428,7 +429,7 @@ export default function WatchGroupRoom() {
           className="flex-1 overflow-y-auto px-4 py-3 space-y-3"
         >
           {messages.length === 0 ? (
-            <p className="text-center text-xs text-[#8C8070] py-10">
+            <p className="text-center text-xs text-fo-subtle py-10">
               No messages yet. Start the conversation.
             </p>
           ) : (
@@ -440,8 +441,8 @@ export default function WatchGroupRoom() {
                 <div
                   className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-[10px] font-bold border ${
                     isOwn(msg)
-                      ? "bg-[#D4AF37]/15 border-[#D4AF37]/40 text-[#D4AF37]"
-                      : "bg-[#1C1612] border-[#2A241E] text-[#A69B8D]"
+                      ? "bg-fo-accent/15 border-fo-accent/40 text-fo-accent"
+                      : "bg-fo-surface-hover border-fo-border text-fo-muted"
                   }`}
                 >
                   {(displayName(msg)[0] || "?").toUpperCase()}
@@ -449,12 +450,16 @@ export default function WatchGroupRoom() {
                 <div
                   className={`min-w-0 max-w-[80%] ${isOwn(msg) ? "text-right" : ""}`}
                 >
-                  <div className="flex items-center gap-2 mb-0.5 text-[10px] text-[#8C8070]">
-                    <span
-                      className={`font-medium ${isOwn(msg) ? "text-[#D4AF37]" : "text-[#A69B8D]"}`}
+                  <div className="flex items-center gap-2 mb-0.5 text-[10px] text-fo-subtle">
+                    <UserProfileLink
+                      author={msg.author}
+                      className={`font-medium hover:text-fo-accent transition-colors ${
+                        isOwn(msg) ? "text-fo-accent" : "text-fo-muted"
+                      }`}
+                      stopPropagation={false}
                     >
                       {displayName(msg)}
-                    </span>
+                    </UserProfileLink>
                     <span>
                       {msg.createdAt
                         ? new Date(msg.createdAt).toLocaleTimeString([], {
@@ -477,8 +482,8 @@ export default function WatchGroupRoom() {
                   <div
                     className={`inline-block text-left text-sm px-3 py-2 rounded-xl ${
                       isOwn(msg)
-                        ? "bg-[#D4AF37]/15 text-[#E5E0D8] border border-[#D4AF37]/25"
-                        : "bg-[#1C1612] text-[#E5E0D8] border border-[#2A241E]"
+                        ? "bg-fo-accent/15 text-fo-text border border-fo-accent/25"
+                        : "bg-fo-surface-hover text-fo-text border border-fo-border"
                     }`}
                   >
                     {msg.text}
@@ -491,7 +496,7 @@ export default function WatchGroupRoom() {
 
         <form
           onSubmit={handleSend}
-          className="p-3 border-t border-[#2A241E] flex items-center gap-2"
+          className="p-3 border-t border-fo-border flex items-center gap-2"
         >
           <input
             type="text"
@@ -500,12 +505,12 @@ export default function WatchGroupRoom() {
             disabled={sending}
             maxLength={1000}
             placeholder="Write a message…"
-            className="flex-1 bg-[#0D0A08] border border-[#2A241E] rounded-xl px-3 py-2.5 text-sm text-[#E5E0D8] focus:outline-none focus:border-[#D4AF37]/60 placeholder:text-[#8C8070] disabled:opacity-50"
+            className="flex-1 bg-[#0D0A08] border border-fo-border rounded-xl px-3 py-2.5 text-sm text-fo-text focus:outline-none focus:border-fo-accent/60 placeholder:text-fo-subtle disabled:opacity-50"
           />
           <button
             type="submit"
             disabled={sending || !text.trim()}
-            className="shrink-0 w-10 h-10 rounded-xl bg-[#D4AF37] text-black flex items-center justify-center hover:bg-[#e0c04a] disabled:opacity-40 disabled:cursor-not-allowed"
+            className="shrink-0 w-10 h-10 rounded-xl bg-fo-accent text-black flex items-center justify-center hover:bg-fo-accent-hover disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {sending ? (
               <Loader2 size={16} className="animate-spin" />
@@ -522,15 +527,15 @@ export default function WatchGroupRoom() {
             className="absolute inset-0 bg-black/60"
             onClick={() => setPanelOpen(false)}
           />
-          <aside className="relative w-full max-w-sm bg-[#14100D] border-l border-[#2A241E] h-full overflow-y-auto p-4 space-y-4 z-10">
+          <aside className="relative w-full max-w-sm bg-fo-surface border-l border-fo-border h-full overflow-y-auto p-4 space-y-4 z-10">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-[#E5E0D8] flex items-center gap-2">
-                <Users size={16} className="text-[#D4AF37]" /> Participants
+              <h2 className="text-sm font-semibold text-fo-text flex items-center gap-2">
+                <Users size={16} className="text-fo-accent" /> Participants
               </h2>
               <button
                 type="button"
                 onClick={() => setPanelOpen(false)}
-                className="p-1 text-[#A69B8D] hover:text-[#E5E0D8]"
+                className="p-1 text-fo-muted hover:text-fo-text"
               >
                 <X size={16} />
               </button>
@@ -543,12 +548,12 @@ export default function WatchGroupRoom() {
                   value={inviteUsername}
                   onChange={(e) => setInviteUsername(e.target.value)}
                   placeholder="Invite by username"
-                  className="flex-1 bg-[#0D0A08] border border-[#2A241E] rounded-lg px-3 py-2 text-xs text-[#E5E0D8] focus:outline-none focus:border-[#D4AF37]/60 placeholder:text-[#8C8070]"
+                  className="flex-1 bg-[#0D0A08] border border-fo-border rounded-lg px-3 py-2 text-xs text-fo-text focus:outline-none focus:border-fo-accent/60 placeholder:text-fo-subtle"
                 />
                 <button
                   type="submit"
                   disabled={inviting || !inviteUsername.trim()}
-                  className="px-3 py-2 rounded-lg bg-[#D4AF37] text-black text-xs font-semibold disabled:opacity-50"
+                  className="px-3 py-2 rounded-lg bg-fo-accent text-black text-xs font-semibold disabled:opacity-50"
                 >
                   {inviting ? (
                     <Loader2 size={14} className="animate-spin" />
@@ -571,16 +576,22 @@ export default function WatchGroupRoom() {
                 return (
                   <div
                     key={p.id}
-                    className="flex items-center gap-2 p-2.5 rounded-xl border border-[#2A241E] bg-[#0D0A08]"
+                    className="flex items-center gap-2 p-2.5 rounded-xl border border-fo-border bg-[#0D0A08]"
                   >
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold border border-[#2A241E] text-[#A69B8D] shrink-0">
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold border border-fo-border text-fo-muted shrink-0">
                       {(name[0] || "?").toUpperCase()}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs text-[#E5E0D8] truncate">{name}</p>
-                      <p className="text-[10px] text-[#8C8070] capitalize flex items-center gap-1">
+                      <UserProfileLink
+                        author={p.user}
+                        className="text-xs text-fo-text truncate block hover:text-fo-accent transition-colors"
+                        stopPropagation={false}
+                      >
+                        {name}
+                      </UserProfileLink>
+                      <p className="text-[10px] text-fo-subtle capitalize flex items-center gap-1">
                         {p.role === "moderator" || p.role === "owner" ? (
-                          <Shield size={10} className="text-[#D4AF37]" />
+                          <Shield size={10} className="text-fo-accent" />
                         ) : null}
                         {p.role}
                       </p>
@@ -589,7 +600,7 @@ export default function WatchGroupRoom() {
                       <button
                         type="button"
                         onClick={() => handleRoleToggle(p)}
-                        className="text-[10px] text-[#D4AF37] hover:underline shrink-0"
+                        className="text-[10px] text-fo-accent hover:underline shrink-0"
                       >
                         {p.role === "moderator" ? "Demote" : "Make mod"}
                       </button>

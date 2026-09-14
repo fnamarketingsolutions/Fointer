@@ -7,9 +7,18 @@ import {
   markAllNotificationsRead,
   deleteNotification,
 } from "../controllers/notification.controller.js";
+import {
+  getPushConfig,
+  registerPushDevice,
+  unregisterPushDevice,
+} from "../controllers/push.controller.js";
 import { isAuthenticated } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
+
+router.get("/push/config", getPushConfig);
+router.post("/push/devices", isAuthenticated, registerPushDevice);
+router.delete("/push/devices", isAuthenticated, unregisterPushDevice);
 
 router.get("/", isAuthenticated, listNotifications);
 router.get("/unread-count", isAuthenticated, getUnreadCount);

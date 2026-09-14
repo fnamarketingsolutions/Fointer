@@ -84,5 +84,3 @@ export const fetchMyResharedPosts = async (params = {}) => {
   const response = await api.get('/posts/activity/reshares', { params });
   return response.data;
 };
-
-export { uploadMedia } from '../../../shared/services/uploadService';

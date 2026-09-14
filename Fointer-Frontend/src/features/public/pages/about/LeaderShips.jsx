@@ -50,16 +50,16 @@ const LeadershipCarousel = () => {
   };
 
   return (
-    <section className="bg-[#0E0C0A] text-white py-24 border-t border-amber-900/20 font-sans">
+    <section className="bg-fo-bg text-fo-text py-24 border-t border-fo-border font-sans">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Header with Navigation Controls */}
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-6">
           <div>
-            <p className="text-xs uppercase tracking-[0.25em] text-[#D4AF37] font-bold mb-2">
+            <p className="text-xs uppercase tracking-[0.25em] text-fo-accent font-bold mb-2">
               THE VISIONARIES
             </p>
-            <h2 className="text-3xl sm:text-5xl font-serif text-amber-50">
+            <h2 className="text-3xl sm:text-5xl font-serif text-fo-text">
               Leadership & Council
             </h2>
           </div>
@@ -67,14 +67,14 @@ const LeadershipCarousel = () => {
           <div className="flex items-center gap-3">
             <button
               onClick={() => scroll('left')}
-              className="p-3 rounded-full border border-white/10 bg-[#14100D] text-amber-50 hover:border-[#D4AF37] hover:text-[#D4AF37] transition-all"
+              className="p-3 rounded-full border border-fo-border bg-fo-surface text-fo-text hover:border-fo-accent hover:text-fo-accent transition-all"
               aria-label="Scroll Left"
             >
               <FiArrowLeft size={18} />
             </button>
             <button
               onClick={() => scroll('right')}
-              className="p-3 rounded-full border border-white/10 bg-[#14100D] text-amber-50 hover:border-[#D4AF37] hover:text-[#D4AF37] transition-all"
+              className="p-3 rounded-full border border-fo-border bg-fo-surface text-fo-text hover:border-fo-accent hover:text-fo-accent transition-all"
               aria-label="Scroll Right"
             >
               <FiArrowRight size={18} />
@@ -95,7 +95,7 @@ const LeadershipCarousel = () => {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5, delay: index * 0.1 }}
-              className="min-w-[280px] sm:min-w-[320px] max-w-[320px] bg-[#14100D]/80 border border-amber-900/20 rounded-2xl overflow-hidden group hover:border-[#D4AF37]/40 transition-all duration-300 flex-shrink-0"
+              className="min-w-[280px] sm:min-w-[320px] max-w-[320px] bg-fo-surface/80 border border-fo-border rounded-2xl overflow-hidden group hover:border-fo-accent/40 transition-all duration-300 flex-shrink-0"
             >
               {/* Leader Image */}
               <div className="relative h-80 w-full overflow-hidden">
@@ -104,14 +104,14 @@ const LeadershipCarousel = () => {
                   alt={leader.name}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#14100D] via-[#14100D]/20 to-transparent" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#14100D] via-fo-surface/20 to-transparent" />
                 
                 {/* Social Overlay */}
                 <div className="absolute top-4 right-4 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                  <a href="#" className="p-2.5 bg-[#0E0C0A]/80 backdrop-blur-md rounded-full text-amber-50 hover:text-[#D4AF37] border border-white/10">
+                  <a href="#" className="p-2.5 bg-fo-bg/80 backdrop-blur-md rounded-full text-fo-text hover:text-fo-accent border border-fo-border">
                     <FiLinkedin size={14} />
                   </a>
-                  <a href="#" className="p-2.5 bg-[#0E0C0A]/80 backdrop-blur-md rounded-full text-amber-50 hover:text-[#D4AF37] border border-white/10">
+                  <a href="#" className="p-2.5 bg-fo-bg/80 backdrop-blur-md rounded-full text-fo-text hover:text-fo-accent border border-fo-border">
                     <FiTwitter size={14} />
                   </a>
                 </div>
@@ -119,10 +119,10 @@ const LeadershipCarousel = () => {
 
               {/* Leader Details */}
               <div className="p-6">
-                <h3 className="text-xl font-serif text-amber-50 group-hover:text-[#D4AF37] transition-colors">
+                <h3 className="text-xl font-serif text-fo-text group-hover:text-fo-accent transition-colors">
                   {leader.name}
                 </h3>
-                <p className="text-xs text-gray-400 font-light mt-1.5 tracking-wide">
+                <p className="text-xs text-fo-subtle font-light mt-1.5 tracking-wide">
                   {leader.designation}
                 </p>
               </div>

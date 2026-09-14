@@ -1,22 +1,13 @@
 import React, { Suspense, lazy } from 'react';
-import { Routes, Route, Navigate, useParams, useSearchParams } from 'react-router-dom';
-import ProtectedRoute from '../../guards/ProtectedRoute';
-import RoleRoute from '../../guards/RoleRoute';
+import { Routes, Route } from 'react-router-dom';
 import PublicSiteLayout from '../../shared/layouts/PublicSiteLayout';
 import HomePage from '../../features/public/pages/home/HomePage';
 import { SITE_LINKS } from '../../shared/constants/siteLinks';
-import { useAuth } from '../../context/AuthContext';
 
 const SignUp = lazy(() => import('../../features/auth/components/SignUp'));
 const Login = lazy(() => import('../../features/auth/components/Login'));
 const Dashboard = lazy(() =>
   import('../../features/communities/pages/dashboard/Dashboard')
-);
-const AdminDashboard = lazy(() =>
-  import('../../features/admin/pages/AdminDashboard')
-);
-const PublicPostPage = lazy(() =>
-  import('../../features/posts/pages/public/PublicPostPage')
 );
 
 const AboutHero = lazy(() =>
@@ -63,19 +54,7 @@ const PUBLIC_PAGE_ELEMENTS = {
   'cookie-policy': <CookiePolicy />,
 };
 
-function LegacyFeedRedirect() {
-  const { postSlug } = useParams();
-  const [searchParams] = useSearchParams();
-  const q = searchParams.toString();
-  const base = postSlug ? `/post/${postSlug}` : '/';
-  return <Navigate to={`${base}${q ? `?${q}` : ''}`} replace />;
-}
-
 function RootHome() {
-  const { user } = useAuth();
-
-  if (user) return <Dashboard />;
-
   return (
     <PublicSiteLayout>
       <HomePage />
@@ -100,36 +79,6 @@ export default function AppRoutes() {
             />
           ))}
         </Route>
-
-        {/* Old dashboard URLs → public paths */}
-        {SITE_LINKS.map((link) => (
-          <Route
-            key={`legacy-${link.segment}`}
-            path={`/dashboard/${link.segment}`}
-            element={<Navigate to={link.to} replace />}
-          />
-        ))}
-
-        <Route path="/services" element={<Navigate to="/" replace />} />
-        <Route path="/posts/:postId" element={<PublicPostPage />} />
-
-        <Route path="/admin-check" element={<Navigate to="/admin" replace />} />
-
-        <Route
-          path="/admin/*"
-          element={
-            <ProtectedRoute>
-              <RoleRoute roles={['admin']}>
-                <AdminDashboard />
-              </RoleRoute>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/dashboard/postfeed/:postSlug?"
-          element={<LegacyFeedRedirect />}
-        />
 
         <Route path="/*" element={<Dashboard />} />
       </Routes>

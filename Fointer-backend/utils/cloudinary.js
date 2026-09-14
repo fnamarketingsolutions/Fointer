@@ -24,7 +24,7 @@ export const uploadToCloudinary = (buffer, options = {}) =>
   });
 
 /** Extract Cloudinary public_id from a secure_url / url. */
-export const publicIdFromUrl = (url) => {
+const publicIdFromUrl = (url) => {
   if (!url || typeof url !== "string") return null;
   try {
     const match = url.match(
@@ -76,7 +76,7 @@ export const signMedia = (userId, { url, publicId, type } = {}) => {
   return crypto.createHmac("sha256", secret).update(payload).digest("hex");
 };
 
-export const verifySignedMedia = (userId, item = {}, { expectedType } = {}) => {
+const verifySignedMedia = (userId, item = {}, { expectedType } = {}) => {
   const url = String(item.url || "").trim();
   const publicId = String(item.publicId || "").trim();
   const type = normalizeMediaType(item.type);
@@ -173,7 +173,7 @@ export const acceptSignedMediaList = (userId, inputs = [], previousItems = []) =
   return { ok: true, items };
 };
 
-export const destroyFromCloudinary = async (urlOrPublicId, options = {}) => {
+const destroyFromCloudinary = async (urlOrPublicId, options = {}) => {
   if (typeof urlOrPublicId === "string" && urlOrPublicId.includes("://")) {
     if (!isAllowedCloudinaryUrl(urlOrPublicId)) return null;
   }

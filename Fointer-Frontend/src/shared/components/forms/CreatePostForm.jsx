@@ -31,19 +31,19 @@ export default function CreatePostForm({
         type="button"
         disabled={saving}
         onClick={onCancel}
-        className="inline-flex items-center gap-1.5 text-xs text-[#A69B8D] hover:text-[#D4AF37] mb-4 disabled:opacity-50"
+        className="inline-flex items-center gap-1.5 text-xs text-fo-muted hover:text-fo-accent mb-4 disabled:opacity-50"
       >
         <ArrowLeft size={14} /> Cancel
       </button>
 
       <div className="space-y-1 mb-6">
-        <h1 className="text-xl sm:text-2xl font-semibold text-[#E5E0D8]">
+        <h1 className="text-xl sm:text-2xl font-semibold text-fo-text">
           Create post
         </h1>
         {communityLabel ? (
-          <p className="text-sm text-[#8C8070]">
+          <p className="text-sm text-fo-subtle">
             Posting to{" "}
-            <span className="text-[#D4AF37]">{communityLabel}</span>
+            <span className="text-fo-accent">{communityLabel}</span>
           </p>
         ) : null}
       </div>
@@ -51,13 +51,13 @@ export default function CreatePostForm({
       <form onSubmit={onSubmit} className="space-y-5">
         {showCommunitySelect ? (
           <div>
-            <label className="block text-[11px] uppercase tracking-wide text-[#8C8070] mb-1.5">
+            <label className="block text-[11px] uppercase tracking-wide text-fo-subtle mb-1.5">
               Community (optional)
             </label>
             <select
               value={communityId}
               onChange={(e) => onCommunityChange?.(e.target.value)}
-              className="w-full bg-[#0E0C0A] border border-[#2A241E] rounded-xl px-3 py-2.5 text-sm text-[#E5E0D8] focus:outline-none focus:border-[#D4AF37]/50"
+              className="w-full bg-fo-bg border border-fo-border rounded-xl px-3 py-2.5 text-sm text-fo-text focus:outline-none focus:border-fo-accent/50"
             >
               <option value="">No community</option>
               {communities.map((c) => (
@@ -70,7 +70,7 @@ export default function CreatePostForm({
         ) : null}
 
         <div>
-          <label className="block text-[11px] uppercase tracking-wide text-[#8C8070] mb-1.5">
+          <label className="block text-[11px] uppercase tracking-wide text-fo-subtle mb-1.5">
             Title
           </label>
           <input
@@ -80,12 +80,12 @@ export default function CreatePostForm({
             required
             maxLength={200}
             placeholder="Post title"
-            className="w-full bg-[#0E0C0A] border border-[#2A241E] rounded-xl px-3 py-3 text-sm text-[#E5E0D8] focus:outline-none focus:border-[#D4AF37]/50 placeholder:text-[#5C5348]"
+            className="w-full bg-fo-bg border border-fo-border rounded-xl px-3 py-3 text-sm text-fo-text focus:outline-none focus:border-fo-accent/50 placeholder:text-fo-subtle"
           />
         </div>
 
         <div>
-          <label className="block text-[11px] uppercase tracking-wide text-[#8C8070] mb-1.5">
+          <label className="block text-[11px] uppercase tracking-wide text-fo-subtle mb-1.5">
             Text
           </label>
           <textarea
@@ -93,7 +93,7 @@ export default function CreatePostForm({
             onChange={(e) => onTextChange(e.target.value)}
             rows={8}
             placeholder="Share something with the community…"
-            className="w-full bg-[#0E0C0A] border border-[#2A241E] rounded-xl px-3 py-3 text-sm text-[#E5E0D8] focus:outline-none focus:border-[#D4AF37]/50 placeholder:text-[#5C5348] resize-y min-h-[160px]"
+            className="w-full bg-fo-bg border border-fo-border rounded-xl px-3 py-3 text-sm text-fo-text focus:outline-none focus:border-fo-accent/50 placeholder:text-fo-subtle resize-y min-h-[160px]"
           />
         </div>
 
@@ -108,14 +108,14 @@ export default function CreatePostForm({
             type="button"
             disabled={saving}
             onClick={onCancel}
-            className="px-4 py-2.5 rounded-xl text-sm text-[#A69B8D] hover:text-[#E5E0D8] border border-[#2A241E] disabled:opacity-50"
+            className="px-4 py-2.5 rounded-xl text-sm text-fo-muted hover:text-fo-text border border-fo-border disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={saving}
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#D4AF37] hover:bg-[#e0c04a] text-black text-sm font-semibold disabled:opacity-50 min-w-[100px]"
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-fo-accent hover:bg-fo-accent-hover text-black text-sm font-semibold disabled:opacity-50 min-w-[100px]"
           >
             {saving ? (
               <>

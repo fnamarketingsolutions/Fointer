@@ -1,6 +1,6 @@
 import nodemailer from "nodemailer";
 
-export const createTransporter = () => {
+const createTransporter = () => {
   const host = process.env.SMTP_HOST;
   const port = Number(process.env.SMTP_PORT || 587);
   const user = process.env.SMTP_USER;
@@ -32,25 +32,52 @@ const escapeHtml = (value) =>
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 
-export const getRequestsActionUrl = () => {
-  const frontendUrl = String(process.env.FRONTEND_URL || "").replace(/\/$/, "");
-  return `${frontendUrl}/dashboard/requests`;
+const frontendBase = () =>
+  String(process.env.FRONTEND_URL || "").replace(/\/$/, "");
+
+const communityPathSegment = (community) => {
+  if (!community) return "";
+  if (typeof community === "object") {
+    return community.shortCode || community._id || community.id || "";
+  }
+  return String(community);
 };
 
-export const getSupportAdminUrl = () => {
-  const frontendUrl = String(process.env.FRONTEND_URL || "").replace(/\/$/, "");
-  return `${frontendUrl}/admin/support`;
+export const getCommunitiesInvitesUrl = () =>
+  `${frontendBase()}/communities?tab=invites`;
+
+export const getCommunitiesRequestsUrl = () =>
+  `${frontendBase()}/communities?tab=requests`;
+
+export const getCommunitiesUrl = (community) => {
+  const segment = communityPathSegment(community);
+  return segment
+    ? `${frontendBase()}/communities/${encodeURIComponent(segment)}`
+    : `${frontendBase()}/communities`;
 };
 
-export const getSupportUserUrl = () => {
-  const frontendUrl = String(process.env.FRONTEND_URL || "").replace(/\/$/, "");
-  return `${frontendUrl}/dashboard/support`;
+export const getManageCommunityIncomingUrl = (community) => {
+  const segment = communityPathSegment(community);
+  return segment
+    ? `${frontendBase()}/manage-community/${encodeURIComponent(segment)}?section=incoming`
+    : `${frontendBase()}/manage-community`;
 };
+
+export const getManageCommunityMembersUrl = (community) => {
+  const segment = communityPathSegment(community);
+  return segment
+    ? `${frontendBase()}/manage-community/${encodeURIComponent(segment)}?section=members`
+    : `${frontendBase()}/manage-community`;
+};
+
+const getSupportUserUrl = () => `${frontendBase()}/support`;
+
+const getSupportAdminUrl = () => `${frontendBase()}/admin/support`;
 
 /**
  * Shared dashboard notification email used by join-request and invite flows.
  */
-export const sendDashboardNotificationEmail = async ({
+const sendDashboardNotificationEmail = async ({
   to,
   subject,
   title,
@@ -68,7 +95,7 @@ export const sendDashboardNotificationEmail = async ({
   const safeGreeting = escapeHtml(greetingName) || "there";
   const safeTitle = escapeHtml(title);
   const safeSubject = subject;
-  const safeUrl = escapeHtml(actionUrl || getRequestsActionUrl());
+  const safeUrl = escapeHtml(actionUrl || getManageCommunityIncomingUrl());
   const safeCta = escapeHtml(ctaLabel);
 
   await transporter.sendMail({

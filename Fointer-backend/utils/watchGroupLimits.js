@@ -12,7 +12,7 @@ export const invalidateWatchGroupMaxCache = () => {
   cacheAt = 0;
 };
 
-export const clampWatchGroupCapacity = (value, maxAllowed = WATCH_GROUP_ABSOLUTE_MAX) => {
+const clampWatchGroupCapacity = (value, maxAllowed = WATCH_GROUP_ABSOLUTE_MAX) => {
   const n = Number(value);
   const cap = Math.min(
     WATCH_GROUP_ABSOLUTE_MAX,

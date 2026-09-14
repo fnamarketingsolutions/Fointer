@@ -13,18 +13,21 @@ const SYSTEM_TYPES = new Set([
   'member_banned',
   'member_unbanned',
   'support_ticket',
+  'user_warning',
 ]);
 
 const ADMIN_TYPES = new Set(['content_report', 'channel_request']);
 
-export const TYPE_LABELS = {
+const TYPE_LABELS = {
   content_report: 'Content report',
   channel_request: 'Channel request',
   support_ticket: 'Support',
+  user_warning: 'Account warning',
 };
 
 export const isSystemNotification = (type) => SYSTEM_TYPES.has(type);
 
+/** Admin-only notification types — filtered out of the member app inbox. */
 export const isAdminNotification = (type) => ADMIN_TYPES.has(type);
 
 export const notificationTypeLabel = (notification) => {
@@ -35,10 +38,9 @@ export const notificationTypeLabel = (notification) => {
 };
 
 /**
- * Platform-neutral notification → web path. Native apps should use
- * `type` + `entity` + `community` instead of this helper.
+ * Member-app notification → web path.
  */
-export const notificationPath = (notification, { isAdmin = false } = {}) => {
+export const notificationPath = (notification) => {
   const type = notification?.type;
   const community = notification?.community;
   const entity = notification?.entity;
@@ -48,19 +50,6 @@ export const notificationPath = (notification, { isAdmin = false } = {}) => {
   const managePath = community
     ? `/manage-community/${communitySegment(community) || community.id}`
     : '/manage-community';
-
-  const adminCommunityPath = community
-    ? `/admin/communities/${communitySegment(community) || community.id}`
-    : '/admin/communities';
-
-  if (isAdmin) {
-    if (type === 'channel_request' || type === 'support_ticket') {
-      return '/admin/support';
-    }
-    if (type === 'content_report') return '/admin/analytics';
-    if (community) return adminCommunityPath;
-    return '/admin';
-  }
 
   if (type === 'join_request') {
     return `${managePath}?section=incoming`;
@@ -99,6 +88,9 @@ export const notificationPath = (notification, { isAdmin = false } = {}) => {
   if (type === 'support_ticket') {
     return '/support';
   }
+  if (type === 'user_warning') {
+    return '/notifications';
+  }
   if (
     type === 'moderator_assigned' ||
     type === 'moderator_revoked' ||
@@ -107,6 +99,16 @@ export const notificationPath = (notification, { isAdmin = false } = {}) => {
     type === 'member_unbanned'
   ) {
     return communityPath || '/communities';
+  }
+  if (type === 'listing_inquiry') {
+    const listingPath = entity?.shortCode || entity?.targetId || entity?.id;
+    if (listingPath) return `/marketplace/${listingPath}`;
+    return '/marketplace/my-listings';
+  }
+  if (type === 'direct_message') {
+    const conversationId = entity?.id || entity?.targetId;
+    if (conversationId) return `/messages/${conversationId}`;
+    return '/messages';
   }
   return '/notifications';
 };

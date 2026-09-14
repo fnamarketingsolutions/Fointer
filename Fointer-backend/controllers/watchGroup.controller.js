@@ -8,6 +8,7 @@ import { resolveDocumentId } from "../utils/shortCode.js";
 import { sendServerError } from "../utils/safeError.js";
 import { respondIfBanned } from "../utils/bannedKeywords.js";
 import { getWatchGroupCreateLimits } from "../utils/watchGroupLimits.js";
+import { hasWatchGroupsAdminPower } from "../utils/adminAccess.js";
 
 const formatUser = (user) => {
   if (!user || typeof user !== "object" || !user._id) {
@@ -78,7 +79,7 @@ const getMembership = async (groupId, userId) =>
 
 export const getViewerRole = async (group, user) => {
   if (!user) return null;
-  if (user.role === "admin") return "admin";
+  if (hasWatchGroupsAdminPower(user)) return "admin";
   const membership = await getMembership(group._id, user._id);
   return membership?.role || null;
 };
@@ -90,20 +91,20 @@ export const userCanModerateWatchGroup = async (group, user) => {
 
 export const userCanDeleteWatchGroup = async (group, user) => {
   if (!user) return false;
-  if (user.role === "admin") return true;
+  if (hasWatchGroupsAdminPower(user)) return true;
   const role = await getViewerRole(group, user);
   return role === "owner";
 };
 
 export const userIsMember = async (group, user) => {
   if (!user) return false;
-  if (user.role === "admin") return true;
+  if (hasWatchGroupsAdminPower(user)) return true;
   return Boolean(await getMembership(group._id, user._id));
 };
 
 export const userCanAccessWatchGroup = async (group, user) => {
   if (!user) return false;
-  if (user.role === "admin") return true;
+  if (hasWatchGroupsAdminPower(user)) return true;
   if (group.type === "public") return true;
   return userIsMember(group, user);
 };
@@ -114,11 +115,10 @@ const countActiveParticipants = async (groupId) =>
 const attachMeta = async (group, user) => {
   const participantCount = await countActiveParticipants(group._id);
   const membership = user ? await getMembership(group._id, user._id) : null;
-  const viewerRole =
-    user?.role === "admin"
-      ? "admin"
-      : membership?.role || null;
-  const isMember = Boolean(membership) || user?.role === "admin";
+  const viewerRole = hasWatchGroupsAdminPower(user)
+    ? "admin"
+    : membership?.role || null;
+  const isMember = Boolean(membership) || hasWatchGroupsAdminPower(user);
   const canModerate = await userCanModerateWatchGroup(group, user);
   const canDelete = await userCanDeleteWatchGroup(group, user);
   const atCapacity = participantCount >= group.maxParticipants;
@@ -126,7 +126,7 @@ const attachMeta = async (group, user) => {
     Boolean(user) &&
     !membership &&
     !atCapacity &&
-    (group.type === "public" || user.role === "admin");
+    (group.type === "public" || hasWatchGroupsAdminPower(user));
 
   return formatWatchGroup(group, {
     participantCount,
@@ -150,8 +150,8 @@ export const listWatchGroups = async (req, res) => {
     }).select("group");
     const memberGroupIds = memberships.map((m) => m.group);
 
-    if (req.user.role === "admin") {
-      // admins see all
+    if (hasWatchGroupsAdminPower(req.user)) {
+      // Watch Groups admins see all
     } else {
       filter.$or = [
         { type: "public" },

@@ -23,6 +23,7 @@ import {
 } from "../../../../api/communities";
 import { COMMUNITY_TYPE_LABELS } from "../../../../shared/constants/community";
 import { useToast } from "../../../../shared/components/feedback/ToastContext";
+import UserProfileLink from "../../../../shared/components/UserProfileLink";
 import { communitySegment } from "../../../../shared/services/entityLinks";
 import { timeAgo } from "../../../../shared/utils/date";
 import { useAuth } from "../../../../context/AuthContext";
@@ -37,7 +38,7 @@ const TABS = [
 ];
 
 const STATUS_UI = {
-  pending: { label: "Pending", className: "text-[#D4AF37]", Icon: Clock },
+  pending: { label: "Pending", className: "text-fo-accent", Icon: Clock },
   approved: {
     label: "Accepted",
     className: "text-emerald-400",
@@ -59,13 +60,13 @@ function CommunityThumb({ community }) {
       <img
         src={community.coverImage}
         alt={name}
-        className="w-12 h-12 rounded-lg object-cover border border-[#2A241E] shrink-0"
+        className="w-12 h-12 rounded-lg object-cover border border-fo-border shrink-0"
       />
     );
   }
   return (
-    <div className="w-12 h-12 rounded-lg bg-[#1A1510] border border-[#2A241E] flex items-center justify-center shrink-0">
-      <span className="text-sm font-semibold text-[#D4AF37]/60">
+    <div className="w-12 h-12 rounded-lg bg-[#1A1510] border border-fo-border flex items-center justify-center shrink-0">
+      <span className="text-sm font-semibold text-fo-accent/60">
         {name.charAt(0).toUpperCase()}
       </span>
     </div>
@@ -88,8 +89,8 @@ function StatusText({ status }) {
 function ActionBtn({ onClick, disabled, tone = "ghost", children }) {
   const tones = {
     ghost:
-      "border border-[#2A241E] text-[#A69B8D] hover:text-[#E5E0D8] hover:border-[#D4AF37]/30",
-    primary: "bg-[#D4AF37] text-black font-semibold",
+      "border border-fo-border text-fo-muted hover:text-fo-text hover:border-fo-accent/30",
+    primary: "bg-fo-accent text-black font-semibold",
   };
   return (
     <button
@@ -277,10 +278,10 @@ export default function JoinedCommunities() {
     <div className="w-full max-w-3xl mx-auto space-y-5">
       <header className="flex items-start justify-between gap-3">
         <div className="space-y-1 min-w-0">
-          <h1 className="text-xl sm:text-2xl font-semibold text-[#E5E0D8]">
+          <h1 className="text-xl sm:text-2xl font-semibold text-fo-text">
             Communities
           </h1>
-          <p className="text-sm text-[#8C8070]">
+          <p className="text-sm text-fo-subtle">
             {isAuthenticated
               ? "Discover communities to join, plus your invites and requests."
               : "Browse public communities. Log in to join and participate."}
@@ -290,7 +291,7 @@ export default function JoinedCommunities() {
           type="button"
           onClick={load}
           disabled={loading}
-          className="p-2 rounded-lg border border-[#2A241E] text-[#A69B8D] hover:text-[#D4AF37] hover:border-[#D4AF37]/40 transition-colors disabled:opacity-50 shrink-0"
+          className="p-2 rounded-lg border border-fo-border text-fo-muted hover:text-fo-accent hover:border-fo-accent/40 transition-colors disabled:opacity-50 shrink-0"
           title="Refresh"
         >
           <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
@@ -298,7 +299,7 @@ export default function JoinedCommunities() {
       </header>
 
       {isAuthenticated ? (
-      <div className="flex gap-1 p-1 rounded-xl bg-[#0E0C0A] border border-[#2A241E] overflow-x-auto">
+      <div className="flex gap-1 p-1 rounded-xl bg-fo-bg border border-fo-border overflow-x-auto">
         {TABS.map((t) => {
           const active = tab === t.id;
           const count = tabCounts[t.id];
@@ -309,8 +310,8 @@ export default function JoinedCommunities() {
               onClick={() => setTab(t.id)}
               className={`flex-1 min-w-[4.5rem] py-2 px-3 rounded-lg text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap ${
                 active
-                  ? "bg-[#1A1510] text-[#D4AF37] border border-[#D4AF37]/35"
-                  : "text-[#8C8070] hover:text-[#E5E0D8] border border-transparent"
+                  ? "bg-[#1A1510] text-fo-accent border border-fo-accent/35"
+                  : "text-fo-subtle hover:text-fo-text border border-transparent"
               }`}
             >
               {t.label}
@@ -326,20 +327,20 @@ export default function JoinedCommunities() {
       <div className="relative">
         <Search
           size={14}
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8C8070] pointer-events-none"
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-fo-subtle pointer-events-none"
         />
         <input
           type="text"
           placeholder="Search by community name…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full bg-[#14100D] border border-[#2A241E] rounded-xl pl-9 pr-3 py-2.5 text-sm text-[#E5E0D8] placeholder:text-[#5C5348] focus:outline-none focus:border-[#D4AF37]/50"
+          className="w-full bg-fo-surface border border-fo-border rounded-xl pl-9 pr-3 py-2.5 text-sm text-fo-text placeholder:text-fo-subtle focus:outline-none focus:border-fo-accent/50"
         />
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center gap-2 py-14 text-sm text-[#A69B8D]">
-          <Loader2 size={16} className="animate-spin text-[#D4AF37]" />
+        <div className="flex items-center justify-center gap-2 py-14 text-sm text-fo-muted">
+          <Loader2 size={16} className="animate-spin text-fo-accent" />
           Loading…
         </div>
       ) : (
@@ -347,8 +348,8 @@ export default function JoinedCommunities() {
           {/* Discover */}
           {tab === "discover" &&
             (discover.length === 0 ? (
-              <div className="border border-dashed border-[#2A241E] rounded-xl py-14 text-center px-4 space-y-3">
-                <p className="text-sm text-[#8C8070]">
+              <div className="border border-dashed border-fo-border rounded-xl py-14 text-center px-4 space-y-3">
+                <p className="text-sm text-fo-subtle">
                   {isAuthenticated
                     ? "No more communities to discover right now. You’ve joined everything available, or none have been created yet."
                     : "No public communities to browse yet."}
@@ -357,14 +358,14 @@ export default function JoinedCommunities() {
                 <button
                   type="button"
                   onClick={() => setTab("joined")}
-                  className="inline-flex items-center gap-2 text-sm text-[#D4AF37] hover:text-[#e0c04a] font-medium"
+                  className="inline-flex items-center gap-2 text-sm text-fo-accent hover:text-fo-accent-hover font-medium"
                 >
                   View joined <ArrowRight size={14} />
                 </button>
                 ) : null}
               </div>
             ) : filteredDiscover.length === 0 ? (
-              <div className="border border-dashed border-[#2A241E] rounded-xl py-14 text-center text-sm text-[#8C8070]">
+              <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle">
                 No communities match your search.
               </div>
             ) : (
@@ -389,19 +390,19 @@ export default function JoinedCommunities() {
                           openCommunity(c);
                         }
                       }}
-                      className="group flex items-center gap-3 bg-[#14100D] border border-[#2A241E] hover:border-[#D4AF37]/35 rounded-xl p-3.5 sm:p-4 transition-colors cursor-pointer"
+                      className="group flex items-center gap-3 bg-fo-surface border border-fo-border hover:border-fo-accent/35 rounded-xl p-3.5 sm:p-4 transition-colors cursor-pointer"
                     >
                       <CommunityThumb community={c} />
                       <div className="min-w-0 flex-1 space-y-1">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <h2 className="text-sm font-semibold text-[#E5E0D8] group-hover:text-[#D4AF37] transition-colors truncate">
+                          <h2 className="text-sm font-semibold text-fo-text group-hover:text-fo-accent transition-colors truncate">
                             {c.name || "Community"}
                           </h2>
-                          <span className="text-[10px] text-[#8C8070]">
+                          <span className="text-[10px] text-fo-subtle">
                             {TYPE_LABELS[c.type] || c.type}
                           </span>
                         </div>
-                        <p className="text-[11px] text-[#8C8070] line-clamp-1">
+                        <p className="text-[11px] text-fo-subtle line-clamp-1">
                           {c.description ||
                             (typeof c.memberCount === "number"
                               ? `${c.memberCount} members`
@@ -432,20 +433,20 @@ export default function JoinedCommunities() {
           {/* Joined */}
           {tab === "joined" &&
             (joined.length === 0 ? (
-              <div className="border border-dashed border-[#2A241E] rounded-xl py-14 text-center px-4 space-y-3">
-                <p className="text-sm text-[#8C8070]">
+              <div className="border border-dashed border-fo-border rounded-xl py-14 text-center px-4 space-y-3">
+                <p className="text-sm text-fo-subtle">
                   You haven’t joined any communities yet.
                 </p>
                 <button
                   type="button"
                   onClick={() => setTab("discover")}
-                  className="inline-flex items-center gap-2 text-sm text-[#D4AF37] hover:text-[#e0c04a] font-medium"
+                  className="inline-flex items-center gap-2 text-sm text-fo-accent hover:text-fo-accent-hover font-medium"
                 >
                   Discover communities <ArrowRight size={14} />
                 </button>
               </div>
             ) : filteredJoined.length === 0 ? (
-              <div className="border border-dashed border-[#2A241E] rounded-xl py-14 text-center text-sm text-[#8C8070]">
+              <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle">
                 No communities match your search.
               </div>
             ) : (
@@ -462,19 +463,19 @@ export default function JoinedCommunities() {
                         openCommunity(c);
                       }
                     }}
-                    className="group flex items-center gap-3 bg-[#14100D] border border-[#2A241E] hover:border-[#D4AF37]/35 rounded-xl p-3.5 sm:p-4 transition-colors cursor-pointer"
+                    className="group flex items-center gap-3 bg-fo-surface border border-fo-border hover:border-fo-accent/35 rounded-xl p-3.5 sm:p-4 transition-colors cursor-pointer"
                   >
                     <CommunityThumb community={c} />
                     <div className="min-w-0 flex-1 space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <h2 className="text-sm font-semibold text-[#E5E0D8] group-hover:text-[#D4AF37] transition-colors truncate">
+                        <h2 className="text-sm font-semibold text-fo-text group-hover:text-fo-accent transition-colors truncate">
                           {c.name || "Community"}
                         </h2>
-                        <span className="text-[10px] text-[#8C8070]">
+                        <span className="text-[10px] text-fo-subtle">
                           {TYPE_LABELS[c.type] || c.type}
                         </span>
                       </div>
-                      <p className="text-[11px] text-[#8C8070] flex items-center gap-2 flex-wrap">
+                      <p className="text-[11px] text-fo-subtle flex items-center gap-2 flex-wrap">
                         <span className="inline-flex items-center gap-1 capitalize">
                           <Users size={11} />
                           {c.membershipRole || "member"}
@@ -489,7 +490,7 @@ export default function JoinedCommunities() {
                     </div>
                     <ArrowRight
                       size={16}
-                      className="text-[#5C5348] group-hover:text-[#D4AF37] shrink-0 transition-colors"
+                      className="text-fo-subtle group-hover:text-fo-accent shrink-0 transition-colors"
                     />
                   </article>
                 ))}
@@ -499,7 +500,7 @@ export default function JoinedCommunities() {
           {/* Invites */}
           {tab === "invites" &&
             (filteredInvites.length === 0 ? (
-              <div className="border border-dashed border-[#2A241E] rounded-xl py-14 text-center text-sm text-[#8C8070]">
+              <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle">
                 {invites.length === 0
                   ? "No invites yet."
                   : "No invites match your search."}
@@ -517,7 +518,7 @@ export default function JoinedCommunities() {
                   return (
                     <article
                       key={invite.id}
-                      className="flex gap-3 bg-[#14100D] border border-[#2A241E] hover:border-[#D4AF37]/35 rounded-xl p-3.5 sm:p-4 transition-colors"
+                      className="flex gap-3 bg-fo-surface border border-fo-border hover:border-fo-accent/35 rounded-xl p-3.5 sm:p-4 transition-colors"
                     >
                       <button
                         type="button"
@@ -532,15 +533,21 @@ export default function JoinedCommunities() {
                         <CommunityThumb community={community} />
                         <div className="min-w-0 space-y-1">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <h3 className="text-sm font-semibold text-[#E5E0D8] truncate">
+                            <h3 className="text-sm font-semibold text-fo-text truncate">
                               {community.name || "Community"}
                             </h3>
-                            <span className="text-[10px] text-[#8C8070]">
+                            <span className="text-[10px] text-fo-subtle">
                               {TYPE_LABELS[community.type] || community.type}
                             </span>
                           </div>
-                          <p className="text-[11px] text-[#8C8070]">
-                            Invited by {inviterName}
+                          <p className="text-[11px] text-fo-subtle">
+                            Invited by{" "}
+                            <UserProfileLink
+                              author={invite.inviter}
+                              className="hover:text-fo-accent transition-colors"
+                            >
+                              {inviterName}
+                            </UserProfileLink>
                             {invite.createdAt
                               ? ` · ${timeAgo(invite.createdAt)}`
                               : ""}
@@ -581,7 +588,7 @@ export default function JoinedCommunities() {
           {/* My requests */}
           {tab === "requests" &&
             (filteredRequests.length === 0 ? (
-              <div className="border border-dashed border-[#2A241E] rounded-xl py-14 text-center text-sm text-[#8C8070]">
+              <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle">
                 {requests.length === 0
                   ? "You haven’t sent any join requests."
                   : "No requests match your search."}
@@ -598,7 +605,7 @@ export default function JoinedCommunities() {
                   return (
                     <article
                       key={req.id}
-                      className="flex gap-3 bg-[#14100D] border border-[#2A241E] hover:border-[#D4AF37]/35 rounded-xl p-3.5 sm:p-4 transition-colors"
+                      className="flex gap-3 bg-fo-surface border border-fo-border hover:border-fo-accent/35 rounded-xl p-3.5 sm:p-4 transition-colors"
                     >
                       <button
                         type="button"
@@ -608,21 +615,27 @@ export default function JoinedCommunities() {
                         <CommunityThumb community={community} />
                         <div className="min-w-0 space-y-1">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <h3 className="text-sm font-semibold text-[#E5E0D8] truncate">
+                            <h3 className="text-sm font-semibold text-fo-text truncate">
                               {community.name || "Community"}
                             </h3>
-                            <span className="text-[10px] text-[#8C8070]">
+                            <span className="text-[10px] text-fo-subtle">
                               {TYPE_LABELS[community.type] || community.type}
                             </span>
                           </div>
-                          <p className="text-[11px] text-[#8C8070]">
-                            Owner {ownerName}
+                          <p className="text-[11px] text-fo-subtle">
+                            Owner{" "}
+                            <UserProfileLink
+                              author={community.owner}
+                              className="hover:text-fo-accent transition-colors"
+                            >
+                              {ownerName}
+                            </UserProfileLink>
                             {req.createdAt
                               ? ` · ${timeAgo(req.createdAt)}`
                               : ""}
                           </p>
                           {req.message ? (
-                            <p className="text-xs text-[#A69B8D] line-clamp-2">
+                            <p className="text-xs text-fo-muted line-clamp-2">
                               “{req.message}”
                             </p>
                           ) : null}

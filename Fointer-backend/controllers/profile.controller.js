@@ -9,6 +9,9 @@ import {
 } from "../utils/cloudinary.js";
 import { sendServerError } from "../utils/safeError.js";
 import { respondIfBanned } from "../utils/bannedKeywords.js";
+import { PHONE_RE, parseOptionalYear } from "../utils/validate.js";
+import { getFollowCounts } from "../utils/followHelpers.js";
+import { computeAchievements } from "../utils/publicProfilePayload.js";
 
 const normalizeInterests = (interests) => {
   if (!interests) return [];
@@ -37,49 +40,15 @@ const formatProfileUser = (user) => ({
   status: user.status || "active",
   bio: user.bio || "",
   interests: user.interests || [],
+  city: user.city || "",
+  state: user.state || "",
+  country: user.country || "",
+  zipCode: user.zipCode || "",
+  phone: user.phone || "",
+  yearOfBirth: user.yearOfBirth ?? null,
   hasPassword: Boolean(user.password),
   createdAt: user.createdAt,
 });
-
-const computeAchievements = ({ ownedCount, joinedCount, postCount, isMod }) => {
-  const badges = [];
-  if (ownedCount > 0) {
-    badges.push({
-      id: "community_owner",
-      label: "Community Owner",
-      description: "Created or owns at least one community",
-    });
-  }
-  if (joinedCount > 0) {
-    badges.push({
-      id: "active_member",
-      label: "Active Member",
-      description: "Joined at least one community",
-    });
-  }
-  if (postCount > 0) {
-    badges.push({
-      id: "contributor",
-      label: "Contributor",
-      description: "Published at least one post",
-    });
-  }
-  if (isMod) {
-    badges.push({
-      id: "moderator",
-      label: "Moderator",
-      description: "Serves as a community moderator",
-    });
-  }
-  if (postCount >= 5) {
-    badges.push({
-      id: "elite_voice",
-      label: "Elite Voice",
-      description: "Shared 5 or more posts",
-    });
-  }
-  return badges;
-};
 
 export const getMyProfile = async (req, res) => {
   try {
@@ -127,6 +96,8 @@ export const getMyProfile = async (req, res) => {
       isMod,
     });
 
+    const followCounts = await getFollowCounts(user._id);
+
     return res.status(200).json({
       success: true,
       profile: {
@@ -158,6 +129,8 @@ export const getMyProfile = async (req, res) => {
           communitiesJoined: memberships.length,
           communitiesOwned: ownedCount,
           posts: postCount,
+          followers: followCounts.followers,
+          following: followCounts.following,
         },
       },
     });
@@ -236,13 +209,64 @@ export const updateMyProfile = async (req, res) => {
       user.avatar = acceptedAvatar.url;
     }
 
+    if (req.body.city !== undefined) {
+      user.city = String(req.body.city || "").trim().slice(0, 100);
+    }
+
+    if (req.body.state !== undefined) {
+      user.state = String(req.body.state || "").trim().slice(0, 100);
+    }
+
+    if (req.body.country !== undefined) {
+      user.country = String(req.body.country || "").trim().slice(0, 100);
+    }
+
+    if (req.body.zipCode !== undefined) {
+      user.zipCode = String(req.body.zipCode || "").trim().slice(0, 20);
+    }
+
+    if (req.body.phone !== undefined) {
+      const phone = String(req.body.phone || "").trim();
+      if (phone && !PHONE_RE.test(phone)) {
+        return res.status(400).json({
+          success: false,
+          message: "Enter a valid phone number.",
+        });
+      }
+      user.phone = phone.slice(0, 30);
+    }
+
+    if (req.body.yearOfBirth !== undefined) {
+      const year = parseOptionalYear(req.body.yearOfBirth);
+      if (Number.isNaN(year)) {
+        return res.status(400).json({
+          success: false,
+          message: "Year of birth must be a valid year.",
+        });
+      }
+      if (year !== null) {
+        const currentYear = new Date().getFullYear();
+        if (year < 1900 || year > currentYear) {
+          return res.status(400).json({
+            success: false,
+            message: `Year of birth must be between 1900 and ${currentYear}.`,
+          });
+        }
+      }
+      user.yearOfBirth = year;
+    }
+
     if (
       await respondIfBanned(
         res,
         req.body.name !== undefined ? user.name : undefined,
         req.body.username !== undefined ? user.username : undefined,
         req.body.bio !== undefined ? user.bio : undefined,
-        ...(req.body.interests !== undefined ? user.interests || [] : [])
+        ...(req.body.interests !== undefined ? user.interests || [] : []),
+        req.body.city !== undefined ? user.city : undefined,
+        req.body.state !== undefined ? user.state : undefined,
+        req.body.country !== undefined ? user.country : undefined,
+        req.body.zipCode !== undefined ? user.zipCode : undefined
       )
     ) {
       return;

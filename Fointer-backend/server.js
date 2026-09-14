@@ -19,9 +19,14 @@ import liveEventRoute from "./routes/liveEventRoute.js";
 import watchGroupRoute from "./routes/watchGroupRoute.js";
 import reportRoute from "./routes/reportRoute.js";
 import notificationRoute from "./routes/notificationRoute.js";
+import searchRoute from "./routes/searchRoute.js";
+import userRoute from "./routes/userRoute.js";
+import marketplaceRoute from "./routes/marketplaceRoute.js";
+import conversationRoute from "./routes/conversationRoute.js";
 import { initLiveSocket } from "./sockets/liveSocket.js";
 import { initWatchGroupSocket } from "./sockets/watchGroupSocket.js";
 import { initNotificationSocket } from "./sockets/notificationSocket.js";
+import { initDirectMessageSocket } from "./sockets/directMessageSocket.js";
 import { safeErrorMessage } from "./utils/safeError.js";
 import { getAllowedOrigins } from "./utils/allowedOrigins.js";
 import { csrfProtect } from "./middleware/csrf.middleware.js";
@@ -73,6 +78,7 @@ app.set("io", io);
 initLiveSocket(io);
 initWatchGroupSocket(io);
 initNotificationSocket(io);
+initDirectMessageSocket(io);
 
 app.use("/api/auth", authRoute);
 app.use("/api", dashboardRoute);
@@ -85,6 +91,10 @@ app.use("/api/live-events", liveEventRoute);
 app.use("/api/watch-groups", watchGroupRoute);
 app.use("/api/reports", reportRoute);
 app.use("/api/notifications", notificationRoute);
+app.use("/api/search", searchRoute);
+app.use("/api/users", userRoute);
+app.use("/api/marketplace", marketplaceRoute);
+app.use("/api/conversations", conversationRoute);
 
 // Multer / unexpected errors — never leak internals
 app.use((err, _req, res, _next) => {

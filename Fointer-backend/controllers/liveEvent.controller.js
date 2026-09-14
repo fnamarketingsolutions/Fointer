@@ -1,5 +1,6 @@
 import LiveEvent, {
   LIVE_EVENT_ACCESS,
+  LIVE_EVENT_CALL_MODES,
   LIVE_EVENT_CATEGORIES,
 } from "../models/liveEvent.js";
 import LiveMessage from "../models/liveMessage.js";
@@ -12,8 +13,10 @@ import {
   getActorCommunityRole,
   getEffectiveMemberRole,
 } from "../utils/communityPermissions.js";
+import { hasLiveEventsAdminPower } from "../utils/adminAccess.js";
 import { parseObjectIdInput, resolveDocumentId } from "../utils/shortCode.js";
 import { sendServerError } from "../utils/safeError.js";
+import { clearEventCall } from "../sockets/liveCallState.js";
 import { respondIfBanned } from "../utils/bannedKeywords.js";
 
 const formatUser = (user) => {
@@ -47,6 +50,7 @@ export const formatLiveEvent = (event, extras = {}) => ({
   category: event.category,
   customCategory: event.customCategory || "",
   access: event.access,
+  callMode: event.callMode || "chat",
   status: event.status,
   community: formatCommunity(event.community),
   host: formatUser(event.host),
@@ -80,7 +84,7 @@ export const findLiveEventByParam = async (param) => {
 
 export const userCanAccessLiveEvent = async (event, user) => {
   if (!user) return false;
-  if (user.role === "admin") return true;
+  if (hasLiveEventsAdminPower(user)) return true;
   if (event.access === "public") return true;
 
   const communityId = event.community?._id || event.community;
@@ -96,7 +100,7 @@ export const userCanModerateLiveEvent = async (event, user) => {
 
 export const userCanEndOrDeleteLiveEvent = async (event, user) => {
   if (!user) return false;
-  if (user.role === "admin") return true;
+  if (hasLiveEventsAdminPower(user)) return true;
 
   const community = event.community;
   if (community && canManageCommunity(community, user)) return true;
@@ -205,7 +209,10 @@ export const createLiveEvent = async (req, res) => {
     const access = String(req.body.access || "community")
       .toLowerCase()
       .trim();
-    const communityId = req.body.communityId;
+    const callMode = String(req.body.callMode || "chat")
+      .toLowerCase()
+      .trim();
+    const communityId = parseObjectIdInput(req.body.communityId);
 
     if (!title) {
       return res.status(400).json({
@@ -233,10 +240,16 @@ export const createLiveEvent = async (req, res) => {
         message: "Access must be public or community.",
       });
     }
+    if (!LIVE_EVENT_CALL_MODES.includes(callMode)) {
+      return res.status(400).json({
+        success: false,
+        message: "Call mode must be chat, audio, or video.",
+      });
+    }
     if (!communityId) {
       return res.status(400).json({
         success: false,
-        message: "Community is required.",
+        message: "Valid community id is required.",
       });
     }
 
@@ -261,6 +274,7 @@ export const createLiveEvent = async (req, res) => {
       category,
       customCategory: category === "custom" ? customCategory : "",
       access: access === "public" ? "public" : "community",
+      callMode,
       community: community._id,
       host: req.user._id,
       status: "live",
@@ -310,7 +324,9 @@ export const endLiveEvent = async (req, res) => {
     await event.save();
 
     const payload = await attachPermissions(event, req.user);
-    req.app.get("io")?.to(`live:${event._id}`).emit("event_ended", {
+    const io = req.app.get("io");
+    clearEventCall(io, event._id);
+    io?.to(`live:${event._id}`).emit("event_ended", {
       eventId: String(event._id),
       event: payload,
     });
@@ -347,7 +363,9 @@ export const deleteLiveEvent = async (req, res) => {
     await LiveMessage.deleteMany({ event: event._id });
     await event.deleteOne();
 
-    req.app.get("io")?.to(`live:${eventId}`).emit("event_deleted", {
+    const io = req.app.get("io");
+    clearEventCall(io, eventId);
+    io?.to(`live:${eventId}`).emit("event_deleted", {
       eventId,
     });
 
@@ -446,7 +464,7 @@ export const deleteLiveMessage = async (req, res) => {
 /** Communities where the user can start live commentary (owner/moderator). */
 export const listHostableCommunities = async (req, res) => {
   try {
-    if (req.user.role === "admin") {
+    if (hasLiveEventsAdminPower(req.user)) {
       const communities = await Community.find()
         .select("name shortCode coverImage")
         .sort({ name: 1 })

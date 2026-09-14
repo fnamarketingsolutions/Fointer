@@ -12,6 +12,8 @@ export const LIVE_EVENT_ACCESS = ["public", "community"];
 
 export const LIVE_EVENT_STATUS = ["live", "ended"];
 
+export const LIVE_EVENT_CALL_MODES = ["chat", "audio", "video"];
+
 const liveEventSchema = new mongoose.Schema(
   {
     shortCode: shortCodeField,
@@ -49,6 +51,11 @@ const liveEventSchema = new mongoose.Schema(
       ref: "User",
       required: true,
       index: true,
+    },
+    callMode: {
+      type: String,
+      enum: LIVE_EVENT_CALL_MODES,
+      default: "chat",
     },
     status: {
       type: String,

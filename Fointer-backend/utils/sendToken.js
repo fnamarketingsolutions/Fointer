@@ -3,9 +3,11 @@ import {
   AUTH_COOKIE_MAX_AGE_MS,
   getAuthCookieOptions,
 } from "./cookieOptions.js";
+import { getAdminAccessPayload } from "./adminAccess.js";
 
 const sendToken = (user, statusCode, res) => {
   const token = generateToken(user._id, user.role);
+  const adminAccess = getAdminAccessPayload(user);
 
   res.cookie("token", token, {
     ...getAuthCookieOptions(),
@@ -23,6 +25,8 @@ const sendToken = (user, statusCode, res) => {
       role: user.role,
       avatar: user.avatar,
       status: user.status || "active",
+      isSuperAdmin: adminAccess.isSuperAdmin,
+      adminTabs: adminAccess.adminTabs,
     },
   });
 };

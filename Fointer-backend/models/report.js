@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 
-export const REPORT_TARGET_TYPES = ["post", "comment"];
+export const REPORT_TARGET_TYPES = ["post", "comment", "listing", "conversation"];
 
 export const REPORT_REASONS = [
   "spam",
@@ -66,11 +66,34 @@ const reportSchema = new mongoose.Schema(
       },
       authorName: { type: String, default: "" },
       communityName: { type: String, default: "" },
-      postId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Post",
-        default: null,
-      },
+    postId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Post",
+      default: null,
+    },
+    listingPrice: { type: Number, default: null },
+    listingCurrency: { type: String, default: "" },
+    listingImageUrl: { type: String, default: "" },
+    conversationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Conversation",
+      default: null,
+    },
+    messages: {
+      type: [
+        {
+          authorId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+            default: null,
+          },
+          authorName: { type: String, default: "" },
+          text: { type: String, default: "" },
+          createdAt: { type: Date, default: null },
+        },
+      ],
+      default: [],
+    },
     },
     reviewedBy: {
       type: mongoose.Schema.Types.ObjectId,

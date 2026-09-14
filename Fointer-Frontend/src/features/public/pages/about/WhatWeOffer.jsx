@@ -25,24 +25,24 @@ export default function WhatWeOffer() {
   ];
 
   return (
-    <section className="bg-[#0E0C0A] text-white py-20 border-t border-amber-900/20 font-sans relative overflow-hidden">
+    <section className="bg-fo-bg text-fo-text py-20 border-t border-fo-border font-sans relative overflow-hidden">
       
       {/* Background Glow Effect */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[#D4AF37]/5 rounded-full blur-[140px] pointer-events-none" />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-fo-accent/5 rounded-full blur-[140px] pointer-events-none" />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         
         {/* Header Block */}
         <div className="text-center max-w-3xl mx-auto space-y-4">
-          <span className="text-[11px] font-semibold tracking-[0.25em] text-[#D4AF37] uppercase px-3.5 py-1.5 rounded-full border border-[#D4AF37]/30 bg-[#14100D]/80 inline-block backdrop-blur-md">
+          <span className="text-[11px] font-semibold tracking-[0.25em] text-fo-accent uppercase px-3.5 py-1.5 rounded-full border border-fo-accent/30 bg-fo-surface/80 inline-block backdrop-blur-md">
             What We Offer
           </span>
           
-          <h2 className="text-3xl sm:text-5xl font-serif text-amber-50 leading-tight">
-            Designed to Connect, <span className="italic font-normal text-[#D4AF37]">Built to Inspire</span>
+          <h2 className="text-3xl sm:text-5xl font-serif text-fo-text leading-tight">
+            Designed to Connect, <span className="italic font-normal text-fo-accent">Built to Inspire</span>
           </h2>
           
-          <p className="text-gray-300 text-sm sm:text-base md:text-lg font-light leading-relaxed pt-2">
+          <p className="text-fo-muted text-sm sm:text-base md:text-lg font-light leading-relaxed pt-2">
             Fointer hosts an expansive range of communities known as "interest groups," each dedicated to a specific theme or topic—from the arts and technology to health and personal development. Here’s what makes our platform stand out:
           </p>
         </div>
@@ -52,7 +52,7 @@ export default function WhatWeOffer() {
           {missionCards.map((card, index) => (
             <div 
               key={index} 
-              className="bg-[#14100D] rounded-lg overflow-hidden border border-white/5 flex flex-col transition-all duration-300 hover:border-white/20"
+              className="bg-fo-surface rounded-lg overflow-hidden border border-fo-border flex flex-col transition-all duration-300 hover:border-fo-border"
             >
               {/* Card Upper Image Header */}
               <div className="relative h-48 sm:h-52 w-full overflow-hidden bg-black/40">
@@ -68,13 +68,13 @@ export default function WhatWeOffer() {
                 <div>
                   {/* Title and Vertical Three-Dot Icon */}
                   <div className="flex items-start justify-between gap-2">
-                    <h3 className="text-xl font-serif text-[#D4AF37] leading-tight">
+                    <h3 className="text-xl font-serif text-fo-accent leading-tight">
                       {card.title}
                     </h3>
                     
                     <button 
                       aria-label="Options"
-                      className="text-gray-400 hover:text-white transition-colors p-1 -mr-1 rounded"
+                      className="text-fo-subtle hover:text-fo-text transition-colors p-1 -mr-1 rounded"
                     >
                       <svg 
                         className="w-5 h-5" 
@@ -87,7 +87,7 @@ export default function WhatWeOffer() {
                   </div>
 
                   {/* Card Description */}
-                  <p className="mt-4 text-xs sm:text-sm text-gray-400 font-light leading-relaxed">
+                  <p className="mt-4 text-xs sm:text-sm text-fo-subtle font-light leading-relaxed">
                     {card.description}
                   </p>
                 </div>

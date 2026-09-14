@@ -1,6 +1,10 @@
 import jwt from "jsonwebtoken";
 import User from "../models/user.js";
 import { getRequestToken } from "../utils/authToken.js";
+import {
+  canAccessAdminTab,
+  resolveIsSuperAdmin,
+} from "../utils/adminAccess.js";
 
 const normalizeRole = (role) =>
   String(role || "")
@@ -85,3 +89,47 @@ export const authorize = (...roles) => (req, res, next) => {
   }
   next();
 };
+
+/** Admin Management + promote/demote — super admins only. */
+export const requireSuperAdmin = (req, res, next) => {
+  if (!req.user || normalizeRole(req.user.role) !== "admin") {
+    return res.status(403).json({
+      success: false,
+      message: "Forbidden.",
+    });
+  }
+
+  if (!resolveIsSuperAdmin(req.user)) {
+    return res.status(403).json({
+      success: false,
+      message: "Super admin access required.",
+    });
+  }
+
+  next();
+};
+
+/**
+ * Gate an admin API to one or more panel tabs.
+ * Super admins always pass. Limited admins need at least one matching tab.
+ */
+export const requireAdminTab =
+  (...tabIds) =>
+  (req, res, next) => {
+    if (!req.user || normalizeRole(req.user.role) !== "admin") {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden.",
+      });
+    }
+
+    const allowed = tabIds.some((tabId) => canAccessAdminTab(req.user, tabId));
+    if (!allowed) {
+      return res.status(403).json({
+        success: false,
+        message: "You do not have access to this section.",
+      });
+    }
+
+    next();
+  };

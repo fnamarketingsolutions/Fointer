@@ -47,6 +47,24 @@ const withCallQuery = (path, action) => {
   return `${base}${join}callAction=${encodeURIComponent(action)}`;
 };
 
+/** Only allow same-origin relative paths (block absolute / protocol-relative URLs). */
+const safeNotificationUrl = (rawPath, action) => {
+  const withQuery = withCallQuery(rawPath || "/notifications", action);
+  try {
+    const url = new URL(withQuery, self.location.origin);
+    if (url.origin !== self.location.origin) {
+      return new URL("/notifications", self.location.origin).href;
+    }
+    // Reject attempts that used an absolute URL string resolved against origin oddly
+    if (/^https?:\/\//i.test(String(rawPath || "")) || String(rawPath || "").startsWith("//")) {
+      return new URL("/notifications", self.location.origin).href;
+    }
+    return url.href;
+  } catch {
+    return new URL("/notifications", self.location.origin).href;
+  }
+};
+
 const showCallOrDefaultNotification = (payload) => {
   const data = payload?.data || {};
   const title = payload?.notification?.title || data.title || "Fointer";
@@ -149,8 +167,7 @@ self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const data = event.notification?.data || {};
   const action = event.action || "open";
-  const path = withCallQuery(data.path || "/notifications", action);
-  const target = new URL(path, self.location.origin).href;
+  const target = safeNotificationUrl(data.path, action);
   event.waitUntil(
     clients
       .matchAll({ type: "window", includeUncontrolled: true })

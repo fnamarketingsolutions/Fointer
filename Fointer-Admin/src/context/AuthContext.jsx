@@ -35,6 +35,7 @@ export function AuthProvider({ children }) {
   const loginSuccess = useCallback((nextUser, accessToken) => {
     if (!isAdminUser(nextUser)) {
       clearAccessToken();
+      resetLiveSocket();
       setUser(null);
       return false;
     }
@@ -70,6 +71,7 @@ export function AuthProvider({ children }) {
           }
         }
         clearAccessToken();
+        resetLiveSocket();
         setUser((prev) => (prev ? null : prev));
       }
     } catch {
@@ -102,6 +104,7 @@ export function AuthProvider({ children }) {
             }
           }
           clearAccessToken();
+          resetLiveSocket();
           setUser(null);
         }
       } catch {

@@ -102,9 +102,46 @@ export const initLiveSocket = (io) => {
     };
 
     socket.on("call_sync", async (payload = {}, ack) => {
-      const eventId = await canonicalEventId(payload.eventId);
-      if (typeof ack === "function") {
-        ack({ success: true, peers: eventId ? callRoster(eventId) : [] });
+      try {
+        const eventIdParam = payload.eventId || joinedEventId;
+        if (!eventIdParam) {
+          if (typeof ack === "function") {
+            ack({ success: true, peers: [] });
+          }
+          return;
+        }
+
+        const event = await findLiveEventByParam(eventIdParam);
+        if (!event) {
+          if (typeof ack === "function") {
+            ack({ success: false, message: "Live event not found.", peers: [] });
+          }
+          return;
+        }
+
+        if (!(await userCanAccessLiveEvent(event, socket.user))) {
+          if (typeof ack === "function") {
+            ack({
+              success: false,
+              message: "You do not have access to this live event.",
+              peers: [],
+            });
+          }
+          return;
+        }
+
+        const eventId = String(event._id);
+        if (typeof ack === "function") {
+          ack({ success: true, peers: callRoster(eventId) });
+        }
+      } catch (error) {
+        if (typeof ack === "function") {
+          ack({
+            success: false,
+            message: error?.message || "Failed to sync call.",
+            peers: [],
+          });
+        }
       }
     });
 

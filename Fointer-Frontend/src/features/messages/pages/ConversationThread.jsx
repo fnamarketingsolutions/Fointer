@@ -4,6 +4,7 @@ import {
   LuArrowLeft as ArrowLeft,
   LuBan as Ban,
   LuCheck as Check,
+  LuEllipsisVertical as MoreVertical,
   LuFlag as Flag,
   LuImage as ImageIcon,
   LuLoaderCircle as Loader2,
@@ -37,6 +38,9 @@ import ReportContentModal from "../../../shared/components/modals/ReportContentM
 import MediaPicker from "../../../shared/components/media/MediaPicker";
 
 const DM_MEDIA_MAX = 4;
+
+const headerIconBtn =
+  "min-h-9 min-w-9 sm:min-h-10 sm:min-w-10 inline-flex items-center justify-center rounded-lg border border-fo-border text-fo-muted shrink-0 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40";
 
 function MessageMedia({ media = [], accent = false }) {
   if (!media?.length) return null;
@@ -91,8 +95,10 @@ export default function ConversationThread() {
   const [messageBusyId, setMessageBusyId] = useState(null);
   const [deletingConversation, setDeletingConversation] = useState(false);
   const [blockBusy, setBlockBusy] = useState(false);
+  const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const listRef = useRef(null);
   const directCallRef = useRef(null);
+  const headerMenuRef = useRef(null);
 
   const myId = String(user?.id || user?._id || "");
 
@@ -126,6 +132,17 @@ export default function ConversationThread() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!headerMenuOpen) return undefined;
+    const onPointerDown = (event) => {
+      if (!headerMenuRef.current?.contains(event.target)) {
+        setHeaderMenuOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [headerMenuOpen]);
 
   useEffect(() => {
     if (!conversationId || loading) return undefined;
@@ -387,12 +404,12 @@ export default function ConversationThread() {
   const messagingLocked = Boolean(conversation.isBlocked);
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-4 sm:py-6 flex flex-col h-[calc(100vh-8rem)]">
-      <div className="flex items-center gap-3 pb-4 border-b border-fo-border shrink-0">
+    <div className="w-full max-w-2xl mx-auto px-3 sm:px-4 py-3 sm:py-6 flex flex-col h-[calc(100dvh-7.5rem)] sm:h-[calc(100vh-8rem)] min-h-0">
+      <div className="flex items-center gap-2 sm:gap-3 pb-3 sm:pb-4 border-b border-fo-border shrink-0 min-w-0">
         <button
           type="button"
           onClick={() => navigate("/messages")}
-          className="min-h-10 min-w-10 inline-flex items-center justify-center rounded-lg text-fo-muted hover:text-fo-text hover:bg-fo-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40"
+          className="min-h-9 min-w-9 sm:min-h-10 sm:min-w-10 inline-flex items-center justify-center rounded-lg text-fo-muted hover:text-fo-text hover:bg-fo-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40 shrink-0"
           aria-label="Back to messages"
         >
           <ArrowLeft size={18} />
@@ -400,7 +417,7 @@ export default function ConversationThread() {
         <ProfileAvatar
           src={other.avatar}
           name={other.name || other.username}
-          className="w-10 h-10 rounded-full object-cover border border-fo-border shrink-0"
+          className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover border border-fo-border shrink-0"
         />
         <div className="min-w-0 flex-1">
           <UserProfileLink
@@ -411,63 +428,123 @@ export default function ConversationThread() {
           </UserProfileLink>
           <p className="text-xs text-fo-subtle truncate">@{other.username}</p>
         </div>
-        <button
-          type="button"
-          onClick={() => directCallRef.current?.start("audio")}
-          disabled={messagingLocked}
-          className="min-h-10 min-w-10 inline-flex items-center justify-center rounded-lg border border-fo-border text-fo-muted hover:text-fo-accent shrink-0 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40"
-          title="Audio call"
-          aria-label="Start audio call"
-        >
-          <Phone size={16} />
-        </button>
-        <button
-          type="button"
-          onClick={() => directCallRef.current?.start("video")}
-          disabled={messagingLocked}
-          className="min-h-10 min-w-10 inline-flex items-center justify-center rounded-lg border border-fo-border text-fo-muted hover:text-fo-accent shrink-0 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40"
-          title="Video call"
-          aria-label="Start video call"
-        >
-          <Video size={16} />
-        </button>
-        <button
-          type="button"
-          onClick={handleToggleBlock}
-          disabled={blockBusy || (messagingLocked && !conversation.blockedByMe)}
-          className="min-h-10 min-w-10 inline-flex items-center justify-center rounded-lg border border-fo-border text-fo-muted hover:text-red-400 shrink-0 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40"
-          title={conversation.blockedByMe ? "Unblock user" : "Block user"}
-          aria-label={conversation.blockedByMe ? "Unblock user" : "Block user"}
-        >
-          {blockBusy ? (
-            <Loader2 size={16} className="animate-spin" />
-          ) : (
-            <Ban size={16} />
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={handleDeleteConversation}
-          disabled={deletingConversation}
-          className="min-h-10 min-w-10 inline-flex items-center justify-center rounded-lg border border-fo-border text-fo-muted hover:text-red-400 shrink-0 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40"
-          title="Delete conversation"
-          aria-label="Delete conversation"
-        >
-          {deletingConversation ? (
-            <Loader2 size={16} className="animate-spin" />
-          ) : (
-            <Trash2 size={16} />
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={() => setReportOpen(true)}
-          className="min-h-10 min-w-10 inline-flex items-center justify-center rounded-lg border border-fo-border text-fo-muted hover:text-red-400 shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40"
-          title="Report conversation"
-          aria-label="Report conversation"
-        >
-          <Flag size={16} />
-        </button>
+
+        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => directCallRef.current?.start("audio")}
+            disabled={messagingLocked}
+            className={`${headerIconBtn} hover:text-fo-accent`}
+            title="Audio call"
+            aria-label="Start audio call"
+          >
+            <Phone size={16} />
+          </button>
+          <button
+            type="button"
+            onClick={() => directCallRef.current?.start("video")}
+            disabled={messagingLocked}
+            className={`${headerIconBtn} hover:text-fo-accent`}
+            title="Video call"
+            aria-label="Start video call"
+          >
+            <Video size={16} />
+          </button>
+
+          {/* Desktop: all moderation actions visible */}
+          <button
+            type="button"
+            onClick={handleToggleBlock}
+            disabled={blockBusy || (messagingLocked && !conversation.blockedByMe)}
+            className={`hidden sm:inline-flex ${headerIconBtn} hover:text-red-400`}
+            title={conversation.blockedByMe ? "Unblock user" : "Block user"}
+            aria-label={conversation.blockedByMe ? "Unblock user" : "Block user"}
+          >
+            {blockBusy ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              <Ban size={16} />
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={handleDeleteConversation}
+            disabled={deletingConversation}
+            className={`hidden sm:inline-flex ${headerIconBtn} hover:text-red-400`}
+            title="Delete conversation"
+            aria-label="Delete conversation"
+          >
+            {deletingConversation ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              <Trash2 size={16} />
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => setReportOpen(true)}
+            className={`hidden sm:inline-flex ${headerIconBtn} hover:text-red-400`}
+            title="Report conversation"
+            aria-label="Report conversation"
+          >
+            <Flag size={16} />
+          </button>
+
+          {/* Mobile: overflow menu for block / delete / report */}
+          <div className="relative sm:hidden" ref={headerMenuRef}>
+            <button
+              type="button"
+              onClick={() => setHeaderMenuOpen((v) => !v)}
+              className={`${headerIconBtn} hover:text-fo-text`}
+              title="More actions"
+              aria-label="More actions"
+              aria-expanded={headerMenuOpen}
+            >
+              <MoreVertical size={16} />
+            </button>
+            {headerMenuOpen ? (
+              <div className="absolute right-0 top-full mt-1.5 z-30 w-44 rounded-xl border border-fo-border bg-fo-surface shadow-lg py-1 overflow-hidden">
+                <button
+                  type="button"
+                  disabled={
+                    blockBusy || (messagingLocked && !conversation.blockedByMe)
+                  }
+                  onClick={() => {
+                    setHeaderMenuOpen(false);
+                    handleToggleBlock();
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2.5 text-left text-xs text-fo-text hover:bg-fo-surface-hover disabled:opacity-50"
+                >
+                  <Ban size={14} className="text-fo-muted" />
+                  {conversation.blockedByMe ? "Unblock user" : "Block user"}
+                </button>
+                <button
+                  type="button"
+                  disabled={deletingConversation}
+                  onClick={() => {
+                    setHeaderMenuOpen(false);
+                    handleDeleteConversation();
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2.5 text-left text-xs text-fo-text hover:bg-fo-surface-hover disabled:opacity-50"
+                >
+                  <Trash2 size={14} className="text-fo-muted" />
+                  Delete chat
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setHeaderMenuOpen(false);
+                    setReportOpen(true);
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2.5 text-left text-xs text-fo-text hover:bg-fo-surface-hover"
+                >
+                  <Flag size={14} className="text-fo-muted" />
+                  Report
+                </button>
+              </div>
+            ) : null}
+          </div>
+        </div>
       </div>
 
       {conversation.listing ? (
@@ -521,7 +598,7 @@ export default function ConversationThread() {
                 className={`flex ${isMine ? "justify-end" : "justify-start"}`}
               >
                 <div
-                  className={`max-w-[85%] space-y-2 ${
+                  className={`max-w-[min(85%,22rem)] sm:max-w-[85%] space-y-2 ${
                     isMine ? "items-end" : "items-start"
                   }`}
                 >
@@ -608,13 +685,14 @@ export default function ConversationThread() {
                       {message.editedAt ? " · edited" : ""}
                     </p>
                     {isMine && !message.isDeleted && !isEditing ? (
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-0.5">
                         <button
                           type="button"
                           onClick={() => startEdit(message)}
                           disabled={isBusy}
-                          className="p-1 rounded text-fo-subtle hover:text-fo-text disabled:opacity-50"
+                          className="min-h-8 min-w-8 inline-flex items-center justify-center rounded text-fo-subtle hover:text-fo-text disabled:opacity-50"
                           title="Edit message"
+                          aria-label="Edit message"
                         >
                           <Pencil size={12} />
                         </button>
@@ -622,8 +700,9 @@ export default function ConversationThread() {
                           type="button"
                           onClick={() => handleDeleteMessage(message)}
                           disabled={isBusy}
-                          className="p-1 rounded text-fo-subtle hover:text-red-400 disabled:opacity-50"
+                          className="min-h-8 min-w-8 inline-flex items-center justify-center rounded text-fo-subtle hover:text-red-400 disabled:opacity-50"
                           title="Delete message"
+                          aria-label="Delete message"
                         >
                           {isBusy ? (
                             <Loader2 size={12} className="animate-spin" />
@@ -655,7 +734,7 @@ export default function ConversationThread() {
               onError={(msg) => msg && showToast(msg)}
             />
           ) : null}
-          <div className="flex items-end gap-2">
+          <div className="flex items-end gap-1.5 sm:gap-2 min-w-0">
             <button
               type="button"
               onClick={() => setShowMediaPicker((v) => !v)}
@@ -674,7 +753,7 @@ export default function ConversationThread() {
               onChange={(e) => setText(e.target.value)}
               rows={1}
               placeholder="Write a message..."
-              className="flex-1 resize-none rounded-xl border border-fo-border bg-fo-bg px-4 py-2.5 text-sm text-fo-text max-h-32 focus:outline-none focus:border-fo-accent/50"
+              className="min-w-0 flex-1 resize-none rounded-xl border border-fo-border bg-fo-bg px-3 sm:px-4 py-2.5 text-sm text-fo-text max-h-32 focus:outline-none focus:border-fo-accent/50"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();

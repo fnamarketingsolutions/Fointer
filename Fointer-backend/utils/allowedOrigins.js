@@ -14,7 +14,6 @@ export const getAllowedOrigins = () => {
         envFrontendOrigin,
         envAdminOrigin,
         ...extra,
-        "https://fointer.vercel.app",
         !isProd ? "http://localhost:5173" : "",
         !isProd ? "http://localhost:5174" : "",
       ].filter(Boolean)

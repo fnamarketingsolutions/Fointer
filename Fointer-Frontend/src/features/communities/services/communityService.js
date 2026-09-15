@@ -46,17 +46,9 @@ export const inviteToCommunity = async (id, payload = {}) => {
 };
 
 export const lookupInviteUser = async (communityId, username) => {
-  const response = await api.get(`/communities/${communityId}/invite-user/lookup`, {
+  const response = await api.get(`/communities/${communityId}/invites/lookup`, {
     params: { username },
   });
-  return response.data;
-};
-
-export const inviteUserToCommunity = async (communityId, payload = {}) => {
-  const response = await api.post(
-    `/communities/${communityId}/invite-user`,
-    payload
-  );
   return response.data;
 };
 

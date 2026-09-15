@@ -2,6 +2,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { getMe, logoutUser } from '../api/auth';
 import { setUnauthorizedHandler } from '../shared/services/http/client';
+import { resetLiveSocket } from '../shared/services/liveSocket';
 
 const AuthContext = createContext(null);
 
@@ -13,11 +14,13 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   const clearUser = useCallback(() => {
+    resetLiveSocket();
     setUser(null);
   }, []);
 
   const loginSuccess = useCallback((nextUser) => {
     if (!isMemberUser(nextUser)) {
+      resetLiveSocket();
       setUser(null);
       return false;
     }
@@ -37,6 +40,7 @@ export function AuthProvider({ children }) {
     } catch {
       // Cookie may already be cleared; still drop local state.
     } finally {
+      resetLiveSocket();
       setUser(null);
     }
   }, []);
@@ -54,6 +58,7 @@ export function AuthProvider({ children }) {
             /* ignore */
           }
         }
+        resetLiveSocket();
         setUser((prev) => (prev ? null : prev));
       }
     } catch {
@@ -63,6 +68,7 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     setUnauthorizedHandler(() => {
+      resetLiveSocket();
       setUser((prev) => (prev ? null : prev));
     });
 
@@ -83,6 +89,7 @@ export function AuthProvider({ children }) {
               /* ignore */
             }
           }
+          resetLiveSocket();
           setUser(null);
         }
       } catch {

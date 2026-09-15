@@ -1,5 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { createContext, useCallback, useContext, useMemo, useState } from "react";
 import { fetchPublicSiteContact } from "../shared/services/siteContact";
 
 const EMPTY = { contactEmail: "", contactPhone: "", contactAddress: "" };
@@ -9,6 +8,10 @@ const SiteContactContext = createContext({
   refresh: () => {},
 });
 
+/**
+ * Holds public contact after an explicit refresh (e.g. System Settings save).
+ * No eager fetch on mount — Admin does not render contact UI.
+ */
 export function SiteContactProvider({ children }) {
   const [contact, setContact] = useState(EMPTY);
 
@@ -25,10 +28,6 @@ export function SiteContactProvider({ children }) {
     }
   }, []);
 
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
-
   const value = useMemo(
     () => ({ ...contact, refresh }),
     [contact, refresh]
@@ -43,39 +42,4 @@ export function SiteContactProvider({ children }) {
 
 export function useSiteContact() {
   return useContext(SiteContactContext);
-}
-
-const EMAIL_CLASS = "text-fo-brand font-mono hover:underline";
-
-export function SiteEmail({ className = EMAIL_CLASS }) {
-  const { contactEmail } = useSiteContact();
-  if (!contactEmail) {
-    return (
-      <Link to="/contact-us" className={className}>
-        Contact Us
-      </Link>
-    );
-  }
-  return (
-    <a href={`mailto:${contactEmail}`} className={className}>
-      {contactEmail}
-    </a>
-  );
-}
-
-export function SiteEmailPlain({ className = "text-xs text-fo-subtle font-mono" }) {
-  const { contactEmail } = useSiteContact();
-  if (!contactEmail) {
-    return (
-      <span className={className}>
-        Email Inquiry: see{" "}
-        <Link to="/contact-us" className="text-fo-brand hover:underline">
-          Contact Us
-        </Link>
-      </span>
-    );
-  }
-  return (
-    <span className={className}>Email Inquiry: {contactEmail}</span>
-  );
 }

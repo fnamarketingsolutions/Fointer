@@ -11,7 +11,6 @@ import {
   LuArrowRight as ArrowRight,
   LuHash as Hash,
   LuLoaderCircle as Loader2,
-  LuUsers as Users,
 } from "react-icons/lu";
 import {
   fetchPost,
@@ -26,15 +25,11 @@ import { fetchChannels } from "../../../../api/channels";
 import PostDetail from "../../../posts/pages/PostDetail";
 import { useAuth } from "../../../../context/AuthContext";
 import { useToast } from "../../../../shared/components/feedback/ToastContext";
+import FeedPostRow from "../../../../shared/components/FeedPostRow";
 import {
-  communitySegment,
   postSegment,
 } from "../../../../shared/services/entityLinks";
 import useEntityId from "../../../../shared/hooks/useEntityId";
-import { timeAgo } from "../../../../shared/utils/date";
-import PostMediaGallery from "../../../../shared/components/media/PostMediaGallery";
-import PostActions from "../../../../shared/components/PostActions";
-import UserProfileLink from "../../../../shared/components/UserProfileLink";
 import { EXPLORE_PATH, FEED_PATH } from "../../../../shared/constants/paths";
 import {
   CategoryList,
@@ -92,120 +87,6 @@ function FeedPostSkeleton() {
         <div className="h-3 w-10 rounded bg-fo-surface-hover" />
       </div>
     </div>
-  );
-}
-
-function FeedPostRow({
-  post,
-  onOpen,
-  active,
-  showCommunity,
-  onLike,
-  onReshare,
-  onComment,
-}) {
-  const authorName =
-    post?.author?.name || post?.author?.username || "Anonymous";
-  const communityName = post?.community?.name;
-  const communityTo = post?.community
-    ? `/communities/${communitySegment(post.community) || post.community.id}`
-    : null;
-  const media = post?.media || [];
-  const title = post?.title || "Untitled";
-
-  const activate = () => onOpen?.();
-
-  const onKeyDown = (e) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      activate();
-    }
-  };
-
-  return (
-    <article
-      role="link"
-      tabIndex={0}
-      onClick={activate}
-      onKeyDown={onKeyDown}
-      aria-label={`Open post: ${title}`}
-      className={`group bg-fo-surface border rounded-xl overflow-hidden cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40 ${
-        active
-          ? "border-fo-accent/50"
-          : "border-fo-border hover:border-fo-accent/35"
-      }`}
-    >
-      <div className="p-3 sm:p-4 space-y-1.5">
-        <div className="flex items-center gap-2 text-xs text-fo-subtle flex-wrap">
-          <UserProfileLink
-            author={post?.author}
-            className="font-semibold text-fo-muted hover:text-fo-accent transition-colors"
-          >
-            {authorName}
-          </UserProfileLink>
-          <span aria-hidden>·</span>
-          <span>{timeAgo(post?.createdAt)}</span>
-          {showCommunity && communityName ? (
-            <>
-              <span aria-hidden>·</span>
-              {communityTo ? (
-                <Link
-                  to={communityTo}
-                  onClick={(e) => e.stopPropagation()}
-                  className="inline-flex items-center gap-1 text-fo-accent/80 hover:text-fo-accent transition-colors"
-                >
-                  <Users size={10} aria-hidden />
-                  {communityName}
-                </Link>
-              ) : (
-                <span className="inline-flex items-center gap-1 text-fo-accent/80">
-                  <Users size={10} aria-hidden />
-                  {communityName}
-                </span>
-              )}
-            </>
-          ) : null}
-        </div>
-
-        <h3 className="text-sm sm:text-base font-semibold text-fo-text leading-snug group-hover:text-fo-accent transition-colors line-clamp-2">
-          {title}
-        </h3>
-
-        {post?.text ? (
-          <p className="text-xs sm:text-sm text-fo-muted line-clamp-2 leading-relaxed">
-            {post.text}
-          </p>
-        ) : null}
-      </div>
-
-      {media.length > 0 ? (
-        <div
-          className="bg-fo-surface-2 border-t border-fo-border"
-          onClick={(e) => e.stopPropagation()}
-          onKeyDown={(e) => e.stopPropagation()}
-        >
-          <PostMediaGallery
-            media={media}
-            counterOverlay={media.length > 1}
-            heightClass="h-56 sm:h-80"
-          />
-        </div>
-      ) : null}
-
-      <div
-        className="px-3 sm:px-4 py-2.5 border-t border-fo-border"
-        onClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => e.stopPropagation()}
-      >
-        <PostActions
-          post={post}
-          compact
-          onLike={onLike}
-          onReshare={onReshare}
-          onComment={onComment}
-        />
-      </div>
-    </article>
   );
 }
 
@@ -339,6 +220,7 @@ export default function DashboardFeed() {
   );
 
   useEffect(() => {
+    if (viewingPost) return;
     load({
       pageNum: 1,
       append: false,
@@ -346,9 +228,13 @@ export default function DashboardFeed() {
       feedMode: mode,
       channel: selectedChannel,
     });
-  }, [load, sortBy, mode, selectedChannel]);
+  }, [load, sortBy, mode, selectedChannel, viewingPost]);
 
   useEffect(() => {
+    if (viewingPost) {
+      setChannelsLoading(false);
+      return undefined;
+    }
     let cancelled = false;
     (async () => {
       setChannelsLoading(true);
@@ -366,9 +252,13 @@ export default function DashboardFeed() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [viewingPost]);
 
   useEffect(() => {
+    if (viewingPost) {
+      setOtherCommunitiesLoading(false);
+      return undefined;
+    }
     let cancelled = false;
     (async () => {
       setOtherCommunitiesLoading(true);
@@ -389,7 +279,7 @@ export default function DashboardFeed() {
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, viewingPost]);
 
   const openPost = (post) => {
     navigate(`${FEED_POST_PATH}/${postSegment(post)}${feedQueryString}`);
@@ -533,43 +423,16 @@ export default function DashboardFeed() {
 
   if (viewingPost) {
     return (
-      <div className="text-fo-text w-full max-w-6xl mx-auto pb-6 sm:pb-10">
-        <div className="flex items-center justify-between gap-3 mb-3">
-          <button
-            type="button"
-            onClick={closePost}
-            className="inline-flex items-center gap-2 min-h-10 px-1 text-sm text-fo-muted hover:text-fo-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40 rounded-lg"
-          >
-            <ArrowLeft size={16} /> Back to posts
-          </button>
-          {filterToggle}
-        </div>
-
-        {filtersOpen ? (
-          <div id={FILTERS_PANEL_ID} className="lg:hidden mb-3">
-            <CategoryList {...categoryProps} />
-          </div>
-        ) : null}
-
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px] gap-3 lg:gap-5 items-start">
-          <div className="min-w-0 space-y-3">
-            <div className="bg-fo-surface border border-fo-border rounded-xl overflow-hidden">
-              {postBody}
-            </div>
-            <div className="lg:hidden">
-              <OtherCommunitiesCard
-                communities={otherCommunities}
-                loading={otherCommunitiesLoading}
-              />
-            </div>
-            <div className="lg:hidden">
-              <FeedFooterRail isGuest={isGuest} />
-            </div>
-          </div>
-
-          <div className="hidden lg:block lg:sticky lg:top-4">
-            <FeedDesktopRail {...categoryProps} isGuest={isGuest} />
-          </div>
+      <div className="text-fo-text w-full max-w-3xl mx-auto pb-6 sm:pb-10">
+        <button
+          type="button"
+          onClick={closePost}
+          className="inline-flex items-center gap-2 min-h-10 px-1 mb-3 text-sm text-fo-muted hover:text-fo-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40 rounded-lg"
+        >
+          <ArrowLeft size={16} /> Back to posts
+        </button>
+        <div className="bg-fo-surface border border-fo-border rounded-xl overflow-hidden">
+          {postBody}
         </div>
       </div>
     );
@@ -724,6 +587,7 @@ export default function DashboardFeed() {
                   <FeedPostRow
                     key={post.id}
                     post={post}
+                    variant="card"
                     onOpen={() => openPost(post)}
                     showCommunity
                     onLike={() => handleLikePost(post)}

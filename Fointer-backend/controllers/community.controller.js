@@ -19,11 +19,13 @@ import {
   getEffectiveMemberRole,
   getBannedMembership,
   canManageCommunity,
+  canInviteToCommunity,
   canModerateCommunity,
   canViewCommunity,
   getActorCommunityRole,
   formatMember,
 } from "../utils/communityPermissions.js";
+import { escapeRegex } from "../utils/validate.js";
 import {
   parsePagination,
   resolveSort,
@@ -340,13 +342,6 @@ const findCommunitiesByMemberCount = async (filter, { skip = 0, limit }) => {
   );
 
   return { communities, countMap };
-};
-
-const canInviteToCommunity = async (community, user) => {
-  if (canManageCommunity(community, user)) return true;
-  const membership = await getMembership(community._id, user._id);
-  const role = getEffectiveMemberRole(membership);
-  return role === "owner" || role === "moderator";
 };
 
 const placeholderGrowthSeries = () =>
@@ -1408,6 +1403,66 @@ export const joinPublicCommunity = async (req, res) => {
   }
 };
 
+export const lookupInviteUser = async (req, res) => {
+  try {
+    const community = await getPopulatedCommunity(req.params.id);
+    if (!community) {
+      return res.status(404).json({
+        success: false,
+        message: "Community not found.",
+      });
+    }
+
+    if (!(await canInviteToCommunity(community, req.user))) {
+      return res.status(403).json({
+        success: false,
+        message: "Only owners and moderators can look up users to invite.",
+      });
+    }
+
+    if (!["private_request", "private_invite"].includes(community.type)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invites are only allowed for private communities.",
+      });
+    }
+
+    const query = String(req.query.username || req.query.q || "").trim();
+    if (!query) {
+      return res.status(400).json({
+        success: false,
+        message: "Provide a username to look up.",
+      });
+    }
+    if (query.length < 3) {
+      return res.status(400).json({
+        success: false,
+        message: "Type at least 3 characters.",
+      });
+    }
+
+    const user = await User.findOne({
+      username: new RegExp(`^${escapeRegex(query)}$`, "i"),
+    }).select("username name avatar");
+
+    return res.status(200).json({
+      success: true,
+      users: user
+        ? [
+            {
+              id: user._id,
+              username: user.username,
+              name: user.name || "",
+              avatar: user.avatar || "",
+            },
+          ]
+        : [],
+    });
+  } catch (error) {
+    return sendServerError(res, error);
+  }
+};
+
 export const createCommunityInvite = async (req, res) => {
   try {
     const community = await getPopulatedCommunity(req.params.id);
@@ -1433,23 +1488,19 @@ export const createCommunityInvite = async (req, res) => {
       });
     }
 
-    const identifier = String(
-      req.body?.username || req.body?.email || req.body?.identifier || ""
-    ).trim();
-
-    if (!identifier) {
-      return res.status(400).json({
-        success: false,
-        message: "Provide a username or email to invite.",
-      });
-    }
-
-    const invitee = await resolveInviteeUser({ identifier });
+    const invitee = await resolveInviteeUser({
+      userId: req.body?.userId,
+      username: req.body?.username,
+      email: req.body?.email,
+      identifier: String(
+        req.body?.identifier || req.body?.username || req.body?.email || ""
+      ).trim(),
+    });
 
     if (!invitee) {
       return res.status(404).json({
         success: false,
-        message: "No user found with that username or email.",
+        message: "No user found with that username.",
       });
     }
 

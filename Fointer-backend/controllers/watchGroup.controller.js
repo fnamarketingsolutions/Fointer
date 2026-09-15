@@ -170,12 +170,20 @@ export const listWatchGroups = async (req, res) => {
     const q = String(req.query.q || "").trim();
     const filter = {};
 
-    // Public groups + private groups the user belongs to or was invited to
     const memberships = await WatchGroupMember.find({
       user: req.user._id,
       status: { $in: ["active", "pending"] },
-    }).select("group");
-    const memberGroupIds = memberships.map((m) => m.group);
+    }).select("group role status");
+
+    const activeByGroup = new Map();
+    const pendingByGroup = new Map();
+    const memberGroupIds = [];
+    for (const row of memberships) {
+      const key = String(row.group);
+      memberGroupIds.push(row.group);
+      if (row.status === "active") activeByGroup.set(key, row);
+      else if (row.status === "pending") pendingByGroup.set(key, row);
+    }
 
     if (hasWatchGroupsAdminPower(req.user)) {
       // Watch Groups admins see all
@@ -199,11 +207,73 @@ export const listWatchGroups = async (req, res) => {
       .limit(100)
       .populate("owner", "username name avatar");
 
+    const groupIds = groups.map((g) => g._id);
+    const [activeCounts, seatCounts] = await Promise.all([
+      groupIds.length
+        ? WatchGroupMember.aggregate([
+            { $match: { group: { $in: groupIds }, status: "active" } },
+            { $group: { _id: "$group", count: { $sum: 1 } } },
+          ])
+        : [],
+      groupIds.length
+        ? WatchGroupMember.aggregate([
+            {
+              $match: {
+                group: { $in: groupIds },
+                status: { $in: ["active", "pending"] },
+              },
+            },
+            { $group: { _id: "$group", count: { $sum: 1 } } },
+          ])
+        : [],
+    ]);
+
+    const activeCountMap = new Map(
+      activeCounts.map((row) => [String(row._id), row.count])
+    );
+    const seatCountMap = new Map(
+      seatCounts.map((row) => [String(row._id), row.count])
+    );
+
+    const isAdmin = hasWatchGroupsAdminPower(req.user);
     const formatted = [];
     for (const group of groups) {
-      if (await userCanAccessWatchGroup(group, req.user)) {
-        formatted.push(await attachMeta(group, req.user));
-      }
+      const gid = String(group._id);
+      const membership = activeByGroup.get(gid) || null;
+      const pending = pendingByGroup.get(gid) || null;
+      const canAccess =
+        isAdmin ||
+        group.type === "public" ||
+        Boolean(membership) ||
+        Boolean(pending);
+      if (!canAccess) continue;
+
+      const viewerRole = isAdmin ? "admin" : membership?.role || null;
+      const isMember = Boolean(membership) || isAdmin;
+      const canModerate =
+        isAdmin || viewerRole === "owner" || viewerRole === "moderator";
+      const canDelete = isAdmin || viewerRole === "owner";
+      const participantCount = activeCountMap.get(gid) || 0;
+      const seatsTaken = seatCountMap.get(gid) || 0;
+      const atCapacity = seatsTaken >= group.maxParticipants;
+
+      formatted.push(
+        formatWatchGroup(group, {
+          participantCount,
+          viewerRole,
+          isMember,
+          hasPendingInvite: Boolean(pending),
+          inviteId: pending ? String(pending._id) : null,
+          canJoin:
+            Boolean(req.user) &&
+            !membership &&
+            !pending &&
+            !atCapacity &&
+            (group.type === "public" || isAdmin),
+          canModerate,
+          canDelete,
+        })
+      );
     }
 
     return res.json({
@@ -317,7 +387,7 @@ export const joinWatchGroup = async (req, res) => {
       });
     }
 
-    if (group.type === "private" && req.user.role !== "admin") {
+    if (group.type === "private" && !hasWatchGroupsAdminPower(req.user)) {
       return res.status(403).json({
         success: false,
         message: "Private groups require an invite from the owner or a moderator.",
@@ -467,9 +537,8 @@ export const listParticipants = async (req, res) => {
       });
     }
 
-    if (!(await userIsMember(group, req.user)) && req.user.role !== "admin") {
-      // Public groups: members-only for participant list once joined;
-      // allow access if user can see the group (public) for join preview
+    if (!(await userIsMember(group, req.user))) {
+      // Public groups: allow join-preview roster; private needs membership / tab power.
       if (!(await userCanAccessWatchGroup(group, req.user))) {
         return res.status(403).json({
           success: false,
@@ -542,7 +611,7 @@ export const removeParticipant = async (req, res) => {
       !wasPending &&
       membership.role === "moderator" &&
       actorRole === "moderator" &&
-      req.user.role !== "admin"
+      !hasWatchGroupsAdminPower(req.user)
     ) {
       return res.status(403).json({
         success: false,
@@ -887,7 +956,7 @@ export const listWatchMessages = async (req, res) => {
       });
     }
 
-    if (!(await userIsMember(group, req.user)) && req.user.role !== "admin") {
+    if (!(await userIsMember(group, req.user))) {
       return res.status(403).json({
         success: false,
         message: "Join the watch group to view chat.",

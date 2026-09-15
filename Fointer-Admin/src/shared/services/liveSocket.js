@@ -24,7 +24,10 @@ const resolveSocketUrl = () => {
  * and/or Bearer token in handshake.auth.
  */
 export const getLiveSocket = () => {
-  if (socket?.connected) return socket;
+  if (socket) {
+    if (!socket.connected) socket.connect();
+    return socket;
+  }
 
   const url = resolveSocketUrl();
   const token = getAccessToken();

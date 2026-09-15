@@ -12,8 +12,12 @@ import {
   canEngageInCommunity,
   getActorCommunityRole,
   getEffectiveMemberRole,
+  loadActiveMembershipMap,
 } from "../utils/communityPermissions.js";
-import { hasLiveEventsAdminPower } from "../utils/adminAccess.js";
+import {
+  hasLiveEventsAdminPower,
+  hasContentAdminPower,
+} from "../utils/adminAccess.js";
 import { parseObjectIdInput, resolveDocumentId } from "../utils/shortCode.js";
 import { sendServerError } from "../utils/safeError.js";
 import { clearEventCall } from "../sockets/liveCallState.js";
@@ -121,6 +125,43 @@ const attachPermissions = async (event, user, viewerCount = 0) => {
   });
 };
 
+const attachPermissionsCached = (event, user, membership) => {
+  const community = event.community;
+  let canModerate = false;
+  let canEnd = false;
+
+  if (hasLiveEventsAdminPower(user)) {
+    canEnd = true;
+  }
+
+  if (community) {
+    if (canManageCommunity(community, user)) {
+      canModerate = true;
+      canEnd = true;
+    } else {
+      const role = hasContentAdminPower(user)
+        ? "admin"
+        : getEffectiveMemberRole(membership);
+      if (role === "admin" || role === "owner" || role === "moderator") {
+        canModerate = true;
+        canEnd = true;
+      }
+    }
+  }
+
+  const hostId = event.host?._id || event.host;
+  if (hostId && String(hostId) === String(user._id)) {
+    canEnd = true;
+  }
+
+  return formatLiveEvent(event, {
+    viewerCount: 0,
+    canModerate,
+    canEnd,
+    canDelete: canEnd,
+  });
+};
+
 export const listLiveEvents = async (req, res) => {
   try {
     const status = String(req.query.status || "live").toLowerCase();
@@ -153,11 +194,25 @@ export const listLiveEvents = async (req, res) => {
       .populate("community", "name shortCode coverImage owner type")
       .populate("host", "username name avatar");
 
+    const communityIds = events.map((event) => event.community?._id || event.community);
+    const membershipMap = await loadActiveMembershipMap(
+      communityIds,
+      req.user._id
+    );
+    const isLiveAdmin = hasLiveEventsAdminPower(req.user);
+    const isContentAdmin = hasContentAdminPower(req.user);
+
     const accessible = [];
     for (const event of events) {
-      if (await userCanAccessLiveEvent(event, req.user)) {
-        accessible.push(await attachPermissions(event, req.user));
-      }
+      const cid = String(event.community?._id || event.community || "");
+      const membership = membershipMap.get(cid) || null;
+      const canAccess =
+        isLiveAdmin ||
+        event.access === "public" ||
+        isContentAdmin ||
+        Boolean(getEffectiveMemberRole(membership));
+      if (!canAccess) continue;
+      accessible.push(attachPermissionsCached(event, req.user, membership));
     }
 
     return res.json({

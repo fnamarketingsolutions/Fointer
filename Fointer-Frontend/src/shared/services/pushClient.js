@@ -2,6 +2,7 @@ import api from './http/client';
 
 const DEVICE_KEY = 'fointer-push-device-id';
 const TOKEN_KEY = 'fointer-push-token';
+const LAST_ERROR_KEY = 'fointer-push-last-error';
 
 let activeUserId = '';
 let syncing = null;
@@ -18,7 +19,7 @@ const deviceId = () => {
   }
 };
 
-const storedToken = () => {
+export const storedPushToken = () => {
   try {
     return localStorage.getItem(TOKEN_KEY) || '';
   } catch {
@@ -35,9 +36,50 @@ const rememberToken = (token) => {
   }
 };
 
+const rememberError = (reason, detail = '') => {
+  try {
+    sessionStorage.setItem(
+      LAST_ERROR_KEY,
+      JSON.stringify({ reason, detail: String(detail || ''), at: Date.now() })
+    );
+  } catch {
+    /* ignore */
+  }
+};
+
+export const getPushLastError = () => {
+  try {
+    const raw = sessionStorage.getItem(LAST_ERROR_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
+const waitForActiveRegistration = async (registration) => {
+  if (registration.active) return registration;
+  await navigator.serviceWorker.ready;
+  if (registration.active) return registration;
+
+  const pending = registration.installing || registration.waiting;
+  if (!pending) return registration;
+
+  await new Promise((resolve) => {
+    const done = () => {
+      if (registration.active || pending.state === 'activated' || pending.state === 'redundant') {
+        pending.removeEventListener('statechange', done);
+        resolve();
+      }
+    };
+    pending.addEventListener('statechange', done);
+    window.setTimeout(resolve, 5000);
+  });
+  return registration;
+};
+
 const waitForReady = (registration) =>
   new Promise((resolve) => {
-    const timeout = window.setTimeout(resolve, 4000);
+    const timeout = window.setTimeout(resolve, 5000);
     const onMessage = (event) => {
       if (event.data?.type !== 'FIREBASE_READY') return;
       window.clearTimeout(timeout);
@@ -45,12 +87,14 @@ const waitForReady = (registration) =>
       resolve();
     };
     navigator.serviceWorker.addEventListener('message', onMessage);
-    const worker = registration.active || registration.waiting || registration.installing;
-    worker?.postMessage({ type: 'PING' });
   });
 
 const postConfig = (registration, config) => {
-  const worker = registration.active || navigator.serviceWorker.controller;
+  const worker =
+    registration.active ||
+    registration.waiting ||
+    registration.installing ||
+    navigator.serviceWorker.controller;
   worker?.postMessage({ type: 'FIREBASE_CONFIG', config });
 };
 
@@ -59,7 +103,6 @@ const resolvePushConfigUrl = () => {
   if (base.startsWith('http')) {
     try {
       const url = new URL(base);
-      // VITE_BACKEND_URL is usually https://api.fointer.net/api
       const origin = url.origin;
       const prefix = url.pathname.replace(/\/$/, '') || '/api';
       return `${origin}${prefix}/notifications/push/config`;
@@ -71,7 +114,7 @@ const resolvePushConfigUrl = () => {
 };
 
 export const unregisterCurrentPush = async () => {
-  const token = storedToken();
+  const token = storedPushToken();
   activeUserId = '';
   rememberToken('');
   if (!token) return;
@@ -89,7 +132,11 @@ export const beginPushPermissionPrompt = () => {
   if (typeof window === 'undefined' || !('Notification' in window)) return;
   if (Notification.permission !== 'default') return;
   if (!permissionRequest) {
-    permissionRequest = Notification.requestPermission().catch(() => 'default');
+    permissionRequest = Notification.requestPermission()
+      .catch(() => 'default')
+      .finally(() => {
+        permissionRequest = null;
+      });
   }
 };
 
@@ -99,33 +146,92 @@ const waitForPushPermission = async () => {
   return Notification.permission;
 };
 
-export const syncPushRegistration = (userId) => {
+const fetchFcmToken = async (messaging, vapidKey, registration) => {
+  let lastError = null;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const token = await getTokenWithTimeout(messaging, vapidKey, registration, 15000);
+      if (token) return token;
+    } catch (error) {
+      lastError = error;
+      await new Promise((r) => window.setTimeout(r, 600 * (attempt + 1)));
+    }
+  }
+  if (lastError) throw lastError;
+  return '';
+};
+
+const getTokenWithTimeout = async (messaging, vapidKey, registration, ms) => {
+  const { getToken } = await import('firebase/messaging');
+  return Promise.race([
+    getToken(messaging, {
+      vapidKey,
+      serviceWorkerRegistration: registration,
+    }),
+    new Promise((_, reject) => {
+      window.setTimeout(() => reject(new Error('getToken_timeout')), ms);
+    }),
+  ]);
+};
+
+/**
+ * Register this browser for FCM web push and POST the token to the API.
+ * @param {string} userId
+ * @param {{ force?: boolean }} [options]
+ */
+export const syncPushRegistration = (userId, options = {}) => {
   const id = String(userId || '');
-  if (!id || activeUserId === id) return syncing || Promise.resolve();
+  const force = Boolean(options.force);
+
+  if (!id) return Promise.resolve({ ok: false, reason: 'no_user' });
+
+  if (force) {
+    activeUserId = '';
+  }
+
+  // Skip only when we already registered this session AND still have a local token.
+  if (!force && activeUserId === id && storedPushToken()) {
+    return syncing || Promise.resolve({ ok: true, reason: 'already_synced' });
+  }
+
   if (syncing) return syncing;
 
   syncing = (async () => {
-    if (!('Notification' in window) || !('serviceWorker' in navigator)) return;
+    if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+      rememberError('unsupported');
+      return { ok: false, reason: 'unsupported' };
+    }
+
     const permission = await waitForPushPermission();
-    if (permission !== 'granted') return;
+    if (permission !== 'granted') {
+      rememberError('permission', permission);
+      return { ok: false, reason: 'permission', permission };
+    }
 
     const { data } = await api.get('/notifications/push/config');
-    if (!data?.enabled || !data?.web?.apiKey || !data.web.vapidKey) return;
+    if (!data?.enabled || !data?.web?.apiKey || !data.web.vapidKey) {
+      rememberError('config_disabled');
+      return { ok: false, reason: 'config_disabled' };
+    }
 
     const { getApps, initializeApp } = await import('firebase/app');
-    const { getMessaging, getToken, isSupported } = await import('firebase/messaging');
-    if (!(await isSupported().catch(() => false))) return;
+    const { getMessaging, isSupported } = await import('firebase/messaging');
+    if (!(await isSupported().catch(() => false))) {
+      rememberError('not_supported');
+      return { ok: false, reason: 'not_supported' };
+    }
 
     let registration;
     try {
       registration = await navigator.serviceWorker.register('/push-sw.js', {
         scope: '/',
       });
-    } catch {
-      // Common on Vercel when Attack Challenge returns HTML instead of the SW script.
+      registration = await waitForActiveRegistration(registration);
+    } catch (error) {
+      rememberError('sw_register_failed', error?.message);
       return { ok: false, reason: 'sw_register_failed' };
     }
-    await navigator.serviceWorker.ready;
+
     postConfig(registration, {
       ...data.web,
       configUrl: resolvePushConfigUrl(),
@@ -146,16 +252,19 @@ export const syncPushRegistration = (userId) => {
     const messaging = getMessaging(app);
     let token;
     try {
-      token = await getToken(messaging, {
-        vapidKey: web.vapidKey,
-        serviceWorkerRegistration: registration,
-      });
-    } catch {
-      return { ok: false, reason: 'token_failed' };
+      token = await fetchFcmToken(messaging, web.vapidKey, registration);
+    } catch (error) {
+      rememberError('token_failed', error?.code || error?.message);
+      activeUserId = '';
+      return { ok: false, reason: 'token_failed', detail: error?.code || error?.message };
     }
-    if (!token) return { ok: false, reason: 'no_token' };
+    if (!token) {
+      rememberError('no_token');
+      activeUserId = '';
+      return { ok: false, reason: 'no_token' };
+    }
 
-    const previous = storedToken();
+    const previous = storedPushToken();
     if (previous && previous !== token) {
       try {
         await api.delete('/notifications/push/devices', { data: { token: previous } });
@@ -170,12 +279,18 @@ export const syncPushRegistration = (userId) => {
       deviceId: deviceId(),
     });
     rememberToken(token);
+    try {
+      sessionStorage.removeItem(LAST_ERROR_KEY);
+    } catch {
+      /* ignore */
+    }
     activeUserId = id;
     return { ok: true };
   })()
-    .catch(() => {
+    .catch((error) => {
       activeUserId = '';
-      return { ok: false, reason: 'failed' };
+      rememberError('failed', error?.message);
+      return { ok: false, reason: 'failed', detail: error?.message };
     })
     .finally(() => {
       syncing = null;

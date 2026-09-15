@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { LuBell as Bell } from 'react-icons/lu';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -9,6 +10,9 @@ const DISMISS_KEY = 'fointer-push-prompt-dismissed';
 
 export default function PushPermissionPrompt({ open, onClose }) {
   const { user } = useAuth();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
   if (!open || !user) return null;
 
   const dismiss = () => {
@@ -20,10 +24,26 @@ export default function PushPermissionPrompt({ open, onClose }) {
     onClose();
   };
 
-  const allow = () => {
+  const allow = async () => {
+    setError('');
+    setBusy(true);
     beginPushPermissionPrompt();
-    syncPushRegistration(user.id);
-    onClose();
+    try {
+      const result = await syncPushRegistration(user.id, { force: true });
+      if (result?.ok) {
+        onClose();
+        return;
+      }
+      if (result?.reason === 'permission') {
+        setError('Notifications are blocked for this site. Enable them in the browser address bar, then try again.');
+        return;
+      }
+      setError('Could not enable push on this browser. Refresh and try Allow again.');
+    } catch {
+      setError('Could not enable push on this browser. Refresh and try Allow again.');
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -44,22 +64,29 @@ export default function PushPermissionPrompt({ open, onClose }) {
             <p className="mt-1 text-sm text-fo-subtle">
               Get alerts for messages, comments and likes.
             </p>
+            {error ? (
+              <p className="mt-2 text-sm text-red-500" role="alert">
+                {error}
+              </p>
+            ) : null}
           </div>
         </div>
         <div className="mt-5 flex items-center justify-end gap-2">
           <button
             type="button"
             onClick={dismiss}
-            className="px-3 py-2 rounded-lg text-sm font-medium text-fo-muted hover:text-fo-text"
+            disabled={busy}
+            className="px-3 py-2 rounded-lg text-sm font-medium text-fo-muted hover:text-fo-text disabled:opacity-60"
           >
             Not now
           </button>
           <button
             type="button"
             onClick={allow}
-            className="px-4 py-2 rounded-lg bg-fo-accent text-black text-sm font-semibold hover:bg-fo-accent-hover"
+            disabled={busy}
+            className="px-4 py-2 rounded-lg bg-fo-accent text-black text-sm font-semibold hover:bg-fo-accent-hover disabled:opacity-60"
           >
-            Allow
+            {busy ? 'Enabling…' : 'Allow'}
           </button>
         </div>
       </div>

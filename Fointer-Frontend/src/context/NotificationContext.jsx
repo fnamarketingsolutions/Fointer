@@ -9,7 +9,10 @@ import {
 import { useAuth } from './AuthContext';
 import { fetchUnreadCount } from '../api/notifications';
 import { getLiveSocket } from '../shared/services/liveSocket';
-import { syncPushRegistration } from '../shared/services/pushClient';
+import {
+  storedPushToken,
+  syncPushRegistration,
+} from '../shared/services/pushClient';
 import PushPermissionPrompt, {
   wasPushPromptDismissed,
 } from '../shared/components/PushPermissionPrompt';
@@ -44,6 +47,18 @@ export function NotificationProvider({ children }) {
     setUnreadCount(Math.max(0, Number(value) || 0));
   }, []);
 
+  const ensurePush = useCallback(() => {
+    if (!user || typeof Notification === 'undefined') return;
+    if (Notification.permission === 'granted') {
+      const force = !storedPushToken();
+      syncPushRegistration(user.id, force ? { force: true } : undefined);
+      return;
+    }
+    if (Notification.permission === 'default' && !wasPushPromptDismissed()) {
+      setAskPush(true);
+    }
+  }, [user]);
+
   useEffect(() => {
     if (loading) return undefined;
     if (!user) {
@@ -52,20 +67,20 @@ export function NotificationProvider({ children }) {
       return undefined;
     }
     refreshUnread();
-    if (
-      typeof Notification !== 'undefined' &&
-      Notification.permission === 'granted'
-    ) {
-      syncPushRegistration(user.id);
-    } else if (
-      typeof Notification !== 'undefined' &&
-      Notification.permission === 'default' &&
-      !wasPushPromptDismissed()
-    ) {
-      setAskPush(true);
-    }
+    ensurePush();
     return undefined;
-  }, [loading, user, refreshUnread]);
+  }, [loading, user, refreshUnread, ensurePush]);
+
+  useEffect(() => {
+    if (!user || typeof Notification === 'undefined') return undefined;
+    const onFocus = () => {
+      if (Notification.permission === 'granted' && !storedPushToken()) {
+        syncPushRegistration(user.id, { force: true });
+      }
+    };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [user]);
 
   useEffect(() => {
     if (!user) return undefined;

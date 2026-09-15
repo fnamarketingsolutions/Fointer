@@ -16,6 +16,7 @@ import {
   createJoinRequest,
   joinPublicCommunity,
   createCommunityInvite,
+  lookupInviteUser,
   listMyInvites,
   acceptCommunityInvite,
   declineCommunityInvite,
@@ -37,7 +38,6 @@ import {
   optionalAuthenticate,
   requireAdminTab,
 } from "../middleware/auth.middleware.js";
-import inviteRoute from "./inviteRoute.js";
 
 const router = express.Router();
 
@@ -72,8 +72,8 @@ router.post("/:id/members/:memberId/unban", isAuthenticated, unbanMember);
 router.get("/:id/join-requests", isAuthenticated, listJoinRequests);
 router.post("/:id/join-requests", isAuthenticated, createJoinRequest);
 router.post("/:id/join", isAuthenticated, joinPublicCommunity);
+router.get("/:id/invites/lookup", isAuthenticated, lookupInviteUser);
 router.post("/:id/invites", isAuthenticated, createCommunityInvite);
-router.use("/:id/invite-user", inviteRoute);
 router.post(
   "/:id/join-requests/:requestId/approve",
   isAuthenticated,

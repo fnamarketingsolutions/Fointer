@@ -191,7 +191,7 @@ export const signup = async (req, res) => {
     if (usernameExists) {
       return res.status(400).json({
         success: false,
-        message: "Username already exists.",
+        message: "Unable to create account with those details.",
       });
     }
 
@@ -457,12 +457,21 @@ export const facebookLogin = async (req, res) => {
     }
 
     const normalizedEmail = String(email).toLowerCase();
-    let user = await User.findOne({
-      $or: [{ email: normalizedEmail }, { facebookId }],
-    });
+    let user = await User.findOne({ facebookId });
     let isNewUser = false;
 
     if (!user) {
+      const byEmail = await User.findOne({ email: normalizedEmail });
+      if (byEmail) {
+        // Do not auto-link Facebook onto an existing account (takeover risk).
+        return res.status(409).json({
+          success: false,
+          message:
+            "An account with this email already exists. Sign in with your password or Google instead.",
+          code: "ACCOUNT_EXISTS",
+        });
+      }
+
       const baseUsername = (name || "fb_user")
         .toLowerCase()
         .replace(/\s+/g, "")
@@ -480,9 +489,8 @@ export const facebookLogin = async (req, res) => {
         role: "user",
       });
       isNewUser = true;
-    } else if (!user.facebookId) {
-      user.facebookId = facebookId;
-      if (!user.avatar && avatar) user.avatar = avatar;
+    } else if (!user.avatar && avatar) {
+      user.avatar = avatar;
       await user.save();
     }
 
@@ -724,17 +732,15 @@ export const adminFacebookLogin = async (req, res) => {
       });
     }
 
-    const normalizedEmail = String(email).toLowerCase();
-    let user = await User.findOne({
-      $or: [{ email: normalizedEmail }, { facebookId }],
-    });
+    // Only match a pre-linked Facebook id — never auto-link by email (takeover risk).
+    let user = await User.findOne({ facebookId });
 
-    // Do not mutate non-admin accounts before portal role check.
     if (user && normalizeRole(user) === "admin") {
-      if (!user.facebookId) user.facebookId = facebookId;
       if (!user.avatar && avatar) user.avatar = avatar;
       if (name) user.name = name;
       await user.save();
+    } else {
+      user = null;
     }
 
     return finishAdminSocialLogin(res, user, { providerLabel: "Facebook" });
@@ -803,7 +809,13 @@ export const verifyEmailOtp = async (req, res) => {
       .update(String(otp).trim())
       .digest("hex");
 
-    if (hashedOtp !== user.emailVerificationOtp) {
+    const expected = String(user.emailVerificationOtp || "");
+    const left = Buffer.from(hashedOtp, "utf8");
+    const right = Buffer.from(expected, "utf8");
+    const otpMatches =
+      left.length === right.length && crypto.timingSafeEqual(left, right);
+
+    if (!otpMatches) {
       user.emailVerificationOtpAttempts =
         (user.emailVerificationOtpAttempts || 0) + 1;
       if (user.emailVerificationOtpAttempts >= MAX_OTP_ATTEMPTS) {

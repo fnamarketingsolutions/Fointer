@@ -94,6 +94,38 @@ export const canManageCommunity = (community, user) => {
   );
 };
 
+/** Owner, communities admin, or active moderator. */
+export const canInviteToCommunity = async (community, user) => {
+  if (!user) return false;
+  if (canManageCommunity(community, user)) return true;
+  const membership = await getMembership(community._id, user._id);
+  const role = getEffectiveMemberRole(membership);
+  return role === "owner" || role === "moderator";
+};
+
+/** One query for many communities (list endpoints). */
+export const loadActiveMembershipMap = async (communityIds, userId) => {
+  const ids = [
+    ...new Set(
+      (communityIds || [])
+        .map((id) => (id?._id ? id._id : id))
+        .filter(Boolean)
+        .map(String)
+    ),
+  ];
+  const map = new Map();
+  if (!ids.length || !userId) return map;
+  const rows = await CommunityMember.find({
+    community: { $in: ids },
+    user: userId,
+    status: "active",
+  });
+  for (const row of rows) {
+    map.set(String(row.community), row);
+  }
+  return map;
+};
+
 export const DISCOVERABLE_COMMUNITY_TYPES = ["public", "private_request"];
 
 export const isDiscoverableCommunityType = (type) =>

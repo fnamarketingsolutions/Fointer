@@ -359,7 +359,7 @@ export const createListing = async (req, res) => {
     }
     if (
       (cleanStatus === "removed" || cleanStatus === "hidden") &&
-      req.user?.role !== "admin"
+      !hasMarketplaceAdminPower(req.user)
     ) {
       return res.status(403).json({
         success: false,

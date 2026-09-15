@@ -35,10 +35,9 @@ import {
   postSegment,
 } from "../../../../shared/services/entityLinks";
 import { useAuth } from "../../../../context/AuthContext";
-import { timeAgo } from "../../../../shared/utils/date";
 import { formatCount } from "../../../../shared/utils/format";
 import { parseCommunityRules } from "../../../../shared/utils/community";
-import PostActions from "../../../../shared/components/PostActions";
+import FeedPostRow from "../../../../shared/components/FeedPostRow";
 import UserProfileLink from "../../../../shared/components/UserProfileLink";
 
 const PAGE_SIZE = 15;
@@ -55,66 +54,6 @@ const TYPE_ICONS = {
   private_invite: Lock,
   private_request: Lock,
 };
-
-function FeedPostRow({ post, onClick, active, onLike, onReshare, onComment }) {
-  const authorName =
-    post?.author?.name || post?.author?.username || "Anonymous";
-  const coverImage = post?.media?.find((m) => m.type === "image");
-
-  return (
-    <article
-      onClick={onClick}
-      className={`group flex gap-3 bg-fo-surface border rounded-xl overflow-hidden cursor-pointer transition-colors p-3 sm:p-4 ${
-        active
-          ? "border-fo-accent/50"
-          : "border-fo-border hover:border-fo-accent/35"
-      }`}
-    >
-      <div className="flex-1 min-w-0 space-y-2">
-        <div className="flex items-center gap-2 text-[11px] text-fo-subtle flex-wrap">
-          <UserProfileLink
-            author={post?.author}
-            className="font-semibold text-fo-muted hover:text-fo-accent transition-colors"
-          >
-            {authorName}
-          </UserProfileLink>
-          <span>·</span>
-          <span>{timeAgo(post?.createdAt)}</span>
-        </div>
-
-        <h2 className="text-sm sm:text-base font-semibold text-fo-text leading-snug group-hover:text-fo-accent transition-colors line-clamp-2">
-          {post?.title || "Untitled"}
-        </h2>
-
-        {post?.text ? (
-          <p className="text-xs sm:text-sm text-fo-muted line-clamp-2 leading-relaxed">
-            {post.text}
-          </p>
-        ) : null}
-
-        <div className="pt-1" onClick={(e) => e.stopPropagation()}>
-          <PostActions
-            post={post}
-            compact
-            onLike={onLike}
-            onReshare={onReshare}
-            onComment={onComment}
-          />
-        </div>
-      </div>
-
-      {coverImage ? (
-        <div className="hidden sm:block w-24 h-20 shrink-0 rounded-lg overflow-hidden bg-fo-surface-2 border border-fo-border">
-          <img
-            src={coverImage.url}
-            alt=""
-            className="w-full h-full object-cover"
-          />
-        </div>
-      ) : null}
-    </article>
-  );
-}
 
 function CommunitySidebar({
   community,
@@ -366,17 +305,28 @@ export default function CommunityFeed() {
   }, [communityId, loadCommunity]);
 
   useEffect(() => {
-    if (!communityId || !community?.isMember) {
+    if (!communityId || viewingPost) return;
+    if (!community?.isMember) {
       setPosts([]);
       setLoading(false);
       setHasMore(false);
       return;
     }
     loadPosts({ q: query, pageNum: 1, append: false, sort: sortBy });
-  }, [communityId, community?.isMember, query, sortBy, loadPosts]);
+  }, [
+    communityId,
+    community?.isMember,
+    query,
+    sortBy,
+    loadPosts,
+    viewingPost,
+  ]);
 
   useEffect(() => {
-    if (!isAuthenticated || !communityId) return;
+    if (viewingPost || !isAuthenticated || !communityId) {
+      if (viewingPost) setLiveLoading(false);
+      return undefined;
+    }
     let cancelled = false;
     (async () => {
       setLiveLoading(true);
@@ -395,12 +345,15 @@ export default function CommunityFeed() {
     return () => {
       cancelled = true;
     };
-  }, [communityId, isAuthenticated]);
+  }, [communityId, isAuthenticated, viewingPost]);
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      setWatchGroups([]);
-      setWatchLoading(false);
+    if (viewingPost || !isAuthenticated) {
+      if (viewingPost) setWatchLoading(false);
+      if (!isAuthenticated) {
+        setWatchGroups([]);
+        setWatchLoading(false);
+      }
       return undefined;
     }
     let cancelled = false;
@@ -424,7 +377,7 @@ export default function CommunityFeed() {
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, viewingPost]);
 
   const openPost = (post) => {
     navigate(`${basePath}/posts/${postSegment(post)}`);
@@ -612,6 +565,56 @@ export default function CommunityFeed() {
     />
   ) : null;
 
+  // Post detail: don't wait on community list/sidebar data — only resolve the post.
+  if (viewingPost) {
+    const backLabel = community?.name || "community";
+    return (
+      <div className="text-fo-text w-full max-w-3xl mx-auto px-2 sm:px-4 lg:px-6 pb-10">
+        <button
+          type="button"
+          onClick={closePost}
+          className="inline-flex items-center gap-1.5 text-xs text-fo-muted hover:text-fo-accent mb-4"
+        >
+          <ArrowLeft size={14} /> Back to {backLabel}
+        </button>
+
+        <div className="min-w-0 bg-fo-surface border border-fo-border rounded-xl overflow-hidden">
+          {resolvingPost ? (
+            <div className="flex items-center justify-center gap-2 py-20 text-sm text-fo-muted">
+              <Loader2 size={16} className="animate-spin text-fo-accent" />
+              Loading post…
+            </div>
+          ) : postNotFound || !openPostId ? (
+            <div className="border border-dashed border-fo-border rounded-xl m-4 py-14 text-center text-sm text-fo-subtle">
+              Post not found.
+            </div>
+          ) : (
+            <PostDetail
+              key={postSlug}
+              postId={openPostId}
+              embedded
+              compact={false}
+              fetchPostFn={fetchPost}
+              onBack={closePost}
+              onDeleted={() => {
+                closePost();
+                loadPosts({
+                  q: query,
+                  pageNum: 1,
+                  append: false,
+                  sort: sortBy,
+                });
+              }}
+              postPathBuilder={(post) =>
+                `${basePath}/posts/${postSegment(post)}`
+              }
+            />
+          )}
+        </div>
+      </div>
+    );
+  }
+
   if (resolvingCommunity || (communityLoading && !community)) {
     return (
       <div className="flex items-center justify-center py-16 text-fo-muted text-sm gap-2">
@@ -655,59 +658,6 @@ export default function CommunityFeed() {
           communityLabel={community.name}
           onError={showToast}
         />
-      </div>
-    );
-  }
-
-  if (viewingPost) {
-    return (
-      <div className="text-fo-text w-full max-w-6xl mx-auto px-2 sm:px-4 lg:px-6 pb-10">
-        <button
-          type="button"
-          onClick={closePost}
-          className="inline-flex items-center gap-1.5 text-xs text-fo-muted hover:text-fo-accent mb-4"
-        >
-          <ArrowLeft size={14} /> Back to {community.name}
-        </button>
-
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px] gap-5 items-start">
-          <div className="min-w-0 bg-fo-surface border border-fo-border rounded-xl overflow-hidden">
-            {resolvingPost ? (
-              <div className="flex items-center justify-center gap-2 py-20 text-sm text-fo-muted">
-                <Loader2 size={16} className="animate-spin text-fo-accent" />
-                Loading post…
-              </div>
-            ) : postNotFound || !openPostId ? (
-              <div className="border border-dashed border-fo-border rounded-xl m-4 py-14 text-center text-sm text-fo-subtle">
-                Post not found.
-              </div>
-            ) : (
-              <PostDetail
-                key={postSlug}
-                postId={openPostId}
-                embedded
-                compact={false}
-                fetchPostFn={fetchPost}
-                onBack={closePost}
-                onDeleted={() => {
-                  closePost();
-                  loadPosts({
-                    q: query,
-                    pageNum: 1,
-                    append: false,
-                    sort: sortBy,
-                  });
-                }}
-                postPathBuilder={(post) =>
-                  `${basePath}/posts/${postSegment(post)}`
-                }
-              />
-            )}
-          </div>
-          <div className="lg:sticky lg:top-4 space-y-4 order-first lg:order-none">
-            {sidebar}
-          </div>
-        </div>
       </div>
     );
   }
@@ -899,7 +849,8 @@ export default function CommunityFeed() {
                       <FeedPostRow
                         key={post.id}
                         post={post}
-                        onClick={() => openPost(post)}
+                        variant="row"
+                        onOpen={() => openPost(post)}
                         active={String(post.id) === String(openPostId)}
                         onLike={() => handleLikePost(post)}
                         onReshare={() => handleResharePost(post)}

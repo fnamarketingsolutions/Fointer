@@ -18,7 +18,6 @@ import {
 import {
   inviteToCommunity,
   lookupInviteUser,
-  inviteUserToCommunity,
   fetchCommunityMembers,
   assignModerator,
   revokeModerator,
@@ -35,7 +34,7 @@ import { COMMUNITY_TYPE_LABELS } from "../../../../shared/constants/community";
 import { formatLongDate, timeAgo } from "../../../../shared/utils/date";
 import { formatCount } from "../../../../shared/utils/format";
 import { parseCommunityRules } from "../../../../shared/utils/community";
-import PostActions from "../../../../shared/components/PostActions";
+import FeedPostRow from "../../../../shared/components/FeedPostRow";
 import UserProfileLink from "../../../../shared/components/UserProfileLink";
 import {
   communitySegment,
@@ -112,57 +111,6 @@ function RuleItem({ index, rule }) {
       </span>
       <span className="text-xs text-fo-muted leading-relaxed">{rule}</span>
     </li>
-  );
-}
-
-function FeedPostRow({ post, onOpen, onLike, onReshare, onComment }) {
-  const authorName = post?.author?.name || post?.author?.username || "Anonymous";
-  const coverImage = post?.media?.find((m) => m.type === "image");
-
-  return (
-    <article
-      onClick={() => onOpen(post)}
-      className="group flex gap-3 bg-fo-surface border border-fo-border hover:border-fo-accent/35 rounded-xl overflow-hidden cursor-pointer transition-colors p-3 sm:p-4"
-    >
-      <div className="flex-1 min-w-0 space-y-2">
-        <div className="flex items-center gap-2 text-[11px] text-fo-subtle flex-wrap">
-          <UserProfileLink
-            author={post?.author}
-            className="font-semibold text-fo-muted hover:text-fo-accent transition-colors"
-          >
-            {authorName}
-          </UserProfileLink>
-          <span>·</span>
-          <span>{timeAgo(post?.createdAt)}</span>
-        </div>
-        <h2 className="text-sm sm:text-base font-semibold text-fo-text leading-snug group-hover:text-fo-accent transition-colors line-clamp-2">
-          {post?.title || "Untitled"}
-        </h2>
-        {post?.text ? (
-          <p className="text-xs sm:text-sm text-fo-muted line-clamp-2 leading-relaxed">
-            {post.text}
-          </p>
-        ) : null}
-        <div className="pt-1" onClick={(e) => e.stopPropagation()}>
-          <PostActions
-            post={post}
-            compact
-            onLike={onLike}
-            onReshare={onReshare}
-            onComment={onComment}
-          />
-        </div>
-      </div>
-      {coverImage ? (
-        <div className="hidden sm:block w-24 h-20 shrink-0 rounded-lg overflow-hidden bg-fo-surface-2 border border-fo-border">
-          <img
-            src={coverImage.url}
-            alt=""
-            className="w-full h-full object-cover"
-          />
-        </div>
-      ) : null}
-    </article>
   );
 }
 
@@ -434,18 +382,11 @@ export default function CommunityDetail({
     }
     setInviteBusy(true);
     try {
-      if (selectedInviteUser) {
-        await inviteUserToCommunity(selectedId, {
-          userId: selectedInviteUser.id,
-          username: selectedInviteUser.username,
-          message: inviteNote.trim(),
-        });
-      } else {
-        await inviteToCommunity(selectedId, {
-          identifier: inviteIdentifier.trim(),
-          message: inviteNote.trim(),
-        });
-      }
+      await inviteToCommunity(selectedId, {
+        userId: selectedInviteUser?.id,
+        username: selectedInviteUser?.username || inviteIdentifier.trim(),
+        message: inviteNote.trim(),
+      });
       setInviteIdentifier("");
       setInviteNote("");
       setInviteLookupUsers([]);
@@ -956,6 +897,7 @@ export default function CommunityDetail({
                         <FeedPostRow
                           key={post.id}
                           post={post}
+                          variant="row"
                           onOpen={openPost}
                           onLike={() => handleToggleLike(post)}
                           onReshare={() => handleToggleReshare(post)}
@@ -1246,7 +1188,7 @@ export default function CommunityDetail({
                       Invite members
                     </h2>
                     <p className="text-xs text-fo-subtle">
-                      Search by username or email. Type at least 3 characters,
+                      Search by username. Type at least 3 characters,
                       then select a user to invite.
                     </p>
                   </div>
@@ -1260,7 +1202,7 @@ export default function CommunityDetail({
                           setInviteIdentifier(e.target.value);
                           setSelectedInviteUser(null);
                         }}
-                        placeholder="Username or email"
+                        placeholder="Username"
                         className="flex-1 bg-fo-surface border border-fo-border rounded-xl px-3 py-2.5 text-sm text-fo-text placeholder:text-fo-subtle focus:outline-none focus:border-fo-accent/50"
                       />
                       <button

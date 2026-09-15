@@ -4,21 +4,25 @@ importScripts("https://www.gstatic.com/firebasejs/11.10.0/firebase-messaging-com
 
 const CONFIG_CACHE = "fointer-push";
 const CONFIG_KEY = "/push-firebase-config.json";
-const CONFIG_URL = "/api/notifications/push/config";
+/** Fallback only — page should post FIREBASE_CONFIG from the API host. */
+const DEFAULT_CONFIG_URL = "/api/notifications/push/config";
 
 let messagingReady = null;
 let backgroundBound = false;
+let configUrlOverride = "";
 
 const readCachedConfig = async () => {
   const cache = await caches.open(CONFIG_CACHE);
   const cached = await cache.match(CONFIG_KEY);
   if (!cached) return null;
   const web = await cached.json();
+  if (web?.configUrl) configUrlOverride = web.configUrl;
   return web?.apiKey ? web : null;
 };
 
 const writeCachedConfig = async (web) => {
   if (!web?.apiKey) return;
+  if (web.configUrl) configUrlOverride = web.configUrl;
   const cache = await caches.open(CONFIG_CACHE);
   await cache.put(
     CONFIG_KEY,
@@ -32,12 +36,23 @@ const loadConfig = async (preferred) => {
   if (preferred?.apiKey) return preferred;
   const cached = await readCachedConfig();
   if (cached) return cached;
-  const response = await fetch(CONFIG_URL, { credentials: "same-origin" });
-  if (!response.ok) return null;
-  const data = await response.json();
-  if (!data?.enabled || !data.web?.apiKey) return null;
-  await writeCachedConfig(data.web);
-  return data.web;
+  const configUrl = configUrlOverride || DEFAULT_CONFIG_URL;
+  try {
+    const response = await fetch(configUrl, {
+      credentials: configUrl.startsWith("http") ? "include" : "same-origin",
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    if (!data?.enabled || !data.web?.apiKey) return null;
+    const web = {
+      ...data.web,
+      configUrl: configUrl.startsWith("http") ? configUrl : undefined,
+    };
+    await writeCachedConfig(web);
+    return web;
+  } catch {
+    return null;
+  }
 };
 
 const withCallQuery = (path, action) => {

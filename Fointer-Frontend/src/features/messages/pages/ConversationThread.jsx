@@ -40,7 +40,7 @@ import MediaPicker from "../../../shared/components/media/MediaPicker";
 const DM_MEDIA_MAX = 4;
 
 const headerIconBtn =
-  "min-h-9 min-w-9 sm:min-h-10 sm:min-w-10 inline-flex items-center justify-center rounded-lg border border-fo-border text-fo-muted shrink-0 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40";
+  "min-h-9 min-w-9 sm:min-h-10 sm:min-w-10 items-center justify-center rounded-lg border border-fo-border text-fo-muted shrink-0 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40";
 
 function MessageMedia({ media = [], accent = false }) {
   if (!media?.length) return null;
@@ -434,7 +434,7 @@ export default function ConversationThread() {
             type="button"
             onClick={() => directCallRef.current?.start("audio")}
             disabled={messagingLocked}
-            className={`${headerIconBtn} hover:text-fo-accent`}
+            className={`inline-flex ${headerIconBtn} hover:text-fo-accent`}
             title="Audio call"
             aria-label="Start audio call"
           >
@@ -444,14 +444,14 @@ export default function ConversationThread() {
             type="button"
             onClick={() => directCallRef.current?.start("video")}
             disabled={messagingLocked}
-            className={`${headerIconBtn} hover:text-fo-accent`}
+            className={`inline-flex ${headerIconBtn} hover:text-fo-accent`}
             title="Video call"
             aria-label="Start video call"
           >
             <Video size={16} />
           </button>
 
-          {/* Desktop: all moderation actions visible */}
+          {/* Desktop only — on mobile these live in the ⋯ menu */}
           <button
             type="button"
             onClick={handleToggleBlock}
@@ -495,7 +495,7 @@ export default function ConversationThread() {
             <button
               type="button"
               onClick={() => setHeaderMenuOpen((v) => !v)}
-              className={`${headerIconBtn} hover:text-fo-text`}
+              className={`inline-flex ${headerIconBtn} hover:text-fo-text`}
               title="More actions"
               aria-label="More actions"
               aria-expanded={headerMenuOpen}

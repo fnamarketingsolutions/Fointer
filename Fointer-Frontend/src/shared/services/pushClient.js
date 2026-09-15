@@ -54,6 +54,22 @@ const postConfig = (registration, config) => {
   worker?.postMessage({ type: 'FIREBASE_CONFIG', config });
 };
 
+const resolvePushConfigUrl = () => {
+  const base = String(import.meta.env.VITE_BACKEND_URL || '').trim();
+  if (base.startsWith('http')) {
+    try {
+      const url = new URL(base);
+      // VITE_BACKEND_URL is usually https://api.fointer.net/api
+      const origin = url.origin;
+      const prefix = url.pathname.replace(/\/$/, '') || '/api';
+      return `${origin}${prefix}/notifications/push/config`;
+    } catch {
+      /* fall through */
+    }
+  }
+  return `${window.location.origin}/api/notifications/push/config`;
+};
+
 export const unregisterCurrentPush = async () => {
   const token = storedToken();
   activeUserId = '';
@@ -100,11 +116,20 @@ export const syncPushRegistration = (userId) => {
     const { getMessaging, getToken, isSupported } = await import('firebase/messaging');
     if (!(await isSupported().catch(() => false))) return;
 
-    const registration = await navigator.serviceWorker.register('/push-sw.js', {
-      scope: '/',
-    });
+    let registration;
+    try {
+      registration = await navigator.serviceWorker.register('/push-sw.js', {
+        scope: '/',
+      });
+    } catch {
+      // Common on Vercel when Attack Challenge returns HTML instead of the SW script.
+      return { ok: false, reason: 'sw_register_failed' };
+    }
     await navigator.serviceWorker.ready;
-    postConfig(registration, data.web);
+    postConfig(registration, {
+      ...data.web,
+      configUrl: resolvePushConfigUrl(),
+    });
     await waitForReady(registration);
 
     const web = data.web;
@@ -119,11 +144,16 @@ export const syncPushRegistration = (userId) => {
         });
 
     const messaging = getMessaging(app);
-    const token = await getToken(messaging, {
-      vapidKey: web.vapidKey,
-      serviceWorkerRegistration: registration,
-    });
-    if (!token) return;
+    let token;
+    try {
+      token = await getToken(messaging, {
+        vapidKey: web.vapidKey,
+        serviceWorkerRegistration: registration,
+      });
+    } catch {
+      return { ok: false, reason: 'token_failed' };
+    }
+    if (!token) return { ok: false, reason: 'no_token' };
 
     const previous = storedToken();
     if (previous && previous !== token) {

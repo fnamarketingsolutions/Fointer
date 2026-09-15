@@ -14,6 +14,7 @@ const SYSTEM_TYPES = new Set([
   'member_unbanned',
   'support_ticket',
   'user_warning',
+  'watch_group_invite',
 ]);
 
 const ADMIN_TYPES = new Set(['content_report', 'channel_request']);
@@ -23,6 +24,7 @@ const TYPE_LABELS = {
   channel_request: 'Channel request',
   support_ticket: 'Support',
   user_warning: 'Account warning',
+  watch_group_invite: 'Watch group invite',
 };
 
 export const isSystemNotification = (type) => SYSTEM_TYPES.has(type);
@@ -105,10 +107,13 @@ export const notificationPath = (notification) => {
     if (listingPath) return `/marketplace/${listingPath}`;
     return '/marketplace/my-listings';
   }
-  if (type === 'direct_message') {
+  if (type === 'direct_message' || type === 'direct_call') {
     const conversationId = entity?.id || entity?.targetId;
     if (conversationId) return `/messages/${conversationId}`;
     return '/messages';
+  }
+  if (type === 'watch_group_invite') {
+    return '/watch-groups?tab=invites';
   }
   return '/notifications';
 };

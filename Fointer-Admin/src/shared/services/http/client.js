@@ -1,4 +1,9 @@
 import axios from 'axios';
+import {
+  clearAccessToken,
+  getAccessToken,
+  setAccessToken,
+} from './accessToken';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_BACKEND_URL || '/api',
@@ -13,6 +18,10 @@ api.interceptors.request.use((config) => {
   if (config.data instanceof FormData) {
     delete config.headers['Content-Type'];
   }
+  const token = getAccessToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
   return config;
 });
 
@@ -21,6 +30,8 @@ let unauthorizedHandler = null;
 export const setUnauthorizedHandler = (handler) => {
   unauthorizedHandler = handler;
 };
+
+export { setAccessToken, clearAccessToken, getAccessToken };
 
 api.interceptors.response.use(
   (response) => response,
@@ -35,8 +46,9 @@ api.interceptors.response.use(
       url.includes('/auth/admin/google') ||
       url.includes('/auth/admin/facebook');
 
-    if (status === 401 && !isAuthProbe && unauthorizedHandler) {
-      unauthorizedHandler();
+    if (status === 401 && !isAuthProbe) {
+      clearAccessToken();
+      if (unauthorizedHandler) unauthorizedHandler();
     }
 
     return Promise.reject(error);

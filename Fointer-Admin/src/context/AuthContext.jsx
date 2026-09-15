@@ -7,7 +7,12 @@ import React, {
   useState,
 } from 'react';
 import { getMe, logoutUser } from '../api/auth';
-import { setUnauthorizedHandler } from '../shared/services/http/client';
+import {
+  clearAccessToken,
+  setAccessToken,
+  setUnauthorizedHandler,
+} from '../shared/services/http/client';
+import { resetLiveSocket } from '../shared/services/liveSocket';
 import {
   canAccessAdminTab,
   getAdminTabs,
@@ -22,14 +27,19 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   const clearUser = useCallback(() => {
+    clearAccessToken();
+    resetLiveSocket();
     setUser(null);
   }, []);
 
-  const loginSuccess = useCallback((nextUser) => {
+  const loginSuccess = useCallback((nextUser, accessToken) => {
     if (!isAdminUser(nextUser)) {
+      clearAccessToken();
       setUser(null);
       return false;
     }
+    if (accessToken) setAccessToken(accessToken);
+    resetLiveSocket();
     setUser(nextUser);
     return true;
   }, []);
@@ -40,6 +50,8 @@ export function AuthProvider({ children }) {
     } catch {
       // Cookie may already be cleared
     } finally {
+      clearAccessToken();
+      resetLiveSocket();
       setUser(null);
     }
   }, []);
@@ -57,6 +69,7 @@ export function AuthProvider({ children }) {
             /* ignore */
           }
         }
+        clearAccessToken();
         setUser((prev) => (prev ? null : prev));
       }
     } catch {
@@ -66,6 +79,8 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     setUnauthorizedHandler(() => {
+      clearAccessToken();
+      resetLiveSocket();
       setUser((prev) => (prev ? null : prev));
     });
 
@@ -86,6 +101,7 @@ export function AuthProvider({ children }) {
               /* ignore */
             }
           }
+          clearAccessToken();
           setUser(null);
         }
       } catch {

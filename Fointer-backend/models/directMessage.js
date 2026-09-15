@@ -12,6 +12,19 @@ const listingSnapshotSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const mediaSchema = new mongoose.Schema(
+  {
+    url: { type: String, required: true },
+    publicId: { type: String, default: "" },
+    type: {
+      type: String,
+      enum: ["image", "video"],
+      required: true,
+    },
+  },
+  { _id: false }
+);
+
 const directMessageSchema = new mongoose.Schema(
   {
     conversation: {
@@ -28,9 +41,13 @@ const directMessageSchema = new mongoose.Schema(
     },
     text: {
       type: String,
-      required: true,
+      default: "",
       trim: true,
       maxlength: 2000,
+    },
+    media: {
+      type: [mediaSchema],
+      default: [],
     },
     isDeleted: {
       type: Boolean,

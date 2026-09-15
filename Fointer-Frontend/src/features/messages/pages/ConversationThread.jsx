@@ -1,22 +1,28 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   LuArrowLeft as ArrowLeft,
+  LuBan as Ban,
   LuCheck as Check,
   LuFlag as Flag,
+  LuImage as ImageIcon,
   LuLoaderCircle as Loader2,
   LuPencil as Pencil,
+  LuPhone as Phone,
   LuSend as Send,
   LuTrash2 as Trash2,
+  LuVideo as Video,
   LuX as X,
 } from "react-icons/lu";
 import {
+  blockUser,
   deleteConversation,
   deleteMessage,
   fetchConversation,
   fetchMessages,
   markConversationRead,
   sendMessage,
+  unblockUser,
   updateMessage,
 } from "../../../api/messages";
 import { getLiveSocket } from "../../../shared/services/liveSocket";
@@ -25,8 +31,46 @@ import { useAuth } from "../../../context/AuthContext";
 import ProfileAvatar from "../../../shared/components/ProfileAvatar";
 import UserProfileLink from "../../../shared/components/UserProfileLink";
 import ListingReference from "../components/ListingReference";
+import DirectCall from "../components/DirectCall";
 import { timeAgo } from "../../../shared/utils/date";
 import ReportContentModal from "../../../shared/components/modals/ReportContentModal";
+import MediaPicker from "../../../shared/components/media/MediaPicker";
+
+const DM_MEDIA_MAX = 4;
+
+function MessageMedia({ media = [], accent = false }) {
+  if (!media?.length) return null;
+  return (
+    <div
+      className={`grid gap-1.5 ${
+        media.length === 1 ? "grid-cols-1" : "grid-cols-2"
+      }`}
+    >
+      {media.map((item, index) => (
+        <div
+          key={`${item.url}-${index}`}
+          className={`overflow-hidden rounded-xl border ${
+            accent ? "border-black/10 bg-black/5" : "border-fo-border bg-fo-bg"
+          }`}
+        >
+          {item.type === "video" ? (
+            <video
+              src={item.url}
+              controls
+              className="w-full max-h-64 object-contain bg-black"
+            />
+          ) : (
+            <img
+              src={item.url}
+              alt=""
+              className="w-full max-h-64 object-contain"
+            />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default function ConversationThread() {
   const { conversationId } = useParams();
@@ -37,6 +81,8 @@ export default function ConversationThread() {
   const [conversation, setConversation] = useState(null);
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
+  const [media, setMedia] = useState([]);
+  const [showMediaPicker, setShowMediaPicker] = useState(false);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
@@ -44,7 +90,9 @@ export default function ConversationThread() {
   const [editText, setEditText] = useState("");
   const [messageBusyId, setMessageBusyId] = useState(null);
   const [deletingConversation, setDeletingConversation] = useState(false);
+  const [blockBusy, setBlockBusy] = useState(false);
   const listRef = useRef(null);
+  const directCallRef = useRef(null);
 
   const myId = String(user?.id || user?._id || "");
 
@@ -137,11 +185,14 @@ export default function ConversationThread() {
     };
   }, [conversationId, loading, myId, showToast]);
 
+  const canSend = Boolean(text.trim() || media.length);
+
   const handleSend = async (e) => {
     e.preventDefault();
-    const value = text.trim();
-    if (!value || sending) return;
+    if (!canSend || sending || conversation?.isBlocked) return;
 
+    const value = text.trim();
+    const payloadMedia = media;
     setSending(true);
     try {
       const socket = getLiveSocket();
@@ -149,17 +200,33 @@ export default function ConversationThread() {
         await new Promise((resolve) => {
           socket.emit(
             "send_dm",
-            { conversationId, text: value },
+            {
+              conversationId,
+              text: value,
+              media: payloadMedia,
+            },
             (ack) => {
               if (!ack?.success) {
                 showToast(ack?.message || "Failed to send message.");
+              } else if (ack?.message) {
+                setMessages((prev) => {
+                  if (
+                    prev.some((m) => String(m.id) === String(ack.message.id))
+                  ) {
+                    return prev;
+                  }
+                  return [...prev, ack.message];
+                });
               }
               resolve();
             }
           );
         });
       } else {
-        const res = await sendMessage(conversationId, { text: value });
+        const res = await sendMessage(conversationId, {
+          text: value,
+          media: payloadMedia,
+        });
         if (res?.message) {
           setMessages((prev) => {
             if (prev.some((m) => String(m.id) === String(res.message.id))) {
@@ -170,6 +237,8 @@ export default function ConversationThread() {
         }
       }
       setText("");
+      setMedia([]);
+      setShowMediaPicker(false);
       scrollToBottom();
     } catch (err) {
       showToast(err?.response?.data?.message || "Failed to send message.");
@@ -195,9 +264,50 @@ export default function ConversationThread() {
       showToast("Conversation deleted.");
       navigate("/messages", { replace: true });
     } catch (err) {
-      showToast(err?.response?.data?.message || "Failed to delete conversation.");
+      showToast(
+        err?.response?.data?.message || "Failed to delete conversation."
+      );
     } finally {
       setDeletingConversation(false);
+    }
+  };
+
+  const handleToggleBlock = async () => {
+    const other = conversation?.otherUser || {};
+    const username = other.username;
+    if (!username) return;
+
+    if (!conversation.blockedByMe) {
+      if (
+        !window.confirm(
+          `Block @${username}? They will not be able to message you, and you will not be able to message them until you unblock.`
+        )
+      ) {
+        return;
+      }
+    }
+
+    setBlockBusy(true);
+    try {
+      if (conversation.blockedByMe) {
+        await unblockUser(username);
+        setConversation((prev) =>
+          prev
+            ? { ...prev, isBlocked: false, blockedByMe: false }
+            : prev
+        );
+        showToast("User unblocked.");
+      } else {
+        await blockUser({ username, userId: other.id });
+        setConversation((prev) =>
+          prev ? { ...prev, isBlocked: true, blockedByMe: true } : prev
+        );
+        showToast("User blocked.");
+      }
+    } catch (err) {
+      showToast(err?.response?.data?.message || "Could not update block.");
+    } finally {
+      setBlockBusy(false);
     }
   };
 
@@ -214,7 +324,7 @@ export default function ConversationThread() {
   const handleSaveEdit = async () => {
     if (!editingMessage) return;
     const value = editText.trim();
-    if (!value) {
+    if (!value && !(editingMessage.media || []).length) {
       showToast("Message cannot be empty.");
       return;
     }
@@ -241,7 +351,9 @@ export default function ConversationThread() {
   };
 
   const handleDeleteMessage = async (message) => {
-    if (!window.confirm("Delete this message for everyone in this chat?")) return;
+    if (!window.confirm("Delete this message for everyone in this chat?")) {
+      return;
+    }
 
     setMessageBusyId(message.id);
     try {
@@ -272,6 +384,7 @@ export default function ConversationThread() {
   if (!conversation) return null;
 
   const other = conversation.otherUser || {};
+  const messagingLocked = Boolean(conversation.isBlocked);
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-4 sm:py-6 flex flex-col h-[calc(100vh-8rem)]">
@@ -279,13 +392,14 @@ export default function ConversationThread() {
         <button
           type="button"
           onClick={() => navigate("/messages")}
-          className="p-1.5 rounded-lg text-fo-muted hover:text-fo-text hover:bg-fo-surface"
+          className="min-h-10 min-w-10 inline-flex items-center justify-center rounded-lg text-fo-muted hover:text-fo-text hover:bg-fo-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40"
+          aria-label="Back to messages"
         >
           <ArrowLeft size={18} />
         </button>
         <ProfileAvatar
           src={other.avatar}
-          name={other.name}
+          name={other.name || other.username}
           className="w-10 h-10 rounded-full object-cover border border-fo-border shrink-0"
         />
         <div className="min-w-0 flex-1">
@@ -295,16 +409,49 @@ export default function ConversationThread() {
           >
             {other.name || other.username}
           </UserProfileLink>
-          <p className="text-[11px] text-fo-subtle truncate">
-            @{other.username}
-          </p>
+          <p className="text-xs text-fo-subtle truncate">@{other.username}</p>
         </div>
+        <button
+          type="button"
+          onClick={() => directCallRef.current?.start("audio")}
+          disabled={messagingLocked}
+          className="min-h-10 min-w-10 inline-flex items-center justify-center rounded-lg border border-fo-border text-fo-muted hover:text-fo-accent shrink-0 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40"
+          title="Audio call"
+          aria-label="Start audio call"
+        >
+          <Phone size={16} />
+        </button>
+        <button
+          type="button"
+          onClick={() => directCallRef.current?.start("video")}
+          disabled={messagingLocked}
+          className="min-h-10 min-w-10 inline-flex items-center justify-center rounded-lg border border-fo-border text-fo-muted hover:text-fo-accent shrink-0 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40"
+          title="Video call"
+          aria-label="Start video call"
+        >
+          <Video size={16} />
+        </button>
+        <button
+          type="button"
+          onClick={handleToggleBlock}
+          disabled={blockBusy || (messagingLocked && !conversation.blockedByMe)}
+          className="min-h-10 min-w-10 inline-flex items-center justify-center rounded-lg border border-fo-border text-fo-muted hover:text-red-400 shrink-0 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40"
+          title={conversation.blockedByMe ? "Unblock user" : "Block user"}
+          aria-label={conversation.blockedByMe ? "Unblock user" : "Block user"}
+        >
+          {blockBusy ? (
+            <Loader2 size={16} className="animate-spin" />
+          ) : (
+            <Ban size={16} />
+          )}
+        </button>
         <button
           type="button"
           onClick={handleDeleteConversation}
           disabled={deletingConversation}
-          className="p-2 rounded-lg border border-fo-border text-fo-muted hover:text-red-400 shrink-0 disabled:opacity-50"
+          className="min-h-10 min-w-10 inline-flex items-center justify-center rounded-lg border border-fo-border text-fo-muted hover:text-red-400 shrink-0 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40"
           title="Delete conversation"
+          aria-label="Delete conversation"
         >
           {deletingConversation ? (
             <Loader2 size={16} className="animate-spin" />
@@ -315,8 +462,9 @@ export default function ConversationThread() {
         <button
           type="button"
           onClick={() => setReportOpen(true)}
-          className="p-2 rounded-lg border border-fo-border text-fo-muted hover:text-red-400 shrink-0"
+          className="min-h-10 min-w-10 inline-flex items-center justify-center rounded-lg border border-fo-border text-fo-muted hover:text-red-400 shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40"
           title="Report conversation"
+          aria-label="Report conversation"
         >
           <Flag size={16} />
         </button>
@@ -335,6 +483,21 @@ export default function ConversationThread() {
         </div>
       ) : null}
 
+      {messagingLocked ? (
+        <div className="mt-3 shrink-0 rounded-xl border border-fo-border bg-fo-surface px-3.5 py-3 text-xs text-fo-subtle">
+          {conversation.blockedByMe
+            ? "You blocked this user. Unblock them to send messages again."
+            : "Messaging is unavailable with this user."}
+        </div>
+      ) : null}
+
+      <DirectCall
+        ref={directCallRef}
+        conversationId={String(conversation.id)}
+        otherUser={other}
+        disabled={messagingLocked}
+      />
+
       <div
         ref={listRef}
         className="flex-1 overflow-y-auto space-y-3 py-4 min-h-0"
@@ -347,8 +510,10 @@ export default function ConversationThread() {
           messages.map((message) => {
             const isMine = String(message.author?.id) === myId;
             const isEditing =
-              editingMessage && String(editingMessage.id) === String(message.id);
+              editingMessage &&
+              String(editingMessage.id) === String(message.id);
             const isBusy = messageBusyId === message.id;
+            const mediaItems = message.media || [];
 
             return (
               <div
@@ -373,11 +538,14 @@ export default function ConversationThread() {
 
                   {isEditing ? (
                     <div className="w-full space-y-2">
+                      {mediaItems.length ? (
+                        <MessageMedia media={mediaItems} accent={isMine} />
+                      ) : null}
                       <textarea
                         value={editText}
                         onChange={(e) => setEditText(e.target.value)}
                         rows={2}
-                        className="w-full resize-none rounded-xl border border-fo-border bg-fo-bg px-3 py-2 text-sm text-fo-text"
+                        className="w-full resize-none rounded-xl border border-fo-border bg-fo-bg px-3 py-2 text-sm text-fo-text focus:outline-none focus:border-fo-accent/50"
                       />
                       <div className="flex justify-end gap-2">
                         <button
@@ -390,8 +558,11 @@ export default function ConversationThread() {
                         <button
                           type="button"
                           onClick={handleSaveEdit}
-                          disabled={isBusy || !editText.trim()}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-fo-accent text-fo-bg text-xs disabled:opacity-50"
+                          disabled={
+                            isBusy ||
+                            (!editText.trim() && !mediaItems.length)
+                          }
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-fo-accent text-black text-xs disabled:opacity-50"
                         >
                           {isBusy ? (
                             <Loader2 size={12} className="animate-spin" />
@@ -404,15 +575,26 @@ export default function ConversationThread() {
                     </div>
                   ) : (
                     <div
-                      className={`rounded-2xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap ${
+                      className={`rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed space-y-2 ${
                         message.isDeleted
                           ? "bg-fo-surface border border-fo-border text-fo-subtle italic"
                           : isMine
-                            ? "bg-fo-accent text-fo-bg rounded-br-md"
+                            ? "bg-fo-accent text-black rounded-br-md"
                             : "bg-fo-surface border border-fo-border text-fo-text rounded-bl-md"
                       }`}
                     >
-                      {message.isDeleted ? "Message deleted" : message.text}
+                      {message.isDeleted ? (
+                        "Message deleted"
+                      ) : (
+                        <>
+                          {mediaItems.length ? (
+                            <MessageMedia media={mediaItems} accent={isMine} />
+                          ) : null}
+                          {message.text ? (
+                            <p className="whitespace-pre-wrap">{message.text}</p>
+                          ) : null}
+                        </>
+                      )}
                     </div>
                   )}
 
@@ -421,7 +603,7 @@ export default function ConversationThread() {
                       isMine ? "justify-end" : "justify-start"
                     }`}
                   >
-                    <p className="text-[10px] text-fo-subtle">
+                    <p className="text-xs text-fo-subtle">
                       {timeAgo(message.createdAt)}
                       {message.editedAt ? " · edited" : ""}
                     </p>
@@ -459,35 +641,62 @@ export default function ConversationThread() {
         )}
       </div>
 
-      <form
-        onSubmit={handleSend}
-        className="shrink-0 flex items-end gap-2 pt-3 border-t border-fo-border"
-      >
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          rows={1}
-          placeholder="Write a message..."
-          className="flex-1 resize-none rounded-xl border border-fo-border bg-fo-bg px-4 py-2.5 text-sm text-fo-text max-h-32"
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              handleSend(e);
-            }
-          }}
-        />
-        <button
-          type="submit"
-          disabled={sending || !text.trim()}
-          className="shrink-0 p-2.5 rounded-xl bg-fo-accent text-fo-bg disabled:opacity-50"
+      {messagingLocked ? null : (
+        <form
+          onSubmit={handleSend}
+          className="shrink-0 space-y-2 pt-3 border-t border-fo-border"
         >
-          {sending ? (
-            <Loader2 size={18} className="animate-spin" />
-          ) : (
-            <Send size={18} />
-          )}
-        </button>
-      </form>
+          {showMediaPicker || media.length > 0 ? (
+            <MediaPicker
+              media={media}
+              onChange={setMedia}
+              max={DM_MEDIA_MAX}
+              label=""
+              onError={(msg) => msg && showToast(msg)}
+            />
+          ) : null}
+          <div className="flex items-end gap-2">
+            <button
+              type="button"
+              onClick={() => setShowMediaPicker((v) => !v)}
+              className={`shrink-0 min-h-10 min-w-10 inline-flex items-center justify-center rounded-xl border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40 ${
+                showMediaPicker || media.length
+                  ? "border-fo-accent/40 text-fo-accent bg-fo-accent/10"
+                  : "border-fo-border text-fo-muted hover:text-fo-accent"
+              }`}
+              title="Add photo or video"
+              aria-label="Add photo or video"
+            >
+              <ImageIcon size={18} />
+            </button>
+            <textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              rows={1}
+              placeholder="Write a message..."
+              className="flex-1 resize-none rounded-xl border border-fo-border bg-fo-bg px-4 py-2.5 text-sm text-fo-text max-h-32 focus:outline-none focus:border-fo-accent/50"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend(e);
+                }
+              }}
+            />
+            <button
+              type="submit"
+              disabled={sending || !canSend}
+              className="shrink-0 min-h-10 min-w-10 inline-flex items-center justify-center rounded-xl bg-fo-accent text-black disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40"
+              aria-label="Send message"
+            >
+              {sending ? (
+                <Loader2 size={18} className="animate-spin" />
+              ) : (
+                <Send size={18} />
+              )}
+            </button>
+          </div>
+        </form>
+      )}
 
       <ReportContentModal
         open={reportOpen}

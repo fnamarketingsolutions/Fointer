@@ -1,11 +1,17 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import {
+  Link,
+  useLocation,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
 import {
   LuArrowLeft as ArrowLeft,
   LuArrowRight as ArrowRight,
   LuHash as Hash,
   LuLoaderCircle as Loader2,
-  LuUsers as Users
+  LuUsers as Users,
 } from "react-icons/lu";
 import {
   fetchPost,
@@ -20,7 +26,10 @@ import { fetchChannels } from "../../../../api/channels";
 import PostDetail from "../../../posts/pages/PostDetail";
 import { useAuth } from "../../../../context/AuthContext";
 import { useToast } from "../../../../shared/components/feedback/ToastContext";
-import { postSegment } from "../../../../shared/services/entityLinks";
+import {
+  communitySegment,
+  postSegment,
+} from "../../../../shared/services/entityLinks";
 import useEntityId from "../../../../shared/hooks/useEntityId";
 import { timeAgo } from "../../../../shared/utils/date";
 import PostMediaGallery from "../../../../shared/components/media/PostMediaGallery";
@@ -37,6 +46,7 @@ import {
 
 const FEED_POST_PATH = "/post";
 const PAGE_SIZE = 15;
+const FILTERS_PANEL_ID = "feed-filters-panel";
 
 const FEED_MODES = [
   { id: "discover", label: "Discover" },
@@ -49,9 +59,45 @@ const SORT_OPTIONS = [
   { id: "comments", label: "Discussed" },
 ];
 
+const modeBtnClass = (active) =>
+  `flex-1 py-2 px-3 rounded-lg text-xs sm:text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40 ${
+    active
+      ? "bg-fo-surface-3 text-fo-accent border border-fo-accent/35"
+      : "text-fo-subtle hover:text-fo-text border border-transparent"
+  }`;
+
+const sortBtnClass = (active) =>
+  `px-3 py-1.5 rounded-lg text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40 ${
+    active
+      ? "bg-fo-accent/15 text-fo-accent border border-fo-accent/35"
+      : "text-fo-subtle hover:text-fo-text hover:bg-fo-surface-hover border border-transparent"
+  }`;
+
+function FeedPostSkeleton() {
+  return (
+    <div
+      className="bg-fo-surface border border-fo-border rounded-xl overflow-hidden animate-pulse"
+      aria-hidden
+    >
+      <div className="p-3 sm:p-4 space-y-3">
+        <div className="h-3 w-40 rounded bg-fo-surface-hover" />
+        <div className="h-4 w-4/5 max-w-md rounded bg-fo-surface-hover" />
+        <div className="h-3 w-full rounded bg-fo-surface-hover" />
+        <div className="h-3 w-2/3 rounded bg-fo-surface-hover" />
+      </div>
+      <div className="h-40 sm:h-52 bg-fo-surface-2 border-t border-fo-border" />
+      <div className="px-3 sm:px-4 py-3 border-t border-fo-border flex gap-5">
+        <div className="h-3 w-10 rounded bg-fo-surface-hover" />
+        <div className="h-3 w-10 rounded bg-fo-surface-hover" />
+        <div className="h-3 w-10 rounded bg-fo-surface-hover" />
+      </div>
+    </div>
+  );
+}
+
 function FeedPostRow({
   post,
-  onClick,
+  onOpen,
   active,
   showCommunity,
   onLike,
@@ -61,41 +107,69 @@ function FeedPostRow({
   const authorName =
     post?.author?.name || post?.author?.username || "Anonymous";
   const communityName = post?.community?.name;
+  const communityTo = post?.community
+    ? `/communities/${communitySegment(post.community) || post.community.id}`
+    : null;
   const media = post?.media || [];
+  const title = post?.title || "Untitled";
+
+  const activate = () => onOpen?.();
+
+  const onKeyDown = (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      activate();
+    }
+  };
 
   return (
     <article
-      onClick={onClick}
-      className={`group bg-fo-surface border rounded-xl overflow-hidden cursor-pointer transition-colors ${
+      role="link"
+      tabIndex={0}
+      onClick={activate}
+      onKeyDown={onKeyDown}
+      aria-label={`Open post: ${title}`}
+      className={`group bg-fo-surface border rounded-xl overflow-hidden cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40 ${
         active
           ? "border-fo-accent/50"
           : "border-fo-border hover:border-fo-accent/35"
       }`}
     >
       <div className="p-3 sm:p-4 space-y-1.5">
-        <div className="flex items-center gap-2 text-[11px] text-fo-subtle flex-wrap">
+        <div className="flex items-center gap-2 text-xs text-fo-subtle flex-wrap">
           <UserProfileLink
             author={post?.author}
             className="font-semibold text-fo-muted hover:text-fo-accent transition-colors"
           >
             {authorName}
           </UserProfileLink>
-          <span>·</span>
+          <span aria-hidden>·</span>
           <span>{timeAgo(post?.createdAt)}</span>
           {showCommunity && communityName ? (
             <>
-              <span>·</span>
-              <span className="inline-flex items-center gap-1 text-fo-accent/80">
-                <Users size={10} />
-                {communityName}
-              </span>
+              <span aria-hidden>·</span>
+              {communityTo ? (
+                <Link
+                  to={communityTo}
+                  onClick={(e) => e.stopPropagation()}
+                  className="inline-flex items-center gap-1 text-fo-accent/80 hover:text-fo-accent transition-colors"
+                >
+                  <Users size={10} aria-hidden />
+                  {communityName}
+                </Link>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-fo-accent/80">
+                  <Users size={10} aria-hidden />
+                  {communityName}
+                </span>
+              )}
             </>
           ) : null}
         </div>
 
-        <h2 className="text-sm sm:text-base font-semibold text-fo-text leading-snug group-hover:text-fo-accent transition-colors line-clamp-2">
-          {post?.title || "Untitled"}
-        </h2>
+        <h3 className="text-sm sm:text-base font-semibold text-fo-text leading-snug group-hover:text-fo-accent transition-colors line-clamp-2">
+          {title}
+        </h3>
 
         {post?.text ? (
           <p className="text-xs sm:text-sm text-fo-muted line-clamp-2 leading-relaxed">
@@ -108,16 +182,21 @@ function FeedPostRow({
         <div
           className="bg-fo-surface-2 border-t border-fo-border"
           onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
         >
           <PostMediaGallery
             media={media}
             counterOverlay={media.length > 1}
-            heightClass="h-56 sm:h-80 w-full object-cover"
+            heightClass="h-56 sm:h-80"
           />
         </div>
       ) : null}
 
-      <div className="px-3 sm:px-4 py-2.5 border-t border-fo-border">
+      <div
+        className="px-3 sm:px-4 py-2.5 border-t border-fo-border"
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
+      >
         <PostActions
           post={post}
           compact
@@ -132,6 +211,7 @@ function FeedPostRow({
 
 export default function DashboardFeed() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { postSlug } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const { showToast } = useToast();
@@ -139,13 +219,26 @@ export default function DashboardFeed() {
   const { id: openPostId, resolving: resolvingPost, notFound: postNotFound } =
     useEntityId("post", postSlug);
   const isGuest = !isAuthenticated;
-  const activeFeedPath = isGuest ? EXPLORE_PATH : FEED_PATH;
+
+  const activeFeedPath =
+    location.pathname === EXPLORE_PATH || location.pathname === FEED_PATH
+      ? location.pathname
+      : isGuest
+        ? EXPLORE_PATH
+        : FEED_PATH;
 
   const requestedMode =
     searchParams.get("mode") === "personalized" ? "personalized" : "discover";
   const mode = isGuest ? "discover" : requestedMode;
   const isPersonalized = mode === "personalized";
   const selectedChannel = String(searchParams.get("channel") || "").trim();
+
+  const pageTitle = isGuest ? "Explore" : "Feed";
+  const pageSubtitle = isGuest
+    ? "Discover public posts across Fointer communities."
+    : isPersonalized
+      ? "Posts from communities you follow and join."
+      : "Browse public posts, or switch to Personalized for your communities.";
 
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -169,15 +262,17 @@ export default function DashboardFeed() {
     return s ? `?${s}` : "";
   }, [isPersonalized, selectedChannel]);
 
-  const feedBase = feedQueryString ? `${activeFeedPath}${feedQueryString}` : activeFeedPath;
+  const feedBase = feedQueryString
+    ? `${activeFeedPath}${feedQueryString}`
+    : activeFeedPath;
 
   const setMode = (nextMode) => {
     if (isGuest && nextMode === "personalized") {
       navigate("/login", {
         state: {
           from: selectedChannel
-            ? `${activeFeedPath}?mode=personalized&channel=${encodeURIComponent(selectedChannel)}`
-            : `${activeFeedPath}?mode=personalized`,
+            ? `${FEED_PATH}?mode=personalized&channel=${encodeURIComponent(selectedChannel)}`
+            : `${FEED_PATH}?mode=personalized`,
         },
       });
       return;
@@ -315,6 +410,9 @@ export default function DashboardFeed() {
     });
   };
 
+  const locationPath = () =>
+    `${window.location.pathname}${window.location.search}`;
+
   const requireEngage = (post) => {
     if (!isAuthenticated) {
       navigate("/login", { state: { from: locationPath() } });
@@ -330,9 +428,6 @@ export default function DashboardFeed() {
     }
     return true;
   };
-
-  const locationPath = () =>
-    `${window.location.pathname}${window.location.search}`;
 
   const patchFeedPost = (postId, patch) => {
     setPosts((list) =>
@@ -427,6 +522,15 @@ export default function DashboardFeed() {
     />
   );
 
+  const filterToggle = (
+    <FeedFilterToggle
+      open={filtersOpen}
+      active={Boolean(selectedChannel)}
+      onClick={() => setFiltersOpen((v) => !v)}
+      controlsId={FILTERS_PANEL_ID}
+    />
+  );
+
   if (viewingPost) {
     return (
       <div className="text-fo-text w-full max-w-6xl mx-auto pb-6 sm:pb-10">
@@ -434,19 +538,15 @@ export default function DashboardFeed() {
           <button
             type="button"
             onClick={closePost}
-            className="inline-flex items-center gap-1.5 text-xs text-fo-muted hover:text-fo-accent"
+            className="inline-flex items-center gap-2 min-h-10 px-1 text-sm text-fo-muted hover:text-fo-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40 rounded-lg"
           >
-            <ArrowLeft size={14} /> Back to Feed
+            <ArrowLeft size={16} /> Back to posts
           </button>
-          <FeedFilterToggle
-            open={filtersOpen}
-            active={Boolean(selectedChannel)}
-            onClick={() => setFiltersOpen((v) => !v)}
-          />
+          {filterToggle}
         </div>
 
         {filtersOpen ? (
-          <div className="lg:hidden mb-3">
+          <div id={FILTERS_PANEL_ID} className="lg:hidden mb-3">
             <CategoryList {...categoryProps} />
           </div>
         ) : null}
@@ -479,33 +579,40 @@ export default function DashboardFeed() {
     <div className="text-fo-text w-full max-w-6xl mx-auto pb-6 sm:pb-10">
       <div className="mb-3 sm:mb-6 space-y-3 sm:space-y-4">
         <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
+          <div className="min-w-0 space-y-1">
+            <h1 className="text-xl sm:text-2xl font-semibold text-fo-text">
+              {pageTitle}
+            </h1>
+            <p className="text-sm text-fo-subtle">{pageSubtitle}</p>
             {selectedChannel ? (
               <button
                 type="button"
                 onClick={() => setChannel("")}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] bg-fo-accent/15 text-fo-accent hover:bg-fo-accent/25"
+                className="inline-flex items-center gap-1.5 mt-1 px-2.5 py-1 rounded-lg text-xs bg-fo-accent/15 text-fo-accent hover:bg-fo-accent/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40"
               >
-                <Hash size={11} />
+                <Hash size={11} aria-hidden />
                 {selectedChannel}
-                <span className="opacity-70">×</span>
+                <span className="opacity-70" aria-hidden>
+                  ×
+                </span>
+                <span className="sr-only">Clear category filter</span>
               </button>
             ) : null}
           </div>
-          <FeedFilterToggle
-            open={filtersOpen}
-            active={Boolean(selectedChannel)}
-            onClick={() => setFiltersOpen((v) => !v)}
-          />
+          {filterToggle}
         </div>
 
         {filtersOpen ? (
-          <div className="lg:hidden">
+          <div id={FILTERS_PANEL_ID} className="lg:hidden">
             <CategoryList {...categoryProps} />
           </div>
         ) : null}
 
-        <div className="flex gap-1 p-1 rounded-xl bg-fo-bg border border-fo-border max-w-md">
+        <div
+          className="flex gap-1 p-1 rounded-xl bg-fo-bg border border-fo-border max-w-md"
+          role="group"
+          aria-label="Feed mode"
+        >
           {FEED_MODES.map((m) => {
             const active = mode === m.id;
             return (
@@ -513,11 +620,8 @@ export default function DashboardFeed() {
                 key={m.id}
                 type="button"
                 onClick={() => setMode(m.id)}
-                className={`flex-1 py-2 px-3 rounded-lg text-xs sm:text-sm font-semibold transition-colors ${
-                  active
-                    ? "bg-[#1A1510] text-fo-accent border border-fo-accent/35"
-                    : "text-fo-subtle hover:text-fo-text border border-transparent"
-                }`}
+                aria-pressed={active}
+                className={modeBtnClass(active)}
               >
                 {m.label}
               </button>
@@ -528,7 +632,11 @@ export default function DashboardFeed() {
 
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px] gap-3 lg:gap-5 items-start">
         <div className="min-w-0 space-y-3 sm:space-y-4">
-          <div className="flex flex-wrap items-center gap-1.5 border-b border-fo-border pb-2 sm:pb-3">
+          <div
+            className="flex flex-wrap items-center gap-1.5 border-b border-fo-border pb-2 sm:pb-3"
+            role="group"
+            aria-label="Sort posts"
+          >
             {SORT_OPTIONS.map((opt) => {
               const active = sortBy === opt.id;
               return (
@@ -536,11 +644,8 @@ export default function DashboardFeed() {
                   key={opt.id}
                   type="button"
                   onClick={() => setSortBy(opt.id)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                    active
-                      ? "bg-fo-accent/15 text-fo-accent"
-                      : "text-fo-subtle hover:text-fo-text hover:bg-fo-surface-hover"
-                  }`}
+                  aria-pressed={active}
+                  className={sortBtnClass(active)}
                 >
                   {opt.label}
                 </button>
@@ -549,11 +654,11 @@ export default function DashboardFeed() {
           </div>
 
           {loading ? (
-            <div className="flex items-center justify-center py-16 text-fo-muted text-sm gap-2">
-              <Loader2 size={18} className="animate-spin text-fo-accent" />
-              {isPersonalized
-                ? "Loading your personalized feed…"
-                : "Loading feed…"}
+            <div className="space-y-2 sm:space-y-3" aria-busy="true" aria-live="polite">
+              <span className="sr-only">Loading feed…</span>
+              <FeedPostSkeleton />
+              <FeedPostSkeleton />
+              <FeedPostSkeleton />
             </div>
           ) : posts.length === 0 ? (
             <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-fo-subtle text-sm px-4 space-y-3">
@@ -563,16 +668,14 @@ export default function DashboardFeed() {
                   <button
                     type="button"
                     onClick={() => setChannel("")}
-                    className="inline-flex items-center gap-2 text-fo-accent hover:text-fo-accent-hover font-medium"
+                    className="inline-flex items-center gap-2 text-fo-accent hover:text-fo-accent-hover font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40 rounded"
                   >
                     Clear category filter
                   </button>
                 </>
               ) : isPersonalized ? (
                 <>
-                  <p>
-                    No posts yet from communities you have joined.
-                  </p>
+                  <p>No posts yet from communities you have joined.</p>
                   <div className="flex flex-wrap items-center justify-center gap-3">
                     <Link
                       to="/communities"
@@ -589,7 +692,29 @@ export default function DashboardFeed() {
                   </div>
                 </>
               ) : (
-                <p>No public posts to show yet.</p>
+                <>
+                  <p>
+                    {isGuest
+                      ? "No public posts to show yet. Browse communities or create an account to join the conversation."
+                      : "No public posts to show yet."}
+                  </p>
+                  <div className="flex flex-wrap items-center justify-center gap-3">
+                    <Link
+                      to="/communities"
+                      className="inline-flex items-center gap-2 text-fo-accent hover:text-fo-accent-hover font-medium"
+                    >
+                      Browse communities <ArrowRight size={14} />
+                    </Link>
+                    {isGuest ? (
+                      <Link
+                        to="/signup"
+                        className="inline-flex items-center gap-2 text-fo-muted hover:text-fo-accent font-medium"
+                      >
+                        Sign up <ArrowRight size={14} />
+                      </Link>
+                    ) : null}
+                  </div>
+                </>
               )}
             </div>
           ) : (
@@ -599,7 +724,7 @@ export default function DashboardFeed() {
                   <FeedPostRow
                     key={post.id}
                     post={post}
-                    onClick={() => openPost(post)}
+                    onOpen={() => openPost(post)}
                     showCommunity
                     onLike={() => handleLikePost(post)}
                     onReshare={() => handleResharePost(post)}
@@ -614,7 +739,7 @@ export default function DashboardFeed() {
                     type="button"
                     onClick={handleLoadMore}
                     disabled={loadingMore}
-                    className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg border border-fo-border text-sm text-fo-text hover:border-fo-accent/50 hover:text-fo-accent disabled:opacity-60 transition-colors"
+                    className="inline-flex items-center justify-center gap-2 min-h-10 px-5 py-2.5 rounded-lg border border-fo-border text-sm text-fo-text hover:border-fo-accent/50 hover:text-fo-accent disabled:opacity-60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40"
                   >
                     {loadingMore ? (
                       <Loader2

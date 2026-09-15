@@ -435,7 +435,7 @@ export default function LiveRoom() {
                 ? "Write a live commentary message…"
                 : "This event has ended"
             }
-            className="flex-1 bg-[#0D0A08] border border-fo-border rounded-xl px-3 py-2.5 text-sm text-fo-text focus:outline-none focus:border-fo-accent/60 placeholder:text-fo-subtle disabled:opacity-50"
+            className="flex-1 bg-fo-bg border border-fo-border rounded-xl px-3 py-2.5 text-sm text-fo-text focus:outline-none focus:border-fo-accent/60 placeholder:text-fo-subtle disabled:opacity-50"
           />
           <button
             type="submit"

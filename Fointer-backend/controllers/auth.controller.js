@@ -106,7 +106,9 @@ const passwordLogin = async (req, res, { portal }) => {
 
   if (portal === "admin") {
     if (rejectIfNotAdminPortal(res, user)) return;
-  } else if (rejectIfNotMemberPortal(res, user)) {
+    return sendToken(user, 200, res, { exposeToken: true });
+  }
+  if (rejectIfNotMemberPortal(res, user)) {
     return;
   }
 
@@ -559,7 +561,7 @@ const finishAdminSocialLogin = async (res, user, { providerLabel }) => {
     await user.save();
   }
 
-  return sendToken(user, 200, res);
+  return sendToken(user, 200, res, { exposeToken: true });
 };
 
 export const adminGoogleLogin = async (req, res) => {

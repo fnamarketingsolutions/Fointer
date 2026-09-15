@@ -13,6 +13,22 @@ import { sendServerError } from "../utils/safeError.js";
 import { respondIfBanned } from "../utils/bannedKeywords.js";
 import { notify, personName, snippet } from "../utils/notify.js";
 import { normalizeUsername } from "./user.controller.js";
+import { acceptSignedMediaList } from "../utils/cloudinary.js";
+import { getBlockState, isMessagingBlocked } from "./block.controller.js";
+
+const DM_MEDIA_MAX = 4;
+
+const previewFromMessage = (text, media = []) => {
+  const clean = String(text || "").trim();
+  if (clean) return snippet(clean, 200);
+  const items = Array.isArray(media) ? media : [];
+  if (!items.length) return "";
+  const hasVideo = items.some((m) => m.type === "video");
+  const hasImage = items.some((m) => m.type === "image");
+  if (hasVideo && hasImage) return "Sent media";
+  if (hasVideo) return items.length > 1 ? "Sent videos" : "Sent a video";
+  return items.length > 1 ? "Sent photos" : "Sent a photo";
+};
 
 const formatUser = (user) => {
   if (!user || typeof user !== "object" || !user._id) {
@@ -45,7 +61,8 @@ export const formatListingSnapshot = (listing) => {
 export const formatMessage = (message) => ({
   id: message._id,
   conversationId: message.conversation?._id || message.conversation,
-  text: message.isDeleted ? "" : message.text,
+  text: message.isDeleted ? "" : message.text || "",
+  media: message.isDeleted ? [] : message.media || [],
   listing: message.listing || null,
   author: formatUser(message.author),
   isDeleted: Boolean(message.isDeleted),
@@ -67,14 +84,14 @@ const syncConversationPreview = async (conversation) => {
     isDeleted: { $ne: true },
   })
     .sort({ createdAt: -1 })
-    .select("text author createdAt");
+    .select("text media author createdAt");
 
   if (!latest) {
     conversation.lastMessageText = "";
     conversation.lastMessageAt = conversation.createdAt;
     conversation.lastMessageAuthor = null;
   } else {
-    conversation.lastMessageText = snippet(latest.text, 200);
+    conversation.lastMessageText = previewFromMessage(latest.text, latest.media);
     conversation.lastMessageAt = latest.createdAt;
     conversation.lastMessageAuthor = latest.author;
   }
@@ -149,7 +166,12 @@ const countUnread = async (conversation, userId) => {
   });
 };
 
-export const formatConversation = async (conversation, viewerId, userMap) => {
+export const formatConversation = async (
+  conversation,
+  viewerId,
+  userMap,
+  { includeBlock = false } = {}
+) => {
   const uid = String(viewerId);
   const otherRow = (conversation.participants || []).find(
     (p) => String(p.user?._id || p.user) !== uid
@@ -157,6 +179,10 @@ export const formatConversation = async (conversation, viewerId, userMap) => {
   const otherId = otherRow?.user?._id || otherRow?.user;
   const otherUser = userMap?.get(String(otherId)) || null;
   const unreadCount = await countUnread(conversation, viewerId);
+  const blockState =
+    includeBlock && otherId
+      ? await getBlockState(viewerId, otherId)
+      : { isBlocked: false, blockedByMe: false };
 
   return {
     id: conversation._id,
@@ -165,6 +191,8 @@ export const formatConversation = async (conversation, viewerId, userMap) => {
     lastMessageText: conversation.lastMessageText || "",
     lastMessageAt: conversation.lastMessageAt || conversation.createdAt,
     unreadCount,
+    isBlocked: blockState.isBlocked,
+    blockedByMe: blockState.blockedByMe,
     createdAt: conversation.createdAt,
     updatedAt: conversation.updatedAt,
   };
@@ -204,11 +232,13 @@ export const sendDirectMessage = async ({
   conversation,
   author,
   text,
+  media = [],
   listingSnapshot = null,
   io = null,
 }) => {
   const cleanText = String(text || "").trim();
-  if (!cleanText) {
+  const mediaItems = Array.isArray(media) ? media.slice(0, DM_MEDIA_MAX) : [];
+  if (!cleanText && !mediaItems.length) {
     throw new Error("Message cannot be empty.");
   }
 
@@ -216,10 +246,11 @@ export const sendDirectMessage = async ({
     conversation: conversation._id,
     author: author._id || author,
     text: cleanText,
+    media: mediaItems,
     listing: listingSnapshot || null,
   });
 
-  conversation.lastMessageText = snippet(cleanText, 200);
+  conversation.lastMessageText = previewFromMessage(cleanText, mediaItems);
   conversation.lastMessageAt = new Date();
   conversation.lastMessageAuthor = author._id || author;
 
@@ -245,7 +276,7 @@ export const sendDirectMessage = async ({
       actor: author,
       type: "direct_message",
       title: `${personName(author)} sent you a message`,
-      body: snippet(cleanText, 200),
+      body: previewFromMessage(cleanText, mediaItems),
       entity: {
         kind: "conversation",
         _id: conversation._id,
@@ -377,6 +408,13 @@ export const createConversation = async (req, res) => {
       });
     }
 
+    if (await isMessagingBlocked(req.user._id, otherUser._id)) {
+      return res.status(403).json({
+        success: false,
+        message: "You cannot message this user.",
+      });
+    }
+
     let listingSnapshot = null;
     if (listingId) {
       const listing = await Listing.findById(
@@ -408,7 +446,8 @@ export const createConversation = async (req, res) => {
     const formatted = await formatConversation(
       conversation.toObject(),
       req.user._id,
-      userMap
+      userMap,
+      { includeBlock: true }
     );
 
     return res.status(201).json({
@@ -445,7 +484,8 @@ export const getConversation = async (req, res) => {
     const formatted = await formatConversation(
       conversation.toObject(),
       req.user._id,
-      userMap
+      userMap,
+      { includeBlock: true }
     );
 
     return res.json({
@@ -536,15 +576,43 @@ export const postMessage = async (req, res) => {
       });
     }
 
+    const otherId = getOtherParticipantId(conversation, req.user._id);
+    if (otherId && (await isMessagingBlocked(req.user._id, otherId))) {
+      return res.status(403).json({
+        success: false,
+        message: "You cannot message this user.",
+      });
+    }
+
     const text = String(req.body.text || "").trim();
-    if (!text) {
+    const mediaList = Array.isArray(req.body.media) ? req.body.media : [];
+    if (!text && !mediaList.length) {
       return res.status(400).json({
         success: false,
         message: "Message cannot be empty.",
       });
     }
 
-    if (await respondIfBanned(res, text)) return;
+    if (mediaList.length > DM_MEDIA_MAX) {
+      return res.status(400).json({
+        success: false,
+        message: `You can attach up to ${DM_MEDIA_MAX} photos or videos.`,
+      });
+    }
+
+    let media = [];
+    if (mediaList.length) {
+      const accepted = acceptSignedMediaList(req.user._id, mediaList, []);
+      if (!accepted.ok) {
+        return res.status(400).json({
+          success: false,
+          message: accepted.message || "Invalid media upload.",
+        });
+      }
+      media = accepted.items || [];
+    }
+
+    if (text && (await respondIfBanned(res, text))) return;
 
     let listingSnapshot = null;
     const listingId = req.body.listingId;
@@ -567,6 +635,7 @@ export const postMessage = async (req, res) => {
       conversation,
       author: req.user,
       text,
+      media,
       listingSnapshot,
       io: req.app.get("io"),
     });
@@ -695,14 +764,14 @@ export const updateMessage = async (req, res) => {
     }
 
     const text = String(req.body.text || "").trim();
-    if (!text) {
+    if (!text && !(message.media || []).length) {
       return res.status(400).json({
         success: false,
         message: "Message cannot be empty.",
       });
     }
 
-    if (await respondIfBanned(res, text)) return;
+    if (text && (await respondIfBanned(res, text))) return;
 
     message.text = text;
     message.editedAt = new Date();
@@ -716,7 +785,7 @@ export const updateMessage = async (req, res) => {
       .select("_id");
 
     if (latest && String(latest._id) === String(message._id)) {
-      conversation.lastMessageText = snippet(text, 200);
+      conversation.lastMessageText = previewFromMessage(text, message.media);
       await conversation.save();
     }
 

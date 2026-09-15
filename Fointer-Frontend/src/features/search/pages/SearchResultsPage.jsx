@@ -3,7 +3,6 @@ import { Link, useSearchParams } from "react-router-dom";
 import {
   LuFileText as FileText,
   LuLoaderCircle as Loader2,
-  LuSearch as Search,
   LuUserRound as UserRound,
   LuUsers as Users,
 } from "react-icons/lu";
@@ -21,25 +20,28 @@ const TABS = [
   { id: "profiles", label: "Profiles" },
 ];
 
+const tabBtnClass = (active) =>
+  `shrink-0 sm:flex-1 py-2 px-3 rounded-lg text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap ${
+    active
+      ? "bg-fo-surface-hover text-fo-accent border border-fo-accent/35"
+      : "text-fo-subtle hover:text-fo-text border border-transparent"
+  }`;
+
 export default function SearchResultsPage() {
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const q = String(searchParams.get("q") || "").trim();
   const activeTab = searchParams.get("type") || "all";
 
-  const [input, setInput] = useState(q);
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    setInput(q);
-  }, [q]);
-
-  useEffect(() => {
     if (q.length < 2) {
       setResults(null);
       setError("");
+      setLoading(false);
       return;
     }
 
@@ -83,15 +85,6 @@ export default function SearchResultsPage() {
 
   const totalCount = posts.length + communities.length + profiles.length;
 
-  const handleSearch = (e) => {
-    e.preventDefault();
-    const next = input.trim();
-    if (next.length < 2) return;
-    const params = new URLSearchParams(searchParams);
-    params.set("q", next);
-    setSearchParams(params, { replace: true });
-  };
-
   const setTab = (type) => {
     const params = new URLSearchParams(searchParams);
     if (type === "all") params.delete("type");
@@ -106,44 +99,25 @@ export default function SearchResultsPage() {
           Search
         </h1>
         <p className="text-sm text-fo-subtle">
-          Find posts, communities, and profiles across Fointer.
+          {q.length >= 2
+            ? `Results for “${q}”. Use the header search to try another query.`
+            : "Use the header search to find posts, communities, and profiles."}
         </p>
       </header>
 
-      <form onSubmit={handleSearch} className="relative">
-        <Search
-          size={16}
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-fo-subtle pointer-events-none"
-        />
-        <input
-          type="search"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Search posts, communities, profiles…"
-          className="w-full bg-fo-surface border border-fo-border rounded-xl pl-10 pr-4 py-3 text-sm text-fo-text placeholder:text-fo-subtle focus:outline-none focus:border-fo-accent/50"
-        />
-      </form>
-
       {q.length >= 2 ? (
         <>
-          <div className="flex gap-1 p-1 rounded-xl bg-fo-bg border border-fo-border overflow-x-auto">
-            {TABS.map((tab) => {
-              const active = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setTab(tab.id)}
-                  className={`flex-1 min-w-[4.5rem] py-2 px-3 rounded-lg text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap ${
-                    active
-                      ? "bg-[#1A1510] text-fo-accent border border-fo-accent/35"
-                      : "text-fo-subtle hover:text-fo-text border border-transparent"
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              );
-            })}
+          <div className="flex gap-1 p-1 rounded-xl bg-fo-bg border border-fo-border overflow-x-auto overscroll-x-contain">
+            {TABS.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setTab(tab.id)}
+                className={tabBtnClass(activeTab === tab.id)}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
 
           {loading ? (
@@ -163,9 +137,7 @@ export default function SearchResultsPage() {
                 <section className="space-y-2">
                   <div className="flex items-center gap-2 px-0.5">
                     <FileText size={15} className="text-fo-accent" />
-                    <h2 className="text-sm font-semibold text-fo-text">
-                      Posts
-                    </h2>
+                    <h2 className="text-sm font-semibold text-fo-text">Posts</h2>
                     <span className="text-[11px] text-fo-subtle">
                       ({visible.posts.length})
                     </span>
@@ -218,7 +190,7 @@ export default function SearchResultsPage() {
                           className="w-12 h-12 rounded-lg object-cover border border-fo-border shrink-0"
                         />
                       ) : (
-                        <div className="w-12 h-12 rounded-lg bg-[#1A1510] border border-fo-border flex items-center justify-center text-fo-accent font-bold shrink-0">
+                        <div className="w-12 h-12 rounded-lg bg-fo-surface-hover border border-fo-border flex items-center justify-center text-fo-accent font-bold shrink-0">
                           {(community.name || "C").charAt(0).toUpperCase()}
                         </div>
                       )}
@@ -281,7 +253,7 @@ export default function SearchResultsPage() {
         </>
       ) : (
         <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle">
-          Enter at least 2 characters to search.
+          Type at least 2 characters in the header search, then press Enter.
         </div>
       )}
     </div>

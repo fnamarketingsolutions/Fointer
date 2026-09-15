@@ -20,7 +20,11 @@ export default function PostActions({
   const requireAuth = (event) => {
     event?.stopPropagation?.();
     if (!isAuthenticated) {
-      navigate("/login", { state: { from: window.location.pathname } });
+      navigate("/login", {
+        state: {
+          from: `${window.location.pathname}${window.location.search}`,
+        },
+      });
       return false;
     }
     return true;

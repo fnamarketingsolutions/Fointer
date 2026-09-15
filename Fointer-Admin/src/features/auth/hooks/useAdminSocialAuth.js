@@ -21,7 +21,7 @@ export function useAdminSocialAuth() {
       try {
         const response = await authApiCall(token);
         if (response?.success && response.user) {
-          const ok = loginSuccess(response.user);
+          const ok = loginSuccess(response.user, response.accessToken);
           if (!ok) {
             setError('This portal is for administrators only.');
             return;

@@ -40,6 +40,21 @@ export const addWatchParticipant = async (id, payload) => {
   return response.data;
 };
 
+export const fetchMyWatchInvites = async () => {
+  const response = await api.get('/watch-groups/invites/mine');
+  return response.data;
+};
+
+export const acceptWatchInvite = async (inviteId) => {
+  const response = await api.post(`/watch-groups/invites/${inviteId}/accept`);
+  return response.data;
+};
+
+export const declineWatchInvite = async (inviteId) => {
+  const response = await api.post(`/watch-groups/invites/${inviteId}/decline`);
+  return response.data;
+};
+
 export const removeWatchParticipant = async (id, memberId) => {
   const response = await api.delete(
     `/watch-groups/${id}/participants/${memberId}`

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   LuLoaderCircle as Loader2,
   LuLock as Lock,
@@ -12,7 +12,10 @@ import {
   LuX as X
 } from "react-icons/lu";
 import {
+  acceptWatchInvite,
   createWatchGroup,
+  declineWatchInvite,
+  fetchMyWatchInvites,
   fetchWatchGroups,
   joinWatchGroup,
 } from "../../../../api/watchGroups";
@@ -26,6 +29,7 @@ const TYPE_FILTERS = [
   { id: "public", label: "Public" },
   { id: "private", label: "Private" },
   { id: "joined", label: "Joined" },
+  { id: "invites", label: "Invites" },
 ];
 
 const TYPE_OPTIONS = [
@@ -33,7 +37,7 @@ const TYPE_OPTIONS = [
   {
     value: "private",
     label: "Private",
-    hint: "Invite-only — owner/moderator adds members",
+    hint: "Invite-only — members must accept before joining chat",
   },
 ];
 
@@ -47,30 +51,43 @@ const emptyForm = (limits = FALLBACK_LIMITS) => ({
 
 export default function WatchGroups() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { showToast } = useToast();
   const { isAuthenticated } = useAuth();
 
   const [groups, setGroups] = useState([]);
+  const [invites, setInvites] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState("all");
+  const tabParam = searchParams.get("tab");
+  const [filter, setFilter] = useState(
+    tabParam === "invites" ? "invites" : "all"
+  );
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState(() => emptyForm());
   const [limits, setLimits] = useState(FALLBACK_LIMITS);
   const [submitting, setSubmitting] = useState(false);
   const [joiningId, setJoiningId] = useState(null);
+  const [inviteBusyId, setInviteBusyId] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetchWatchGroups();
-      setGroups(res?.groups || []);
-      if (res?.limits?.max) {
+      const [groupsRes, invitesRes] = await Promise.all([
+        fetchWatchGroups(),
+        isAuthenticated
+          ? fetchMyWatchInvites().catch(() => ({ invites: [] }))
+          : Promise.resolve({ invites: [] }),
+      ]);
+      setGroups(groupsRes?.groups || []);
+      setInvites(invitesRes?.invites || []);
+      if (groupsRes?.limits?.max) {
         setLimits({
-          min: Number(res.limits.min) || 2,
-          max: Number(res.limits.max),
+          min: Number(groupsRes.limits.min) || 2,
+          max: Number(groupsRes.limits.max),
           defaultValue:
-            Number(res.limits.defaultValue) || Number(res.limits.max),
+            Number(groupsRes.limits.defaultValue) ||
+            Number(groupsRes.limits.max),
         });
       }
     } catch (err) {
@@ -78,23 +95,44 @@ export default function WatchGroups() {
     } finally {
       setLoading(false);
     }
-  }, [showToast]);
+  }, [isAuthenticated, showToast]);
 
   useEffect(() => {
     load();
   }, [load]);
 
+  useEffect(() => {
+    if (tabParam === "invites" && filter !== "invites") {
+      setFilter("invites");
+    }
+  }, [tabParam, filter]);
+
+  const setFilterTab = (id) => {
+    setFilter(id);
+    if (id === "invites") {
+      setSearchParams({ tab: "invites" }, { replace: true });
+    } else if (searchParams.get("tab")) {
+      setSearchParams({}, { replace: true });
+    }
+  };
+
   const counts = useMemo(() => {
+    const browseable = groups.filter(
+      (g) => g.isMember || !g.hasPendingInvite
+    );
     return {
-      all: groups.length,
-      public: groups.filter((g) => g.type === "public").length,
-      private: groups.filter((g) => g.type === "private").length,
+      all: browseable.length,
+      public: browseable.filter((g) => g.type === "public").length,
+      private: browseable.filter((g) => g.type === "private").length,
       joined: groups.filter((g) => g.isMember).length,
+      invites: invites.length,
     };
-  }, [groups]);
+  }, [groups, invites]);
 
   const visibleGroups = useMemo(() => {
-    let list = groups;
+    if (filter === "invites") return [];
+    // Pending invites only appear under Invites — keeps Accept/Decline UI consistent.
+    let list = groups.filter((g) => g.isMember || !g.hasPendingInvite);
     if (filter === "public" || filter === "private") {
       list = list.filter((g) => g.type === filter);
     } else if (filter === "joined") {
@@ -196,6 +234,44 @@ export default function WatchGroups() {
     }
   };
 
+  const handleAcceptInvite = async (invite) => {
+    const inviteId = invite?.inviteId || invite?.group?.inviteId;
+    if (!inviteId) {
+      showToast("Invite not found.");
+      return;
+    }
+    setInviteBusyId(inviteId);
+    try {
+      const res = await acceptWatchInvite(inviteId);
+      showToast("Invite accepted.");
+      const id = res?.group?.id || res?.group?.shortCode || invite?.group?.id;
+      await load();
+      if (id) navigate(`/watch-groups/${id}`);
+    } catch (err) {
+      showToast(err?.response?.data?.message || "Failed to accept invite.");
+    } finally {
+      setInviteBusyId(null);
+    }
+  };
+
+  const handleDeclineInvite = async (invite) => {
+    const inviteId = invite?.inviteId || invite?.group?.inviteId;
+    if (!inviteId) {
+      showToast("Invite not found.");
+      return;
+    }
+    setInviteBusyId(inviteId);
+    try {
+      await declineWatchInvite(inviteId);
+      showToast("Invite declined.");
+      await load();
+    } catch (err) {
+      showToast(err?.response?.data?.message || "Failed to decline invite.");
+    } finally {
+      setInviteBusyId(null);
+    }
+  };
+
   return (
     <div className="w-full max-w-3xl mx-auto space-y-5">
       <header className="flex items-start justify-between gap-3">
@@ -234,10 +310,10 @@ export default function WatchGroups() {
             <button
               key={item.id}
               type="button"
-              onClick={() => setFilter(item.id)}
+              onClick={() => setFilterTab(item.id)}
               className={`flex-1 min-w-[4.5rem] py-2 px-3 rounded-lg text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap ${
                 active
-                  ? "bg-[#1A1510] text-fo-accent border border-fo-accent/35"
+                  ? "bg-fo-surface-hover text-fo-accent border border-fo-accent/35"
                   : "text-fo-subtle hover:text-fo-text border border-transparent"
               }`}
             >
@@ -250,25 +326,81 @@ export default function WatchGroups() {
         })}
       </div>
 
-      <div className="relative">
-        <Search
-          size={14}
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-fo-subtle pointer-events-none"
-        />
-        <input
-          type="search"
-          placeholder="Search watch groups…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full bg-fo-surface border border-fo-border rounded-xl pl-9 pr-3 py-2.5 text-sm text-fo-text placeholder:text-fo-subtle focus:outline-none focus:border-fo-accent/50"
-        />
-      </div>
+      {filter !== "invites" ? (
+        <div className="relative">
+          <Search
+            size={14}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-fo-subtle pointer-events-none"
+          />
+          <input
+            type="search"
+            placeholder="Search watch groups…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full bg-fo-surface border border-fo-border rounded-xl pl-9 pr-3 py-2.5 text-sm text-fo-text placeholder:text-fo-subtle focus:outline-none focus:border-fo-accent/50"
+          />
+        </div>
+      ) : null}
 
       {loading ? (
         <div className="flex items-center justify-center gap-2 py-14 text-sm text-fo-muted">
           <Loader2 size={16} className="animate-spin text-fo-accent" />
           Loading watch groups…
         </div>
+      ) : filter === "invites" ? (
+        invites.length === 0 ? (
+          <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle px-4 space-y-3">
+            <Users className="w-8 h-8 mx-auto text-fo-accent/40" />
+            <p>No pending watch group invites.</p>
+          </div>
+        ) : (
+          <div className="space-y-2.5">
+            {invites.map((invite) => {
+              const group = invite.group || {};
+              const inviteId = invite.inviteId;
+              const busy = inviteBusyId === inviteId;
+              return (
+                <article
+                  key={inviteId}
+                  className="bg-fo-surface border border-fo-border rounded-xl p-3.5 sm:p-4 space-y-3"
+                >
+                  <div className="space-y-1">
+                    <p className="text-[11px] text-fo-accent font-medium">
+                      Invite pending
+                    </p>
+                    <h2 className="text-sm font-semibold text-fo-text">
+                      {group.name}
+                    </h2>
+                    <p className="text-[11px] text-fo-subtle">
+                      Accept to join the chat. You can’t enter until you accept.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => handleAcceptInvite(invite)}
+                      className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-fo-accent text-black text-xs font-semibold hover:bg-fo-accent-hover disabled:opacity-50"
+                    >
+                      {busy ? (
+                        <Loader2 size={12} className="animate-spin" />
+                      ) : null}
+                      Accept
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => handleDeclineInvite(invite)}
+                      className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-fo-border text-fo-muted text-xs font-semibold hover:text-red-400 hover:border-red-500/40 disabled:opacity-50"
+                    >
+                      Decline
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )
       ) : visibleGroups.length === 0 ? (
         <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle px-4 space-y-3">
           <Radio className="w-8 h-8 mx-auto text-fo-accent/40" />
@@ -343,8 +475,7 @@ export default function WatchGroups() {
                 <button
                   type="button"
                   disabled={
-                    joiningId === group.id ||
-                    (!group.isMember && !group.canJoin)
+                    joiningId === group.id || (!group.isMember && !group.canJoin)
                   }
                   onClick={() => handleEnter(group)}
                   className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-fo-accent/35 text-fo-accent text-xs font-semibold hover:bg-fo-accent/10 disabled:opacity-50 transition-colors"
@@ -383,7 +514,7 @@ export default function WatchGroups() {
                 type="button"
                 disabled={submitting}
                 onClick={() => setModalOpen(false)}
-                className="p-1.5 rounded-lg text-fo-muted hover:text-fo-text hover:bg-[#1A1510]"
+                className="p-1.5 rounded-lg text-fo-muted hover:text-fo-text hover:bg-fo-surface-hover"
               >
                 <X size={18} />
               </button>

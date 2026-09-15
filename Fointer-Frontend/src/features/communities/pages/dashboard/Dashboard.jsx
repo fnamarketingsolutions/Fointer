@@ -23,6 +23,7 @@ import {
 
 import AuthOnly from "../../../../guards/AuthOnly";
 import PanelShell from "../../../../shared/layouts/PanelShell";
+import IncomingDmCallBridge from "../../../messages/components/IncomingDmCallBridge";
 import {
   EXPLORE_PATH,
   FEED_PATH,
@@ -223,6 +224,7 @@ const Dashboard = () => {
       logoutTo="/"
       allowGuest
     >
+      <IncomingDmCallBridge />
       <Suspense fallback={pageFallback}>
         <Routes>
           <Route path={FEED_PATH} element={<DashboardFeed />} />

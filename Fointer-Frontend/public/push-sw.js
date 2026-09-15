@@ -40,6 +40,44 @@ const loadConfig = async (preferred) => {
   return data.web;
 };
 
+const withCallQuery = (path, action) => {
+  const base = path || "/messages";
+  if (!action || action === "open") return base;
+  const join = base.includes("?") ? "&" : "?";
+  return `${base}${join}callAction=${encodeURIComponent(action)}`;
+};
+
+const showCallOrDefaultNotification = (payload) => {
+  const data = payload?.data || {};
+  const title = payload?.notification?.title || data.title || "Fointer";
+  const body = payload?.notification?.body || data.body || "";
+  const tag = data.notificationId || data.tag || "fointer";
+  const isCall = String(data.type || "") === "direct_call";
+  const path = data.path || "/notifications";
+
+  return self.registration.showNotification(title, {
+    body,
+    icon: "/favicon.svg",
+    badge: "/favicon.svg",
+    tag,
+    renotify: true,
+    requireInteraction: isCall,
+    vibrate: isCall ? [400, 200, 400, 200, 400] : undefined,
+    actions: isCall
+      ? [
+          { action: "accept", title: "Accept" },
+          { action: "decline", title: "Decline" },
+        ]
+      : [],
+    data: {
+      path,
+      url: data.url || path,
+      type: data.type || "",
+      tag,
+    },
+  });
+};
+
 const ensureMessaging = (preferred) => {
   if (messagingReady) return messagingReady;
   messagingReady = (async () => {
@@ -61,20 +99,11 @@ const ensureMessaging = (preferred) => {
     if (!backgroundBound) {
       backgroundBound = true;
       messaging.onBackgroundMessage((payload) => {
+        // When FCM includes a `notification` block, the browser already shows it
+        // (with Accept/Decline from webpush actions). Only show manually for
+        // data-only payloads.
         if (payload?.notification) return;
-        const data = payload?.data || {};
-        const title = payload?.notification?.title || data.title || "Fointer";
-        const body = payload?.notification?.body || data.body || "";
-        const tag = data.notificationId || "fointer";
-        return self.registration.showNotification(title, {
-          body,
-          icon: "/favicon.svg",
-          tag,
-          data: {
-            path: data.path || "/notifications",
-            url: data.url || data.path || "/notifications",
-          },
-        });
+        return showCallOrDefaultNotification(payload);
       });
     }
     return messaging;
@@ -94,6 +123,15 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("message", (event) => {
+  if (event.data?.type === "CLOSE_CALL_NOTIFICATION") {
+    const tag = event.data.tag;
+    event.waitUntil(
+      self.registration.getNotifications({ tag }).then((list) => {
+        list.forEach((n) => n.close());
+      })
+    );
+    return;
+  }
   if (event.data?.type !== "FIREBASE_CONFIG") return;
   event.waitUntil(
     (async () => {
@@ -109,7 +147,9 @@ self.addEventListener("message", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const path = event.notification?.data?.path || "/notifications";
+  const data = event.notification?.data || {};
+  const action = event.action || "open";
+  const path = withCallQuery(data.path || "/notifications", action);
   const target = new URL(path, self.location.origin).href;
   event.waitUntil(
     clients

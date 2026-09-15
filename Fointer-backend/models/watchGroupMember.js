@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 
 export const WATCH_GROUP_ROLES = ["owner", "moderator", "member"];
-export const WATCH_GROUP_MEMBER_STATUS = ["active", "removed"];
+export const WATCH_GROUP_MEMBER_STATUS = ["active", "pending", "removed"];
 
 const watchGroupMemberSchema = new mongoose.Schema(
   {

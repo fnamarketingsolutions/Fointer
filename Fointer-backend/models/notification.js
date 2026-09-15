@@ -24,6 +24,8 @@ export const NOTIFICATION_TYPES = [
   "channel_request",
   "listing_inquiry",
   "direct_message",
+  "direct_call",
+  "watch_group_invite",
 ];
 export const ADMIN_NOTIFICATION_TYPES = [
   "content_report",
@@ -45,6 +47,7 @@ export const SYSTEM_NOTIFICATION_TYPES = [
   "member_unbanned",
   "support_ticket",
   "user_warning",
+  "watch_group_invite",
 ];
 
 export const ENTITY_KINDS = [
@@ -58,6 +61,7 @@ export const ENTITY_KINDS = [
   "user",
   "listing",
   "conversation",
+  "watch_group",
 ];
 
 const actorSnapshotSchema = new mongoose.Schema(

@@ -19,9 +19,10 @@ import {
 } from "react-icons/lu";
 import { fetchBrowsableCommunities } from "../../../../api/communities";
 import { fetchChannels } from "../../../../api/channels";
+import { useAuth } from "../../../../context/AuthContext";
 import { communitySegment } from "../../../../shared/services/entityLinks";
 import { formatCount } from "../../../../shared/utils/format";
-import { EXPLORE_PATH } from "../../../../shared/constants/paths";
+import { EXPLORE_PATH, FEED_PATH } from "../../../../shared/constants/paths";
 
 function iconForChannel(name) {
   const n = String(name || "").toLowerCase();
@@ -205,6 +206,7 @@ function HeroPreview({ communities, loading }) {
 }
 
 export default function HomePage() {
+  const { isAuthenticated } = useAuth();
   const [communities, setCommunities] = useState([]);
   const [communitiesLoading, setCommunitiesLoading] = useState(true);
   const [channels, setChannels] = useState([]);
@@ -284,18 +286,36 @@ export default function HomePage() {
             <p className="mt-3 sm:mt-4 text-sm sm:text-base text-fo-subtle max-w-xl">
               Whatever you&apos;re into, there&apos;s a place for you on Fointer.
             </p>
-            <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row gap-3">
-              <PrimaryButton to="/signup">
-                Join Fointer <ArrowRight size={16} />
-              </PrimaryButton>
-              <SecondaryButton to={EXPLORE_PATH}>Explore Communities</SecondaryButton>
-            </div>
-            <p className="mt-5 text-sm text-fo-subtle">
-              Already a Fointer?{" "}
-              <Link to="/login" className="text-fo-accent font-medium hover:underline">
-                Log in
-              </Link>
-            </p>
+            {isAuthenticated ? (
+              <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row gap-3">
+                <PrimaryButton to={FEED_PATH}>
+                  Go to Feed <ArrowRight size={16} />
+                </PrimaryButton>
+                <SecondaryButton to={EXPLORE_PATH}>
+                  Explore Communities
+                </SecondaryButton>
+              </div>
+            ) : (
+              <>
+                <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row gap-3">
+                  <PrimaryButton to="/signup">
+                    Join Fointer <ArrowRight size={16} />
+                  </PrimaryButton>
+                  <SecondaryButton to={EXPLORE_PATH}>
+                    Explore Communities
+                  </SecondaryButton>
+                </div>
+                <p className="mt-5 text-sm text-fo-subtle">
+                  Already a Fointer?{" "}
+                  <Link
+                    to="/login"
+                    className="text-fo-accent font-medium hover:underline"
+                  >
+                    Log in
+                  </Link>
+                </p>
+              </>
+            )}
           </motion.div>
 
           <motion.div
@@ -333,7 +353,7 @@ export default function HomePage() {
 
           <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {channelsLoading ? (
-              [0, 1, 2, 3].map((key) => (
+              [0, 1, 2, 3, 4, 5, 6, 7].map((key) => (
                 <div
                   key={key}
                   className="rounded-2xl border border-fo-border bg-fo-surface p-5 h-36 animate-pulse"
@@ -344,7 +364,7 @@ export default function HomePage() {
                 Channels will appear here as they are added.
               </p>
             ) : (
-              channels.map((channel) => {
+              channels.slice(0, 8).map((channel) => {
                 const name = channel.name || "Channel";
                 const Icon = iconForChannel(name);
                 return (
@@ -367,6 +387,16 @@ export default function HomePage() {
               })
             )}
           </div>
+          {!channelsLoading && channels.length > 8 ? (
+            <div className="mt-6 flex justify-center">
+              <Link
+                to="/communities"
+                className="inline-flex items-center gap-2 h-11 px-5 rounded-lg border border-fo-border text-sm font-semibold text-fo-text hover:border-fo-accent/40 hover:text-fo-accent transition-colors"
+              >
+                View more <ArrowRight size={16} />
+              </Link>
+            </div>
+          ) : null}
         </div>
       </section>
 
@@ -478,7 +508,9 @@ export default function HomePage() {
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <PrimaryButton to="/marketplace">Browse Marketplace</PrimaryButton>
-              <SecondaryButton to="/signup">Join Fointer</SecondaryButton>
+              {!isAuthenticated ? (
+                <SecondaryButton to="/signup">Join Fointer</SecondaryButton>
+              ) : null}
             </div>
           </div>
           <div className="rounded-2xl sm:rounded-3xl border border-fo-border bg-fo-surface p-5 sm:p-8 min-w-0">
@@ -542,18 +574,37 @@ export default function HomePage() {
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto shrink-0">
-              <Link
-                to="/signup"
-                className="inline-flex items-center justify-center w-full sm:w-auto h-12 px-6 rounded-lg bg-fo-bg text-fo-accent text-sm font-semibold hover:bg-fo-surface-hover transition-colors"
-              >
-                Join Fointer
-              </Link>
-              <Link
-                to={EXPLORE_PATH}
-                className="inline-flex items-center justify-center w-full sm:w-auto h-12 px-6 rounded-lg border border-fo-bg/20 text-fo-bg text-sm font-semibold hover:bg-fo-bg/5 transition-colors"
-              >
-                Explore communities
-              </Link>
+              {isAuthenticated ? (
+                <>
+                  <Link
+                    to={FEED_PATH}
+                    className="inline-flex items-center justify-center w-full sm:w-auto h-12 px-6 rounded-lg bg-fo-bg text-fo-accent text-sm font-semibold hover:bg-fo-surface-hover transition-colors"
+                  >
+                    Go to Feed
+                  </Link>
+                  <Link
+                    to={EXPLORE_PATH}
+                    className="inline-flex items-center justify-center w-full sm:w-auto h-12 px-6 rounded-lg border border-fo-bg/20 text-fo-bg text-sm font-semibold hover:bg-fo-bg/5 transition-colors"
+                  >
+                    Explore communities
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Link
+                    to="/signup"
+                    className="inline-flex items-center justify-center w-full sm:w-auto h-12 px-6 rounded-lg bg-fo-bg text-fo-accent text-sm font-semibold hover:bg-fo-surface-hover transition-colors"
+                  >
+                    Join Fointer
+                  </Link>
+                  <Link
+                    to={EXPLORE_PATH}
+                    className="inline-flex items-center justify-center w-full sm:w-auto h-12 px-6 rounded-lg border border-fo-bg/20 text-fo-bg text-sm font-semibold hover:bg-fo-bg/5 transition-colors"
+                  >
+                    Explore communities
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         </div>

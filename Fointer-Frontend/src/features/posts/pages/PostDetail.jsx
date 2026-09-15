@@ -648,22 +648,16 @@ export default function PostDetail({
             )}
 
             {post.media && post.media.length > 0 && (
-              <div
-                className={`relative w-full bg-fo-surface-2 flex items-center justify-center rounded-lg overflow-hidden group ${
-                  compact ? "max-h-[40vh]" : "min-h-[250px] max-h-[70vh]"
-                }`}
-              >
-                <div
-                  className={`w-full h-full flex items-center justify-center ${
-                    compact ? "" : "p-2"
-                  }`}
-                >
-                  <PostMediaGallery
-                    media={post.media}
-                    counterOverlay
-                    heightClass={compact ? "max-h-[36vh]" : "max-h-96"}
-                  />
-                </div>
+              <div className="relative w-full rounded-lg overflow-hidden border border-fo-border">
+                <PostMediaGallery
+                  media={post.media}
+                  counterOverlay
+                  heightClass={
+                    compact
+                      ? "h-[36vh] min-h-[12rem]"
+                      : "h-[min(70vh,36rem)] min-h-[16rem]"
+                  }
+                />
               </div>
             )}
 

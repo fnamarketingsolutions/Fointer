@@ -51,7 +51,7 @@ export default function AdminLogin() {
     try {
       const response = await adminLogin(formData);
       if (response?.success && response.user) {
-        const ok = loginSuccess(response.user);
+        const ok = loginSuccess(response.user, response.accessToken);
         if (!ok) {
           showToast('This portal is for administrators only.');
           return;

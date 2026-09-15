@@ -1,4 +1,5 @@
-import admin from "firebase-admin";
+import { initializeApp, getApps, cert } from "firebase-admin/app";
+import { getMessaging as getFirebaseMessaging } from "firebase-admin/messaging";
 import PushDevice from "../models/pushDevice.js";
 import { notificationPath } from "./notificationPath.js";
 
@@ -53,16 +54,24 @@ export const isPushConfigured = () => {
 
 const getMessaging = () => {
   if (!isPushConfigured()) return null;
-  if (!admin.apps.length) {
-    admin.initializeApp({
-      credential: admin.credential.cert({
-        projectId: String(process.env.FIREBASE_PROJECT_ID || "").trim(),
-        clientEmail: String(process.env.FIREBASE_CLIENT_EMAIL || "").trim(),
-        privateKey: readPrivateKey(),
-      }),
-    });
+  try {
+    if (!getApps().length) {
+      initializeApp({
+        credential: cert({
+          projectId: String(process.env.FIREBASE_PROJECT_ID || "").trim(),
+          clientEmail: String(process.env.FIREBASE_CLIENT_EMAIL || "").trim(),
+          privateKey: readPrivateKey(),
+        }),
+      });
+    }
+    return getFirebaseMessaging();
+  } catch (error) {
+    console.error(
+      "Firebase messaging init failed:",
+      error?.message || error
+    );
+    return null;
   }
-  return admin.messaging();
 };
 
 const absoluteUrl = (path) => {
@@ -103,7 +112,10 @@ export const pushNotificationToUser = async (recipientId, formatted) => {
   const url = absoluteUrl(path);
   const title = String(formatted.title || "Fointer").slice(0, 120);
   const body = String(formatted.body || "").slice(0, 240);
-  const tag = String(formatted.id || "fointer");
+  const isCall = String(formatted.type || "") === "direct_call";
+  const tag = isCall
+    ? `call:${String(formatted.entity?.id || formatted.id || "fointer")}`
+    : String(formatted.id || "fointer");
   const data = {
     notificationId: tag,
     type: String(formatted.type || ""),
@@ -111,7 +123,12 @@ export const pushNotificationToUser = async (recipientId, formatted) => {
     url,
     title,
     body,
+    callAction: isCall ? "open" : "",
   };
+
+  const callChannel =
+    String(process.env.FCM_ANDROID_CALL_CHANNEL_ID || "").trim() ||
+    ANDROID_CHANNEL_ID;
 
   for (let offset = 0; offset < tokens.length; offset += MULTICAST_LIMIT) {
     const batch = tokens.slice(offset, offset + MULTICAST_LIMIT);
@@ -120,35 +137,57 @@ export const pushNotificationToUser = async (recipientId, formatted) => {
       notification: { title, body },
       data,
       webpush: {
-        headers: { Urgency: "high", TTL: "86400" },
+        headers: {
+          Urgency: "high",
+          TTL: isCall ? "90" : "86400",
+        },
         notification: {
           title,
           body,
           icon: "/favicon.svg",
+          badge: "/favicon.svg",
           tag,
-          renotify: Boolean(tag),
-          data: { path, url },
+          renotify: true,
+          requireInteraction: isCall,
+          vibrate: isCall ? [400, 200, 400, 200, 400] : undefined,
+          actions: isCall
+            ? [
+                { action: "accept", title: "Accept" },
+                { action: "decline", title: "Decline" },
+              ]
+            : undefined,
+          data: {
+            path,
+            url,
+            type: String(formatted.type || ""),
+            tag,
+          },
         },
       },
       android: {
         priority: "high",
         collapseKey: tag,
+        ttl: isCall ? 90 : undefined,
         notification: {
-          channelId: ANDROID_CHANNEL_ID,
+          channelId: isCall ? callChannel : ANDROID_CHANNEL_ID,
           tag,
           sound: "default",
+          priority: "high",
+          visibility: "public",
         },
       },
       apns: {
         headers: {
           "apns-priority": "10",
           "apns-push-type": "alert",
+          ...(isCall ? { "apns-expiration": String(Math.floor(Date.now() / 1000) + 90) } : {}),
         },
         payload: {
           aps: {
             alert: { title, body },
             sound: "default",
             "thread-id": tag,
+            ...(isCall ? { "interruption-level": "time-sensitive" } : {}),
           },
         },
       },

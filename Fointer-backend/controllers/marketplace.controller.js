@@ -19,6 +19,7 @@ import {
   sendDirectMessage,
   formatListingSnapshot,
 } from "./conversation.controller.js";
+import { isMessagingBlocked } from "./block.controller.js";
 import {
   acceptSignedMediaList,
   destroyManyFromCloudinary,
@@ -650,6 +651,13 @@ export const contactSeller = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "You cannot contact yourself about your own listing.",
+      });
+    }
+
+    if (await isMessagingBlocked(req.user._id, sellerId)) {
+      return res.status(403).json({
+        success: false,
+        message: "You cannot message this user.",
       });
     }
 

@@ -12,6 +12,9 @@ import {
   setParticipantRole,
   listWatchMessages,
   deleteWatchMessage,
+  listMyWatchInvites,
+  acceptWatchInvite,
+  declineWatchInvite,
 } from "../controllers/watchGroup.controller.js";
 import { isAuthenticated } from "../middleware/auth.middleware.js";
 
@@ -19,6 +22,10 @@ const router = express.Router();
 
 router.get("/", isAuthenticated, listWatchGroups);
 router.post("/", isAuthenticated, createWatchGroup);
+
+router.get("/invites/mine", isAuthenticated, listMyWatchInvites);
+router.post("/invites/:memberId/accept", isAuthenticated, acceptWatchInvite);
+router.post("/invites/:memberId/decline", isAuthenticated, declineWatchInvite);
 
 router.get("/:id/participants", isAuthenticated, listParticipants);
 router.post("/:id/participants", isAuthenticated, addParticipant);

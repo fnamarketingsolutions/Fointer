@@ -4,11 +4,16 @@ import WatchGroup, {
 import WatchGroupMember from "../models/watchGroupMember.js";
 import WatchGroupMessage from "../models/watchGroupMessage.js";
 import User from "../models/user.js";
+import mongoose from "mongoose";
 import { resolveDocumentId } from "../utils/shortCode.js";
 import { sendServerError } from "../utils/safeError.js";
 import { respondIfBanned } from "../utils/bannedKeywords.js";
 import { getWatchGroupCreateLimits } from "../utils/watchGroupLimits.js";
 import { hasWatchGroupsAdminPower } from "../utils/adminAccess.js";
+import { notify, personName } from "../utils/notify.js";
+
+const isValidMemberId = (value) =>
+  mongoose.Types.ObjectId.isValid(String(value || ""));
 
 const formatUser = (user) => {
   if (!user || typeof user !== "object" || !user._id) {
@@ -33,6 +38,8 @@ export const formatWatchGroup = (group, extras = {}) => ({
   messageCount: extras.messageCount ?? 0,
   viewerRole: extras.viewerRole ?? null,
   isMember: extras.isMember ?? false,
+  hasPendingInvite: extras.hasPendingInvite ?? false,
+  inviteId: extras.inviteId ?? null,
   canJoin: extras.canJoin ?? false,
   canModerate: extras.canModerate ?? false,
   canDelete: extras.canDelete ?? false,
@@ -77,6 +84,19 @@ const getMembership = async (groupId, userId) =>
     status: "active",
   });
 
+const getPendingMembership = async (groupId, userId) =>
+  WatchGroupMember.findOne({
+    group: groupId,
+    user: userId,
+    status: "pending",
+  });
+
+const countSeatsTaken = async (groupId) =>
+  WatchGroupMember.countDocuments({
+    group: groupId,
+    status: { $in: ["active", "pending"] },
+  });
+
 export const getViewerRole = async (group, user) => {
   if (!user) return null;
   if (hasWatchGroupsAdminPower(user)) return "admin";
@@ -106,7 +126,8 @@ export const userCanAccessWatchGroup = async (group, user) => {
   if (!user) return false;
   if (hasWatchGroupsAdminPower(user)) return true;
   if (group.type === "public") return true;
-  return userIsMember(group, user);
+  if (await userIsMember(group, user)) return true;
+  return Boolean(await getPendingMembership(group._id, user._id));
 };
 
 const countActiveParticipants = async (groupId) =>
@@ -115,16 +136,20 @@ const countActiveParticipants = async (groupId) =>
 const attachMeta = async (group, user) => {
   const participantCount = await countActiveParticipants(group._id);
   const membership = user ? await getMembership(group._id, user._id) : null;
+  const pending = user
+    ? await getPendingMembership(group._id, user._id)
+    : null;
   const viewerRole = hasWatchGroupsAdminPower(user)
     ? "admin"
     : membership?.role || null;
   const isMember = Boolean(membership) || hasWatchGroupsAdminPower(user);
   const canModerate = await userCanModerateWatchGroup(group, user);
   const canDelete = await userCanDeleteWatchGroup(group, user);
-  const atCapacity = participantCount >= group.maxParticipants;
+  const atCapacity = (await countSeatsTaken(group._id)) >= group.maxParticipants;
   const canJoin =
     Boolean(user) &&
     !membership &&
+    !pending &&
     !atCapacity &&
     (group.type === "public" || hasWatchGroupsAdminPower(user));
 
@@ -132,6 +157,8 @@ const attachMeta = async (group, user) => {
     participantCount,
     viewerRole,
     isMember,
+    hasPendingInvite: Boolean(pending),
+    inviteId: pending ? String(pending._id) : null,
     canJoin,
     canModerate,
     canDelete,
@@ -143,10 +170,10 @@ export const listWatchGroups = async (req, res) => {
     const q = String(req.query.q || "").trim();
     const filter = {};
 
-    // Public groups + private groups the user belongs to
+    // Public groups + private groups the user belongs to or was invited to
     const memberships = await WatchGroupMember.find({
       user: req.user._id,
-      status: "active",
+      status: { $in: ["active", "pending"] },
     }).select("group");
     const memberGroupIds = memberships.map((m) => m.group);
 
@@ -310,7 +337,14 @@ export const joinWatchGroup = async (req, res) => {
       });
     }
 
-    const count = await countActiveParticipants(group._id);
+    if (membership?.status === "pending") {
+      return res.status(400).json({
+        success: false,
+        message: "You have a pending invite. Accept it to join this group.",
+      });
+    }
+
+    const count = await countSeatsTaken(group._id);
     if (count >= group.maxParticipants) {
       return res.status(400).json({
         success: false,
@@ -444,12 +478,17 @@ export const listParticipants = async (req, res) => {
       }
     }
 
+    const canModerate = await userCanModerateWatchGroup(group, req.user);
+    const statusFilter = canModerate
+      ? { $in: ["active", "pending"] }
+      : "active";
+
     const members = await WatchGroupMember.find({
       group: group._id,
-      status: "active",
+      status: statusFilter,
     })
       .populate("user", "username name avatar")
-      .sort({ role: 1, createdAt: 1 });
+      .sort({ status: 1, role: 1, createdAt: 1 });
 
     return res.json({
       success: true,
@@ -480,7 +519,7 @@ export const removeParticipant = async (req, res) => {
     const membership = await WatchGroupMember.findOne({
       _id: req.params.memberId,
       group: group._id,
-      status: "active",
+      status: { $in: ["active", "pending"] },
     });
 
     if (!membership) {
@@ -497,8 +536,10 @@ export const removeParticipant = async (req, res) => {
       });
     }
 
+    const wasPending = membership.status === "pending";
     const actorRole = await getViewerRole(group, req.user);
     if (
+      !wasPending &&
       membership.role === "moderator" &&
       actorRole === "moderator" &&
       req.user.role !== "admin"
@@ -517,16 +558,18 @@ export const removeParticipant = async (req, res) => {
     const userId = String(membership.user);
     const count = await countActiveParticipants(group._id);
 
-    req.app.get("io")?.to(`watch:${group._id}`).emit("watch_participant_removed", {
-      groupId: String(group._id),
-      userId,
-      memberId: String(membership._id),
-      participantCount: count,
-    });
+    if (!wasPending) {
+      req.app.get("io")?.to(`watch:${group._id}`).emit("watch_participant_removed", {
+        groupId: String(group._id),
+        userId,
+        memberId: String(membership._id),
+        participantCount: count,
+      });
+    }
 
     return res.json({
       success: true,
-      message: "Participant removed.",
+      message: wasPending ? "Invite cancelled." : "Participant removed.",
       memberId: String(membership._id),
       userId,
     });
@@ -548,7 +591,7 @@ export const addParticipant = async (req, res) => {
     if (!(await userCanModerateWatchGroup(group, req.user))) {
       return res.status(403).json({
         success: false,
-        message: "Only owners and moderators can add participants.",
+        message: "Only owners and moderators can invite participants.",
       });
     }
 
@@ -563,7 +606,10 @@ export const addParticipant = async (req, res) => {
     }
 
     const user = await User.findOne({
-      username: new RegExp(`^${username.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i"),
+      username: new RegExp(
+        `^${username.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+        "i"
+      ),
     });
     if (!user) {
       return res.status(404).json({
@@ -572,7 +618,14 @@ export const addParticipant = async (req, res) => {
       });
     }
 
-    const count = await countActiveParticipants(group._id);
+    if (String(user._id) === String(req.user._id)) {
+      return res.status(400).json({
+        success: false,
+        message: "You cannot invite yourself.",
+      });
+    }
+
+    const seatsTaken = await countSeatsTaken(group._id);
     let membership = await WatchGroupMember.findOne({
       group: group._id,
       user: user._id,
@@ -585,7 +638,14 @@ export const addParticipant = async (req, res) => {
       });
     }
 
-    if (!membership && count >= group.maxParticipants) {
+    if (membership?.status === "pending") {
+      return res.status(400).json({
+        success: false,
+        message: "An invite is already pending for this user.",
+      });
+    }
+
+    if (!membership && seatsTaken >= group.maxParticipants) {
       return res.status(400).json({
         success: false,
         message: "This watch group is full.",
@@ -593,7 +653,7 @@ export const addParticipant = async (req, res) => {
     }
 
     if (membership) {
-      membership.status = "active";
+      membership.status = "pending";
       membership.role = "member";
       membership.removedAt = null;
       membership.removedBy = null;
@@ -603,25 +663,158 @@ export const addParticipant = async (req, res) => {
         group: group._id,
         user: user._id,
         role: "member",
-        status: "active",
+        status: "pending",
       });
     }
 
     await membership.populate("user", "username name avatar");
-    const newCount = await countActiveParticipants(group._id);
 
+    await notify({
+      io: req.app.get("io"),
+      recipientId: user._id,
+      actor: req.user,
+      type: "watch_group_invite",
+      title: `${personName(req.user)} invited you to ${group.name}`,
+      body: "Accept the invite to join this watch group chat.",
+      entity: {
+        kind: "watch_group",
+        _id: group._id,
+        id: group._id,
+        shortCode: group.shortCode || "",
+        name: group.name,
+        title: group.name,
+      },
+      collapse: true,
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Invite sent.",
+      participant: formatParticipant(membership),
+    });
+  } catch (error) {
+    return sendServerError(res, error, "Failed to invite participant.");
+  }
+};
+
+export const listMyWatchInvites = async (req, res) => {
+  try {
+    const invites = await WatchGroupMember.find({
+      user: req.user._id,
+      status: "pending",
+    })
+      .populate({
+        path: "group",
+        populate: { path: "owner", select: "username name avatar" },
+      })
+      .sort({ updatedAt: -1 })
+      .limit(50);
+
+    const formatted = [];
+    for (const invite of invites) {
+      if (!invite.group) continue;
+      const meta = await attachMeta(invite.group, req.user);
+      formatted.push({
+        inviteId: String(invite._id),
+        invitedAt: invite.updatedAt || invite.createdAt,
+        group: meta,
+      });
+    }
+
+    return res.json({ success: true, invites: formatted });
+  } catch (error) {
+    return sendServerError(res, error, "Failed to list watch group invites.");
+  }
+};
+
+export const acceptWatchInvite = async (req, res) => {
+  try {
+    if (!isValidMemberId(req.params.memberId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid invite.",
+      });
+    }
+
+    const membership = await WatchGroupMember.findOne({
+      _id: req.params.memberId,
+      user: req.user._id,
+      status: "pending",
+    }).populate({
+      path: "group",
+      populate: { path: "owner", select: "username name avatar" },
+    });
+
+    if (!membership?.group) {
+      return res.status(404).json({
+        success: false,
+        message: "Invite not found.",
+      });
+    }
+
+    const group = membership.group;
+    const activeCount = await countActiveParticipants(group._id);
+    if (activeCount >= group.maxParticipants) {
+      return res.status(400).json({
+        success: false,
+        message: "This watch group is full.",
+      });
+    }
+
+    membership.status = "active";
+    membership.removedAt = null;
+    membership.removedBy = null;
+    await membership.save();
+
+    const newCount = await countActiveParticipants(group._id);
     req.app.get("io")?.to(`watch:${group._id}`).emit("watch_participant_joined", {
       groupId: String(group._id),
       participantCount: newCount,
     });
 
-    return res.status(201).json({
+    return res.json({
       success: true,
-      message: "Participant added.",
-      participant: formatParticipant(membership),
+      message: "Invite accepted.",
+      group: await attachMeta(group, req.user),
     });
   } catch (error) {
-    return sendServerError(res, error, "Failed to add participant.");
+    return sendServerError(res, error, "Failed to accept invite.");
+  }
+};
+
+export const declineWatchInvite = async (req, res) => {
+  try {
+    if (!isValidMemberId(req.params.memberId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid invite.",
+      });
+    }
+
+    const membership = await WatchGroupMember.findOne({
+      _id: req.params.memberId,
+      user: req.user._id,
+      status: "pending",
+    });
+
+    if (!membership) {
+      return res.status(404).json({
+        success: false,
+        message: "Invite not found.",
+      });
+    }
+
+    membership.status = "removed";
+    membership.removedAt = new Date();
+    membership.removedBy = req.user._id;
+    await membership.save();
+
+    return res.json({
+      success: true,
+      message: "Invite declined.",
+    });
+  } catch (error) {
+    return sendServerError(res, error, "Failed to decline invite.");
   }
 };
 

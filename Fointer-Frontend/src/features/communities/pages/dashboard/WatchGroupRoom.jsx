@@ -24,10 +24,15 @@ import {
   removeWatchParticipant,
   setWatchParticipantRole,
 } from "../../../../api/watchGroups";
+import { globalSearch } from "../../../../api/search";
 import { getLiveSocket } from "../../../../shared/services/liveSocket";
 import { useToast } from "../../../../shared/components/feedback/ToastContext";
 import { useAuth } from "../../../../context/AuthContext";
 import UserProfileLink from "../../../../shared/components/UserProfileLink";
+import ProfileAvatar from "../../../../shared/components/ProfileAvatar";
+import useDebouncedValue from "../../../../shared/hooks/useDebouncedValue";
+
+const INVITE_SEARCH_MIN = 2;
 
 export default function WatchGroupRoom() {
   const { groupId } = useParams();
@@ -45,8 +50,11 @@ export default function WatchGroupRoom() {
   const [actionBusy, setActionBusy] = useState(false);
   const [connected, setConnected] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
-  const [inviteUsername, setInviteUsername] = useState("");
+  const [inviteQuery, setInviteQuery] = useState("");
+  const [inviteSuggestions, setInviteSuggestions] = useState([]);
+  const [inviteSearchLoading, setInviteSearchLoading] = useState(false);
   const [inviting, setInviting] = useState(false);
+  const debouncedInviteQuery = useDebouncedValue(inviteQuery.trim(), 300);
 
   const listRef = useRef(null);
   const canModerateRef = useRef(false);
@@ -76,6 +84,11 @@ export default function WatchGroupRoom() {
       if (!g) throw new Error("missing");
 
       if (!g.isMember && user?.role !== "admin") {
+        if (g.hasPendingInvite) {
+          showToast("Accept the invite from Watch Groups → Invites to join.");
+          navigate("/watch-groups?tab=invites");
+          return;
+        }
         showToast("Join this watch group first.");
         navigate("/watch-groups");
         return;
@@ -268,25 +281,83 @@ export default function WatchGroupRoom() {
 
   const handleInvite = async (e) => {
     e.preventDefault();
-    if (!inviteUsername.trim()) return;
+    // Require picking a suggestion — don't invite on raw Enter.
+    if (inviteSuggestions.length === 1) {
+      await inviteUser(inviteSuggestions[0]);
+      return;
+    }
+    if (inviteQuery.trim().length < INVITE_SEARCH_MIN) {
+      showToast("Type at least 2 characters and pick a profile.");
+      return;
+    }
+    showToast("Pick a profile from the suggestions to invite.");
+  };
+
+  const inviteUser = async (profile) => {
+    const username = profile?.username;
+    if (!username || inviting) return;
     setInviting(true);
     try {
-      const res = await addWatchParticipant(groupId, {
-        username: inviteUsername.trim(),
-      });
+      const res = await addWatchParticipant(groupId, { username });
       if (res?.participant) {
-        setParticipants((prev) => [...prev, res.participant]);
+        setParticipants((prev) => {
+          if (prev.some((p) => String(p.id) === String(res.participant.id))) {
+            return prev;
+          }
+          return [...prev, res.participant];
+        });
       } else {
         await loadParticipants();
       }
-      setInviteUsername("");
-      showToast("Participant added.");
+      setInviteQuery("");
+      setInviteSuggestions([]);
+      showToast("Invite sent. They’ll need to accept before joining.");
     } catch (err) {
-      showToast(err?.response?.data?.message || "Failed to add participant.");
+      showToast(err?.response?.data?.message || "Failed to send invite.");
     } finally {
       setInviting(false);
     }
   };
+
+  useEffect(() => {
+    if (!panelOpen || debouncedInviteQuery.length < INVITE_SEARCH_MIN) {
+      setInviteSuggestions([]);
+      setInviteSearchLoading(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    setInviteSearchLoading(true);
+
+    globalSearch({
+      q: debouncedInviteQuery,
+      types: "profiles",
+      limit: 8,
+    })
+      .then((data) => {
+        if (cancelled) return;
+        const taken = new Set(
+          participants
+            .filter((p) => p.status === "active" || p.status === "pending")
+            .map((p) => String(p.user?.id || p.user?._id || ""))
+            .filter(Boolean)
+        );
+        const profiles = (data?.results?.profiles || []).filter(
+          (profile) => !taken.has(String(profile.id))
+        );
+        setInviteSuggestions(profiles);
+      })
+      .catch(() => {
+        if (!cancelled) setInviteSuggestions([]);
+      })
+      .finally(() => {
+        if (!cancelled) setInviteSearchLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedInviteQuery, panelOpen, participants]);
 
   const handleRoleToggle = async (member) => {
     const next = member.role === "moderator" ? "member" : "moderator";
@@ -505,7 +576,7 @@ export default function WatchGroupRoom() {
             disabled={sending}
             maxLength={1000}
             placeholder="Write a message…"
-            className="flex-1 bg-[#0D0A08] border border-fo-border rounded-xl px-3 py-2.5 text-sm text-fo-text focus:outline-none focus:border-fo-accent/60 placeholder:text-fo-subtle disabled:opacity-50"
+            className="flex-1 bg-fo-bg border border-fo-border rounded-xl px-3 py-2.5 text-sm text-fo-text focus:outline-none focus:border-fo-accent/60 placeholder:text-fo-subtle disabled:opacity-50"
           />
           <button
             type="submit"
@@ -542,41 +613,104 @@ export default function WatchGroupRoom() {
             </div>
 
             {group.canModerate ? (
-              <form onSubmit={handleInvite} className="flex gap-2">
-                <input
-                  type="text"
-                  value={inviteUsername}
-                  onChange={(e) => setInviteUsername(e.target.value)}
-                  placeholder="Invite by username"
-                  className="flex-1 bg-[#0D0A08] border border-fo-border rounded-lg px-3 py-2 text-xs text-fo-text focus:outline-none focus:border-fo-accent/60 placeholder:text-fo-subtle"
-                />
-                <button
-                  type="submit"
-                  disabled={inviting || !inviteUsername.trim()}
-                  className="px-3 py-2 rounded-lg bg-fo-accent text-black text-xs font-semibold disabled:opacity-50"
-                >
-                  {inviting ? (
-                    <Loader2 size={14} className="animate-spin" />
-                  ) : (
-                    <UserPlus size={14} />
-                  )}
-                </button>
-              </form>
+              <div className="space-y-2">
+                <form onSubmit={handleInvite} className="flex gap-2">
+                  <input
+                    type="text"
+                    value={inviteQuery}
+                    onChange={(e) => setInviteQuery(e.target.value)}
+                    placeholder="Search name or username…"
+                    autoComplete="off"
+                    className="flex-1 bg-fo-bg border border-fo-border rounded-lg px-3 py-2 text-xs text-fo-text focus:outline-none focus:border-fo-accent/60 placeholder:text-fo-subtle"
+                  />
+                  <button
+                    type="submit"
+                    disabled={
+                      inviting ||
+                      inviteQuery.trim().length < INVITE_SEARCH_MIN
+                    }
+                    className="px-3 py-2 rounded-lg bg-fo-accent text-black text-xs font-semibold disabled:opacity-50"
+                    title="Pick a profile below, or press Enter if only one match"
+                  >
+                    {inviting ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <UserPlus size={14} />
+                    )}
+                  </button>
+                </form>
+
+                {inviteQuery.trim().length > 0 &&
+                inviteQuery.trim().length < INVITE_SEARCH_MIN ? (
+                  <p className="text-[10px] text-fo-subtle px-0.5">
+                    Type at least 2 characters to see matching profiles.
+                  </p>
+                ) : null}
+
+                {inviteQuery.trim().length >= INVITE_SEARCH_MIN ? (
+                  <div className="rounded-xl border border-fo-border bg-fo-bg overflow-hidden max-h-56 overflow-y-auto">
+                    {inviteSearchLoading ? (
+                      <div className="flex items-center gap-2 px-3 py-3 text-[11px] text-fo-muted">
+                        <Loader2 size={12} className="animate-spin text-fo-accent" />
+                        Searching profiles…
+                      </div>
+                    ) : inviteSuggestions.length === 0 ? (
+                      <p className="px-3 py-3 text-[11px] text-fo-subtle">
+                        No matching profiles found.
+                      </p>
+                    ) : (
+                      inviteSuggestions.map((profile) => {
+                        const label =
+                          profile.name || profile.username || "User";
+                        return (
+                          <button
+                            key={profile.id}
+                            type="button"
+                            disabled={inviting}
+                            onClick={() => inviteUser(profile)}
+                            className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-fo-surface-hover transition-colors disabled:opacity-50 border-b border-fo-border last:border-b-0"
+                          >
+                            <ProfileAvatar
+                              src={profile.avatar}
+                              name={label}
+                              className="w-8 h-8 rounded-full object-cover border border-fo-border shrink-0"
+                            />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-medium text-fo-text truncate">
+                                {label}
+                              </p>
+                              <p className="text-[10px] text-fo-subtle truncate">
+                                @{profile.username}
+                              </p>
+                            </div>
+                            <span className="text-[10px] font-semibold text-fo-accent shrink-0">
+                              Invite
+                            </span>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                ) : null}
+              </div>
             ) : null}
 
             <div className="space-y-2">
               {participants.map((p) => {
                 const name = p.user?.name || p.user?.username || "Member";
+                const isPending = p.status === "pending";
                 const canRemove =
                   group.canModerate &&
                   p.role !== "owner" &&
                   !(
-                    group.viewerRole === "moderator" && p.role === "moderator"
+                    !isPending &&
+                    group.viewerRole === "moderator" &&
+                    p.role === "moderator"
                   );
                 return (
                   <div
                     key={p.id}
-                    className="flex items-center gap-2 p-2.5 rounded-xl border border-fo-border bg-[#0D0A08]"
+                    className="flex items-center gap-2 p-2.5 rounded-xl border border-fo-border bg-fo-bg"
                   >
                     <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold border border-fo-border text-fo-muted shrink-0">
                       {(name[0] || "?").toUpperCase()}
@@ -590,13 +724,19 @@ export default function WatchGroupRoom() {
                         {name}
                       </UserProfileLink>
                       <p className="text-[10px] text-fo-subtle capitalize flex items-center gap-1">
-                        {p.role === "moderator" || p.role === "owner" ? (
-                          <Shield size={10} className="text-fo-accent" />
-                        ) : null}
-                        {p.role}
+                        {isPending ? (
+                          <span className="text-fo-accent">Invite pending</span>
+                        ) : (
+                          <>
+                            {p.role === "moderator" || p.role === "owner" ? (
+                              <Shield size={10} className="text-fo-accent" />
+                            ) : null}
+                            {p.role}
+                          </>
+                        )}
                       </p>
                     </div>
-                    {isOwner && p.role !== "owner" ? (
+                    {!isPending && isOwner && p.role !== "owner" ? (
                       <button
                         type="button"
                         onClick={() => handleRoleToggle(p)}
@@ -610,7 +750,7 @@ export default function WatchGroupRoom() {
                         type="button"
                         onClick={() => handleRemoveParticipant(p.id)}
                         className="p-1 text-red-400/80 hover:text-red-400 shrink-0"
-                        title="Remove participant"
+                        title={isPending ? "Cancel invite" : "Remove participant"}
                       >
                         <UserMinus size={14} />
                       </button>

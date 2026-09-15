@@ -49,3 +49,18 @@ export const deleteMessage = async (conversationId, messageId) => {
   );
   return response.data;
 };
+
+export const fetchBlockedUsers = async () => {
+  const response = await api.get('/blocks');
+  return response.data;
+};
+
+export const blockUser = async (payload) => {
+  const response = await api.post('/blocks', payload);
+  return response.data;
+};
+
+export const unblockUser = async (username) => {
+  const response = await api.delete(`/blocks/${encodeURIComponent(username)}`);
+  return response.data;
+};

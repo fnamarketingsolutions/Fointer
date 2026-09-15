@@ -1,30 +1,40 @@
 import React, { useRef, useState } from "react";
 
+function MediaFrame({ item, heightClass }) {
+  const frameClass = `w-full ${heightClass} bg-fo-surface-2 flex items-center justify-center overflow-hidden`;
+  const mediaClass = "w-full h-full object-contain";
+
+  if (item.type === "video") {
+    return (
+      <div className={`${frameClass} bg-black`}>
+        <video src={item.url} controls className={mediaClass} />
+      </div>
+    );
+  }
+
+  return (
+    <div className={frameClass}>
+      <img src={item.url} alt="" className={mediaClass} />
+    </div>
+  );
+}
+
 export default function PostMediaGallery({
   media = [],
   counterOverlay = false,
-  heightClass = "max-h-96",
+  heightClass = "h-64 sm:h-80",
 }) {
   const scrollRef = useRef(null);
   const [activeIndex, setActiveIndex] = useState(0);
 
   if (!media.length) {
     return (
-      <div className="h-40 bg-gradient-to-br from-[#251E17] to-[#0E0C0A]" />
+      <div className="h-40 bg-gradient-to-br from-fo-surface-3 to-fo-bg" />
     );
   }
 
   if (media.length === 1) {
-    const item = media[0];
-    return item.type === "video" ? (
-      <video
-        src={item.url}
-        controls
-        className={`w-full ${heightClass} bg-black object-contain`}
-      />
-    ) : (
-      <img src={item.url} alt="" className={`w-full ${heightClass} object-cover`} />
-    );
+    return <MediaFrame item={media[0]} heightClass={heightClass} />;
   }
 
   const handleScroll = () => {
@@ -39,14 +49,14 @@ export default function PostMediaGallery({
   return (
     <div className="relative">
       {counterOverlay && (
-        <div className="absolute top-3 right-3 z-10 rounded-full border border-fo-border bg-black/70 px-2.5 py-1 text-[10px] font-mono text-fo-text backdrop-blur-sm">
+        <div className="absolute top-3 right-3 z-10 rounded-full border border-white/25 bg-black/80 px-2.5 py-1 text-[10px] font-mono text-white shadow-sm backdrop-blur-sm">
           {activeIndex + 1} / {media.length}
         </div>
       )}
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="flex overflow-x-auto snap-x snap-mandatory scrollbar-thin scrollbar-thumb-[#2A241E] scrollbar-track-transparent"
+        className="flex overflow-x-auto snap-x snap-mandatory scrollbar-thin scrollbar-thumb-fo-border scrollbar-track-transparent"
         style={{ scrollbarWidth: "thin" }}
       >
         {media.map((m, idx) => (
@@ -54,19 +64,7 @@ export default function PostMediaGallery({
             key={`${m.url}-${idx}`}
             className="min-w-full shrink-0 snap-center"
           >
-            {m.type === "video" ? (
-              <video
-                src={m.url}
-                controls
-                className={`w-full ${heightClass} bg-black object-contain`}
-              />
-            ) : (
-              <img
-                src={m.url}
-                alt=""
-                className={`w-full ${heightClass} object-cover`}
-              />
-            )}
+            <MediaFrame item={m} heightClass={heightClass} />
           </div>
         ))}
       </div>
@@ -86,7 +84,7 @@ export default function PostMediaGallery({
             className={`h-1.5 rounded-full transition-all ${
               idx === activeIndex
                 ? "w-4 bg-fo-accent"
-                : "w-1.5 bg-[#2A241E] hover:bg-[#4A4036]"
+                : "w-1.5 bg-fo-border hover:bg-fo-subtle"
             }`}
           />
         ))}

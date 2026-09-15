@@ -81,10 +81,13 @@ export const notificationPath = (notification) => {
     if (listingPath) return `/marketplace/${listingPath}`;
     return "/marketplace/my-listings";
   }
-  if (type === "direct_message") {
+  if (type === "direct_message" || type === "direct_call") {
     const conversationId = entity?.id;
     if (conversationId) return `/messages/${conversationId}`;
     return "/messages";
+  }
+  if (type === "watch_group_invite") {
+    return "/watch-groups?tab=invites";
   }
   return "/notifications";
 };

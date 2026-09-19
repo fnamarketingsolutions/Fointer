@@ -111,7 +111,10 @@ const getViewerEngagement = async (postIds, userId) => {
     getLikeMeta("post", postIds, userId),
     getReshareMeta(postIds, userId),
   ]);
-  return { liked: likeMeta.liked, reshared: reshareMeta.reshared };
+  return {
+    liked: likeMeta.liked,
+    reshared: reshareMeta.reshared,
+  };
 };
 
 const isWithinWindow = (createdAt, minutes) => {
@@ -158,7 +161,13 @@ const getViewerCommunityAccess = async (user) => {
 const formatFeedPost = (
   post,
   user,
-  { liked = {}, reshared = {}, joinedIdSet, manageableIdSet, editWindowMinutes }
+  {
+    liked = {},
+    reshared = {},
+    joinedIdSet,
+    manageableIdSet,
+    editWindowMinutes,
+  }
 ) => {
   if (!user) {
     return formatPost(post, {
@@ -565,6 +574,59 @@ export const getPost = async (req, res) => {
     });
   } catch (error) {
     return sendServerError(res, error);
+  }
+};
+
+const HASHTAG_RE = /#([A-Za-z][A-Za-z0-9_]{1,49})/g;
+const TRENDING_POST_SCAN = 800;
+
+const collectHashtagsFromPosts = (posts = []) => {
+  const counts = new Map();
+  for (const post of posts) {
+    const text = `${post.title || ""} ${post.text || ""}`;
+    const seenInPost = new Set();
+    for (const match of text.matchAll(HASHTAG_RE)) {
+      const tag = match[1];
+      const key = tag.toLowerCase();
+      if (seenInPost.has(key)) continue;
+      seenInPost.add(key);
+      const prev = counts.get(key);
+      if (prev) prev.count += 1;
+      else counts.set(key, { tag, count: 1 });
+    }
+  }
+  return counts;
+};
+
+/** Public Discover sidebar: hashtags ranked by how many public posts use them. */
+export const listTrendingTopics = async (req, res) => {
+  try {
+    const limit = Math.min(Math.max(Number(req.query.limit) || 10, 1), 20);
+    const discoverableIds = await getDiscoverableCommunityIds();
+    const posts = await Post.find({
+      community: { $in: [null, ...discoverableIds] },
+    })
+      .select("title text")
+      .sort({ createdAt: -1 })
+      .limit(TRENDING_POST_SCAN)
+      .lean();
+
+    const counts = collectHashtagsFromPosts(posts);
+
+    const topics = [...counts.values()]
+      .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag))
+      .slice(0, limit)
+      .map((row) => ({
+        tag: row.tag,
+        postCount: row.count,
+      }));
+
+    return res.status(200).json({
+      success: true,
+      topics,
+    });
+  } catch (error) {
+    return sendServerError(res, error, "Could not load trending topics.");
   }
 };
 

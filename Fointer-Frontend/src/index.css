@@ -53,6 +53,7 @@
 }
 
 @theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --color-fo-bg: var(--theme-bg);
   --color-fo-surface: var(--theme-surface);
   --color-fo-surface-2: var(--theme-surface-2);
@@ -78,6 +79,7 @@ body,
   min-height: 100%;
   background-color: var(--theme-bg);
   color: var(--theme-text);
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
 }
 
 .auth-page {

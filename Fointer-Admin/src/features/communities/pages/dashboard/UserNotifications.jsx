@@ -9,6 +9,7 @@ import {
   LuShield as Shield,
   LuBan as Ban,
   LuLifeBuoy as LifeBuoy,
+  LuHeadset as Headset,
   LuFlag as Flag,
   LuLayers as Layers,
   LuLoaderCircle as Loader2,
@@ -37,6 +38,7 @@ const ADMIN_FILTERS = [
   { id: "unread", label: "Unread" },
   { id: "reports", label: "Reports" },
   { id: "requests", label: "Channel requests" },
+  { id: "usersupport", label: "User support" },
   { id: "warnings", label: "Warnings" },
 ];
 
@@ -46,6 +48,9 @@ const typeIcon = (type) => {
   }
   if (type === "support_ticket") {
     return { Icon: LifeBuoy, className: "text-fo-accent" };
+  }
+  if (type === "user_support") {
+    return { Icon: Headset, className: "text-fo-accent" };
   }
   if (type === "content_report") {
     return { Icon: Flag, className: "text-rose-400" };
@@ -115,6 +120,9 @@ export default function UserNotifications({ onBack }) {
           return prev;
         }
         if (filter === "requests" && payload.type !== "channel_request") {
+          return prev;
+        }
+        if (filter === "usersupport" && payload.type !== "user_support") {
           return prev;
         }
         if (filter === "warnings" && payload.type !== "user_warning") {

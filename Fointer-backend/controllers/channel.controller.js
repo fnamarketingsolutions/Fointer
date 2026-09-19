@@ -3,10 +3,12 @@ import Channel from "../models/channel.js";
 import Community from "../models/community.js";
 import { sendServerError } from "../utils/safeError.js";
 import { escapeRegex } from "../utils/validate.js";
+import { normalizeChannelIcon } from "../utils/channelIcons.js";
 
 const formatChannel = (channel) => ({
   id: channel._id,
   name: channel.name,
+  icon: channel.icon || "",
   createdAt: channel.createdAt,
   updatedAt: channel.updatedAt,
 });
@@ -30,7 +32,8 @@ export const createChannel = async (req, res) => {
       });
     }
 
-    const channel = await Channel.create({ name, nameNormalized });
+    const icon = normalizeChannelIcon(req.body?.icon);
+    const channel = await Channel.create({ name, nameNormalized, icon });
     return res.status(201).json({
       success: true,
       channel: formatChannel(channel),
@@ -107,6 +110,9 @@ export const updateChannel = async (req, res) => {
     const oldName = channel.name;
     channel.name = name;
     channel.nameNormalized = nameNormalized;
+    if (req.body?.icon !== undefined) {
+      channel.icon = normalizeChannelIcon(req.body.icon);
+    }
     await channel.save();
 
     if (oldName !== name) {

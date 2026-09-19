@@ -1,14 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
+  LuArrowLeft as ArrowLeft,
   LuLoaderCircle as Loader2,
-  LuUsers as Users,
-  LuSearch as Search,
   LuPlus as Plus,
+  LuSearch as Search,
   LuCircleHelp as HelpCircle,
   LuFolders as Folders,
-  LuRefreshCw as RefreshCw
 } from "react-icons/lu";
+import CommunityCard from "../../components/CommunityCard";
+import CommunitiesRail from "../../components/CommunitiesRail";
 import {
   fetchMyCommunities,
   fetchCommunityManage,
@@ -19,8 +20,6 @@ import ConfirmDeleteModal from "../../../../shared/components/modals/ConfirmDele
 import EditCommunityModal from "../../../../shared/components/modals/EditCommunityModal";
 import CreateCommunityModal from "../../../../shared/components/modals/CreateCommunityModal";
 import HelpSupportModal from "../../../../shared/components/modals/HelpSupportModal";
-import { formatCommunityType } from "../../../../shared/utils/community";
-import { timeAgo } from "../../../../shared/utils/date";
 import { getErrorMessage } from "../../../../shared/utils/errors";
 import { communitySegment } from "../../../../shared/services/entityLinks";
 import useEntityId from "../../../../shared/hooks/useEntityId";
@@ -32,29 +31,15 @@ const ROLE_FILTERS = [
   { id: "moderator", label: "Moderating" },
 ];
 
-function CommunityThumb({ community }) {
-  const name = community?.name || "Community";
-  if (community?.coverImage) {
-    return (
-      <img
-        src={community.coverImage}
-        alt={name}
-        className="w-12 h-12 rounded-lg object-cover border border-fo-border shrink-0"
-      />
-    );
-  }
-  return (
-    <div className="w-12 h-12 rounded-lg bg-[#1A1510] border border-fo-border flex items-center justify-center shrink-0">
-      <span className="text-sm font-semibold text-fo-accent/60">
-        {name.charAt(0).toUpperCase()}
-      </span>
-    </div>
-  );
-}
+const filterBtnClass = (active) =>
+  `relative px-2.5 py-1.5 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40 rounded-lg ${
+    active ? "text-fo-accent" : "text-fo-subtle hover:text-fo-text"
+  }`;
 
 export default function ManageCommunities() {
   const { communityId } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { showToast } = useToast();
   const { id: selectedId, notFound: communityNotFound } = useEntityId(
     "community",
@@ -150,6 +135,15 @@ export default function ManageCommunities() {
   }, [loadCommunities]);
 
   useEffect(() => {
+    if (searchParams.get("create") !== "1") return undefined;
+    setCreateOpen(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete("create");
+    setSearchParams(next, { replace: true });
+    return undefined;
+  }, [searchParams, setSearchParams]);
+
+  useEffect(() => {
     if (selectedId) {
       loadManage(selectedId);
     } else {
@@ -158,12 +152,12 @@ export default function ManageCommunities() {
   }, [selectedId, loadManage]);
 
   const openCommunity = (community) => {
-    navigate(`/manage-community/${communitySegment(community)}`);
+    navigate(`/communities/manage/${communitySegment(community)}`);
   };
 
   const backToList = () => {
     setManageData(null);
-    navigate("/manage-community");
+    navigate("/communities/manage");
     loadCommunities({ keepExisting: true });
   };
 
@@ -278,81 +272,46 @@ export default function ManageCommunities() {
     );
   }
 
-  return (
-    <div className="w-full max-w-3xl mx-auto space-y-5">
-      <header className="flex items-start justify-between gap-3">
-        <div className="space-y-1 min-w-0">
-          <h1 className="text-xl sm:text-2xl font-semibold text-fo-text">
-            Manage Communities
-          </h1>
-          <p className="text-sm text-fo-subtle">
-            Communities you own or moderate — members, requests, and settings.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={() => loadCommunities()}
-            disabled={loading}
-            className="p-2 rounded-lg border border-fo-border text-fo-muted hover:text-fo-accent hover:border-fo-accent/40 transition-colors disabled:opacity-50"
-            title="Refresh"
+  const listBody = (
+    <>
+          <div
+            className="flex flex-wrap items-center gap-1 border-b border-fo-border pb-1"
+            role="group"
+            aria-label="Filter communities"
           >
-            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-          </button>
-          <button
-            type="button"
-            onClick={() => setHelpOpen(true)}
-            className="p-2 rounded-lg border border-fo-border text-fo-muted hover:text-fo-accent hover:border-fo-accent/40 transition-colors"
-            title="Help"
-          >
-            <HelpCircle size={16} />
-          </button>
-          <button
-            type="button"
-            onClick={() => setCreateOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-fo-accent text-black text-xs font-semibold hover:bg-fo-accent-hover transition-colors"
-          >
-            <Plus size={14} /> Create
-          </button>
-        </div>
-      </header>
+            {ROLE_FILTERS.map((item) => {
+              const active = filter === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setFilter(item.id)}
+                  aria-pressed={active}
+                  className={filterBtnClass(active)}
+                >
+                  {item.label}
+                  {counts[item.id] != null ? ` (${counts[item.id]})` : ""}
+                  {active ? (
+                    <span className="absolute left-3 right-3 -bottom-1 h-0.5 rounded-full bg-fo-accent" />
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
 
-      <div className="flex gap-1 p-1 rounded-xl bg-fo-bg border border-fo-border overflow-x-auto">
-        {ROLE_FILTERS.map((item) => {
-          const active = filter === item.id;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => setFilter(item.id)}
-              className={`flex-1 min-w-[4.5rem] py-2 px-3 rounded-lg text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap ${
-                active
-                  ? "bg-[#1A1510] text-fo-accent border border-fo-accent/35"
-                  : "text-fo-subtle hover:text-fo-text border border-transparent"
-              }`}
-            >
-              {item.label}
-              <span className="ml-1.5 text-[10px] opacity-70">
-                {counts[item.id] ?? 0}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="relative">
-        <Search
-          size={14}
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-fo-subtle pointer-events-none"
-        />
-        <input
-          type="search"
-          placeholder="Search by community name…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full bg-fo-surface border border-fo-border rounded-xl pl-9 pr-3 py-2.5 text-sm text-fo-text placeholder:text-fo-subtle focus:outline-none focus:border-fo-accent/50"
-        />
-      </div>
+          <div className="relative">
+            <Search
+              size={16}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-fo-subtle pointer-events-none"
+            />
+            <input
+              type="search"
+              placeholder="Search communities..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full rounded-xl border border-fo-border bg-fo-surface pl-9 pr-3 py-2.5 text-sm text-fo-text placeholder:text-fo-subtle focus:outline-none focus:border-fo-accent/50"
+            />
+          </div>
 
       {loading && communities.length === 0 ? (
         <div className="flex items-center justify-center gap-2 py-14 text-sm text-fo-muted">
@@ -376,78 +335,110 @@ export default function ManageCommunities() {
           No communities match your search.
         </div>
       ) : (
-        <div className="space-y-2.5">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           {filteredCommunities.map((item) => {
-            const ownerName =
-              item.owner?.name || item.owner?.username || "You";
             const role =
               item.membershipRole && item.membershipRole !== "owner"
                 ? item.membershipRole
                 : "owner";
 
             return (
-              <article
+              <CommunityCard
                 key={item.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => openCommunity(item)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    openCommunity(item);
-                  }
-                }}
-                className="group flex items-center gap-3 bg-fo-surface border border-fo-border hover:border-fo-accent/35 rounded-xl p-3.5 sm:p-4 transition-colors cursor-pointer"
-              >
-                <CommunityThumb community={item} />
-                <div className="min-w-0 flex-1 space-y-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h2 className="text-sm font-semibold text-fo-text group-hover:text-fo-accent transition-colors truncate">
-                      {item.name || "Community"}
-                    </h2>
-                    <span className="text-[10px] text-fo-subtle">
-                      {formatCommunityType(item.type)}
-                    </span>
-                    <span className="text-[10px] uppercase tracking-wide text-fo-accent/80">
-                      {role}
-                    </span>
-                  </div>
-                  {item.description ? (
-                    <p className="text-[11px] text-fo-subtle line-clamp-1">
-                      {item.description}
-                    </p>
-                  ) : null}
-                  <div className="flex items-center gap-2 text-[11px] text-fo-subtle flex-wrap">
-                    <span className="inline-flex items-center gap-1">
-                      <Users size={11} />
-                      {item.memberCount ?? 1} members
-                    </span>
-                    <span>·</span>
-                    <span>Owner {ownerName}</span>
-                    {item.createdAt ? (
-                      <>
-                        <span>·</span>
-                        <span>{timeAgo(item.createdAt)}</span>
-                      </>
-                    ) : null}
-                  </div>
-                </div>
-                <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-fo-accent/70 group-hover:text-fo-accent">
-                  Manage
-                </span>
-              </article>
+                community={item}
+                onClick={openCommunity}
+                badge={role}
+              />
             );
           })}
         </div>
       )}
+    </>
+  );
 
+  const modals = (
+    <>
       <CreateCommunityModal
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         onSuccess={() => loadCommunities({ keepExisting: true })}
       />
-
       <HelpSupportModal open={helpOpen} onClose={() => setHelpOpen(false)} />
+    </>
+  );
+
+  return (
+    <div className="text-fo-text w-full max-w-[1180px] mx-auto pb-6">
+      <button
+        type="button"
+        onClick={() => navigate("/communities")}
+        className="inline-flex items-center gap-2 min-h-9 px-1 mb-3 text-sm text-fo-muted hover:text-fo-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40 rounded-lg"
+      >
+        <ArrowLeft size={16} /> Back to communities
+      </button>
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px] gap-4 items-start">
+        <div className="min-w-0 space-y-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-fo-accent inline-flex items-center gap-1.5">
+                <Folders size={14} aria-hidden /> Manage
+              </p>
+              <h1 className="mt-1 text-xl font-semibold tracking-tight text-fo-text leading-tight">
+                Manage communities
+              </h1>
+              <p className="mt-1 text-sm text-fo-subtle leading-snug max-w-xl">
+                Communities you own or moderate — members, requests, and
+                settings.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setHelpOpen(true)}
+                className="inline-flex items-center gap-1.5 min-h-9 px-3.5 rounded-full border border-fo-border text-[13px] font-medium text-fo-text hover:border-fo-accent/40 hover:text-fo-accent transition-colors"
+              >
+                <HelpCircle size={15} aria-hidden /> Help
+              </button>
+              <button
+                type="button"
+                onClick={() => setCreateOpen(true)}
+                className="inline-flex items-center gap-1.5 min-h-9 px-3.5 rounded-full bg-fo-accent text-black text-[13px] font-semibold hover:bg-fo-accent-hover transition-colors"
+              >
+                <Plus size={16} aria-hidden /> Create
+              </button>
+            </div>
+          </div>
+          {listBody}
+        </div>
+
+        <div className="hidden lg:block lg:sticky lg:top-5">
+          <CommunitiesRail
+            managePage
+            items={ROLE_FILTERS.map((item) => ({
+              ...item,
+              count: counts[item.id] || 0,
+            }))}
+            selectedId={filter}
+            onSelect={setFilter}
+            isGuest={false}
+          />
+        </div>
+      </div>
+
+      <div className="lg:hidden mt-4">
+        <CommunitiesRail
+          managePage
+          items={ROLE_FILTERS.map((item) => ({
+            ...item,
+            count: counts[item.id] || 0,
+          }))}
+          selectedId={filter}
+          onSelect={setFilter}
+          isGuest={false}
+        />
+      </div>
+
+      {modals}
     </div>
   );
 }

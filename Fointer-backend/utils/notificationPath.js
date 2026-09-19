@@ -31,8 +31,8 @@ export const notificationPath = (notification) => {
     ? `/communities/${communitySegment(community) || community.id}`
     : "";
   const managePath = community
-    ? `/manage-community/${communitySegment(community) || community.id}`
-    : "/manage-community";
+    ? `/communities/manage/${communitySegment(community) || community.id}`
+    : "/communities/manage";
 
   if (type === "join_request") {
     return `${managePath}?section=incoming`;
@@ -61,7 +61,10 @@ export const notificationPath = (notification) => {
       const postPath = postSegment(entity);
       return `${communityPath}/posts/${postPath || entity.id}`;
     }
-    if (entity?.id) return `/post-management/${entity.id}`;
+    if (entity?.id) {
+      const postPath = postSegment(entity);
+      return `/post/${postPath || entity.id}`;
+    }
     return "/";
   }
   if (type === "support_ticket") {

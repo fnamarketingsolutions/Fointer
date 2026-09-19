@@ -59,20 +59,28 @@ export const getCommunitiesUrl = (community) => {
 export const getManageCommunityIncomingUrl = (community) => {
   const segment = communityPathSegment(community);
   return segment
-    ? `${frontendBase()}/manage-community/${encodeURIComponent(segment)}?section=incoming`
-    : `${frontendBase()}/manage-community`;
+    ? `${frontendBase()}/communities/manage/${encodeURIComponent(segment)}?section=incoming`
+    : `${frontendBase()}/communities/manage`;
 };
 
 export const getManageCommunityMembersUrl = (community) => {
   const segment = communityPathSegment(community);
   return segment
-    ? `${frontendBase()}/manage-community/${encodeURIComponent(segment)}?section=members`
-    : `${frontendBase()}/manage-community`;
+    ? `${frontendBase()}/communities/manage/${encodeURIComponent(segment)}?section=members`
+    : `${frontendBase()}/communities/manage`;
 };
 
 const getSupportUserUrl = () => `${frontendBase()}/support`;
 
 const getSupportAdminUrl = () => `${frontendBase()}/admin/support`;
+
+const adminBase = () =>
+  String(process.env.ADMIN_URL || process.env.FRONTEND_URL || "").replace(
+    /\/$/,
+    ""
+  );
+
+const getUserSupportAdminUrl = () => `${adminBase()}/usersupport`;
 
 /**
  * Shared dashboard notification email used by join-request and invite flows.
@@ -334,6 +342,57 @@ export const sendSupportRequestEmail = async ({ userName, description }) => {
             style="display: inline-block; padding: 12px 20px; background: #f8a201; color: #130d08; text-decoration: none; border-radius: 8px; font-weight: 600;"
           >
             See help support
+          </a>
+        </p>
+        <p style="font-size: 12px; color: #6b7280; margin-top: 16px;">
+          Or open this link: <a href="${adminUrl}">${adminUrl}</a>
+        </p>
+      </div>
+    `,
+  });
+};
+
+export const sendUserSupportRequestEmail = async ({
+  email,
+  phone,
+  categoryName,
+  message,
+}) => {
+  const to = process.env.EMAIL_FROM || process.env.SMTP_USER;
+  if (!to) {
+    throw new Error(
+      "Support recipient email is missing (EMAIL_FROM / SMTP_USER)."
+    );
+  }
+
+  const from = getFromAddress();
+  const transporter = createTransporter();
+  const adminUrl = escapeHtml(getUserSupportAdminUrl());
+  const safeEmail = escapeHtml(email);
+  const safePhone = escapeHtml(phone);
+  const safeCategory = escapeHtml(categoryName);
+  const safeMessage = escapeHtml(message).replace(/\n/g, "<br/>");
+
+  await transporter.sendMail({
+    from,
+    to,
+    subject: "New user support request",
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1f2937; max-width: 560px;">
+        <h2 style="margin-bottom: 16px; color: #130d08;">New user support request</h2>
+        <p style="margin: 0 0 8px;"><strong>Category:</strong> ${safeCategory}</p>
+        <p style="margin: 0 0 8px;"><strong>Email:</strong> ${safeEmail}</p>
+        <p style="margin: 0 0 8px;"><strong>Phone:</strong> ${safePhone}</p>
+        <p style="margin: 0 0 8px;"><strong>Message:</strong></p>
+        <div style="margin: 0 0 24px; padding: 16px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; color: #374151;">
+          ${safeMessage}
+        </div>
+        <p style="margin: 0 0 8px;">
+          <a
+            href="${adminUrl}"
+            style="display: inline-block; padding: 12px 20px; background: #f8a201; color: #130d08; text-decoration: none; border-radius: 8px; font-weight: 600;"
+          >
+            Open User Support Management
           </a>
         </p>
         <p style="font-size: 12px; color: #6b7280; margin-top: 16px;">

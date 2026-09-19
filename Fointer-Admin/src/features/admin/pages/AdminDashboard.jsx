@@ -12,6 +12,7 @@ import {
   LuUsers as Users,
   LuUsersRound as UsersRound,
   LuLifeBuoy as LifeBuoy,
+  LuHeadset as Headset,
   LuShield as Shield,
   LuRadio as Radio,
   LuMessageSquare as MessageSquare,
@@ -21,6 +22,7 @@ import {
   LuShoppingBag as ShoppingBag,
   LuUserCog as UserCog,
   LuTriangleAlert as AlertTriangle,
+  LuImage as ImageIcon,
 } from 'react-icons/lu';
 
 import PanelShell from '../../../shared/layouts/PanelShell';
@@ -30,6 +32,7 @@ const UserManagement = lazy(() => import('./menus/UserManagement'));
 const CommunityManagement = lazy(() => import('./menus/CommunityManagement'));
 const ChannelManagement = lazy(() => import('./menus/ChannelManagement'));
 const SupportTicketCenter = lazy(() => import('./menus/SupportTicketCenter'));
+const UserSupportManagement = lazy(() => import('./menus/UserSupportManagement'));
 const LiveEventManagement = lazy(() => import('./menus/LiveEventManagement'));
 const WatchGroupManagement = lazy(() => import('./menus/WatchGroupManagement'));
 const ContentModeration = lazy(() => import('./menus/ContentModeration'));
@@ -38,6 +41,7 @@ const UserDetail = lazy(() => import('./menus/UserDetail'));
 const CommunityDetail = lazy(() => import('./menus/CommunityDetail'));
 const AdminCommunityPostPage = lazy(() => import('./menus/AdminCommunityPostPage'));
 const SystemSettings = lazy(() => import('./menus/SystemSettings'));
+const BannerManagement = lazy(() => import('./menus/BannerManagement'));
 const MarketplaceManagement = lazy(() => import('./menus/MarketplaceManagement'));
 const AdminListingDetail = lazy(() => import('./menus/AdminListingDetail'));
 const AdminManagement = lazy(() => import('./menus/AdminManagement'));
@@ -65,6 +69,8 @@ const NAV_ITEMS = [
   { id: 'analytics', label: 'Reporting & Analytics', icon: BarChart3 },
   { id: 'warnings', label: 'Warnings', icon: AlertTriangle },
   { id: 'support', label: 'Support Tools', icon: LifeBuoy },
+  { id: 'usersupport', label: 'User Support Management', icon: Headset },
+  { id: 'banners', label: 'Banner Management', icon: ImageIcon },
   { id: 'admins', label: 'Admin Management', icon: UserCog },
   { id: 'settings', label: 'System Settings', icon: Settings },
   { id: 'profile', label: 'Profile', icon: UserRound },
@@ -280,10 +286,26 @@ const AdminDashboard = () => {
             }
           />
           <Route
+            path="usersupport"
+            element={
+              <TabRoute tab="usersupport" fallbackTo={defaultTab}>
+                <UserSupportManagement />
+              </TabRoute>
+            }
+          />
+          <Route
             path="admins"
             element={
               <TabRoute tab="admins" fallbackTo={defaultTab}>
                 <AdminManagement />
+              </TabRoute>
+            }
+          />
+          <Route
+            path="banners"
+            element={
+              <TabRoute tab="banners" fallbackTo={defaultTab}>
+                <BannerManagement />
               </TabRoute>
             }
           />

@@ -15,6 +15,12 @@ const channelSchema = new mongoose.Schema(
       lowercase: true,
       unique: true,
     },
+    icon: {
+      type: String,
+      default: "",
+      trim: true,
+      lowercase: true,
+    },
   },
   {
     timestamps: true,

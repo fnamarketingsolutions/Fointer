@@ -4,6 +4,7 @@ import {
   getPost,
   listPublicPosts,
   getPublicPost,
+  listTrendingTopics,
   createPost,
   updatePost,
   deletePost,
@@ -33,6 +34,7 @@ router.post("/", isAuthenticated, createPost);
 router.get("/resolve/:code", optionalAuthenticate, resolvePostCode);
 
 // Public browse (community-less posts) — before /:id
+router.get("/trending", optionalAuthenticate, listTrendingTopics);
 router.get("/public", optionalAuthenticate, listPublicPosts);
 router.get("/public/:id", optionalAuthenticate, getPublicPost);
 

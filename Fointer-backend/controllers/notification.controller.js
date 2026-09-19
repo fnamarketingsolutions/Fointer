@@ -62,6 +62,10 @@ export const listNotifications = async (req, res) => {
         query.type = allowedTypes.includes("user_warning")
           ? "user_warning"
           : "__none__";
+      } else if (filter === "usersupport" || filter === "user_support") {
+        query.type = allowedTypes.includes("user_support")
+          ? "user_support"
+          : "__none__";
       }
     } else if (filter === "unread") {
       query.readAt = null;

@@ -65,12 +65,12 @@ export default function FollowUserList({ username, mode }) {
   }
 
   return (
-    <section className="space-y-2.5">
+    <section className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
       {users.map((item) => (
         <UserProfileLink
           key={item.id}
           author={item}
-          className="flex items-center gap-3 bg-fo-surface border border-fo-border hover:border-fo-accent/35 rounded-xl p-3.5 sm:p-4 transition-colors"
+          className="flex items-center gap-3 bg-fo-surface border border-fo-border hover:border-fo-accent/40 rounded-xl p-3.5 transition-colors"
           stopPropagation={false}
         >
           <ProfileAvatar
@@ -78,7 +78,7 @@ export default function FollowUserList({ username, mode }) {
             name={item.name}
             className="w-10 h-10 rounded-full object-cover border border-fo-border shrink-0"
           />
-          <div className="min-w-0 text-left">
+          <div className="min-w-0 text-left flex-1">
             <p className="text-sm font-medium text-fo-text truncate">
               {item.name || item.username}
             </p>

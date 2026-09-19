@@ -10,6 +10,8 @@ export const ADMIN_TAB_IDS = [
   "analytics",
   "warnings",
   "support",
+  "usersupport",
+  "banners",
   "settings",
   "profile",
   "admins",
@@ -126,6 +128,7 @@ export const ADMIN_NOTIFICATION_TAB_BY_TYPE = {
   content_report: "analytics",
   channel_request: "support",
   user_warning: "warnings",
+  user_support: "usersupport",
 };
 
 export const tabForAdminNotificationType = (type) => {

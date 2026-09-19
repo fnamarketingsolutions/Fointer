@@ -1,14 +1,17 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
+  LuArrowLeft as ArrowLeft,
+  LuFlag as Flag,
+  LuGlobe as Globe,
+  LuLoaderCircle as Loader2,
   LuPencil as Pencil,
   LuTrash2 as Trash2,
-  LuLoaderCircle as Loader2,
-  LuFlag as Flag,
-  LuUsers as Users
+  LuUsers as Users,
 } from "react-icons/lu";
 import {
   fetchPost,
+  fetchTrendingTopics,
   updatePost,
   deletePost,
   fetchComments,
@@ -20,9 +23,11 @@ import {
   toggleCommentLike,
 } from "../../../api/posts";
 import {
+  fetchBrowsableCommunities,
   joinPublicCommunity,
   requestToJoin,
 } from "../../../api/communities";
+import { fetchChannels } from "../../../api/channels";
 import PostMediaGallery from "../../../shared/components/media/PostMediaGallery";
 import PostActions from "../../../shared/components/PostActions";
 import ConfirmDeleteModal from "../../../shared/components/modals/ConfirmDeleteModal";
@@ -37,6 +42,13 @@ import { useAuth } from "../../../context/AuthContext";
 import { communitySegment } from "../../../shared/services/entityLinks";
 import { timeAgo } from "../../../shared/utils/date";
 import { scrollAppToTop } from "../../../shared/utils/scroll";
+import { EXPLORE_PATH, FEED_PATH } from "../../../shared/constants/paths";
+import {
+  FeedDesktopRail,
+  FeedFooterRail,
+  OtherCommunitiesCard,
+  WhatsHappeningCard,
+} from "../../communities/pages/dashboard/FeedRail";
 
 export default function PostDetail({
   postId,
@@ -45,6 +57,8 @@ export default function PostDetail({
   embedded = false,
   compact = false,
   fetchPostFn = fetchPost,
+  backLabel = "Back",
+  showRail,
 }) {
   const navigate = useNavigate();
   const { isAuthenticated, user } = useAuth();
@@ -77,6 +91,17 @@ export default function PostDetail({
   const [lockModal, setLockModal] = useState(null);
   const [reportTarget, setReportTarget] = useState(null);
   const [joining, setJoining] = useState(false);
+  const includeRail = showRail ?? !compact;
+  const isGuest = !isAuthenticated;
+  const feedHome = isGuest ? EXPLORE_PATH : FEED_PATH;
+
+  const [channels, setChannels] = useState([]);
+  const [channelsLoading, setChannelsLoading] = useState(includeRail);
+  const [otherCommunities, setOtherCommunities] = useState([]);
+  const [otherCommunitiesLoading, setOtherCommunitiesLoading] =
+    useState(includeRail);
+  const [trendingTopics, setTrendingTopics] = useState([]);
+  const [trendingLoading, setTrendingLoading] = useState(includeRail);
 
   // Data Fetching
   const loadPost = useCallback(async () => {
@@ -126,6 +151,66 @@ export default function PostDetail({
     setCommentsOpen(!compact);
     loadComments();
   }, [loadPost, loadComments, compact, postId]);
+
+  useEffect(() => {
+    if (!includeRail) return undefined;
+    let cancelled = false;
+    (async () => {
+      setChannelsLoading(true);
+      try {
+        const data = await fetchChannels();
+        if (!cancelled) setChannels(data?.channels || data?.data || []);
+      } catch {
+        if (!cancelled) setChannels([]);
+      } finally {
+        if (!cancelled) setChannelsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [includeRail]);
+
+  useEffect(() => {
+    if (!includeRail) return undefined;
+    let cancelled = false;
+    (async () => {
+      setOtherCommunitiesLoading(true);
+      try {
+        const data = await fetchBrowsableCommunities({
+          limit: 6,
+          sortBy: "members",
+        });
+        if (!cancelled) setOtherCommunities(data?.communities || []);
+      } catch {
+        if (!cancelled) setOtherCommunities([]);
+      } finally {
+        if (!cancelled) setOtherCommunitiesLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [includeRail]);
+
+  useEffect(() => {
+    if (!includeRail) return undefined;
+    let cancelled = false;
+    (async () => {
+      setTrendingLoading(true);
+      try {
+        const data = await fetchTrendingTopics({ limit: 10 });
+        if (!cancelled) setTrendingTopics(data?.topics || []);
+      } catch {
+        if (!cancelled) setTrendingTopics([]);
+      } finally {
+        if (!cancelled) setTrendingLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [includeRail]);
 
   // Derived Top-Level Comments
   const topLevel = useMemo(
@@ -489,33 +574,109 @@ export default function PostDetail({
     }
   };
 
+  const railProps = {
+    channels,
+    channelsLoading,
+    selectedChannel: "",
+    onSelectChannel: (name) => {
+      navigate(
+        name
+          ? `${feedHome}?channel=${encodeURIComponent(name)}`
+          : feedHome
+      );
+    },
+    communities: otherCommunities,
+    communitiesLoading: otherCommunitiesLoading,
+    trendingTopics,
+    trendingLoading,
+  };
+
+  const shellClass = includeRail
+    ? "w-full max-w-[1180px] mx-auto"
+    : compact || embedded
+      ? "w-full"
+      : "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6";
+
+  const backButton = onBack ? (
+    <button
+      type="button"
+      onClick={onBack}
+      className="inline-flex items-center gap-2 min-h-9 px-1 text-sm text-fo-muted hover:text-fo-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40 rounded-lg"
+    >
+      <ArrowLeft size={16} />
+      {backLabel}
+    </button>
+  ) : null;
+
+  const desktopRail = includeRail ? (
+    <div className="hidden lg:block lg:sticky lg:top-5">
+      <FeedDesktopRail {...railProps} isGuest={isGuest} />
+    </div>
+  ) : null;
+
+  const mobileRail = includeRail ? (
+    <div className="lg:hidden pt-1 space-y-3">
+      <WhatsHappeningCard
+        topics={trendingTopics}
+        loading={trendingLoading}
+      />
+      <OtherCommunitiesCard
+        communities={otherCommunities}
+        loading={otherCommunitiesLoading}
+      />
+      <FeedFooterRail isGuest={isGuest} />
+    </div>
+  ) : null;
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20 text-fo-muted text-sm gap-2 w-full">
-        <Loader2 size={18} className="animate-spin text-fo-accent" />
-        Loading post...
+      <div className={shellClass}>
+        {backButton ? <div className="mb-3">{backButton}</div> : null}
+        <div
+          className={
+            includeRail
+              ? "grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px] gap-4 items-start"
+              : ""
+          }
+        >
+          <div className="flex items-center justify-center py-20 text-fo-muted text-sm gap-2 w-full">
+            <Loader2 size={18} className="animate-spin text-fo-accent" />
+            Loading post...
+          </div>
+          {desktopRail}
+        </div>
       </div>
     );
   }
 
   if (!post) {
     return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4 py-6">
-        <div className="border border-dashed border-fo-border rounded-xl py-12 text-center text-fo-subtle text-sm">
-          Post not found.
+      <div className={shellClass}>
+        {backButton ? <div className="mb-3">{backButton}</div> : null}
+        <div
+          className={
+            includeRail
+              ? "grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px] gap-4 items-start"
+              : ""
+          }
+        >
+          <div className="border border-dashed border-fo-border rounded-xl py-12 text-center text-fo-subtle text-sm">
+            Post not found.
+          </div>
+          {desktopRail}
         </div>
       </div>
     );
   }
 
   const postActions = showPostActions ? (
-    <div className="shrink-0 flex items-center gap-2 rounded-lg border border-fo-border bg-fo-bg p-1.5">
+    <div className="shrink-0 flex items-center gap-1">
       {showPostEdit && (
         <button
           type="button"
           onClick={openEdit}
           title="Edit Post"
-          className="p-2 rounded-md text-fo-muted hover:text-fo-accent hover:bg-[#2A241E]/50 transition-all"
+          className="p-2 rounded-lg text-fo-muted hover:text-fo-accent hover:bg-fo-surface-hover transition-colors"
         >
           <Pencil size={16} />
         </button>
@@ -525,7 +686,7 @@ export default function PostDetail({
           type="button"
           onClick={openDeletePost}
           title="Delete Post"
-          className="p-2 rounded-md text-red-400 hover:text-red-300 hover:bg-red-500/20 transition-all"
+          className="p-2 rounded-lg text-fo-muted hover:text-red-500 hover:bg-red-500/10 transition-colors"
         >
           <Trash2 size={16} />
         </button>
@@ -533,70 +694,48 @@ export default function PostDetail({
     </div>
   ) : null;
 
+  const communityName = post.community?.name;
+  const VisibilityIcon = communityName ? Users : Globe;
+
   const authorBlock = (
-    <div
-      className={`flex items-center gap-3 ${
-        compact ? "min-w-0" : "py-2 border-y border-fo-border/40"
-      }`}
-    >
-      <PostAuthorAvatar author={post.author} size={compact ? "sm" : "md"} />
-      <div className="min-w-0">
+    <div className="flex items-start gap-3 min-w-0">
+      <PostAuthorAvatar author={post.author} size="sm" />
+      <div className="min-w-0 flex-1">
         <UserProfileLink
           author={post.author}
           className="text-sm font-semibold text-fo-text truncate block hover:text-fo-accent transition-colors"
         >
           {post.author?.name || post.author?.username || "Member"}
         </UserProfileLink>
-        {post.author?.username && (
-          <UserProfileLink
-            author={post.author}
-            className="text-[11px] text-fo-muted truncate block hover:text-fo-accent transition-colors"
-          >
-            @{post.author.username}
-          </UserProfileLink>
-        )}
-        <div className="text-[11px] text-fo-subtle">
-          {compact
-            ? timeAgo(post.createdAt)
-            : post.createdAt
-            ? new Date(post.createdAt).toLocaleString(undefined, {
-                year: "numeric",
-                month: "long",
-                day: "numeric",
-                hour: "numeric",
-                minute: "2-digit",
-              })
-            : ""}
+        <div className="flex items-center gap-1 text-xs text-fo-subtle flex-wrap">
+          {post.author?.username ? (
+            <UserProfileLink
+              author={post.author}
+              className="hover:text-fo-accent transition-colors"
+            >
+              @{String(post.author.username).replace(/^@+/, "")}
+            </UserProfileLink>
+          ) : null}
+          {post.author?.username ? <span aria-hidden>·</span> : null}
+          <span>{timeAgo(post.createdAt)}</span>
+          <span aria-hidden>·</span>
+          {communityPath ? (
+            <Link
+              to={communityPath}
+              className="inline-flex items-center gap-1 hover:text-fo-accent transition-colors"
+            >
+              <VisibilityIcon size={11} aria-hidden />
+              {communityName}
+            </Link>
+          ) : (
+            <span className="inline-flex items-center gap-1">
+              <VisibilityIcon size={11} aria-hidden />
+              {communityName || "Public"}
+            </span>
+          )}
         </div>
       </div>
-    </div>
-  );
-
-  const titleBlock = (
-    <div className={compact ? "space-y-1 min-w-0" : "space-y-2 min-w-0"}>
-      {post.community?.name && (
-        communityPath ? (
-          <Link
-            to={communityPath}
-            className="text-[10px] uppercase tracking-widest text-fo-accent font-mono hover:text-fo-accent-hover"
-          >
-            {post.community.name}
-          </Link>
-        ) : (
-          <p className="text-[10px] uppercase tracking-widest text-fo-accent font-mono">
-            {post.community.name}
-          </p>
-        )
-      )}
-      <h1
-        className={`font-serif font-bold text-fo-text leading-tight ${
-          compact
-            ? "text-base sm:text-lg"
-            : "text-2xl sm:text-3xl lg:text-4xl"
-        }`}
-      >
-        {post.title || "Untitled"}
-      </h1>
+      {postActions}
     </div>
   );
 
@@ -605,152 +744,103 @@ export default function PostDetail({
 
   const mainContent = (
     <>
-      {/* {onBack && (
-        <button
-          type="button"
-          onClick={onBack}
-          className="inline-flex items-center gap-1.5 text-xs text-fo-muted hover:text-fo-accent transition-colors"
-        >
-          <ArrowLeft size={14} />
-          {backLabel}
-        </button>
-      )} */}
+      <article className="bg-fo-surface border border-fo-border rounded-xl overflow-hidden w-full">
+        <div className="p-4 sm:p-5 space-y-4">
+          {authorBlock}
 
-      <div className="w-full max-w-full">
-        <article
-          className={`bg-fo-surface overflow-hidden w-full shadow-xl ${
-            compact ? "rounded-lg" : "rounded-xl"
-          }`}
-        >
-          <div
-            className={
-              compact || embedded
-                ? "p-3 sm:p-5 space-y-3 sm:space-y-4"
-                : "p-5 sm:p-8 space-y-6"
-            }
-          >
-            {compact ? (
-              <>
-                <div className="flex items-start justify-between gap-3">
-                  {authorBlock}
-                  {postActions}
-                </div>
-                {titleBlock}
-              </>
-            ) : (
-              <>
-                <div className="flex items-start justify-between gap-4">
-                  {titleBlock}
-                  {postActions}
-                </div>
-                {authorBlock}
-              </>
-            )}
+          <h1 className="text-xl font-semibold tracking-tight text-fo-text leading-snug">
+            {post.title || "Untitled"}
+          </h1>
 
-            {post.media && post.media.length > 0 && (
-              <div className="relative w-full rounded-lg overflow-hidden border border-fo-border">
-                <PostMediaGallery
-                  media={post.media}
-                  counterOverlay
-                  heightClass={
-                    compact
-                      ? "h-[36vh] min-h-[12rem]"
-                      : "h-[min(70vh,36rem)] min-h-[16rem]"
-                  }
-                />
-              </div>
-            )}
-
-            {post.text && (
-              <p
-                className={
-                  compact
-                    ? "text-sm text-fo-muted whitespace-pre-wrap leading-relaxed"
-                    : "text-sm sm:text-base text-fo-muted whitespace-pre-wrap leading-relaxed font-serif first-letter:float-left first-letter:mr-3 first-letter:mt-1 first-letter:font-serif first-letter:text-5xl sm:first-letter:text-6xl first-letter:leading-[0.8] first-letter:text-fo-accent"
-                }
-              >
-                {post.text}
-              </p>
-            )}
-
-            {needsCommunityJoin ? (
-              <div className="rounded-xl border border-fo-accent/30 bg-fo-accent/10 px-4 py-3 space-y-2">
-                <p className="text-xs text-fo-text">
-                  Join{" "}
-                  <span className="text-fo-accent font-medium">
-                    {post.community?.name || "this community"}
-                  </span>{" "}
-                  to like and comment.
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    disabled={joining}
-                    onClick={handleJoinCommunity}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-fo-accent text-black text-xs font-semibold disabled:opacity-50"
-                  >
-                    {joining ? (
-                      <Loader2 size={12} className="animate-spin" />
-                    ) : (
-                      <Users size={12} />
-                    )}
-                    {post.community?.type === "private_request"
-                      ? "Request to join"
-                      : "Join community"}
-                  </button>
-                  {communityPath ? (
-                    <Link
-                      to={communityPath}
-                      className="inline-flex items-center px-3 py-1.5 rounded-lg border border-fo-border text-xs text-fo-muted hover:text-fo-text"
-                    >
-                      View community
-                    </Link>
-                  ) : null}
-                </div>
-              </div>
-            ) : null}
-
-            <div
-              className={`flex items-center gap-4 border-t border-fo-border/60 ${
-                compact ? "pt-3" : "pt-4"
-              }`}
-            >
-              <PostActions
-                post={post}
-                onLike={handleLikePost}
-                onReshare={handleResharePost}
-                onComment={() => {
-                  setReplyTargetId(null);
-                  setCommentText("");
-                  if (compact) {
-                    setCommentsOpen((prev) => !prev);
-                  } else {
-                    setShowMainCommentInput((prev) => !prev);
-                  }
-                }}
+          {post.media && post.media.length > 0 ? (
+            <div className="relative w-full rounded-lg overflow-hidden border border-fo-border">
+              <PostMediaGallery
+                media={post.media}
+                counterOverlay
+                heightClass="aspect-video"
               />
+            </div>
+          ) : null}
 
-              {canReportPost ? (
+          {post.text ? (
+            <p className="text-sm sm:text-[15px] text-fo-muted whitespace-pre-wrap leading-relaxed">
+              {post.text}
+            </p>
+          ) : null}
+
+          {needsCommunityJoin ? (
+            <div className="rounded-xl border border-fo-accent/30 bg-fo-accent/10 px-4 py-3 space-y-2">
+              <p className="text-xs text-fo-text">
+                Join{" "}
+                <span className="text-fo-accent font-medium">
+                  {post.community?.name || "this community"}
+                </span>{" "}
+                to like and comment.
+              </p>
+              <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() =>
-                    setReportTarget({
-                      type: "post",
-                      id: post.id,
-                      label: post.title || "this post",
-                    })
-                  }
-                  className="inline-flex items-center gap-2 text-xs font-medium text-fo-muted hover:text-red-400 transition-colors ml-auto"
-                  title="Report post"
+                  disabled={joining}
+                  onClick={handleJoinCommunity}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-fo-accent text-black text-xs font-semibold disabled:opacity-50"
                 >
-                  <Flag size={15} />
-                  <span>Report</span>
+                  {joining ? (
+                    <Loader2 size={12} className="animate-spin" />
+                  ) : (
+                    <Users size={12} />
+                  )}
+                  {post.community?.type === "private_request"
+                    ? "Request to join"
+                    : "Join community"}
                 </button>
-              ) : null}
+                {communityPath ? (
+                  <Link
+                    to={communityPath}
+                    className="inline-flex items-center px-3 py-1.5 rounded-lg border border-fo-border text-xs text-fo-muted hover:text-fo-text"
+                  >
+                    View community
+                  </Link>
+                ) : null}
+              </div>
             </div>
+          ) : null}
+
+          <div className="flex items-center gap-4 border-t border-fo-border/60 pt-3">
+            <PostActions
+              post={post}
+              onLike={handleLikePost}
+              onReshare={handleResharePost}
+              onComment={() => {
+                setReplyTargetId(null);
+                setCommentText("");
+                if (compact) {
+                  setCommentsOpen((prev) => !prev);
+                } else {
+                  setShowMainCommentInput((prev) => !prev);
+                }
+              }}
+            />
+
+            {canReportPost ? (
+              <button
+                type="button"
+                onClick={() =>
+                  setReportTarget({
+                    type: "post",
+                    id: post.id,
+                    label: post.title || "this post",
+                  })
+                }
+                className="inline-flex items-center gap-2 text-xs font-medium text-fo-muted hover:text-red-400 transition-colors ml-auto"
+                title="Report post"
+              >
+                <Flag size={15} />
+                <span>Report</span>
+              </button>
+            ) : null}
           </div>
-        </article>
-      </div>
+        </div>
+      </article>
 
       <PostCommentsSection
         visible={commentsVisible}
@@ -784,18 +874,26 @@ export default function PostDetail({
         setReportTarget={setReportTarget}
         setCommentsOpen={setCommentsOpen}
       />
+
+      {mobileRail}
     </>
   );
 
   return (
-    <div
-      className={
-        compact || embedded
-          ? "w-full"
-          : "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6"
-      }
-    >
-      <div className={compact || embedded ? "space-y-3" : "space-y-6"}>{mainContent}</div>
+    <div className={shellClass}>
+      {backButton ? <div className="mb-3">{backButton}</div> : null}
+      <div
+        className={
+          includeRail
+            ? "grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px] gap-4 items-start"
+            : ""
+        }
+      >
+        <div className={includeRail || compact || embedded ? "min-w-0 space-y-3" : "space-y-6"}>
+          {mainContent}
+        </div>
+        {desktopRail}
+      </div>
 
       <PostEditModal
         open={showEdit}

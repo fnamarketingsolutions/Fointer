@@ -569,48 +569,48 @@ export default function CommunityFeed() {
   if (viewingPost) {
     const backLabel = community?.name || "community";
     return (
-      <div className="text-fo-text w-full max-w-3xl mx-auto px-2 sm:px-4 lg:px-6 pb-10">
-        <button
-          type="button"
-          onClick={closePost}
-          className="inline-flex items-center gap-1.5 text-xs text-fo-muted hover:text-fo-accent mb-4"
-        >
-          <ArrowLeft size={14} /> Back to {backLabel}
-        </button>
-
-        <div className="min-w-0 bg-fo-surface border border-fo-border rounded-xl overflow-hidden">
-          {resolvingPost ? (
-            <div className="flex items-center justify-center gap-2 py-20 text-sm text-fo-muted">
-              <Loader2 size={16} className="animate-spin text-fo-accent" />
-              Loading post…
-            </div>
-          ) : postNotFound || !openPostId ? (
-            <div className="border border-dashed border-fo-border rounded-xl m-4 py-14 text-center text-sm text-fo-subtle">
+      <div className="text-fo-text w-full pb-6">
+        {resolvingPost ? (
+          <div className="flex items-center justify-center gap-2 py-20 text-sm text-fo-muted">
+            <Loader2 size={16} className="animate-spin text-fo-accent" />
+            Loading post…
+          </div>
+        ) : postNotFound || !openPostId ? (
+          <div className="max-w-[1180px] mx-auto">
+            <button
+              type="button"
+              onClick={closePost}
+              className="inline-flex items-center gap-2 min-h-9 px-1 mb-3 text-sm text-fo-muted hover:text-fo-accent"
+            >
+              <ArrowLeft size={16} /> Back to {backLabel}
+            </button>
+            <div className="border border-dashed border-fo-border rounded-xl py-12 text-center text-sm text-fo-subtle">
               Post not found.
             </div>
-          ) : (
-            <PostDetail
-              key={postSlug}
-              postId={openPostId}
-              embedded
-              compact={false}
-              fetchPostFn={fetchPost}
-              onBack={closePost}
-              onDeleted={() => {
-                closePost();
-                loadPosts({
-                  q: query,
-                  pageNum: 1,
-                  append: false,
-                  sort: sortBy,
-                });
-              }}
-              postPathBuilder={(post) =>
-                `${basePath}/posts/${postSegment(post)}`
-              }
-            />
-          )}
-        </div>
+          </div>
+        ) : (
+          <PostDetail
+            key={postSlug}
+            postId={openPostId}
+            embedded
+            compact={false}
+            fetchPostFn={fetchPost}
+            onBack={closePost}
+            backLabel={`Back to ${backLabel}`}
+            onDeleted={() => {
+              closePost();
+              loadPosts({
+                q: query,
+                pageNum: 1,
+                append: false,
+                sort: sortBy,
+              });
+            }}
+            postPathBuilder={(post) =>
+              `${basePath}/posts/${postSegment(post)}`
+            }
+          />
+        )}
       </div>
     );
   }

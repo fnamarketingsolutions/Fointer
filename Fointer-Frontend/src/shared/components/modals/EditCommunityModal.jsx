@@ -347,12 +347,12 @@ export default function EditCommunityModal({ community, onClose, onSuccess }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
       <div
-        className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/50"
         onClick={handleClose}
       />
-      <div className="relative w-full max-w-md bg-[#120F0D] border border-fo-border rounded-xl p-4 sm:p-5 shadow-2xl z-10 max-h-[90vh] overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-[#120F0D] [&::-webkit-scrollbar-thumb]:bg-[#2A241E] [&::-webkit-scrollbar-thumb]:rounded-full">
+      <div className="relative w-full max-w-md bg-fo-surface border border-fo-border rounded-2xl p-4 sm:p-5 shadow-xl z-10 max-h-[90vh] overflow-y-auto fointer-scrollbar text-fo-text">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base sm:text-lg font-semibold text-fo-accent">
+          <h2 className="text-base sm:text-lg font-semibold text-fo-text">
             Edit Community
           </h2>
           <button
@@ -371,7 +371,7 @@ export default function EditCommunityModal({ community, onClose, onSuccess }) {
               <label className="block text-[10px] sm:text-xs uppercase tracking-wider text-fo-muted mb-1 flex items-center gap-1">
                 <Layers size={12} className="text-fo-accent" /> Channel (Primary)
               </label>
-              <div className="w-full px-3 py-2 sm:py-2.5 rounded-lg bg-[#0A0807] border border-fo-border text-fo-subtle text-xs sm:text-sm flex items-center justify-between cursor-not-allowed">
+              <div className="w-full px-3 py-2 sm:py-2.5 rounded-lg bg-fo-bg border border-fo-border text-fo-subtle text-xs sm:text-sm flex items-center justify-between cursor-not-allowed">
                 <span className="truncate">{channelName || 'Channel Assigned'}</span>
                 <span className="text-[10px] uppercase text-fo-accent font-semibold bg-fo-accent/10 px-1.5 py-0.5 rounded">
                   Locked
@@ -393,7 +393,7 @@ export default function EditCommunityModal({ community, onClose, onSuccess }) {
                 type="button"
                 disabled={loadingSubchannels}
                 onClick={() => setSubchannelDropdownOpen((prev) => !prev)}
-                className="w-full flex items-center justify-between px-3 py-2 sm:py-2.5 rounded-lg bg-[#0A0807] border border-fo-border text-xs sm:text-sm text-fo-text focus:outline-none focus:border-fo-accent/60"
+                className="w-full flex items-center justify-between px-3 py-2 sm:py-2.5 rounded-lg bg-fo-bg border border-fo-border text-xs sm:text-sm text-fo-text focus:outline-none focus:border-fo-accent/50"
               >
                 <span className="truncate">
                   {loadingSubchannels
@@ -415,7 +415,7 @@ export default function EditCommunityModal({ community, onClose, onSuccess }) {
               </button>
 
               {subchannelDropdownOpen && !loadingSubchannels && (
-                <div className="absolute left-0 right-0 top-full mt-1 z-30 max-h-48 overflow-y-auto bg-[#0A0807] border border-fo-border rounded-lg shadow-xl py-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-[#2A241E]">
+                <div className="absolute left-0 right-0 top-full mt-1 z-30 max-h-48 overflow-y-auto bg-fo-surface border border-fo-border rounded-lg shadow-xl py-1 fointer-scrollbar">
                   {subchannels.length === 0 ? (
                     <div className="px-3 py-2 text-xs text-fo-subtle">
                       No subchannels available for this channel.
@@ -431,14 +431,14 @@ export default function EditCommunityModal({ community, onClose, onSuccess }) {
                           className={`flex items-center gap-2.5 px-3 py-2 text-xs sm:text-sm cursor-pointer transition-colors ${
                             selected
                               ? 'bg-fo-accent/15 text-fo-accent font-medium'
-                              : 'text-fo-text hover:bg-[#1a1510]'
+                              : 'text-fo-text hover:bg-fo-surface-2'
                           }`}
                         >
                           <input
                             type="checkbox"
                             checked={selected}
                             onChange={() => toggleSubchannel(sub.id)}
-                            className="accent-[#D4AF37] rounded border-fo-border bg-[#120F0D]"
+                            className="accent-fo-accent rounded border-fo-border bg-fo-bg"
                           />
                           <span className="truncate">{sub.name}</span>
                         </label>
@@ -464,7 +464,7 @@ export default function EditCommunityModal({ community, onClose, onSuccess }) {
             <button
               type="button"
               onClick={() => coverInputRef.current?.click()}
-              className="relative w-full h-32 rounded-lg bg-[#0A0807] border border-dashed border-fo-border hover:border-fo-accent/50 overflow-hidden flex items-center justify-center"
+              className="relative w-full h-32 rounded-lg bg-fo-bg border border-dashed border-fo-border hover:border-fo-accent/50 overflow-hidden flex items-center justify-center"
             >
               {displayCover ? (
                 <img
@@ -519,7 +519,7 @@ export default function EditCommunityModal({ community, onClose, onSuccess }) {
               {form.galleryImages.map((url) => (
                 <div
                   key={url}
-                  className="relative aspect-square rounded-lg overflow-hidden border border-fo-border bg-[#0A0807]"
+                  className="relative aspect-square rounded-lg overflow-hidden border border-fo-border bg-fo-bg"
                 >
                   <img
                     src={url}
@@ -540,7 +540,7 @@ export default function EditCommunityModal({ community, onClose, onSuccess }) {
               {newGalleryItems.map((item) => (
                 <div
                   key={item.id}
-                  className="relative aspect-square rounded-lg overflow-hidden border border-fo-accent/40 bg-[#0A0807]"
+                  className="relative aspect-square rounded-lg overflow-hidden border border-fo-accent/40 bg-fo-bg"
                 >
                   <img
                     src={item.preview}
@@ -562,7 +562,7 @@ export default function EditCommunityModal({ community, onClose, onSuccess }) {
                 <button
                   type="button"
                   onClick={() => galleryInputRef.current?.click()}
-                  className="aspect-square rounded-lg border border-dashed border-fo-border hover:border-fo-accent/50 bg-[#0A0807] flex flex-col items-center justify-center gap-1 text-fo-subtle"
+                  className="aspect-square rounded-lg border border-dashed border-fo-border hover:border-fo-accent/50 bg-fo-bg flex flex-col items-center justify-center gap-1 text-fo-subtle"
                 >
                   <ImagePlus size={16} className="text-fo-accent" />
                   <span className="text-[9px]">Add</span>
@@ -581,7 +581,7 @@ export default function EditCommunityModal({ community, onClose, onSuccess }) {
               onChange={(e) =>
                 setForm((prev) => ({ ...prev, name: e.target.value }))
               }
-              className="w-full px-3 py-2 sm:py-2.5 rounded-lg bg-[#0A0807] border border-fo-border text-fo-text text-xs sm:text-sm focus:outline-none focus:border-fo-accent/60"
+              className="w-full px-3 py-2 sm:py-2.5 rounded-lg bg-fo-bg border border-fo-border text-fo-text text-xs sm:text-sm placeholder:text-fo-subtle focus:outline-none focus:border-fo-accent/50"
               required
             />
           </div>
@@ -596,7 +596,7 @@ export default function EditCommunityModal({ community, onClose, onSuccess }) {
                 setForm((prev) => ({ ...prev, description: e.target.value }))
               }
               rows={2}
-              className="w-full px-3 py-2 sm:py-2.5 rounded-lg bg-[#0A0807] border border-fo-border text-fo-text text-xs sm:text-sm focus:outline-none focus:border-fo-accent/60 resize-y"
+              className="w-full px-3 py-2 sm:py-2.5 rounded-lg bg-fo-bg border border-fo-border text-fo-text text-xs sm:text-sm placeholder:text-fo-subtle focus:outline-none focus:border-fo-accent/50 resize-y"
             />
           </div>
 
@@ -610,7 +610,7 @@ export default function EditCommunityModal({ community, onClose, onSuccess }) {
                 setForm((prev) => ({ ...prev, rules: e.target.value }))
               }
               rows={2}
-              className="w-full px-3 py-2 sm:py-2.5 rounded-lg bg-[#0A0807] border border-fo-border text-fo-text text-xs sm:text-sm focus:outline-none focus:border-fo-accent/60 resize-y"
+              className="w-full px-3 py-2 sm:py-2.5 rounded-lg bg-fo-bg border border-fo-border text-fo-text text-xs sm:text-sm placeholder:text-fo-subtle focus:outline-none focus:border-fo-accent/50 resize-y"
             />
           </div>
 
@@ -624,7 +624,7 @@ export default function EditCommunityModal({ community, onClose, onSuccess }) {
               onChange={(e) =>
                 setForm((prev) => ({ ...prev, tags: e.target.value }))
               }
-              className="w-full px-3 py-2 sm:py-2.5 rounded-lg bg-[#0A0807] border border-fo-border text-fo-text text-xs sm:text-sm focus:outline-none focus:border-fo-accent/60"
+              className="w-full px-3 py-2 sm:py-2.5 rounded-lg bg-fo-bg border border-fo-border text-fo-text text-xs sm:text-sm placeholder:text-fo-subtle focus:outline-none focus:border-fo-accent/50"
               placeholder="finance, startups"
             />
           </div>
@@ -638,7 +638,7 @@ export default function EditCommunityModal({ community, onClose, onSuccess }) {
               onChange={(e) =>
                 setForm((prev) => ({ ...prev, type: e.target.value }))
               }
-              className="w-full px-3 py-2 sm:py-2.5 rounded-lg bg-[#0A0807] border border-fo-border text-fo-text text-xs sm:text-sm focus:outline-none focus:border-fo-accent/60"
+              className="w-full px-3 py-2 sm:py-2.5 rounded-lg bg-fo-bg border border-fo-border text-fo-text text-xs sm:text-sm focus:outline-none focus:border-fo-accent/50"
             >
               <option value="public">Public</option>
               <option value="private_invite">Private-Invite</option>

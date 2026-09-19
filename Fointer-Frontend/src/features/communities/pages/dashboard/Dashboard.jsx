@@ -2,6 +2,7 @@ import React, { Suspense, lazy } from "react";
 import {
   useNavigate,
   useLocation,
+  useParams,
   Routes,
   Route,
   Navigate,
@@ -13,8 +14,6 @@ import {
   LuVideo as Video,
   LuRadio as Radio,
   LuHistory as History,
-  LuFolders as Folders,
-  LuFileText as FileText,
   LuUserRound as UserRound,
   LuLifeBuoy as LifeBuoy,
   LuShoppingBag as ShoppingBag,
@@ -30,11 +29,10 @@ import {
   MARKETPLACE_PATH,
   MESSAGES_PATH,
 } from "../../../../shared/constants/paths";
+import { scrollAppToTop } from "../../../../shared/utils/scroll";
 import DashboardFeed from "./DashboardFeed";
 const ManageCommunities = lazy(() => import("./ManageCommunities"));
 const ManagePostPage = lazy(() => import("./ManagePostPage"));
-const DashboardPostPage = lazy(() => import("./DashboardPostPage"));
-const PostManagement = lazy(() => import("../../../posts/pages/PostManagement"));
 const JoinedCommunities = lazy(() => import("./JoinedCommunities"));
 const CommunityFeed = lazy(() => import("./CommunityFeed"));
 const ActivityHistory = lazy(() => import("./ActivityHistory"));
@@ -71,8 +69,6 @@ const VALID_TABS = [
   "postfeed",
   "marketplace",
   "messages",
-  "manage",
-  "posts",
   "communities",
   "events",
   "watchgroups",
@@ -86,14 +82,64 @@ const TAB_PATHS = {
   marketplace: MARKETPLACE_PATH,
   messages: MESSAGES_PATH,
   communities: "/communities",
-  manage: "/manage-community",
-  posts: "/post-management",
   events: "/live-events",
   watchgroups: "/watch-groups",
   activity: "/my-activity",
   support: "/support",
   profile: "/profile",
 };
+
+function PostManagementListRedirect() {
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  const compose = params.get("compose") === "1";
+  return (
+    <Navigate
+      to={compose ? `${FEED_PATH}?compose=1` : `${FEED_PATH}?mine=1`}
+      replace
+    />
+  );
+}
+
+function PostManagementPostRedirect() {
+  const { postId } = useParams();
+  return <Navigate to={postId ? `/post/${postId}` : FEED_PATH} replace />;
+}
+
+function ManageCommunityListRedirect() {
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  params.delete("tab");
+  const qs = params.toString();
+  return (
+    <Navigate
+      to={qs ? `/communities/manage?${qs}` : "/communities/manage"}
+      replace
+    />
+  );
+}
+
+function ManageCommunityDetailRedirect() {
+  const { communityId } = useParams();
+  const location = useLocation();
+  return (
+    <Navigate
+      to={`/communities/manage/${communityId}${location.search}`}
+      replace
+    />
+  );
+}
+
+function ManageCommunityPostRedirect() {
+  const { communityId, postId } = useParams();
+  const location = useLocation();
+  return (
+    <Navigate
+      to={`/communities/manage/${communityId}/posts/${postId}${location.search}`}
+      replace
+    />
+  );
+}
 
 const Dashboard = () => {
   const { user, loading } = useAuth();
@@ -113,13 +159,9 @@ const Dashboard = () => {
     location.pathname.startsWith("/messages/");
   const isCommunities =
     location.pathname === "/communities" ||
-    location.pathname.startsWith("/communities/");
-  const isManage =
+    location.pathname.startsWith("/communities/") ||
     location.pathname === "/manage-community" ||
     location.pathname.startsWith("/manage-community/");
-  const isPostManagement =
-    location.pathname === "/post-management" ||
-    location.pathname.startsWith("/post-management/");
   const isLiveEvents =
     location.pathname === "/live-events" ||
     location.pathname.startsWith("/live-events/");
@@ -144,11 +186,7 @@ const Dashboard = () => {
         ? "messages"
         : isCommunities
       ? "communities"
-      : isManage
-        ? "manage"
-        : isPostManagement
-          ? "posts"
-          : isLiveEvents
+      : isLiveEvents
             ? "events"
             : isWatchGroups
               ? "watchgroups"
@@ -183,6 +221,11 @@ const Dashboard = () => {
       return;
     }
 
+    if (location.pathname === targetPath) {
+      scrollAppToTop({ smooth: true });
+      return;
+    }
+
     navigate(targetPath);
   };
 
@@ -191,8 +234,6 @@ const Dashboard = () => {
     { id: "marketplace", label: "Marketplace", icon: ShoppingBag },
     { id: "messages", label: "Messages", icon: MessageCircle },
     { id: "communities", label: "Communities", icon: Users },
-    { id: "manage", label: "Manage Communities", icon: Folders },
-    { id: "posts", label: "Post Management", icon: FileText },
     { id: "events", label: "Live Events", icon: Video },
     { id: "watchgroups", label: "Watch Groups", icon: Radio },
     { id: "activity", label: "My Activity History", icon: History },
@@ -218,7 +259,7 @@ const Dashboard = () => {
     <PanelShell
       navItems={navItems}
       onSelectNav={handleTabSelect}
-      homeTo="/"
+      homeTo={user ? FEED_PATH : "/"}
       profileTo="/profile"
       notificationsTo="/notifications"
       logoutTo="/"
@@ -231,7 +272,7 @@ const Dashboard = () => {
           <Route path={EXPLORE_PATH} element={<DashboardFeed />} />
           <Route path="/post/:postSlug" element={<DashboardFeed />} />
           <Route
-            path="/manage-community/:communityId/posts/:postId"
+            path="/communities/manage/:communityId/posts/:postId"
             element={
               <AuthOnly>
                 <ManagePostPage />
@@ -239,36 +280,40 @@ const Dashboard = () => {
             }
           />
           <Route
-            path="/manage-community/:communityId"
+            path="/communities/manage/:communityId"
             element={
               <AuthOnly>
                 <ManageCommunities />
               </AuthOnly>
             }
+          />
+          <Route
+            path="/communities/manage"
+            element={
+              <AuthOnly>
+                <ManageCommunities />
+              </AuthOnly>
+            }
+          />
+          <Route
+            path="/manage-community/:communityId/posts/:postId"
+            element={<ManageCommunityPostRedirect />}
+          />
+          <Route
+            path="/manage-community/:communityId"
+            element={<ManageCommunityDetailRedirect />}
           />
           <Route
             path="/manage-community"
-            element={
-              <AuthOnly>
-                <ManageCommunities />
-              </AuthOnly>
-            }
+            element={<ManageCommunityListRedirect />}
           />
           <Route
             path="/post-management/:postId"
-            element={
-              <AuthOnly>
-                <DashboardPostPage />
-              </AuthOnly>
-            }
+            element={<PostManagementPostRedirect />}
           />
           <Route
             path="/post-management"
-            element={
-              <AuthOnly>
-                <PostManagement />
-              </AuthOnly>
-            }
+            element={<PostManagementListRedirect />}
           />
           <Route
             path="/communities/:communityId/posts/:postSlug"

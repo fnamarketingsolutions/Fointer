@@ -6,6 +6,7 @@ import {
   LuVideo as Video
 } from "react-icons/lu";
 import { uploadMedia } from "../../../api/uploads";
+import { prepareMediaForUpload } from "../../utils/prepareMediaForUpload";
 
 const MAX_MEDIA = 8;
 
@@ -40,7 +41,8 @@ export default function MediaPicker({
     try {
       const uploaded = [];
       for (const file of toUpload) {
-        const data = await uploadMedia(file);
+        const prepared = await prepareMediaForUpload(file);
+        const data = await uploadMedia(prepared);
         if (data?.media) uploaded.push(data.media);
       }
       onChange([...media, ...uploaded]);

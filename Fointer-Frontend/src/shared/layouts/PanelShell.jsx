@@ -16,6 +16,7 @@ import GuestAuthButtons from '../components/GuestAuthButtons';
 import HeaderSearch from '../components/HeaderSearch';
 import ThemeToggle from '../components/ThemeToggle';
 import ProfileAvatar from '../components/ProfileAvatar';
+import ScrollToTopButton from '../components/ScrollToTopButton';
 import guestJoinDarkSrc from '../../assets/guest-join-fointer.png';
 import guestJoinLightSrc from '../../assets/guest-join-fointer-light.png';
 import { useNotifications } from '../../context/NotificationContext';
@@ -39,7 +40,7 @@ function GuestJoinPromo({ onClose }) {
   );
 }
 
-function NavList({ items, onSelect, mobile = false }) {
+function NavList({ items, onSelect }) {
   return items.map((item) => {
     const Icon = item.icon;
     const isActive = Boolean(item.isActive);
@@ -48,21 +49,22 @@ function NavList({ items, onSelect, mobile = false }) {
         key={item.id}
         type="button"
         onClick={() => onSelect(item.id)}
-        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13px] font-medium transition-colors duration-150 ${
           isActive
-            ? `bg-fo-surface-3 text-fo-accent border-l-2 border-fo-accent ${
-                mobile ? '' : 'shadow-lg shadow-black/20'
-              }`
+            ? 'bg-fo-accent/12 text-fo-accent'
             : 'text-fo-muted hover:text-fo-text hover:bg-fo-surface-hover'
         }`}
       >
-        <div className="flex items-center gap-2.5 min-w-0 pr-1">
-          <Icon
-            size={16}
-            className={`shrink-0 ${isActive ? 'text-fo-accent' : 'text-fo-subtle'}`}
-          />
-          <span className="truncate whitespace-nowrap">{item.label}</span>
-        </div>
+        <Icon
+          size={16}
+          className={`shrink-0 ${isActive ? 'text-fo-accent' : 'text-fo-subtle'}`}
+        />
+        <span className="truncate whitespace-nowrap">{item.label}</span>
+        {item.badge ? (
+          <span className="ml-auto min-w-[18px] h-[18px] px-1 rounded-full bg-fo-accent text-black text-[10px] font-semibold leading-[18px] text-center">
+            {item.badge}
+          </span>
+        ) : null}
       </button>
     );
   });
@@ -75,7 +77,7 @@ function AuthFooter({ isGuest, onLogout, onClose, fromPath }) {
         <Link
           to="/signup"
           onClick={onClose}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-fo-accent text-black text-xs font-semibold"
+          className="w-full flex items-center justify-center gap-2 min-h-9 px-3 py-2 rounded-lg bg-fo-accent text-black text-xs font-semibold"
         >
           <UserPlus size={14} /> Sign up
         </Link>
@@ -83,7 +85,7 @@ function AuthFooter({ isGuest, onLogout, onClose, fromPath }) {
           to="/login"
           state={{ from: fromPath }}
           onClick={onClose}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-fo-border text-xs text-fo-text hover:text-fo-accent"
+          className="w-full flex items-center justify-center gap-2 min-h-9 px-3 py-2 rounded-lg border border-fo-border text-xs text-fo-text hover:text-fo-accent"
         >
           <LogIn size={14} /> Log in
         </Link>
@@ -95,7 +97,7 @@ function AuthFooter({ isGuest, onLogout, onClose, fromPath }) {
     <button
       type="button"
       onClick={onLogout}
-      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors whitespace-nowrap text-xs"
+      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13px] text-red-500 hover:text-red-600 hover:bg-red-500/8 transition-colors whitespace-nowrap"
     >
       <LogOut size={15} className="shrink-0" />
       <span className="truncate">Logout</span>
@@ -173,11 +175,11 @@ export default function PanelShell({
       location.pathname.startsWith(`${notificationsTo}/`));
 
   return (
-    <div className="min-h-screen bg-fo-bg text-fo-text font-sans flex flex-col antialiased selection:bg-fo-accent selection:text-black">
-      <header className="h-16 sm:h-20 border-b border-fo-border bg-fo-surface/80 backdrop-blur-md sticky top-0 z-40 px-4 sm:px-6 flex items-center gap-3 sm:gap-4">
+    <div className="h-dvh overflow-hidden bg-fo-bg text-fo-text font-sans flex flex-col antialiased selection:bg-fo-accent selection:text-black">
+      <header className="h-16 shrink-0 border-b border-fo-border/80 bg-fo-surface/90 backdrop-blur-md z-40 px-4 sm:px-6 flex items-center gap-3 sm:gap-5">
         <BrandLogo to={homeTo} />
 
-        <HeaderSearch className="flex-1 max-w-xl mx-auto hidden sm:block" />
+        <HeaderSearch className="flex-1 max-w-2xl mx-auto hidden sm:block" />
 
         <div className="flex items-center gap-2 sm:gap-4 shrink-0 ml-auto">
           <ThemeToggle />
@@ -201,10 +203,10 @@ export default function PanelShell({
                 <button
                   type="button"
                   onClick={() => navigate(notificationsTo)}
-                  className={`p-2 rounded-lg border transition-colors ${
+                  className={`p-2 rounded-full transition-colors ${
                     notificationsActive
-                      ? 'border-fo-accent/40 text-fo-accent bg-fo-accent/10'
-                      : 'border-fo-border text-fo-muted hover:text-fo-accent hover:border-fo-accent/40'
+                      ? 'text-fo-accent bg-fo-accent/10'
+                      : 'text-fo-muted hover:text-fo-accent hover:bg-fo-surface-hover'
                   }`}
                   aria-label="Notifications"
                   title="Notifications"
@@ -222,16 +224,18 @@ export default function PanelShell({
               <button
                 type="button"
                 onClick={handleAvatarClick}
-                className="flex items-center gap-3 pl-3 border-l border-fo-border focus:outline-none hover:opacity-80 transition-opacity"
+                className="flex items-center gap-3 pl-3 border-l border-fo-border/80 focus:outline-none hover:opacity-80 transition-opacity"
                 title="Profile"
               >
                 <div className="text-right hidden sm:block">
-                  <p className="text-xs font-semibold text-fo-text">
+                  <p className="text-[13px] font-semibold text-fo-text leading-tight">
                     {user?.name || user?.username || 'User'}
                   </p>
-                  <p className="text-[10px] text-fo-accent capitalize font-mono">
-                    {user?.role || 'Member'}
-                  </p>
+                  {user?.username ? (
+                    <p className="text-[11px] text-fo-subtle">
+                      @{String(user.username).replace(/^@+/, '')}
+                    </p>
+                  ) : null}
                 </div>
                 <ProfileAvatar
                   src={user?.avatar}
@@ -244,13 +248,13 @@ export default function PanelShell({
         </div>
       </header>
 
-      <div className="sm:hidden sticky top-16 z-30 px-4 py-2 border-b border-fo-border bg-fo-surface/95">
+      <div className="sm:hidden shrink-0 px-4 py-2 border-b border-fo-border bg-fo-surface/95">
         <HeaderSearch />
       </div>
 
-      <div className="flex-1 flex max-w-[1600px] w-full mx-auto relative">
-        <aside className={`w-64 border-r border-fo-border bg-fo-surface flex-col justify-between shrink-0 hidden md:flex max-h-[calc(100vh-5rem)] overflow-y-auto ${showGuestPromo ? 'p-0' : 'p-4'}`}>
-          <div className={showGuestPromo ? '' : 'space-y-6'}>
+      <div className="flex-1 min-h-0 flex max-w-[1600px] w-full mx-auto relative">
+        <aside className={`w-[236px] border-r border-fo-border/80 bg-fo-surface/70 flex-col justify-between shrink-0 hidden md:flex h-full overflow-y-auto ${showGuestPromo ? 'p-0' : 'px-3 py-4'}`}>
+          <div className={showGuestPromo ? '' : 'space-y-4'}>
             {navItems?.length ? (
               <nav className="space-y-1">
                 <NavList items={navItems} onSelect={handleSelectNav} />
@@ -260,7 +264,7 @@ export default function PanelShell({
             ) : null}
           </div>
 
-          <div className={`space-y-4 border-t border-fo-border ${showGuestPromo ? 'p-4' : 'pt-4 mt-4'}`}>
+          <div className={`mt-4 ${showGuestPromo ? 'p-4 border-t border-fo-border' : 'pt-3 mt-auto'}`}>
             <AuthFooter
               isGuest={isGuest}
               onLogout={handleLogout}
@@ -309,7 +313,7 @@ export default function PanelShell({
 
                 {navItems?.length ? (
                   <nav className="space-y-1">
-                    <NavList items={navItems} onSelect={handleSelectNav} mobile />
+                    <NavList items={navItems} onSelect={handleSelectNav} />
                   </nav>
                 ) : null}
 
@@ -333,11 +337,12 @@ export default function PanelShell({
 
         <main
           id={APP_SCROLL_ID}
-          className="flex-1 px-3 py-3 sm:p-6 md:p-8 overflow-y-auto max-h-[calc(100vh-4rem)] sm:max-h-[calc(100vh-5rem)] w-full"
+          className="flex-1 min-h-0 px-3 py-3 sm:px-6 sm:py-5 overflow-y-auto w-full"
         >
           {children}
         </main>
       </div>
+      <ScrollToTopButton />
     </div>
   );
 }

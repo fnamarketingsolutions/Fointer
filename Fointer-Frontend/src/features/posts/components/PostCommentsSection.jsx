@@ -49,20 +49,20 @@ export default function PostCommentsSection({
 
   return (
     <section
-      className={`bg-fo-surface shadow-xl ${
+      className={`bg-fo-surface border border-fo-border ${
         compact
           ? "rounded-lg p-4 space-y-4"
-          : "rounded-xl p-5 sm:p-8 space-y-6"
+          : "rounded-xl p-4 sm:p-5 space-y-4"
       }`}
     >
       <div
         className={`flex items-center justify-between gap-3 border-b border-fo-border ${
-          compact ? "pb-3" : "pb-4"
+          compact ? "pb-3" : "pb-3"
         }`}
       >
         <h2
-          className={`font-serif font-semibold text-fo-text ${
-            compact ? "text-base" : "text-lg sm:text-xl"
+          className={`font-semibold text-fo-text ${
+            compact ? "text-base" : "text-base sm:text-lg"
           }`}
         >
           Discussion{" "}

@@ -5,6 +5,8 @@ export const escapeRegex = (value) =>
 
 export const PHONE_RE = /^[+\d][\d\s().-]{6,30}$/;
 
+export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export const parseOptionalYear = (value) => {
   if (value === null || value === undefined || value === "") return null;
   const year = Number.parseInt(String(value).trim(), 10);

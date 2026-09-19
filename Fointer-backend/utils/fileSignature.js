@@ -9,9 +9,16 @@ const hasPrefix = (buffer, bytes) => {
 const isFtypBrand = (buffer, brands) => {
   if (!buffer || buffer.length < 12) return false;
   if (ascii(buffer, 4, 8) !== "ftyp") return false;
-  const brand = ascii(buffer, 8, 12).replace(/\0/g, " ").trim();
-  return brands.includes(brand);
-}; 
+  const wanted = new Set(brands);
+  const major = ascii(buffer, 8, 12).replace(/\0/g, " ").trim();
+  if (wanted.has(major)) return true;
+  for (let i = 16; i + 4 <= Math.min(buffer.length, 64); i += 4) {
+    const brand = ascii(buffer, i, i + 4).replace(/\0/g, " ").trim();
+    if (wanted.has(brand)) return true;
+  }
+  return false;
+};
+
 export const sniffMediaBuffer = (buffer) => {
   if (!buffer || buffer.length < 12) return null;
 
@@ -29,6 +36,22 @@ export const sniffMediaBuffer = (buffer) => {
     ascii(buffer, 8, 12) === "WEBP"
   ) {
     return { mime: "image/webp", kind: "image" };
+  }
+  if (
+    isFtypBrand(buffer, [
+      "heic",
+      "heix",
+      "hevc",
+      "hevx",
+      "heim",
+      "heis",
+      "hevm",
+      "hevs",
+      "mif1",
+      "msf1",
+    ])
+  ) {
+    return { mime: "image/heic", kind: "image" };
   }
   if (hasPrefix(buffer, [0x1a, 0x45, 0xdf, 0xa3])) {
     return { mime: "video/webm", kind: "video" };

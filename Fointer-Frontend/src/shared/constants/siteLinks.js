@@ -38,6 +38,11 @@ export const SITE_LINKS = [
     to: "/cookie-policy",
     segment: "cookie-policy",
   },
+  {
+    label: "User Support",
+    to: "/user-support",
+    segment: "user-support",
+  },
 ];
 
 /** Placeholder social profiles — replace `href` when accounts are live. */

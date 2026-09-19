@@ -170,7 +170,7 @@ export default function Support() {
             You haven’t submitted any support requests yet.
           </p>
           <p className="text-xs text-fo-subtle">
-            Use Help on Manage Communities to send a message.
+            Use Help on Communities to send a message.
           </p>
         </div>
       ) : visible.length === 0 ? (

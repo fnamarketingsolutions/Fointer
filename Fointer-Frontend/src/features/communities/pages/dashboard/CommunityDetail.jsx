@@ -48,10 +48,18 @@ const TYPE_META = {
   private_request: { label: COMMUNITY_TYPE_LABELS.private_request, icon: Lock },
 };
 
+const SIDE_CARD =
+  "bg-fo-surface border border-fo-border rounded-xl p-3 space-y-2 shadow-[0_1px_2px_rgba(26,22,18,0.04)]";
+
 const FEED_SORT = [
   { id: "latest", label: "New" },
   { id: "trending", label: "Top" },
 ];
+
+const tabBtnClass = (active) =>
+  `relative px-2.5 py-1.5 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40 rounded-lg ${
+    active ? "text-fo-accent" : "text-fo-subtle hover:text-fo-text"
+  }`;
 
 const MEMBER_FILTERS = [
   { id: "all", label: "All" },
@@ -514,26 +522,26 @@ export default function CommunityDetail({
   const openPost = (post) => {
     if (!selectedId || !post?.id) return;
     const segment = communitySegment(community) || selectedId;
-    navigate(`/manage-community/${segment}/posts/${postSegment(post)}`);
+    navigate(`/communities/manage/${segment}/posts/${postSegment(post)}`);
   };
 
   const aboutSidebar = community ? (
-    <aside className="space-y-4">
-      <div className="bg-fo-surface border border-fo-border rounded-xl overflow-hidden">
+    <aside className="space-y-3">
+      <div className={`${SIDE_CARD} overflow-hidden p-0`}>
         {heroImage ? (
-          <div className="h-28 bg-fo-surface-2">
+          <div className="relative w-full pt-[56.25%] bg-fo-surface-2">
             <img
               src={heroImage}
               alt=""
-              className="w-full h-full object-cover opacity-90"
+              className="absolute inset-0 w-full h-full object-cover"
             />
           </div>
         ) : (
-          <div className="h-16 bg-gradient-to-br from-[#1C1612] to-[#0A0806]" />
+          <div className="h-16 bg-fo-surface-3" />
         )}
-        <div className="p-4 space-y-3">
+        <div className="p-3 space-y-2">
           <div>
-            <h3 className="text-sm font-semibold text-fo-text">
+            <h3 className="text-[13px] font-semibold text-fo-text">
               {community.name}
             </h3>
             <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-fo-subtle">
@@ -558,8 +566,8 @@ export default function CommunityDetail({
       </div>
 
       {thumbs.length > 1 ? (
-        <div className="bg-fo-surface border border-fo-border rounded-xl p-4 space-y-2">
-          <h4 className="text-sm font-semibold text-fo-text">Gallery</h4>
+        <div className={SIDE_CARD}>
+          <h4 className="text-[13px] font-semibold text-fo-text">Gallery</h4>
           <div className="grid grid-cols-4 gap-1.5">
             {thumbs.slice(0, 8).map((src) => (
               <button
@@ -580,7 +588,7 @@ export default function CommunityDetail({
       ) : null}
 
       {(channelName || subchannelList.length > 0) && (
-        <div className="bg-fo-surface border border-fo-border rounded-xl p-4 space-y-3">
+        <div className={SIDE_CARD}>
           {channelName ? (
             <div>
               <p className="text-[10px] uppercase tracking-wide text-fo-subtle mb-1.5 flex items-center gap-1">
@@ -635,8 +643,8 @@ export default function CommunityDetail({
       )}
 
       {community.description ? (
-        <div className="bg-fo-surface border border-fo-border rounded-xl p-4 space-y-2">
-          <h4 className="text-sm font-semibold text-fo-text">About</h4>
+        <div className={SIDE_CARD}>
+          <h4 className="text-[13px] font-semibold text-fo-text">About</h4>
           <Collapsible open={aboutExpanded || !aboutNeedsToggle} collapsedHeight={72}>
             <p className="text-xs text-fo-muted leading-relaxed whitespace-pre-wrap">
               {community.description}
@@ -655,8 +663,8 @@ export default function CommunityDetail({
       ) : null}
 
       {ruleLines.length > 0 || community.rules ? (
-        <div className="bg-fo-surface border border-fo-border rounded-xl p-4 space-y-2">
-          <h4 className="text-sm font-semibold text-fo-text">Rules</h4>
+        <div className={SIDE_CARD}>
+          <h4 className="text-[13px] font-semibold text-fo-text">Rules</h4>
           {ruleLines.length > 1 ? (
             <>
               <ol className="space-y-2">
@@ -712,7 +720,7 @@ export default function CommunityDetail({
       ) : null}
 
       {Array.isArray(community.tags) && community.tags.length > 0 ? (
-        <div className="bg-fo-surface border border-fo-border rounded-xl p-4">
+        <div className={SIDE_CARD}>
           <div className="flex flex-wrap gap-1.5">
             {community.tags.map((tag) => (
               <span
@@ -730,7 +738,7 @@ export default function CommunityDetail({
 
   if (showCreatePost && community) {
     return (
-      <div className="text-fo-text w-full max-w-6xl mx-auto px-2 sm:px-4 lg:px-6 pb-10">
+      <div className="text-fo-text w-full max-w-[1180px] mx-auto pb-6">
         <CreatePostForm
           title={postForm.title}
           text={postForm.text}
@@ -753,48 +761,15 @@ export default function CommunityDetail({
   }
 
   return (
-    <div className="text-fo-text w-full max-w-6xl mx-auto px-2 sm:px-4 lg:px-6 pb-10 space-y-5">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <button
-          type="button"
-          onClick={onBack}
-          className="inline-flex items-center gap-1.5 text-xs text-fo-muted hover:text-fo-accent transition-colors self-start"
-        >
-          <ArrowLeft size={14} />
-          Back to communities
-        </button>
-
-        {community ? (
-          <div className="flex items-center gap-2 self-end sm:self-auto">
-            <button
-              type="button"
-              onClick={refreshAll}
-              className="p-2 rounded-lg border border-fo-border text-fo-muted hover:text-fo-accent hover:border-fo-accent/40"
-              title="Refresh"
-            >
-              <RefreshCw size={14} />
-            </button>
-            {isOwner ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => onEdit?.(community)}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-fo-border text-xs text-fo-muted hover:text-fo-accent hover:border-fo-accent/40"
-                >
-                  <Pencil size={12} /> Edit
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onDelete?.(community)}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-red-500/20 bg-red-500/10 text-red-400 text-xs hover:bg-red-500/20"
-                >
-                  <Trash2 size={12} /> Delete
-                </button>
-              </>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
+    <div className="text-fo-text w-full max-w-[1180px] mx-auto pb-6">
+      <button
+        type="button"
+        onClick={onBack}
+        className="inline-flex items-center gap-2 min-h-9 px-1 mb-3 text-sm text-fo-muted hover:text-fo-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40 rounded-lg"
+      >
+        <ArrowLeft size={16} />
+        Back to communities
+      </button>
 
       {manageLoading && !community ? (
         <div className="flex items-center justify-center py-16 text-fo-muted text-sm gap-2">
@@ -803,56 +778,92 @@ export default function CommunityDetail({
         </div>
       ) : community ? (
         <>
-          <header className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-            <div className="min-w-0 space-y-1">
-              <h1 className="text-2xl sm:text-3xl font-semibold text-fo-text leading-tight truncate">
-                {community.name}
-              </h1>
-              <p className="text-sm text-fo-subtle flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center gap-1">
-                  <TypeIcon size={12} className="text-fo-accent" />
-                  {meta.label}
-                </span>
-                <span>·</span>
-                <span>{formatCount(community.memberCount || 0)} members</span>
-                <span>·</span>
-                <span className="capitalize">{viewerRole}</span>
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowCreatePost(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-fo-accent text-black text-xs font-semibold hover:bg-fo-accent-hover shrink-0"
-            >
-              <Plus size={14} /> Create post
-            </button>
-          </header>
-
-          <div className="flex gap-1 p-1 rounded-xl bg-fo-bg border border-fo-border overflow-x-auto">
-            {sectionTabs.map((tab) => {
-              const active = section === tab.id;
-              return (
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px] gap-4 items-start">
+          <div className="min-w-0 space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h1 className="text-xl font-semibold tracking-tight text-fo-text leading-tight truncate">
+                  {community.name}
+                </h1>
+                <p className="mt-1 text-sm text-fo-subtle flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-1">
+                    <TypeIcon size={12} className="text-fo-accent" />
+                    {meta.label}
+                  </span>
+                  <span>·</span>
+                  <span>{formatCount(community.memberCount || 0)} members</span>
+                  <span>·</span>
+                  <span className="capitalize">{viewerRole}</span>
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
                 <button
-                  key={tab.id}
                   type="button"
-                  onClick={() => setSection(tab.id)}
-                  className={`flex-1 min-w-[4.5rem] py-2 px-3 rounded-lg text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap ${
-                    active
-                      ? "bg-[#1A1510] text-fo-accent border border-fo-accent/35"
-                      : "text-fo-subtle hover:text-fo-text border border-transparent"
-                  }`}
+                  onClick={refreshAll}
+                  className="inline-flex items-center justify-center min-h-9 min-w-9 rounded-full border border-fo-border text-fo-muted hover:text-fo-accent hover:border-fo-accent/40"
+                  title="Refresh"
                 >
-                  {tab.label}
+                  <RefreshCw size={15} />
                 </button>
-              );
-            })}
-          </div>
+                {isOwner ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => onEdit?.(community)}
+                      className="inline-flex items-center gap-1.5 min-h-9 px-3.5 rounded-full border border-fo-border text-[13px] font-medium text-fo-text hover:border-fo-accent/40 hover:text-fo-accent"
+                    >
+                      <Pencil size={14} /> Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDelete?.(community)}
+                      className="inline-flex items-center gap-1.5 min-h-9 px-3.5 rounded-full border border-red-500/30 text-[13px] font-medium text-red-500 hover:bg-red-500/10"
+                    >
+                      <Trash2 size={14} /> Delete
+                    </button>
+                  </>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => setShowCreatePost(true)}
+                  className="inline-flex items-center gap-1.5 min-h-9 px-3.5 rounded-full bg-fo-accent text-black text-[13px] font-semibold hover:bg-fo-accent-hover"
+                >
+                  <Plus size={16} /> Create post
+                </button>
+              </div>
+            </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px] gap-5 items-start">
-            <div className="min-w-0 space-y-4">
+            <div
+              className="flex flex-wrap items-center gap-1 border-b border-fo-border pb-1"
+              role="group"
+              aria-label="Manage sections"
+            >
+              {sectionTabs.map((tab) => {
+                const active = section === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setSection(tab.id)}
+                    aria-pressed={active}
+                    className={tabBtnClass(active)}
+                  >
+                    {tab.label}
+                    {active ? (
+                      <span className="absolute left-3 right-3 -bottom-1 h-0.5 rounded-full bg-fo-accent" />
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+
               {section === "posts" ? (
                 <>
-                  <div className="flex flex-wrap items-center gap-1.5 border-b border-fo-border pb-3">
+                  <div
+                    className="flex flex-wrap items-center gap-1 border-b border-fo-border pb-1"
+                    role="group"
+                    aria-label="Sort posts"
+                  >
                     {FEED_SORT.map((opt) => {
                       const active = feedFilter === opt.id;
                       return (
@@ -860,13 +871,13 @@ export default function CommunityDetail({
                           key={opt.id}
                           type="button"
                           onClick={() => setFeedFilter(opt.id)}
-                          className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                            active
-                              ? "bg-fo-accent/15 text-fo-accent"
-                              : "text-fo-subtle hover:text-fo-text hover:bg-fo-surface-hover"
-                          }`}
+                          aria-pressed={active}
+                          className={tabBtnClass(active)}
                         >
                           {opt.label}
+                          {active ? (
+                            <span className="absolute left-3 right-3 -bottom-1 h-0.5 rounded-full bg-fo-accent" />
+                          ) : null}
                         </button>
                       );
                     })}
@@ -897,7 +908,7 @@ export default function CommunityDetail({
                         <FeedPostRow
                           key={post.id}
                           post={post}
-                          variant="row"
+                          variant="card"
                           onOpen={openPost}
                           onLike={() => handleToggleLike(post)}
                           onReshare={() => handleToggleReshare(post)}
@@ -1032,7 +1043,11 @@ export default function CommunityDetail({
                     </p>
                   </div>
 
-                  <div className="flex gap-1 p-1 rounded-xl bg-fo-bg border border-fo-border overflow-x-auto">
+                  <div
+                    className="flex flex-wrap items-center gap-1 border-b border-fo-border pb-1"
+                    role="group"
+                    aria-label="Filter members"
+                  >
                     {MEMBER_FILTERS.map((item) => {
                       const active = memberStatusFilter === item.id;
                       return (
@@ -1040,13 +1055,13 @@ export default function CommunityDetail({
                           key={item.id}
                           type="button"
                           onClick={() => setMemberStatusFilter(item.id)}
-                          className={`flex-1 min-w-[4rem] py-2 px-3 rounded-lg text-xs font-semibold transition-colors ${
-                            active
-                              ? "bg-[#1A1510] text-fo-accent border border-fo-accent/35"
-                              : "text-fo-subtle hover:text-fo-text border border-transparent"
-                          }`}
+                          aria-pressed={active}
+                          className={tabBtnClass(active)}
                         >
                           {item.label}
+                          {active ? (
+                            <span className="absolute left-3 right-3 -bottom-1 h-0.5 rounded-full bg-fo-accent" />
+                          ) : null}
                         </button>
                       );
                     })}
@@ -1304,21 +1319,21 @@ export default function CommunityDetail({
                   </form>
                 </div>
               ) : null}
-            </div>
-
-            <div className="hidden lg:block lg:sticky lg:top-4">
-              {section !== "overview" ? aboutSidebar : null}
-            </div>
           </div>
 
-          <div className="lg:hidden mt-2">
-            {section === "posts" ||
-            section === "members" ||
-            section === "invite" ||
-            section === "incoming"
-              ? aboutSidebar
-              : null}
+          <div className="hidden lg:block lg:sticky lg:top-5">
+            {section !== "overview" ? aboutSidebar : null}
           </div>
+        </div>
+
+        <div className="lg:hidden mt-4">
+          {section === "posts" ||
+          section === "members" ||
+          section === "invite" ||
+          section === "incoming"
+            ? aboutSidebar
+            : null}
+        </div>
         </>
       ) : null}
     </div>

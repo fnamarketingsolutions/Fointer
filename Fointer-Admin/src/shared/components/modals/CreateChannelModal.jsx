@@ -3,6 +3,7 @@ import {
   LuLoaderCircle as Loader2,
   LuX as X
 } from 'react-icons/lu';
+import ChannelIconPicker from '../ChannelIconPicker';
 
 export default function CreateChannelModal({
   open,
@@ -12,10 +13,13 @@ export default function CreateChannelModal({
   channel = null,
 }) {
   const [name, setName] = useState('');
+  const [icon, setIcon] = useState('');
   const isEdit = Boolean(channel);
 
   useEffect(() => {
-    if (open) setName(channel?.name || '');
+    if (!open) return;
+    setName(channel?.name || '');
+    setIcon(channel?.icon || '');
   }, [open, channel]);
 
   if (!open) return null;
@@ -23,7 +27,10 @@ export default function CreateChannelModal({
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!name.trim() || loading) return;
-    await onSubmit({ name: name.trim() });
+    await onSubmit({
+      name: name.trim(),
+      icon,
+    });
   };
 
   return (
@@ -57,6 +64,12 @@ export default function CreateChannelModal({
               className="w-full bg-fo-bg border border-fo-border rounded-lg px-3 py-2.5 text-sm text-fo-text focus:outline-none focus:border-fo-accent/50 placeholder:text-fo-subtle"
             />
           </div>
+
+          <ChannelIconPicker
+            value={icon}
+            onChange={setIcon}
+            disabled={loading}
+          />
 
           <div className="flex justify-end gap-2 pt-1">
             <button

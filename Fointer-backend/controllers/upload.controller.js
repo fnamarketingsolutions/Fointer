@@ -6,6 +6,7 @@ const ALLOWED_FOLDERS = new Set([
   "fointer/posts",
   "fointer/communities",
   "fointer/avatars",
+  "fointer/banners",
 ]);
 
 const resolveUploadFolder = (value) => {
@@ -31,9 +32,12 @@ export const uploadMedia = async (req, res) => {
       });
     }
 
+    const isHeic =
+      sniffed.mime === "image/heic" || sniffed.mime === "image/heif";
     const result = await uploadToCloudinary(req.file.buffer, {
       folder: resolveUploadFolder(req.body?.folder),
       resourceType: sniffed.kind === "video" ? "video" : "image",
+      extra: isHeic ? { format: "jpg" } : undefined,
     });
 
     const media = {

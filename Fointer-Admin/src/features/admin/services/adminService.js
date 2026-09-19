@@ -250,3 +250,53 @@ export const createAdminWarning = async (payload) => {
   const response = await api.post('/admin/warnings', payload);
   return response.data;
 };
+
+export const fetchAdminBanners = async () => {
+  const response = await api.get('/admin/banners');
+  return response.data;
+};
+
+export const createAdminBanner = async (payload) => {
+  const response = await api.post('/admin/banners', payload);
+  return response.data;
+};
+
+export const updateAdminBanner = async (id, payload) => {
+  const response = await api.patch(`/admin/banners/${id}`, payload);
+  return response.data;
+};
+
+export const deleteAdminBanner = async (id) => {
+  const response = await api.delete(`/admin/banners/${id}`);
+  return response.data;
+};
+
+export const fetchAdminUserSupportCategories = async () => {
+  const response = await api.get('/admin/user-support/categories');
+  return response.data;
+};
+
+export const createAdminUserSupportCategory = async (payload) => {
+  const response = await api.post('/admin/user-support/categories', payload);
+  return response.data;
+};
+
+export const updateAdminUserSupportCategory = async (id, payload) => {
+  const response = await api.patch(
+    `/admin/user-support/categories/${id}`,
+    payload
+  );
+  return response.data;
+};
+
+export const fetchAdminUserSupportRequests = async (params = {}) => {
+  const response = await api.get('/admin/user-support/requests', { params });
+  return response.data;
+};
+
+export const updateAdminUserSupportRequestStatus = async (id, status) => {
+  const response = await api.patch(`/admin/user-support/requests/${id}/status`, {
+    status,
+  });
+  return response.data;
+};

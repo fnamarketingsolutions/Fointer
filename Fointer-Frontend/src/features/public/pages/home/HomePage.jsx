@@ -3,17 +3,11 @@ import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   LuArrowRight as ArrowRight,
-  LuBriefcase as Briefcase,
   LuCalendar as Calendar,
-  LuCpu as Cpu,
-  LuFilm as Film,
-  LuHash as Hash,
   LuImage as ImageIcon,
-  LuMusic as Music,
   LuPlus as Plus,
   LuShoppingBag as ShoppingBag,
   LuSparkles as Sparkles,
-  LuTrophy as Trophy,
   LuUsers as Users,
   LuVideo as Video,
 } from "react-icons/lu";
@@ -22,21 +16,8 @@ import { fetchChannels } from "../../../../api/channels";
 import { useAuth } from "../../../../context/AuthContext";
 import { communitySegment } from "../../../../shared/services/entityLinks";
 import { formatCount } from "../../../../shared/utils/format";
+import { ChannelIconGlyph } from "../../../../shared/constants/channelIcons.jsx";
 import { EXPLORE_PATH, FEED_PATH } from "../../../../shared/constants/paths";
-
-function iconForChannel(name) {
-  const n = String(name || "").toLowerCase();
-  if (n.includes("sport")) return Trophy;
-  if (n.includes("music")) return Music;
-  if (n.includes("entertain") || n.includes("film") || n.includes("movie")) return Film;
-  if (n.includes("business") || n.includes("career")) return Briefcase;
-  if (n.includes("tech")) return Cpu;
-  if (n.includes("life") || n.includes("fashion") || n.includes("travel")) {
-    return Sparkles;
-  }
-  if (n.includes("communit")) return Users;
-  return Hash;
-}
 
 const FEATURES = [
   {
@@ -366,7 +347,6 @@ export default function HomePage() {
             ) : (
               channels.slice(0, 8).map((channel) => {
                 const name = channel.name || "Channel";
-                const Icon = iconForChannel(name);
                 return (
                   <Link
                     key={channel.id || name}
@@ -374,7 +354,7 @@ export default function HomePage() {
                     className="group rounded-2xl border border-fo-border bg-fo-surface p-5 hover:border-fo-accent/35 hover:bg-fo-surface-hover transition-colors"
                   >
                     <div className="w-10 h-10 rounded-xl bg-fo-accent/10 text-fo-accent flex items-center justify-center mb-4">
-                      <Icon size={20} />
+                      <ChannelIconGlyph icon={channel.icon} size={20} />
                     </div>
                     <h3 className="text-base font-semibold text-fo-text group-hover:text-fo-accent transition-colors">
                       {name}

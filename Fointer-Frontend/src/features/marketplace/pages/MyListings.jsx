@@ -12,9 +12,12 @@ import {
   markListingSold,
   updateListing,
 } from "../../../api/marketplace";
+import { useAuth } from "../../../context/AuthContext";
 import { useToast } from "../../../shared/components/feedback/ToastContext";
+import ConfirmDeleteModal from "../../../shared/components/modals/ConfirmDeleteModal";
 import ListingCard from "../components/ListingCard";
 import ListingFormModal from "../components/ListingFormModal";
+import MarketplaceRail from "../components/MarketplaceRail";
 import { LISTING_STATUSES, statusLabel } from "../constants";
 
 const STATUS_FILTERS = [
@@ -25,9 +28,15 @@ const STATUS_FILTERS = [
   })),
 ];
 
+const filterBtnClass = (active) =>
+  `relative px-2.5 py-1.5 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40 rounded-lg ${
+    active ? "text-fo-accent" : "text-fo-subtle hover:text-fo-text"
+  }`;
+
 export default function MyListings() {
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const { isAuthenticated } = useAuth();
 
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -35,6 +44,8 @@ export default function MyListings() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -55,15 +66,17 @@ export default function MyListings() {
   const counts = useMemo(() => {
     const all = listings.length;
     const byStatus = {};
-    for (const s of LISTING_STATUSES) {
-      byStatus[s.value] = listings.filter((l) => l.status === s.value).length;
+    for (const status of LISTING_STATUSES) {
+      byStatus[status.value] = listings.filter(
+        (item) => item.status === status.value
+      ).length;
     }
     return { all, ...byStatus };
   }, [listings]);
 
   const visible = useMemo(() => {
     if (filter === "all") return listings;
-    return listings.filter((l) => l.status === filter);
+    return listings.filter((item) => item.status === filter);
   }, [listings, filter]);
 
   const handleCreate = async (payload) => {
@@ -98,7 +111,6 @@ export default function MyListings() {
   };
 
   const handleMarkSold = async (listing) => {
-    if (!window.confirm(`Mark "${listing.title}" as sold?`)) return;
     try {
       await markListingSold(listing.id);
       showToast("Listing marked as sold.");
@@ -108,116 +120,144 @@ export default function MyListings() {
     }
   };
 
-  const handleDelete = async (listing) => {
-    if (!window.confirm(`Delete "${listing.title}" permanently?`)) return;
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
     try {
-      await deleteListing(listing.id);
+      await deleteListing(deleteTarget.id);
+      setDeleteTarget(null);
       showToast("Listing deleted.");
       load();
     } catch (err) {
       showToast(err?.response?.data?.message || "Failed to delete listing.");
+    } finally {
+      setDeleting(false);
     }
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-6 sm:py-8">
+    <div className="text-fo-text w-full max-w-[1180px] mx-auto pb-6">
       <button
         type="button"
         onClick={() => navigate("/marketplace")}
-        className="inline-flex items-center gap-2 text-sm text-fo-muted hover:text-fo-text mb-6"
+        className="inline-flex items-center gap-2 min-h-9 px-1 mb-3 text-sm text-fo-muted hover:text-fo-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40 rounded-lg"
       >
-        <ArrowLeft size={16} /> Back to Marketplace
+        <ArrowLeft size={16} /> Back to marketplace
       </button>
 
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold text-fo-text">My listings</h1>
-          <p className="mt-2 text-sm text-fo-muted">
-            Create, edit, and manage your marketplace listings.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setModalOpen(true)}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-fo-accent text-fo-bg text-sm font-medium shrink-0"
-        >
-          <Plus size={16} /> New listing
-        </button>
-      </div>
-
-      <div className="mt-6 flex flex-wrap gap-2">
-        {STATUS_FILTERS.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => setFilter(item.id)}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-              filter === item.id
-                ? "bg-fo-accent text-fo-bg border-fo-accent"
-                : "border-fo-border text-fo-muted hover:text-fo-text"
-            }`}
-          >
-            {item.label}
-            {counts[item.id] != null ? ` (${counts[item.id]})` : ""}
-          </button>
-        ))}
-      </div>
-
-      {loading ? (
-        <div className="mt-12 flex justify-center text-fo-muted">
-          <Loader2 size={20} className="animate-spin" />
-        </div>
-      ) : visible.length === 0 ? (
-        <div className="mt-12 text-center text-fo-muted text-sm">
-          <p>
-            No{" "}
-            {filter === "all"
-              ? ""
-              : `${(statusLabel(filter) || filter).toLowerCase()} `}
-            listings yet.
-          </p>
-          <button
-            type="button"
-            onClick={() => setModalOpen(true)}
-            className="mt-3 text-fo-accent hover:underline"
-          >
-            Create your first listing
-          </button>
-        </div>
-      ) : (
-        <div className="mt-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {visible.map((listing) => (
-            <div key={listing.id} className="space-y-2">
-              <ListingCard listing={listing} />
-              <div className="flex flex-wrap gap-1.5 px-1">
-                <button
-                  type="button"
-                  onClick={() => setEditing(listing)}
-                  className="text-[11px] px-2 py-1 rounded border border-fo-border text-fo-muted hover:text-fo-text"
-                >
-                  Edit
-                </button>
-                {listing.status === "active" ? (
-                  <button
-                    type="button"
-                    onClick={() => handleMarkSold(listing)}
-                    className="text-[11px] px-2 py-1 rounded border border-fo-border text-fo-muted hover:text-fo-text"
-                  >
-                    Mark sold
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={() => handleDelete(listing)}
-                  className="text-[11px] px-2 py-1 rounded border border-red-500/30 text-red-400"
-                >
-                  Delete
-                </button>
-              </div>
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px] gap-4 items-start">
+        <div className="min-w-0 space-y-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="text-xl font-semibold tracking-tight text-fo-text leading-tight">
+                My listings
+              </h1>
+              <p className="mt-1 text-sm text-fo-subtle leading-snug">
+                Create, edit, and manage what you are selling.
+              </p>
             </div>
-          ))}
+            <button
+              type="button"
+              onClick={() => setModalOpen(true)}
+              className="inline-flex items-center gap-1.5 min-h-9 px-3.5 rounded-full bg-fo-accent text-black text-[13px] font-semibold hover:bg-fo-accent-hover shrink-0"
+            >
+              <Plus size={16} aria-hidden /> New listing
+            </button>
+          </div>
+
+          <div
+            className="flex flex-wrap items-center gap-1 border-b border-fo-border pb-1"
+            role="group"
+            aria-label="Filter listings"
+          >
+            {STATUS_FILTERS.map((item) => {
+              const active = filter === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setFilter(item.id)}
+                  aria-pressed={active}
+                  className={filterBtnClass(active)}
+                >
+                  {item.label}
+                  {counts[item.id] != null ? ` (${counts[item.id]})` : ""}
+                  {active ? (
+                    <span className="absolute left-3 right-3 -bottom-1 h-0.5 rounded-full bg-fo-accent" />
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+
+          {loading ? (
+            <div className="flex justify-center py-16 text-fo-muted">
+              <Loader2 size={20} className="animate-spin text-fo-accent" />
+            </div>
+          ) : visible.length === 0 ? (
+            <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle px-4 space-y-3">
+              <p>
+                No{" "}
+                {filter === "all"
+                  ? ""
+                  : `${(statusLabel(filter) || filter).toLowerCase()} `}
+                listings yet.
+              </p>
+              <button
+                type="button"
+                onClick={() => setModalOpen(true)}
+                className="inline-flex items-center gap-2 text-fo-accent hover:text-fo-accent-hover font-medium"
+              >
+                Create your first listing
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {visible.map((listing) => (
+                <div key={listing.id} className="space-y-2">
+                  <ListingCard listing={listing} />
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setEditing(listing)}
+                      className="text-xs px-2.5 py-1 rounded-lg border border-fo-border text-fo-muted hover:text-fo-accent hover:border-fo-accent/40"
+                    >
+                      Edit
+                    </button>
+                    {listing.status === "active" ? (
+                      <button
+                        type="button"
+                        onClick={() => handleMarkSold(listing)}
+                        className="text-xs px-2.5 py-1 rounded-lg border border-fo-border text-fo-muted hover:text-fo-accent hover:border-fo-accent/40"
+                      >
+                        Mark sold
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => setDeleteTarget(listing)}
+                      className="text-xs px-2.5 py-1 rounded-lg border border-red-500/30 text-red-500 hover:bg-red-500/10"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-      )}
+
+        <div className="hidden lg:block lg:sticky lg:top-5">
+          <MarketplaceRail
+            onSelectCategory={(value) => {
+              const params = new URLSearchParams();
+              if (value) params.set("category", value);
+              navigate(`/marketplace${params.toString() ? `?${params}` : ""}`);
+            }}
+            isGuest={!isAuthenticated}
+          />
+        </div>
+      </div>
 
       <ListingFormModal
         open={modalOpen}
@@ -234,6 +274,19 @@ export default function MyListings() {
         initial={editing}
         title="Edit listing"
       />
+
+      <ConfirmDeleteModal
+        open={Boolean(deleteTarget)}
+        title="Delete listing?"
+        variant="post"
+        loading={deleting}
+        onConfirm={handleDelete}
+        onClose={() => setDeleteTarget(null)}
+      >
+        {deleteTarget
+          ? `"${deleteTarget.title}" will be removed from the marketplace.`
+          : "This listing will be removed from the marketplace."}
+      </ConfirmDeleteModal>
     </div>
   );
 }

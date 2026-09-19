@@ -1,11 +1,12 @@
 import { communitySegment, postSegment } from '../../shared/services/entityLinks';
 
-const ADMIN_TYPES = new Set(['content_report', 'channel_request', 'user_warning']);
+const ADMIN_TYPES = new Set(['content_report', 'channel_request', 'user_warning', 'user_support']);
 
 const TYPE_LABELS = {
   content_report: 'Content report',
   channel_request: 'Channel request',
   user_warning: 'User warning',
+  user_support: 'User support',
 };
 
 export const isAdminNotification = (type) => ADMIN_TYPES.has(type);
@@ -29,6 +30,7 @@ export const notificationPath = (notification) => {
   if (type === 'channel_request' || type === 'support_ticket') {
     return '/support';
   }
+  if (type === 'user_support') return '/usersupport';
   if (type === 'user_warning') return '/warnings';
   // Owned by Reporting & Analytics (API: /admin/reports, tab: analytics)
   if (type === 'content_report') return '/analytics';

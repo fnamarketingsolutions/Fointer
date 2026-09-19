@@ -17,7 +17,10 @@ const formatSubchannel = (subchannel) => {
     name: subchannel.name,
     channel:
       channel && typeof channel === "object" && channel._id
-        ? { id: channel._id, name: channel.name }
+        ? {
+            id: channel._id,
+            name: channel.name,
+          }
         : { id: channelId },
     channelId,
     createdAt: subchannel.createdAt,

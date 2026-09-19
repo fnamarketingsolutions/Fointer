@@ -37,6 +37,9 @@ const ContentPolicy = lazy(() =>
 const CookiePolicy = lazy(() =>
   import('../../features/public/pages/policies/CookiePolicy')
 );
+const UserSupport = lazy(() =>
+  import('../../features/public/pages/support/UserSupport')
+);
 const CodeOfConduct = lazy(() =>
   import('../../features/public/pages/policies/CodeofConduct')
 );
@@ -52,6 +55,7 @@ const PUBLIC_PAGE_ELEMENTS = {
   'user-agreement': <UserAgreement />,
   'content-policy': <ContentPolicy />,
   'cookie-policy': <CookiePolicy />,
+  'user-support': <UserSupport />,
 };
 
 function RootHome() {

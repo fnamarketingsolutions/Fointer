@@ -17,7 +17,7 @@ const SYSTEM_TYPES = new Set([
   'watch_group_invite',
 ]);
 
-const ADMIN_TYPES = new Set(['content_report', 'channel_request']);
+const ADMIN_TYPES = new Set(['content_report', 'channel_request', 'user_support']);
 
 const TYPE_LABELS = {
   content_report: 'Content report',
@@ -50,8 +50,8 @@ export const notificationPath = (notification) => {
     ? `/communities/${communitySegment(community) || community.id}`
     : '';
   const managePath = community
-    ? `/manage-community/${communitySegment(community) || community.id}`
-    : '/manage-community';
+    ? `/communities/manage/${communitySegment(community) || community.id}`
+    : '/communities/manage';
 
   if (type === 'join_request') {
     return `${managePath}?section=incoming`;
@@ -84,7 +84,14 @@ export const notificationPath = (notification) => {
       });
       return `${communityPath}/posts/${postPath || entity.id}`;
     }
-    if (entity?.id) return `/post-management/${entity.id}`;
+    if (entity?.id) {
+      const postPath = postSegment({
+        id: entity.id,
+        shortCode: entity.shortCode,
+        title: entity.title,
+      });
+      return `/post/${postPath || entity.id}`;
+    }
     return '/';
   }
   if (type === 'support_ticket') {

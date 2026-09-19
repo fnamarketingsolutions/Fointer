@@ -24,6 +24,8 @@ import userRoute from "./routes/userRoute.js";
 import marketplaceRoute from "./routes/marketplaceRoute.js";
 import conversationRoute from "./routes/conversationRoute.js";
 import blockRoute from "./routes/blockRoute.js";
+import bannerRoute from "./routes/bannerRoute.js";
+import userSupportRoute from "./routes/userSupportRoute.js";
 import { initLiveSocket } from "./sockets/liveSocket.js";
 import { initWatchGroupSocket } from "./sockets/watchGroupSocket.js";
 import { initNotificationSocket } from "./sockets/notificationSocket.js";
@@ -97,6 +99,8 @@ app.use("/api/users", userRoute);
 app.use("/api/marketplace", marketplaceRoute);
 app.use("/api/conversations", conversationRoute);
 app.use("/api/blocks", blockRoute);
+app.use("/api", bannerRoute);
+app.use("/api", userSupportRoute);
 
 // Multer / unexpected errors — never leak internals
 app.use((err, _req, res, _next) => {

@@ -9,7 +9,7 @@ export default function ManagePostPage() {
   const { communityId, postId: postParam } = useParams();
   const { id: postId, resolving, notFound } = useEntityId("post", postParam);
   const navigate = useNavigate();
-  const backTo = `/manage-community/${communityId}`;
+  const backTo = `/communities/manage/${communityId}`;
 
   if (resolving) {
     return (

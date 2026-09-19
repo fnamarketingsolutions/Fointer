@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   LuHash as Hash,
-  LuLayers as Layers,
   LuLoaderCircle as Loader2,
   LuPencil as Pencil,
   LuPlus as Plus,
@@ -19,6 +18,7 @@ import {
 } from "../../../../api/dashboard";
 import CreateChannelModal from "../../../../shared/components/modals/CreateChannelModal";
 import CreateSubchannelModal from "../../../../shared/components/modals/CreateSubchannelModal";
+import { ChannelIconGlyph } from "../../../../shared/constants/channelIcons.jsx";
 import { useToast } from "../../../../shared/components/feedback/ToastContext";
 import { getErrorMessage } from "../../../../shared/utils/errors";
 import { timeAgo } from "../../../../shared/utils/date";
@@ -98,10 +98,10 @@ export default function ChannelManagement() {
     });
   }, [subchannels, query, searchParams]);
 
-  const handleCreateChannel = async ({ name }) => {
+  const handleCreateChannel = async ({ name, icon }) => {
     setCreating(true);
     try {
-      await createAdminChannel({ name });
+      await createAdminChannel({ name, icon });
       setCreateChannelOpen(false);
       showToast("Channel created.");
       await loadData();
@@ -112,11 +112,11 @@ export default function ChannelManagement() {
     }
   };
 
-  const handleUpdateChannel = async ({ name }) => {
+  const handleUpdateChannel = async ({ name, icon }) => {
     if (!editingChannel?.id) return;
     setCreating(true);
     try {
-      await updateAdminChannel(editingChannel.id, { name });
+      await updateAdminChannel(editingChannel.id, { name, icon });
       setEditingChannel(null);
       showToast("Channel updated.");
       await loadData();
@@ -145,7 +145,10 @@ export default function ChannelManagement() {
     if (!editingSub?.id) return;
     setCreating(true);
     try {
-      await updateAdminSubchannel(editingSub.id, { name, channelId });
+      await updateAdminSubchannel(editingSub.id, {
+        name,
+        channelId,
+      });
       setEditingSub(null);
       showToast("Subchannel updated.");
       await loadData();
@@ -279,7 +282,11 @@ export default function ChannelManagement() {
                 className="flex items-center gap-3 bg-fo-surface border border-fo-border hover:border-fo-accent/35 rounded-xl p-3.5 sm:p-4 transition-colors"
               >
                 <div className="w-10 h-10 rounded-lg bg-[#1A1510] border border-fo-border flex items-center justify-center shrink-0">
-                  <Hash size={16} className="text-fo-accent" />
+                  {channel.icon ? (
+                    <ChannelIconGlyph icon={channel.icon} size={16} className="text-fo-accent" />
+                  ) : (
+                    <Hash size={16} className="text-fo-accent" />
+                  )}
                 </div>
                 <div className="min-w-0 flex-1">
                   <h2 className="text-sm font-semibold text-fo-text truncate">
@@ -329,9 +336,6 @@ export default function ChannelManagement() {
               key={sub.id}
               className="flex items-center gap-3 bg-fo-surface border border-fo-border hover:border-fo-accent/35 rounded-xl p-3.5 sm:p-4 transition-colors"
             >
-              <div className="w-10 h-10 rounded-lg bg-[#1A1510] border border-fo-border flex items-center justify-center shrink-0">
-                <Layers size={16} className="text-fo-accent" />
-              </div>
               <div className="min-w-0 flex-1 space-y-1">
                 <h2 className="text-sm font-semibold text-fo-text truncate">
                   {sub.name}
@@ -364,6 +368,7 @@ export default function ChannelManagement() {
         }}
         onSubmit={editingChannel ? handleUpdateChannel : handleCreateChannel}
         loading={creating}
+        onError={showToast}
       />
 
       <CreateSubchannelModal
@@ -377,6 +382,7 @@ export default function ChannelManagement() {
         onSubmit={editingSub ? handleUpdateSubchannel : handleCreateSubchannel}
         channels={channels}
         loading={creating}
+        onError={showToast}
       />
     </div>
   );

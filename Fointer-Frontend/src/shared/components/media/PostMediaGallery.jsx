@@ -1,13 +1,19 @@
 import React, { useRef, useState } from "react";
 
 function MediaFrame({ item, heightClass }) {
-  const frameClass = `w-full ${heightClass} bg-fo-surface-2 flex items-center justify-center overflow-hidden`;
-  const mediaClass = "w-full h-full object-contain";
+  const isVideo = item.type === "video";
+  const frameClass = `relative w-full ${heightClass} bg-fo-surface-2 overflow-hidden`;
+  const mediaClass = "absolute inset-0 w-full h-full object-contain";
 
-  if (item.type === "video") {
+  if (isVideo) {
     return (
-      <div className={`${frameClass} bg-black`}>
-        <video src={item.url} controls className={mediaClass} />
+      <div className={frameClass}>
+        <video
+          src={item.url}
+          controls
+          className={mediaClass}
+          preload="metadata"
+        />
       </div>
     );
   }
@@ -22,16 +28,12 @@ function MediaFrame({ item, heightClass }) {
 export default function PostMediaGallery({
   media = [],
   counterOverlay = false,
-  heightClass = "h-64 sm:h-80",
+  heightClass = "aspect-video",
 }) {
   const scrollRef = useRef(null);
   const [activeIndex, setActiveIndex] = useState(0);
 
-  if (!media.length) {
-    return (
-      <div className="h-40 bg-gradient-to-br from-fo-surface-3 to-fo-bg" />
-    );
-  }
+  if (!media.length) return null;
 
   if (media.length === 1) {
     return <MediaFrame item={media[0]} heightClass={heightClass} />;
@@ -49,7 +51,7 @@ export default function PostMediaGallery({
   return (
     <div className="relative">
       {counterOverlay && (
-        <div className="absolute top-3 right-3 z-10 rounded-full border border-white/25 bg-black/80 px-2.5 py-1 text-[10px] font-mono text-white shadow-sm backdrop-blur-sm">
+        <div className="absolute top-3 right-3 z-10 rounded-full border border-white/25 bg-black/80 px-2.5 py-1 text-[10px] font-medium text-white shadow-sm backdrop-blur-sm">
           {activeIndex + 1} / {media.length}
         </div>
       )}
@@ -69,7 +71,7 @@ export default function PostMediaGallery({
         ))}
       </div>
 
-      <div className="flex items-center justify-center gap-1.5 py-2 bg-fo-bg/80">
+      <div className="flex items-center justify-center gap-1.5 py-2">
         {media.map((_, idx) => (
           <button
             key={idx}
@@ -88,11 +90,6 @@ export default function PostMediaGallery({
             }`}
           />
         ))}
-        {!counterOverlay && (
-          <span className="ml-2 text-[10px] text-fo-subtle font-mono">
-            {activeIndex + 1} / {media.length}
-          </span>
-        )}
       </div>
     </div>
   );

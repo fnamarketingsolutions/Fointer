@@ -120,8 +120,8 @@ export default function HeaderSearch({ className = "" }) {
     <div ref={rootRef} className={`relative ${className}`}>
       <form onSubmit={handleSubmit} className="relative">
         <Search
-          size={15}
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-fo-subtle pointer-events-none"
+          size={16}
+          className="absolute left-3.5 top-1/2 -translate-y-1/2 text-fo-subtle pointer-events-none"
         />
         <input
           type="search"
@@ -131,8 +131,8 @@ export default function HeaderSearch({ className = "" }) {
             setOpen(true);
           }}
           onFocus={() => setOpen(true)}
-          placeholder="Search posts, communities, profiles…"
-          className="w-full bg-fo-bg border border-fo-border rounded-lg pl-9 pr-3 py-2 text-sm text-fo-text placeholder:text-fo-subtle focus:outline-none focus:border-fo-accent/50"
+          placeholder="Search posts, communities, people, or topics..."
+          className="w-full bg-fo-bg/80 border border-fo-border rounded-full pl-10 pr-4 py-2.5 text-sm text-fo-text placeholder:text-fo-subtle focus:outline-none focus:border-fo-accent/50 focus:bg-fo-surface"
           aria-label="Search"
           autoComplete="off"
         />

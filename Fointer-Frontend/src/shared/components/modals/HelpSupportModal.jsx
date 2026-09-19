@@ -41,14 +41,20 @@ export default function HelpSupportModal({ open, onClose, onSuccess }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-      <div className="relative w-full max-w-[480px] bg-[#120F0D] border border-fo-border rounded-2xl p-6 space-y-5 shadow-2xl text-fo-text">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <button
+        type="button"
+        className="absolute inset-0 bg-black/50"
+        onClick={submitting ? undefined : onClose}
+        aria-label="Close"
+      />
+      <div className="relative w-full max-w-[480px] bg-fo-surface border border-fo-border rounded-2xl p-6 space-y-5 shadow-xl text-fo-text">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-lg font-serif font-semibold text-fo-text">
+            <h3 className="text-lg font-semibold text-fo-text">
               Help & Support
             </h3>
-            <p className="text-[11px] text-fo-muted mt-0.5">
+            <p className="text-[13px] text-fo-subtle mt-0.5">
               Request a channel and subchannel for your community.
             </p>
           </div>
@@ -56,13 +62,13 @@ export default function HelpSupportModal({ open, onClose, onSuccess }) {
             type="button"
             disabled={submitting}
             onClick={onClose}
-            className="text-fo-subtle hover:text-fo-text p-1"
+            className="text-fo-subtle hover:text-fo-text p-1 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40"
           >
             <X size={20} />
           </button>
         </div>
 
-        <div className="rounded-xl border border-fo-border bg-fo-bg px-4 py-3 text-xs sm:text-sm text-fo-muted leading-relaxed space-y-2">
+        <div className="rounded-xl border border-fo-border bg-fo-surface-2 px-4 py-3 text-sm text-fo-muted leading-relaxed space-y-2">
           <p>
             Use this form to request a <strong className="text-fo-text font-medium">channel</strong> and{' '}
             <strong className="text-fo-text font-medium">subchannel</strong> for your community.
@@ -75,7 +81,7 @@ export default function HelpSupportModal({ open, onClose, onSuccess }) {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-[11px] uppercase tracking-wider text-fo-subtle mb-1.5">
+            <label className="block text-[11px] uppercase tracking-wide text-fo-subtle mb-1.5">
               Your request
             </label>
             <textarea
@@ -83,7 +89,7 @@ export default function HelpSupportModal({ open, onClose, onSuccess }) {
               onChange={(e) => setDescription(e.target.value)}
               rows={6}
               placeholder="Describe the channel and subchannel you need, or any additional ones you want..."
-              className="w-full px-3.5 py-2.5 rounded-lg bg-fo-bg border border-fo-border text-sm text-fo-text placeholder-[#5A5046] focus:outline-none focus:border-fo-accent/80 resize-y"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-fo-bg border border-fo-border text-sm text-fo-text placeholder:text-fo-subtle focus:outline-none focus:border-fo-accent/50 resize-y"
               required
             />
           </div>
@@ -92,7 +98,7 @@ export default function HelpSupportModal({ open, onClose, onSuccess }) {
             <button
               type="submit"
               disabled={submitting || !description.trim()}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-[#D4AF37] to-[#AA820A] text-black text-xs sm:text-sm font-bold disabled:opacity-60"
+              className="inline-flex items-center gap-2 min-h-9 px-5 py-2.5 rounded-full bg-fo-accent text-black text-[13px] font-semibold hover:bg-fo-accent-hover disabled:opacity-60"
             >
               {submitting && <Loader2 size={14} className="animate-spin" />}
               Submit

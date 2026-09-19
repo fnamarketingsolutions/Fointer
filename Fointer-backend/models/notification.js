@@ -22,6 +22,7 @@ export const NOTIFICATION_TYPES = [
   "user_warning",
   "content_report",
   "channel_request",
+  "user_support",
   "listing_inquiry",
   "direct_message",
   "direct_call",
@@ -31,6 +32,7 @@ export const ADMIN_NOTIFICATION_TYPES = [
   "content_report",
   "channel_request",
   "user_warning",
+  "user_support",
 ];
 
 export const SYSTEM_NOTIFICATION_TYPES = [
@@ -57,6 +59,7 @@ export const ENTITY_KINDS = [
   "join_request",
   "invite",
   "support_ticket",
+  "user_support",
   "report",
   "user",
   "listing",

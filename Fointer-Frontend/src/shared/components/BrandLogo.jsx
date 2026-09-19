@@ -1,10 +1,12 @@
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useTheme } from '../../context/ThemeContext';
+import { scrollAppToTop } from '../utils/scroll';
 import logoDarkTheme from '../../assets/fointer-logo.png';
 import logoLightTheme from '../../assets/logo-dark.png';
 
 export default function BrandLogo({ to = '/' }) {
   const { isDark } = useTheme();
+  const location = useLocation();
   const logoSrc = isDark ? logoDarkTheme : logoLightTheme;
 
   const mark = (
@@ -20,6 +22,13 @@ export default function BrandLogo({ to = '/' }) {
   return (
     <Link
       to={to}
+      onClick={(event) => {
+        const targetPath = String(to).split("?")[0] || "/";
+        if (location.pathname === targetPath) {
+          event.preventDefault();
+          scrollAppToTop({ smooth: true });
+        }
+      }}
       className="inline-flex items-center shrink-0"
       title="Fointer"
       aria-label="Fointer home"

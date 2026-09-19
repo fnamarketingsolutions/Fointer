@@ -5,11 +5,13 @@ import {
   LuCircleCheck as CheckCircle2,
   LuClock as Clock,
   LuLoaderCircle as Loader2,
-  LuRefreshCw as RefreshCw,
   LuSearch as Search,
+  LuPlus as Plus,
   LuUsers as Users,
-  LuCircleX as XCircle
+  LuCircleX as XCircle,
 } from "react-icons/lu";
+import CommunityCard from "../../components/CommunityCard";
+import CommunitiesRail from "../../components/CommunitiesRail";
 import {
   acceptInvite,
   declineInvite,
@@ -37,6 +39,11 @@ const TABS = [
   { id: "requests", label: "Requests" },
 ];
 
+const tabBtnClass = (active) =>
+  `relative px-2.5 py-1.5 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40 rounded-lg ${
+    active ? "text-fo-accent" : "text-fo-subtle hover:text-fo-text"
+  }`;
+
 const STATUS_UI = {
   pending: { label: "Pending", className: "text-fo-accent", Icon: Clock },
   approved: {
@@ -60,12 +67,12 @@ function CommunityThumb({ community }) {
       <img
         src={community.coverImage}
         alt={name}
-        className="w-12 h-12 rounded-lg object-cover border border-fo-border shrink-0"
+        className="w-10 h-10 rounded-lg object-cover border border-fo-border shrink-0"
       />
     );
   }
   return (
-    <div className="w-12 h-12 rounded-lg bg-[#1A1510] border border-fo-border flex items-center justify-center shrink-0">
+    <div className="w-10 h-10 rounded-lg bg-fo-surface-3 border border-fo-border flex items-center justify-center shrink-0">
       <span className="text-sm font-semibold text-fo-accent/60">
         {name.charAt(0).toUpperCase()}
       </span>
@@ -89,15 +96,18 @@ function StatusText({ status }) {
 function ActionBtn({ onClick, disabled, tone = "ghost", children }) {
   const tones = {
     ghost:
-      "border border-fo-border text-fo-muted hover:text-fo-text hover:border-fo-accent/30",
-    primary: "bg-fo-accent text-black font-semibold",
+      "border border-fo-border text-fo-muted hover:text-fo-text hover:border-fo-accent/40",
+    primary: "bg-fo-accent text-black font-semibold hover:bg-fo-accent-hover",
   };
   return (
     <button
       type="button"
       disabled={disabled}
-      onClick={onClick}
-      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs disabled:opacity-60 transition-colors ${tones[tone]}`}
+      onClick={(event) => {
+        event.stopPropagation();
+        onClick?.(event);
+      }}
+      className={`inline-flex items-center gap-1.5 min-h-8 px-3 py-1.5 rounded-full text-xs disabled:opacity-60 transition-colors ${tones[tone]}`}
     >
       {children}
     </button>
@@ -113,7 +123,7 @@ const matchesName = (community, query) => {
 
 export default function JoinedCommunities() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { showToast } = useToast();
   const { isAuthenticated } = useAuth();
   const tabFromUrl = searchParams.get("tab");
@@ -179,6 +189,21 @@ export default function JoinedCommunities() {
     load();
   }, [load]);
 
+  useEffect(() => {
+    if (tabFromUrl === "manage") {
+      navigate("/communities/manage", { replace: true });
+      return;
+    }
+    if (!isAuthenticated) {
+      setTab("discover");
+      return;
+    }
+    const next = TABS.some((item) => item.id === tabFromUrl)
+      ? tabFromUrl
+      : "discover";
+    setTab(next);
+  }, [tabFromUrl, isAuthenticated, navigate]);
+
   const q = search.trim();
 
   const filteredDiscover = useMemo(
@@ -217,6 +242,22 @@ export default function JoinedCommunities() {
     invites: pendingInviteCount,
     requests: pendingRequestCount,
   };
+
+  const setActiveTab = (id) => {
+    setTab(id);
+    const next = new URLSearchParams(searchParams);
+    if (id === "discover") next.delete("tab");
+    else next.set("tab", id);
+    next.delete("create");
+    setSearchParams(next, { replace: true });
+  };
+
+  const railItems = isAuthenticated
+    ? TABS.map((item) => ({
+        ...item,
+        count: tabCounts[item.id] || 0,
+      }))
+    : [];
 
   const handleJoinDiscover = async (e, community) => {
     e.stopPropagation();
@@ -275,68 +316,84 @@ export default function JoinedCommunities() {
   };
 
   return (
-    <div className="w-full max-w-3xl mx-auto space-y-5">
-      <header className="flex items-start justify-between gap-3">
-        <div className="space-y-1 min-w-0">
-          <h1 className="text-xl sm:text-2xl font-semibold text-fo-text">
-            Communities
-          </h1>
-          <p className="text-sm text-fo-subtle">
-            {isAuthenticated
-              ? "Discover communities to join, plus your invites and requests."
-              : "Browse public communities. Log in to join and participate."}
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={load}
-          disabled={loading}
-          className="p-2 rounded-lg border border-fo-border text-fo-muted hover:text-fo-accent hover:border-fo-accent/40 transition-colors disabled:opacity-50 shrink-0"
-          title="Refresh"
-        >
-          <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-        </button>
-      </header>
+    <div className="text-fo-text w-full max-w-[1180px] mx-auto pb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px] gap-4 items-start">
+        <div className="min-w-0 space-y-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-fo-accent inline-flex items-center gap-1.5">
+                <Users size={14} aria-hidden /> Communities
+              </p>
+              <h1 className="mt-1 text-xl font-semibold tracking-tight text-fo-text leading-tight">
+                Find your people
+              </h1>
+              <p className="mt-1 text-sm text-fo-subtle leading-snug max-w-xl">
+                {isAuthenticated
+                  ? "Discover communities to join, plus your invites and requests."
+                  : "Browse public communities. Log in to join and participate."}
+              </p>
+            </div>
+            {isAuthenticated ? (
+              <div className="flex flex-wrap gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => navigate("/communities/manage")}
+                  className="inline-flex items-center min-h-9 px-3.5 rounded-full border border-fo-border text-[13px] font-medium text-fo-text hover:border-fo-accent/40 hover:text-fo-accent transition-colors shrink-0"
+                >
+                  Manage
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate("/communities/manage?create=1")}
+                  className="inline-flex items-center gap-1.5 min-h-9 px-3.5 rounded-full bg-fo-accent text-black text-[13px] font-semibold hover:bg-fo-accent-hover transition-colors shrink-0"
+                >
+                  <Plus size={16} aria-hidden /> Create
+                </button>
+              </div>
+            ) : null}
+          </div>
 
-      {isAuthenticated ? (
-      <div className="flex gap-1 p-1 rounded-xl bg-fo-bg border border-fo-border overflow-x-auto">
-        {TABS.map((t) => {
-          const active = tab === t.id;
-          const count = tabCounts[t.id];
-          return (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setTab(t.id)}
-              className={`flex-1 min-w-[4.5rem] py-2 px-3 rounded-lg text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap ${
-                active
-                  ? "bg-[#1A1510] text-fo-accent border border-fo-accent/35"
-                  : "text-fo-subtle hover:text-fo-text border border-transparent"
-              }`}
+          {isAuthenticated ? (
+            <div
+              className="flex flex-wrap items-center gap-1 border-b border-fo-border pb-1"
+              role="group"
+              aria-label="Community views"
             >
-              {t.label}
-              {!loading && count > 0 ? (
-                <span className="ml-1.5 text-[10px] opacity-70">{count}</span>
-              ) : null}
-            </button>
-          );
-        })}
-      </div>
-      ) : null}
+              {TABS.map((t) => {
+                const active = tab === t.id;
+                const count = tabCounts[t.id];
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setActiveTab(t.id)}
+                    aria-pressed={active}
+                    className={tabBtnClass(active)}
+                  >
+                    {t.label}
+                    {!loading && count > 0 ? ` (${count})` : ""}
+                    {active ? (
+                      <span className="absolute left-3 right-3 -bottom-1 h-0.5 rounded-full bg-fo-accent" />
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
 
-      <div className="relative">
-        <Search
-          size={14}
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-fo-subtle pointer-events-none"
-        />
-        <input
-          type="text"
-          placeholder="Search by community name…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full bg-fo-surface border border-fo-border rounded-xl pl-9 pr-3 py-2.5 text-sm text-fo-text placeholder:text-fo-subtle focus:outline-none focus:border-fo-accent/50"
-        />
-      </div>
+          <div className="relative">
+            <Search
+              size={16}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-fo-subtle pointer-events-none"
+            />
+            <input
+              type="search"
+              placeholder="Search communities..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full rounded-xl border border-fo-border bg-fo-surface pl-9 pr-3 py-2.5 text-sm text-fo-text placeholder:text-fo-subtle focus:outline-none focus:border-fo-accent/50"
+            />
+          </div>
 
       {loading ? (
         <div className="flex items-center justify-center gap-2 py-14 text-sm text-fo-muted">
@@ -357,7 +414,7 @@ export default function JoinedCommunities() {
                 {isAuthenticated ? (
                 <button
                   type="button"
-                  onClick={() => setTab("joined")}
+                  onClick={() => setActiveTab("joined")}
                   className="inline-flex items-center gap-2 text-sm text-fo-accent hover:text-fo-accent-hover font-medium"
                 >
                   View joined <ArrowRight size={14} />
@@ -369,7 +426,7 @@ export default function JoinedCommunities() {
                 No communities match your search.
               </div>
             ) : (
-              <div className="space-y-2.5">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 {filteredDiscover.map((c) => {
                   const busy = joiningId === c.id;
                   const pending = Boolean(c.joinRequestPending);
@@ -379,52 +436,28 @@ export default function JoinedCommunities() {
                     actionLabel = pending ? "Pending" : "Request";
 
                   return (
-                    <article
+                    <CommunityCard
                       key={c.id}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => openCommunity(c)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          openCommunity(c);
-                        }
-                      }}
-                      className="group flex items-center gap-3 bg-fo-surface border border-fo-border hover:border-fo-accent/35 rounded-xl p-3.5 sm:p-4 transition-colors cursor-pointer"
-                    >
-                      <CommunityThumb community={c} />
-                      <div className="min-w-0 flex-1 space-y-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h2 className="text-sm font-semibold text-fo-text group-hover:text-fo-accent transition-colors truncate">
-                            {c.name || "Community"}
-                          </h2>
-                          <span className="text-[10px] text-fo-subtle">
-                            {TYPE_LABELS[c.type] || c.type}
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-fo-subtle line-clamp-1">
-                          {c.description ||
-                            (typeof c.memberCount === "number"
-                              ? `${c.memberCount} members`
-                              : "Open community")}
-                        </p>
-                      </div>
-                      <ActionBtn
-                        tone={
-                          c.type === "public" ||
-                          (c.type === "private_request" && !pending)
-                            ? "primary"
-                            : "ghost"
-                        }
-                        disabled={busy || pending}
-                        onClick={(e) => handleJoinDiscover(e, c)}
-                      >
-                        {busy ? (
-                          <Loader2 size={12} className="animate-spin" />
-                        ) : null}
-                        {actionLabel}
-                      </ActionBtn>
-                    </article>
+                      community={c}
+                      onClick={openCommunity}
+                      action={
+                        <ActionBtn
+                          tone={
+                            c.type === "public" ||
+                            (c.type === "private_request" && !pending)
+                              ? "primary"
+                              : "ghost"
+                          }
+                          disabled={busy || pending}
+                          onClick={(e) => handleJoinDiscover(e, c)}
+                        >
+                          {busy ? (
+                            <Loader2 size={12} className="animate-spin" />
+                          ) : null}
+                          {actionLabel}
+                        </ActionBtn>
+                      }
+                    />
                   );
                 })}
               </div>
@@ -439,7 +472,7 @@ export default function JoinedCommunities() {
                 </p>
                 <button
                   type="button"
-                  onClick={() => setTab("discover")}
+                  onClick={() => setActiveTab("discover")}
                   className="inline-flex items-center gap-2 text-sm text-fo-accent hover:text-fo-accent-hover font-medium"
                 >
                   Discover communities <ArrowRight size={14} />
@@ -450,49 +483,14 @@ export default function JoinedCommunities() {
                 No communities match your search.
               </div>
             ) : (
-              <div className="space-y-2.5">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 {filteredJoined.map((c) => (
-                  <article
+                  <CommunityCard
                     key={c.id}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => openCommunity(c)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        openCommunity(c);
-                      }
-                    }}
-                    className="group flex items-center gap-3 bg-fo-surface border border-fo-border hover:border-fo-accent/35 rounded-xl p-3.5 sm:p-4 transition-colors cursor-pointer"
-                  >
-                    <CommunityThumb community={c} />
-                    <div className="min-w-0 flex-1 space-y-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h2 className="text-sm font-semibold text-fo-text group-hover:text-fo-accent transition-colors truncate">
-                          {c.name || "Community"}
-                        </h2>
-                        <span className="text-[10px] text-fo-subtle">
-                          {TYPE_LABELS[c.type] || c.type}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-fo-subtle flex items-center gap-2 flex-wrap">
-                        <span className="inline-flex items-center gap-1 capitalize">
-                          <Users size={11} />
-                          {c.membershipRole || "member"}
-                        </span>
-                        {typeof c.memberCount === "number" ? (
-                          <>
-                            <span>·</span>
-                            <span>{c.memberCount} members</span>
-                          </>
-                        ) : null}
-                      </p>
-                    </div>
-                    <ArrowRight
-                      size={16}
-                      className="text-fo-subtle group-hover:text-fo-accent shrink-0 transition-colors"
-                    />
-                  </article>
+                    community={c}
+                    onClick={openCommunity}
+                    badge={c.membershipRole || "member"}
+                  />
                 ))}
               </div>
             ))}
@@ -651,6 +649,26 @@ export default function JoinedCommunities() {
             ))}
         </>
       )}
+        </div>
+
+        <div className="hidden lg:block lg:sticky lg:top-5">
+          <CommunitiesRail
+            items={railItems}
+            selectedId={tab}
+            onSelect={setActiveTab}
+            isGuest={!isAuthenticated}
+          />
+        </div>
+      </div>
+
+      <div className="lg:hidden mt-4">
+        <CommunitiesRail
+          items={railItems}
+          selectedId={tab}
+          onSelect={setActiveTab}
+          isGuest={!isAuthenticated}
+        />
+      </div>
     </div>
   );
 }

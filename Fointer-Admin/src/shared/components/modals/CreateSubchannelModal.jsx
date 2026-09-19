@@ -29,7 +29,10 @@ export default function CreateSubchannelModal({
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!name.trim() || !channelId || loading) return;
-    await onSubmit({ name: name.trim(), channelId });
+    await onSubmit({
+      name: name.trim(),
+      channelId,
+    });
   };
 
   return (

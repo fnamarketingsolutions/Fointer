@@ -281,6 +281,7 @@ export default function PublicProfile() {
         <FollowButton
           username={profile.username}
           initialFollowing={Boolean(profile.isFollowing)}
+          initialFollowedBy={Boolean(profile.isFollowedBy)}
           onChange={handleFollowChange}
           className={`${followClass} ${
             profile.isFollowing
@@ -294,10 +295,10 @@ export default function PublicProfile() {
           onClick={requireAuthForFollow}
           className={`${followClass} bg-fo-accent text-black hover:bg-fo-accent-hover`}
         >
-          Follow
+          {profile.isFollowedBy ? "Follow Back" : "Follow"}
         </button>
       )}
-    </div>
+    </div> 
   );
 
   return shell(
@@ -462,11 +463,19 @@ export default function PublicProfile() {
       )}
 
       {tab === "followers" && (
-        <FollowUserList username={profile.username} mode="followers" />
+        <FollowUserList
+          username={profile.username}
+          mode="followers"
+          forceHidden={Boolean(profile.hideFollowersList)}
+        />
       )}
 
       {tab === "following" && (
-        <FollowUserList username={profile.username} mode="following" />
+        <FollowUserList
+          username={profile.username}
+          mode="following"
+          forceHidden={Boolean(profile.hideFollowingList)}
+        />
       )}
 
       {tab === "about" && (

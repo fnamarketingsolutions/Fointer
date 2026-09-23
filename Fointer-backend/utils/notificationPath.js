@@ -80,7 +80,7 @@ export const notificationPath = (notification) => {
     return communityPath || "/communities";
   }
   if (type === "listing_inquiry") {
-    const listingPath = entity?.shortCode || entity?.id;
+    const listingPath = postSegment(entity);
     if (listingPath) return `/marketplace/${listingPath}`;
     return "/marketplace/my-listings";
   }

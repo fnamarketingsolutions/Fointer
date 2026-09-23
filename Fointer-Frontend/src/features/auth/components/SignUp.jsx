@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { FiEye, FiEyeOff } from 'react-icons/fi';
 import {
-  LuArrowLeft as ArrowLeft
+  LuArrowLeft as ArrowLeft,
+  LuX as X,
 } from 'react-icons/lu';
 import { Link, useNavigate } from 'react-router-dom';
 import { signupUser, resendVerificationEmail, verifyEmailOtp } from '../../../api/auth';
@@ -11,7 +12,28 @@ import { useToast } from '../../../shared/components/feedback/ToastContext';
 import SocialAuthButtons from './SocialAuthButtons';
 import BrandLogo from '../../../shared/components/BrandLogo';
 import ThemeToggle from '../../../shared/components/ThemeToggle';
-import { getDashboardPathForRole } from '../../../shared/lib/roles';
+import { getPostAuthPath } from '../../../shared/lib/roles';
+
+const SUGGESTED_INTERESTS = [
+  'Technology',
+  'Business',
+  'Design',
+  'Sports',
+  'Music',
+  'Travel',
+  'Fitness',
+  'Food',
+  'Education',
+  'Startups',
+  'Marketing',
+  'Photography',
+];
+
+const STEPS = [
+  { id: 'account', label: 'Account' },
+  { id: 'profile', label: 'Profile' },
+  { id: 'verify', label: 'Verify' },
+];
 
 export default function SignUp() {
   const navigate = useNavigate();
@@ -27,13 +49,20 @@ export default function SignUp() {
     handleFacebookAuth,
   } = useSocialAuth();
 
+  const [step, setStep] = useState('account');
   const [formData, setFormData] = useState({
     username: '',
     name: '',
     email: '',
     password: '',
     confirmPassword: '',
+    bio: '',
+    city: '',
+    state: '',
+    country: '',
   });
+  const [interests, setInterests] = useState([]);
+  const [interestInput, setInterestInput] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [emailLoading, setEmailLoading] = useState(false);
@@ -48,21 +77,87 @@ export default function SignUp() {
     if (socialError) showToast(socialError);
   }, [socialError, showToast]);
 
+  useEffect(() => {
+    if (pendingVerification?.email) {
+      setVerificationEmail(pendingVerification.email);
+      setStep('verify');
+    }
+  }, [pendingVerification]);
+
+  const stepIndex = useMemo(
+    () => Math.max(0, STEPS.findIndex((item) => item.id === step)),
+    [step]
+  );
+
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  const addInterest = (raw) => {
+    const value = String(raw || '').trim();
+    if (!value) return;
+    setInterests((prev) => {
+      if (prev.includes(value) || prev.length >= 20) return prev;
+      return [...prev, value];
+    });
+    setInterestInput('');
+  };
+
+  const removeInterest = (tag) => {
+    setInterests((prev) => prev.filter((item) => item !== tag));
+  };
+
+  const validateAccount = () => {
+    if (!formData.username.trim() || !formData.name.trim() || !formData.email.trim()) {
+      showToast('Please fill in all account fields.');
+      return false;
+    }
+    if (formData.password.length < 8) {
+      showToast('Password must be at least 8 characters.');
+      return false;
+    }
+    if (formData.password !== formData.confirmPassword) {
+      showToast('Passwords do not match.');
+      return false;
+    }
+    return true;
+  };
+
+  const goToProfileStep = (e) => {
+    e.preventDefault();
+    if (!validateAccount()) return;
+    setStep('profile');
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!validateAccount()) {
+      setStep('account');
+      return;
+    }
+
     setEmailLoading(true);
     setSocialError('');
     clearPendingVerification();
 
     try {
-      const response = await signupUser(formData);
+      const payload = {
+        username: formData.username.trim(),
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        password: formData.password,
+        confirmPassword: formData.confirmPassword,
+        bio: formData.bio.trim(),
+        interests,
+        city: formData.city.trim(),
+        state: formData.state.trim(),
+        country: formData.country.trim(),
+      };
+      const response = await signupUser(payload);
       if (response?.success) {
         setVerificationEmail(response?.email || formData.email);
         setOtp('');
+        setStep('verify');
         showToast(
           response?.message || 'Account created. Enter the OTP sent to your email.'
         );
@@ -105,7 +200,7 @@ export default function SignUp() {
           showToast('Admin accounts must sign in through the admin portal.');
           return;
         }
-        navigate(getDashboardPathForRole());
+        navigate(getPostAuthPath(response));
       }
     } catch (error) {
       showToast(error?.response?.data?.message || 'OTP verification failed.');
@@ -116,6 +211,20 @@ export default function SignUp() {
 
   const inputClass =
     'w-full px-4 py-3 rounded-lg bg-fo-surface-hover border border-fo-border text-fo-auth-fg placeholder-fo-auth-muted focus:outline-none focus:border-fo-brand transition-all text-sm';
+
+  const stepTitle =
+    step === 'account'
+      ? 'Create an Account'
+      : step === 'profile'
+        ? 'Tell us about you'
+        : 'Verify your email';
+
+  const stepSubtitle =
+    step === 'account'
+      ? 'Enter your details to register and get started.'
+      : step === 'profile'
+        ? 'Optional — helps others discover you. You can skip and finish later.'
+        : `Enter the 6-digit OTP sent to ${activeVerificationEmail}.`;
 
   return (
     <div className="auth-page relative min-h-screen w-full flex flex-col md:flex-row font-sans overflow-x-hidden">
@@ -158,24 +267,64 @@ export default function SignUp() {
         <div className="max-w-md w-full mx-auto my-auto py-8">
           <div className="mb-8">
             <button
-              onClick={() => window.history.back()}
+              onClick={() => {
+                if (step === 'profile') setStep('account');
+                else if (step === 'verify' && !pendingVerification) setStep('profile');
+                else window.history.back();
+              }}
               className="mb-4 inline-flex items-center text-xs font-medium text-fo-text hover:text-fo-brand transition-colors group cursor-pointer border-b border-fo-border hover:border-fo-brand pb-1 gap-1"
               aria-label="Go back"
             >
               <div className="transition-all">
                 <ArrowLeft className="w-4 h-4 text-fo-text group-hover:text-fo-brand group-hover:-translate-x-0.5 transition-transform" />
               </div>
-              <span className="tracking-wide text-fo-text group-hover:text-fo-brand transition-colors">Go Back</span>
+              <span className="tracking-wide text-fo-text group-hover:text-fo-brand transition-colors">
+                {step === 'account' ? 'Go Back' : 'Back'}
+              </span>
             </button>
 
-            <h2 className="text-3xl font-serif text-fo-text">Create an Account</h2>
-            <p className="text-xs text-fo-subtle mt-2">
-              Enter your details to register and get started.
-            </p>
+            <div className="flex items-center gap-2 mb-5" aria-label="Signup progress">
+              {STEPS.map((item, index) => {
+                const active = index === stepIndex;
+                const done = index < stepIndex;
+                return (
+                  <React.Fragment key={item.id}>
+                    {index > 0 ? (
+                      <div
+                        className={`h-px flex-1 ${done || active ? 'bg-fo-brand/50' : 'bg-fo-border'}`}
+                      />
+                    ) : null}
+                    <div className="flex flex-col items-center gap-1 min-w-[4.5rem]">
+                      <span
+                        className={`w-7 h-7 rounded-full text-[11px] font-semibold inline-flex items-center justify-center border ${
+                          active
+                            ? 'bg-fo-brand text-fo-brand-fg border-fo-brand'
+                            : done
+                              ? 'bg-fo-brand/15 text-fo-brand border-fo-brand/40'
+                              : 'bg-fo-surface-hover text-fo-subtle border-fo-border'
+                        }`}
+                      >
+                        {index + 1}
+                      </span>
+                      <span
+                        className={`text-[10px] uppercase tracking-wide ${
+                          active ? 'text-fo-text font-semibold' : 'text-fo-subtle'
+                        }`}
+                      >
+                        {item.label}
+                      </span>
+                    </div>
+                  </React.Fragment>
+                );
+              })}
+            </div>
+
+            <h2 className="text-3xl font-serif text-fo-text">{stepTitle}</h2>
+            <p className="text-xs text-fo-subtle mt-2">{stepSubtitle}</p>
           </div>
 
-          {!activeVerificationEmail ? (
-            <form onSubmit={handleSubmit} className="space-y-4">
+          {step === 'account' ? (
+            <form onSubmit={goToProfileStep} className="space-y-4">
               <div>
                 <label className="block text-xs font-medium text-fo-muted uppercase tracking-wider mb-1.5">
                   Username
@@ -233,6 +382,7 @@ export default function SignUp() {
                     onChange={handleChange}
                     placeholder="••••••••"
                     required
+                    minLength={8}
                     className={`${inputClass} pr-10`}
                   />
                   <button
@@ -257,6 +407,7 @@ export default function SignUp() {
                     onChange={handleChange}
                     placeholder="••••••••"
                     required
+                    minLength={8}
                     className={`${inputClass} pr-10`}
                   />
                   <button
@@ -273,10 +424,9 @@ export default function SignUp() {
                 primarySlot={
                   <button
                     type="submit"
-                    disabled={emailLoading}
-                    className="w-full py-3 px-4 bg-fo-brand text-fo-brand-fg font-bold text-sm rounded-lg hover:bg-fo-brand-hover transition-colors shadow-md shadow-fo-brand/10 active:scale-[0.98] disabled:opacity-50"
+                    className="w-full py-3 px-4 bg-fo-brand text-fo-brand-fg font-bold text-sm rounded-lg hover:bg-fo-brand-hover transition-colors shadow-md shadow-fo-brand/10 active:scale-[0.98]"
                   >
-                    {emailLoading ? 'Signing up...' : 'Sign Up'}
+                    Continue
                   </button>
                 }
                 onGoogleCredential={handleGoogleCredential}
@@ -285,7 +435,139 @@ export default function SignUp() {
                 facebookLoading={socialLoading.facebook}
               />
             </form>
-          ) : (
+          ) : null}
+
+          {step === 'profile' ? (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-fo-muted uppercase tracking-wider mb-1.5">
+                  Bio <span className="normal-case tracking-normal text-fo-subtle">(optional)</span>
+                </label>
+                <textarea
+                  name="bio"
+                  value={formData.bio}
+                  onChange={handleChange}
+                  rows={3}
+                  maxLength={500}
+                  placeholder="A short intro about yourself…"
+                  className={`${inputClass} resize-y min-h-[88px]`}
+                />
+                <p className="mt-1 text-[11px] text-fo-subtle text-right">
+                  {formData.bio.length}/500
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-fo-muted uppercase tracking-wider mb-1.5">
+                  Interests <span className="normal-case tracking-normal text-fo-subtle">(optional)</span>
+                </label>
+                {interests.length ? (
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    {interests.map((tag) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => removeInterest(tag)}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-fo-brand/10 text-fo-brand text-[11px] font-medium"
+                      >
+                        #{tag}
+                        <X size={12} />
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+                <input
+                  type="text"
+                  value={interestInput}
+                  onChange={(e) => setInterestInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      addInterest(interestInput);
+                    }
+                  }}
+                  placeholder="Type an interest and press Enter"
+                  className={inputClass}
+                />
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {SUGGESTED_INTERESTS.filter((tag) => !interests.includes(tag)).map(
+                    (tag) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => addInterest(tag)}
+                        className="px-2 py-1 rounded-md border border-fo-border text-[11px] text-fo-muted hover:border-fo-brand/40 hover:text-fo-brand transition-colors"
+                      >
+                        + {tag}
+                      </button>
+                    )
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-fo-muted uppercase tracking-wider mb-1.5">
+                    City
+                  </label>
+                  <input
+                    type="text"
+                    name="city"
+                    value={formData.city}
+                    onChange={handleChange}
+                    placeholder="City"
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-fo-muted uppercase tracking-wider mb-1.5">
+                    State
+                  </label>
+                  <input
+                    type="text"
+                    name="state"
+                    value={formData.state}
+                    onChange={handleChange}
+                    placeholder="State"
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-fo-muted uppercase tracking-wider mb-1.5">
+                    Country
+                  </label>
+                  <input
+                    type="text"
+                    name="country"
+                    value={formData.country}
+                    onChange={handleChange}
+                    placeholder="Country"
+                    className={inputClass}
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                <button
+                  type="button"
+                  disabled={emailLoading}
+                  onClick={handleSubmit}
+                  className="w-full sm:w-auto px-4 py-3 rounded-lg border border-fo-border text-fo-muted text-sm font-semibold hover:text-fo-brand hover:border-fo-brand/40 disabled:opacity-50 transition-colors"
+                >
+                  Skip for now
+                </button>
+                <button
+                  type="submit"
+                  disabled={emailLoading}
+                  className="w-full flex-1 py-3 px-4 bg-fo-brand text-fo-brand-fg font-bold text-sm rounded-lg hover:bg-fo-brand-hover transition-colors shadow-md shadow-fo-brand/10 active:scale-[0.98] disabled:opacity-50"
+                >
+                  {emailLoading ? 'Creating account…' : 'Create account'}
+                </button>
+              </div>
+            </form>
+          ) : null}
+
+          {step === 'verify' ? (
             <form onSubmit={handleVerifyOtp} className="space-y-4">
               <div>
                 <label className="block text-xs font-medium text-fo-muted uppercase tracking-wider mb-1.5">
@@ -312,7 +594,7 @@ export default function SignUp() {
                 {verifyLoading ? 'Verifying...' : 'Verify & Login'}
               </button>
             </form>
-          )}
+          ) : null}
 
           <p className="text-center text-xs text-fo-subtle mt-6">
             Already have an account?{' '}
@@ -321,7 +603,7 @@ export default function SignUp() {
             </Link>
           </p>
 
-          {activeVerificationEmail && (
+          {step === 'verify' && activeVerificationEmail ? (
             <div className="mt-4 text-center text-xs text-fo-subtle">
               Didn&apos;t get the OTP?{' '}
               <button
@@ -333,7 +615,7 @@ export default function SignUp() {
                 {resendLoading ? 'Sending...' : 'Resend OTP'}
               </button>
             </div>
-          )}
+          ) : null}
         </div>
 
         <div className="flex flex-col sm:flex-row items-center justify-between pt-6 border-t border-fo-border text-[11px] text-fo-subtle gap-2">

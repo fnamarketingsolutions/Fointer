@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { googleAuth, facebookAuth } from '../services/authService';
 import { loginWithFacebook, ensureFacebookSdk } from '../../../shared/lib/facebookSdk';
 import { useAuth } from '../../../context/AuthContext';
-import { getDashboardPathForRole } from '../../../shared/lib/roles';
+import { getPostAuthPath } from '../../../shared/lib/roles';
 
 export function useSocialAuth() {
   const navigate = useNavigate();
@@ -27,7 +27,7 @@ export function useSocialAuth() {
           setError('Admin accounts must sign in through the admin portal.');
           return;
         }
-        navigate(getDashboardPathForRole());
+        navigate(getPostAuthPath(response));
         return;
       }
       if (response?.requiresEmailVerification && response?.email) {

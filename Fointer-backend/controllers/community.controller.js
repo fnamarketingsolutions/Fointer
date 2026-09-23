@@ -23,7 +23,6 @@ import {
   canModerateCommunity,
   canViewCommunity,
   getActorCommunityRole,
-  formatMember,
 } from "../utils/communityPermissions.js";
 import { escapeRegex } from "../utils/validate.js";
 import {
@@ -35,8 +34,6 @@ import { resolveDocumentId } from "../utils/shortCode.js";
 import {
   getManageCommunityIncomingUrl,
   getManageCommunityMembersUrl,
-  getCommunitiesRequestsUrl,
-  getCommunitiesUrl,
   sendJoinRequestReceivedEmail,
   sendCommunityInviteAcceptedEmail,
   sendCommunityInviteDeclinedEmail,

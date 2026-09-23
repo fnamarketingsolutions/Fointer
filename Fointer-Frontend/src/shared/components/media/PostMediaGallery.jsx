@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 function MediaFrame({ item, heightClass }) {
   const isVideo = item.type === "video";

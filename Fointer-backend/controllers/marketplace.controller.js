@@ -25,6 +25,7 @@ import {
   destroyManyFromCloudinary,
 } from "../utils/cloudinary.js";
 import { hasMarketplaceAdminPower } from "../utils/adminAccess.js";
+import { getBookmarkMeta } from "../utils/bookmarkHelpers.js";
 
 const LISTING_SORT_MAP = {
   newest: { createdAt: -1 },
@@ -87,6 +88,7 @@ export const formatListing = (listing, extras = {}) => ({
   canEdit: extras.canEdit ?? false,
   canDelete: extras.canDelete ?? false,
   canMarkSold: extras.canMarkSold ?? false,
+  savedByMe: extras.savedByMe ?? false,
   createdAt: listing.createdAt,
   updatedAt: listing.updatedAt,
 });
@@ -226,9 +228,18 @@ export const listListings = async (req, res) => {
       ? takePage(rows, limit)
       : { rows, hasMore: false };
 
+    const { saved } = await getBookmarkMeta(
+      "listing",
+      pageRows.map((row) => row._id),
+      req.user?._id
+    );
+
     const listings = pageRows.map((listing) => {
       const flags = buildListingFlags(listing, req.user);
-      return formatListing(listing, flags);
+      return formatListing(listing, {
+        ...flags,
+        savedByMe: saved[String(listing._id)] || false,
+      });
     });
 
     const total = enabled
@@ -258,13 +269,23 @@ export const listMyListings = async (req, res) => {
 
     const listings = await Listing.find(filter)
       .sort({ createdAt: -1 })
-      .populate("seller", "username name avatar city state country phone email");
+      .populate("seller", "username name avatar city state country phone email")
+      .lean();
+
+    const { saved } = await getBookmarkMeta(
+      "listing",
+      listings.map((row) => row._id),
+      req.user._id
+    );
 
     return res.json({
       success: true,
       listings: listings.map((listing) => {
         const flags = buildListingFlags(listing, req.user);
-        return formatListing(listing, flags);
+        return formatListing(listing, {
+          ...flags,
+          savedByMe: saved[String(listing._id)] || false,
+        });
       }),
     });
   } catch (error) {
@@ -293,9 +314,18 @@ export const getListing = async (req, res) => {
       });
     }
 
+    const { saved } = await getBookmarkMeta(
+      "listing",
+      [listing._id],
+      req.user?._id
+    );
+
     return res.json({
       success: true,
-      listing: formatListing(listing, flags),
+      listing: formatListing(listing, {
+        ...flags,
+        savedByMe: saved[String(listing._id)] || false,
+      }),
     });
   } catch (error) {
     return sendServerError(res, error, "Failed to load listing.");

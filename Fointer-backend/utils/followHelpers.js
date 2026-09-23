@@ -1,5 +1,4 @@
 import Follow from "../models/follow.js";
-
 export const getFollowedUserIds = async (userId) => {
   if (!userId) return [];
   const rows = await Follow.find({ follower: userId })
@@ -30,10 +29,40 @@ export const isFollowing = async (followerId, followingId) => {
   return Boolean(row);
 };
 
-export const formatFollowUser = (user) => ({
+/** Returns Sets of string ids for viewer↔listed-user follow edges. */
+export const getViewerFollowFlags = async (viewerId, userIds) => {
+  const ids = (userIds || []).filter(Boolean);
+  if (!viewerId || !ids.length) {
+    return { followingIds: new Set(), followedByIds: new Set() };
+  }
+
+  const [followingRows, followedByRows] = await Promise.all([
+    Follow.find({
+      follower: viewerId,
+      following: { $in: ids },
+    })
+      .select("following")
+      .lean(),
+    Follow.find({
+      follower: { $in: ids },
+      following: viewerId,
+    })
+      .select("follower")
+      .lean(),
+  ]);
+
+  return {
+    followingIds: new Set(followingRows.map((row) => String(row.following))),
+    followedByIds: new Set(followedByRows.map((row) => String(row.follower))),
+  };
+};
+
+export const formatFollowUser = (user, flags = {}) => ({
   id: user._id,
   username: user.username,
   name: user.name,
   avatar: user.avatar || "",
   bio: user.bio || "",
+  isFollowing: Boolean(flags.isFollowing),
+  isFollowedBy: Boolean(flags.isFollowedBy),
 });

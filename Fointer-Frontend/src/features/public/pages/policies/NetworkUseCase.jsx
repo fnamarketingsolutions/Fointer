@@ -1,4 +1,3 @@
-import React from 'react';
 import {
   LuBuilding2 as Building2,
   LuUsersRound as Users2,

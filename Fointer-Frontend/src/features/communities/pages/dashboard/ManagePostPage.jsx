@@ -1,4 +1,3 @@
-import React from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { LuLoaderCircle as Loader2 } from "react-icons/lu";
 import PostDetail from "../../../posts/pages/PostDetail";

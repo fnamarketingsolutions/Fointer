@@ -3,26 +3,29 @@ import Community from "../models/community.js";
 import CommunityMember from "../models/communityMember.js";
 import User from "../models/user.js";
 import { escapeRegex } from "../utils/validate.js";
-import { DISCOVERABLE_COMMUNITY_TYPES } from "../utils/communityPermissions.js";
+import {
+  DISCOVERABLE_COMMUNITY_TYPES,
+  OPEN_FEED_COMMUNITY_TYPES,
+} from "../utils/communityPermissions.js";
 import { sendServerError } from "../utils/safeError.js";
 
-const DISCOVERABLE_CACHE_MS = 15_000;
-let discoverableIdsCache = { ids: null, at: 0 };
+const OPEN_FEED_CACHE_MS = 15_000;
+let openFeedIdsCache = { ids: null, at: 0 };
 
-const getDiscoverableCommunityIds = async () => {
+const getOpenFeedCommunityIds = async () => {
   if (
-    discoverableIdsCache.ids &&
-    Date.now() - discoverableIdsCache.at < DISCOVERABLE_CACHE_MS
+    openFeedIdsCache.ids &&
+    Date.now() - openFeedIdsCache.at < OPEN_FEED_CACHE_MS
   ) {
-    return discoverableIdsCache.ids;
+    return openFeedIdsCache.ids;
   }
   const rows = await Community.find({
-    type: { $in: DISCOVERABLE_COMMUNITY_TYPES },
+    type: { $in: OPEN_FEED_COMMUNITY_TYPES },
   })
     .select("_id")
     .lean();
   const ids = rows.map((row) => row._id);
-  discoverableIdsCache = { ids, at: Date.now() };
+  openFeedIdsCache = { ids, at: Date.now() };
   return ids;
 };
 
@@ -83,13 +86,13 @@ const formatSearchProfile = (user) => ({
 });
 
 const searchPosts = async (term, userId, limit) => {
-  const [discoverableIds, joinedIds] = await Promise.all([
-    getDiscoverableCommunityIds(),
+  const [openFeedIds, joinedIds] = await Promise.all([
+    getOpenFeedCommunityIds(),
     getJoinedCommunityIds(userId),
   ]);
 
   const scopeSet = new Set([
-    ...discoverableIds.map(String),
+    ...openFeedIds.map(String),
     ...joinedIds.map(String),
   ]);
 

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Link,
   useLocation,
@@ -25,6 +25,7 @@ import {
   togglePostLike,
   togglePostReshare,
 } from "../../../../api/posts";
+import { toggleBookmark } from "../../../../api/bookmarks";
 import { fetchActiveBanners } from "../../../../api/banners";
 import {
   fetchBrowsableCommunities,
@@ -417,8 +418,8 @@ export default function DashboardFeed() {
 
   const handleCreatePost = async (e) => {
     e.preventDefault();
-    if (!postForm.title.trim()) {
-      showToast("Title is required.");
+    if (!postForm.title.trim() && !postForm.text.trim() && !postForm.media?.length) {
+      showToast("Add a title, text, or media to post.");
       return;
     }
     setPostSaving(true);
@@ -522,6 +523,26 @@ export default function DashboardFeed() {
     } catch (err) {
       setPosts(prev);
       showToast(err?.response?.data?.message || "Failed to repost.");
+    }
+  };
+
+  const handleSavePost = async (post) => {
+    if (!isAuthenticated) {
+      navigate("/login", { state: { from: locationPath() } });
+      return;
+    }
+    const prev = posts;
+    patchFeedPost(post.id, { savedByMe: !post.savedByMe });
+    try {
+      const data = await toggleBookmark({
+        targetType: "post",
+        targetId: post.id,
+      });
+      patchFeedPost(post.id, { savedByMe: Boolean(data?.saved) });
+      showToast(data?.message || (data?.saved ? "Saved." : "Removed from saved."));
+    } catch (err) {
+      setPosts(prev);
+      showToast(err?.response?.data?.message || "Failed to update bookmark.");
     }
   };
 
@@ -825,7 +846,10 @@ export default function DashboardFeed() {
                     showCommunity
                     onLike={() => handleLikePost(post)}
                     onReshare={() => handleResharePost(post)}
-                    onComment={() => openPost(post)}
+                    onSave={() => handleSavePost(post)}
+                    onCommentPosted={(item, { commentCount }) => {
+                      patchFeedPost(item.id, { commentCount });
+                    }}
                   />
                 ))}
               </div>

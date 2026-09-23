@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   LuBell as Bell,
@@ -42,13 +42,6 @@ const USER_FILTERS = [
   { id: "unread", label: "Unread" },
   { id: "mentions", label: "Mentions" },
   { id: "system", label: "System & Access" },
-];
-
-const ADMIN_FILTERS = [
-  { id: "all", label: "All" },
-  { id: "unread", label: "Unread" },
-  { id: "reports", label: "Reports" },
-  { id: "requests", label: "Channel requests" },
 ];
 
 const typeIcon = (type) => {

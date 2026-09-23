@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { LuLoaderCircle as Loader2 } from "react-icons/lu";
 import { followUser, unfollowUser } from "../../api/follow";
 import { useAuth } from "../../context/AuthContext";
@@ -7,15 +7,31 @@ import { useToast } from "../components/feedback/ToastContext";
 export default function FollowButton({
   username,
   initialFollowing = false,
+  initialFollowedBy = false,
   onChange,
   className = "",
 }) {
   const { user } = useAuth();
   const { showToast } = useToast();
   const [following, setFollowing] = useState(initialFollowing);
+  const [followedBy, setFollowedBy] = useState(initialFollowedBy);
   const [busy, setBusy] = useState(false);
 
+  useEffect(() => {
+    setFollowing(initialFollowing);
+  }, [initialFollowing]);
+
+  useEffect(() => {
+    setFollowedBy(initialFollowedBy);
+  }, [initialFollowedBy]);
+
   if (!user) return null;
+
+  const label = following
+    ? "Following"
+    : followedBy
+      ? "Follow Back"
+      : "Follow";
 
   const handleClick = async () => {
     setBusy(true);
@@ -53,7 +69,7 @@ export default function FollowButton({
       }
     >
       {busy ? <Loader2 size={14} className="animate-spin" /> : null}
-      {following ? "Following" : "Follow"}
+      {label}
     </button>
   );
 }

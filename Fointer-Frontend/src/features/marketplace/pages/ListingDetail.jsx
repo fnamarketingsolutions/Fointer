@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   LuArrowLeft as ArrowLeft,
+  LuBookmark as Bookmark,
   LuChevronLeft as ChevronLeft,
   LuChevronRight as ChevronRight,
   LuFlag as Flag,
@@ -18,6 +19,7 @@ import {
   markListingSold,
   updateListing,
 } from "../../../api/marketplace";
+import { toggleBookmark } from "../../../api/bookmarks";
 import { useAuth } from "../../../context/AuthContext";
 import { useToast } from "../../../shared/components/feedback/ToastContext";
 import ConfirmDeleteModal from "../../../shared/components/modals/ConfirmDeleteModal";
@@ -31,12 +33,19 @@ import {
   formatPrice,
 } from "../constants";
 import { timeAgo } from "../../../shared/utils/date";
+import useEntityId from "../../../shared/hooks/useEntityId";
+import { listingSegment } from "../../../shared/services/entityLinks";
 
 export default function ListingDetail() {
-  const { listingId } = useParams();
+  const { listingId: listingParam } = useParams();
   const navigate = useNavigate();
   const { showToast } = useToast();
   const { isAuthenticated } = useAuth();
+  const {
+    id: listingId,
+    resolving,
+    notFound,
+  } = useEntityId("listing", listingParam);
 
   const [listing, setListing] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -50,7 +59,11 @@ export default function ListingDetail() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  const listingPath =
+    (listing ? listingSegment(listing) : "") || listingParam || listingId || "";
+
   const load = useCallback(async () => {
+    if (!listingId) return;
     setLoading(true);
     try {
       const res = await fetchListing(listingId);
@@ -65,8 +78,14 @@ export default function ListingDetail() {
   }, [listingId, navigate, showToast]);
 
   useEffect(() => {
+    if (notFound) {
+      showToast("Listing not found.");
+      navigate("/marketplace", { replace: true });
+      return;
+    }
+    if (resolving || !listingId) return;
     load();
-  }, [load]);
+  }, [load, listingId, navigate, notFound, resolving, showToast]);
 
   useEffect(() => {
     const count = Array.isArray(listing?.media) ? listing.media.length : 0;
@@ -86,7 +105,7 @@ export default function ListingDetail() {
   const handleContact = async (e) => {
     e.preventDefault();
     if (!isAuthenticated) {
-      navigate("/login", { state: { from: `/marketplace/${listingId}` } });
+      navigate("/login", { state: { from: `/marketplace/${listingPath}` } });
       return;
     }
     if (!contactMessage.trim()) {
@@ -148,13 +167,42 @@ export default function ListingDetail() {
     }
   };
 
+  const handleSave = async () => {
+    if (!isAuthenticated) {
+      navigate("/login", {
+        state: { from: `/marketplace/${listingPath}` },
+      });
+      return;
+    }
+    if (!listing) return;
+    const prev = listing;
+    setListing({ ...listing, savedByMe: !listing.savedByMe });
+    try {
+      const data = await toggleBookmark({
+        targetType: "listing",
+        targetId: listing.id,
+      });
+      setListing((current) =>
+        current
+          ? { ...current, savedByMe: Boolean(data?.saved) }
+          : current
+      );
+      showToast(
+        data?.message || (data?.saved ? "Saved." : "Removed from saved.")
+      );
+    } catch (err) {
+      setListing(prev);
+      showToast(err?.response?.data?.message || "Failed to update bookmark.");
+    }
+  };
+
   const goCategory = (value) => {
     const params = new URLSearchParams();
     if (value) params.set("category", value);
     navigate(`/marketplace${params.toString() ? `?${params}` : ""}`);
   };
 
-  if (loading) {
+  if (loading || resolving || (!listingId && !notFound)) {
     return (
       <div className="w-full max-w-[1180px] mx-auto flex items-center justify-center py-20 text-fo-muted">
         <Loader2 size={20} className="animate-spin text-fo-accent" />
@@ -208,7 +256,7 @@ export default function ListingDetail() {
                   <img
                     src={current.url}
                     alt=""
-                    className="absolute inset-0 w-full h-full object-cover"
+                    className="absolute inset-0 w-full h-full object-contain"
                   />
                 )
               ) : (
@@ -310,6 +358,22 @@ export default function ListingDetail() {
               ) : null}
 
               <div className="flex flex-wrap gap-2 pt-1 border-t border-fo-border">
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  className={`inline-flex items-center gap-1.5 min-h-9 px-3.5 rounded-full border text-[13px] font-medium transition-colors ${
+                    listing.savedByMe
+                      ? "border-fo-accent/50 text-fo-accent bg-fo-accent/10"
+                      : "border-fo-border text-fo-text hover:border-fo-accent/40 hover:text-fo-accent"
+                  }`}
+                >
+                  <Bookmark
+                    size={15}
+                    className={listing.savedByMe ? "fill-current" : ""}
+                  />
+                  {listing.savedByMe ? "Saved" : "Save"}
+                </button>
+
                 {!listing.isOwner && listing.status === "active" ? (
                   <>
                     <button
@@ -317,7 +381,7 @@ export default function ListingDetail() {
                       onClick={() => {
                         if (!isAuthenticated) {
                           navigate("/login", {
-                            state: { from: `/marketplace/${listingId}` },
+                            state: { from: `/marketplace/${listingPath}` },
                           });
                           return;
                         }

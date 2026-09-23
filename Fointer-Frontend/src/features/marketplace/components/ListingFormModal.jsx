@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { LuLoaderCircle as Loader2, LuX as X } from "react-icons/lu";
 import MediaPicker from "../../../shared/components/media/MediaPicker";
 import {

@@ -1,4 +1,3 @@
-import React from 'react';
 import {
   LuCookie as Cookie,
   LuCircleHelp as HelpCircle,

@@ -128,6 +128,9 @@ export const loadActiveMembershipMap = async (communityIds, userId) => {
 
 export const DISCOVERABLE_COMMUNITY_TYPES = ["public", "private_request"];
 
+/** Community types whose posts may appear on the open/general feed for non-members. */
+export const OPEN_FEED_COMMUNITY_TYPES = ["public"];
+
 export const isDiscoverableCommunityType = (type) =>
   DISCOVERABLE_COMMUNITY_TYPES.includes(String(type || ""));
 

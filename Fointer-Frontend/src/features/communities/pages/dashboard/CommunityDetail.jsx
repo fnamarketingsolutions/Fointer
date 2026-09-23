@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   LuArrowLeft as ArrowLeft,
@@ -29,6 +29,7 @@ import {
   denyJoinRequest,
 } from "../../../../api/communities";
 import { fetchPosts, createPost, togglePostLike, togglePostReshare } from "../../../../api/posts";
+import { toggleBookmark } from "../../../../api/bookmarks";
 import CreatePostForm from "../../../../shared/components/forms/CreatePostForm";
 import { COMMUNITY_TYPE_LABELS } from "../../../../shared/constants/community";
 import { formatLongDate, timeAgo } from "../../../../shared/utils/date";
@@ -443,8 +444,12 @@ export default function CommunityDetail({
 
   const handleCreatePost = async (e) => {
     e.preventDefault();
-    if (!selectedId || !postForm.title.trim()) {
-      showToast("Post title is required.");
+    if (!selectedId) {
+      showToast("Select a community first.");
+      return;
+    }
+    if (!postForm.title.trim() && !postForm.text.trim() && !postForm.media?.length) {
+      showToast("Add a title, text, or media to post.");
       return;
     }
     setPostSaving(true);
@@ -509,6 +514,22 @@ export default function CommunityDetail({
     } catch (err) {
       setPosts(prev);
       showToast(err?.response?.data?.message || "Failed to repost.");
+    }
+  };
+
+  const handleToggleSave = async (post) => {
+    const prev = posts;
+    patchPost(post.id, { savedByMe: !post.savedByMe });
+    try {
+      const data = await toggleBookmark({
+        targetType: "post",
+        targetId: post.id,
+      });
+      patchPost(post.id, { savedByMe: Boolean(data?.saved) });
+      showToast(data?.message || (data?.saved ? "Saved." : "Removed from saved."));
+    } catch (err) {
+      setPosts(prev);
+      showToast(err?.response?.data?.message || "Failed to update bookmark.");
     }
   };
 
@@ -912,7 +933,10 @@ export default function CommunityDetail({
                           onOpen={openPost}
                           onLike={() => handleToggleLike(post)}
                           onReshare={() => handleToggleReshare(post)}
-                          onComment={() => openPost(post)}
+                          onSave={() => handleToggleSave(post)}
+                          onCommentPosted={(item, { commentCount }) => {
+                            patchPost(item.id, { commentCount });
+                          }}
                         />
                       ))}
                     </div>

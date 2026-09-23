@@ -1,4 +1,4 @@
-import React, { Suspense, lazy } from "react";
+import { Suspense, lazy } from "react";
 import {
   useNavigate,
   useLocation,
@@ -240,7 +240,7 @@ const Dashboard = () => {
     { id: "support", label: "Support", icon: LifeBuoy },
     { id: "profile", label: "Profile", icon: UserRound },
   ]
-    .filter((item) => !isGuest)
+    .filter(() => !isGuest)
     .map((item) => ({ ...item, isActive: activeTab === item.id }));
 
   if (loading && !isRootFeed) {

@@ -166,9 +166,6 @@ export const hasAdminTabPower = (user, ...tabIds) => {
 export const hasCommunitiesAdminPower = (user) =>
   hasAdminTabPower(user, "communities");
 
-export const hasModerationAdminPower = (user) =>
-  hasAdminTabPower(user, "moderation");
-
 /** Communities + Content Moderation (view/delete private community content). */
 export const hasContentAdminPower = (user) =>
   hasAdminTabPower(user, "communities", "moderation");

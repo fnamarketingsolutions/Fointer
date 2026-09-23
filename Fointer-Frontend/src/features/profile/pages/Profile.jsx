@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   LuAward as Award,
   LuCamera as Camera,
@@ -111,6 +111,8 @@ function postPath(post) {
 export default function Profile() {
   const { refreshUser } = useAuth();
   const { showToast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const setupMode = searchParams.get("setup") === "1";
   const [tab, setTab] = useState("profile");
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -414,6 +416,30 @@ export default function Profile() {
           <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
         </button>
       </header>
+
+      {setupMode ? (
+        <div className="rounded-xl border border-fo-accent/35 bg-fo-accent/10 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-fo-text">
+              Finish setting up your profile
+            </p>
+            <p className="text-xs text-fo-subtle mt-0.5">
+              Add a bio, interests, and location so others can get to know you.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              const next = new URLSearchParams(searchParams);
+              next.delete("setup");
+              setSearchParams(next, { replace: true });
+            }}
+            className="inline-flex items-center justify-center min-h-9 px-3 rounded-lg border border-fo-border text-xs font-semibold text-fo-muted hover:text-fo-accent hover:border-fo-accent/40 transition-colors shrink-0"
+          >
+            Dismiss
+          </button>
+        </div>
+      ) : null}
 
       <div className={cardClass}>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
@@ -798,98 +824,182 @@ export default function Profile() {
       )}
 
       {tab === "security" && (
-        <section className="bg-fo-surface border border-fo-border rounded-xl p-4 sm:p-5 space-y-4">
-          <div className="flex items-center gap-2">
-            <Shield size={15} className="text-fo-accent" aria-hidden />
-            <h3 className="text-sm font-semibold text-fo-text">
-              Change password
-            </h3>
-          </div>
-
-          {!profile.hasPassword ? (
-            <p className="text-sm text-fo-subtle">
-              This account uses social login. Password changes are not
-              available.
+        <div className="space-y-3">
+          <section className="bg-fo-surface border border-fo-border rounded-xl p-4 sm:p-5 space-y-4">
+            <div className="flex items-center gap-2">
+              <Users size={15} className="text-fo-accent" aria-hidden />
+              <h3 className="text-sm font-semibold text-fo-text">
+                Follow privacy
+              </h3>
+            </div>
+            <p className="text-xs text-fo-subtle">
+              Counts stay visible on your public profile. Hide only the
+              individual people in each list.
             </p>
-          ) : (
-            <form onSubmit={handlePassword} className="space-y-3 max-w-md">
+            <div className="space-y-3">
               {[
                 {
-                  key: "currentPassword",
-                  id: "password-current",
-                  label: "Current password",
-                  placeholder: "Current password",
+                  key: "hideFollowersList",
+                  label: "Hide followers list",
+                  description:
+                    "Others can see your follower count, but not who follows you.",
                 },
                 {
-                  key: "newPassword",
-                  id: "password-new",
-                  label: "New password",
-                  placeholder: "New password (min 8 characters)",
+                  key: "hideFollowingList",
+                  label: "Hide following list",
+                  description:
+                    "Others can see your following count, but not who you follow.",
                 },
-                {
-                  key: "confirmPassword",
-                  id: "password-confirm",
-                  label: "Confirm new password",
-                  placeholder: "Confirm new password",
-                },
-              ].map(({ key, id, label, placeholder }) => (
-                <div key={key}>
-                  <label htmlFor={id} className={labelClass}>
-                    {label}
-                  </label>
-                  <div className="relative">
+              ].map(({ key, label, description }) => {
+                const checked = Boolean(profile[key]);
+                return (
+                  <label
+                    key={key}
+                    className="flex items-start gap-3 cursor-pointer select-none"
+                  >
                     <input
-                      id={id}
-                      type={passwordVisibility[key] ? "text" : "password"}
-                      value={passwordForm[key]}
-                      onChange={(e) =>
-                        setPasswordForm((p) => ({
-                          ...p,
-                          [key]: e.target.value,
-                        }))
-                      }
-                      placeholder={placeholder}
-                      required
-                      minLength={key === "currentPassword" ? undefined : 8}
-                      className={`${fieldClass} pr-11`}
+                      type="checkbox"
+                      checked={checked}
+                      disabled={saving}
+                      onChange={async (e) => {
+                        const next = e.target.checked;
+                        setSaving(true);
+                        try {
+                          const data = await updateMyProfile({ [key]: next });
+                          const updated = data?.user || data?.profile;
+                          if (updated) {
+                            setProfile((prev) =>
+                              prev ? { ...prev, ...updated } : prev
+                            );
+                          } else {
+                            setProfile((prev) =>
+                              prev ? { ...prev, [key]: next } : prev
+                            );
+                          }
+                          showToast(
+                            data?.message ||
+                              (next
+                                ? "List hidden from others."
+                                : "List visible to others.")
+                          );
+                        } catch (err) {
+                          showToast(
+                            err?.response?.data?.message ||
+                              "Failed to update privacy."
+                          );
+                        } finally {
+                          setSaving(false);
+                        }
+                      }}
+                      className="mt-1 rounded border-fo-border text-fo-accent focus:ring-fo-accent/40"
                     />
-                    <button
-                      type="button"
-                      onClick={() => togglePasswordVisibility(key)}
-                      className="absolute inset-y-0 right-0 px-3 text-fo-muted hover:text-fo-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40 rounded"
-                      title={
-                        passwordVisibility[key]
-                          ? "Hide password"
-                          : "Show password"
-                      }
-                      aria-label={
-                        passwordVisibility[key]
-                          ? "Hide password"
-                          : "Show password"
-                      }
-                    >
-                      {passwordVisibility[key] ? (
-                        <EyeOff size={16} />
-                      ) : (
-                        <Eye size={16} />
-                      )}
-                    </button>
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium text-fo-text">
+                        {label}
+                      </span>
+                      <span className="block text-xs text-fo-subtle mt-0.5">
+                        {description}
+                      </span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </section>
+
+          <section className="bg-fo-surface border border-fo-border rounded-xl p-4 sm:p-5 space-y-4">
+            <div className="flex items-center gap-2">
+              <Shield size={15} className="text-fo-accent" aria-hidden />
+              <h3 className="text-sm font-semibold text-fo-text">
+                Change password
+              </h3>
+            </div>
+
+            {!profile.hasPassword ? (
+              <p className="text-sm text-fo-subtle">
+                This account uses social login. Password changes are not
+                available.
+              </p>
+            ) : (
+              <form onSubmit={handlePassword} className="space-y-3 max-w-md">
+                {[
+                  {
+                    key: "currentPassword",
+                    id: "password-current",
+                    label: "Current password",
+                    placeholder: "Current password",
+                  },
+                  {
+                    key: "newPassword",
+                    id: "password-new",
+                    label: "New password",
+                    placeholder: "New password (min 8 characters)",
+                  },
+                  {
+                    key: "confirmPassword",
+                    id: "password-confirm",
+                    label: "Confirm new password",
+                    placeholder: "Confirm new password",
+                  },
+                ].map(({ key, id, label, placeholder }) => (
+                  <div key={key}>
+                    <label htmlFor={id} className={labelClass}>
+                      {label}
+                    </label>
+                    <div className="relative">
+                      <input
+                        id={id}
+                        type={passwordVisibility[key] ? "text" : "password"}
+                        value={passwordForm[key]}
+                        onChange={(e) =>
+                          setPasswordForm((p) => ({
+                            ...p,
+                            [key]: e.target.value,
+                          }))
+                        }
+                        placeholder={placeholder}
+                        required
+                        minLength={key === "currentPassword" ? undefined : 8}
+                        className={`${fieldClass} pr-11`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => togglePasswordVisibility(key)}
+                        className="absolute inset-y-0 right-0 px-3 text-fo-muted hover:text-fo-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40 rounded"
+                        title={
+                          passwordVisibility[key]
+                            ? "Hide password"
+                            : "Show password"
+                        }
+                        aria-label={
+                          passwordVisibility[key]
+                            ? "Hide password"
+                            : "Show password"
+                        }
+                      >
+                        {passwordVisibility[key] ? (
+                          <EyeOff size={16} />
+                        ) : (
+                          <Eye size={16} />
+                        )}
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
-              <button
-                type="submit"
-                disabled={passwordSaving}
-                className="inline-flex items-center gap-2 min-h-10 px-4 rounded-lg border border-fo-accent/40 text-fo-accent text-sm font-semibold disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40"
-              >
-                {passwordSaving ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : null}
-                Update password
-              </button>
-            </form>
-          )}
-        </section>
+                ))}
+                <button
+                  type="submit"
+                  disabled={passwordSaving}
+                  className="inline-flex items-center gap-2 min-h-10 px-4 rounded-lg border border-fo-accent/40 text-fo-accent text-sm font-semibold disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40"
+                >
+                  {passwordSaving ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : null}
+                  Update password
+                </button>
+              </form>
+            )}
+          </section>
+        </div>
       )}
 
       {tab === "communities" && (

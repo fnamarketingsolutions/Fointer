@@ -77,10 +77,22 @@ export const resolveDocumentId = async (Model, value) => {
   if (isObjectId(raw)) {
     return mongoose.Types.ObjectId.createFromHexString(raw);
   }
-  const doc = await Model.findOne({ shortCode: raw.toLowerCase() })
-    .select("_id")
-    .lean();
-  return doc ? doc._id : null;
+
+  const lookup = async (code) => {
+    if (!code) return null;
+    const doc = await Model.findOne({ shortCode: String(code).toLowerCase() })
+      .select("_id")
+      .lean();
+    return doc ? doc._id : null;
+  };
+
+  // Plain short code, or title-slug-shortCode URL segment.
+  const byCode = await lookup(raw);
+  if (byCode) return byCode;
+
+  const separatorIndex = raw.lastIndexOf("-");
+  if (separatorIndex === -1) return null;
+  return lookup(raw.slice(separatorIndex + 1));
 };
 
 const MISSING_CODE = {

@@ -1,4 +1,3 @@
-import React from 'react';
 import {
   LuUserPlus as UserPlus,
   LuCompass as Compass,
@@ -6,12 +5,7 @@ import {
   LuUsers as Users,
   LuSettings as Settings,
   LuCircleHelp as HelpCircle,
-  LuArrowRight as ArrowRight,
   LuCircleCheck as CheckCircle2,
-  LuShieldCheck as ShieldCheck,
-  LuSearch as Search,
-  LuBell as Bell,
-  LuHeart as Heart
 } from 'react-icons/lu';
 
 export default function HowToUse() {

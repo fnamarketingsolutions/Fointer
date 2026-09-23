@@ -8,7 +8,7 @@ import CommunityMember from "../models/communityMember.js";
 import {
   canEngageInCommunity,
   canManagePostsInCommunity,
-  DISCOVERABLE_COMMUNITY_TYPES,
+  OPEN_FEED_COMMUNITY_TYPES,
   isWithinEditWindow,
   getEditWindowMinutes,
   getEffectiveMemberRole,
@@ -26,6 +26,7 @@ import { escapeRegex } from "../utils/validate.js";
 import { respondIfBanned } from "../utils/bannedKeywords.js";
 import { notify, personName, snippet } from "../utils/notify.js";
 import { getFollowedUserIds } from "../utils/followHelpers.js";
+import { getBookmarkMeta } from "../utils/bookmarkHelpers.js";
 import {
   acceptSignedMediaList,
   destroyManyFromCloudinary,
@@ -107,13 +108,15 @@ const getReshareMeta = async (postIds, userId) => {
 };
 
 const getViewerEngagement = async (postIds, userId) => {
-  const [likeMeta, reshareMeta] = await Promise.all([
+  const [likeMeta, reshareMeta, bookmarkMeta] = await Promise.all([
     getLikeMeta("post", postIds, userId),
     getReshareMeta(postIds, userId),
+    getBookmarkMeta("post", postIds, userId),
   ]);
   return {
     liked: likeMeta.liked,
     reshared: reshareMeta.reshared,
+    saved: bookmarkMeta.saved,
   };
 };
 
@@ -164,6 +167,7 @@ const formatFeedPost = (
   {
     liked = {},
     reshared = {},
+    saved = {},
     joinedIdSet,
     manageableIdSet,
     editWindowMinutes,
@@ -176,6 +180,7 @@ const formatFeedPost = (
       commentCount: post.commentCount ?? 0,
       reshareCount: post.reshareCount ?? 0,
       resharedByMe: false,
+      savedByMe: false,
       canEngage: false,
     });
   }
@@ -192,6 +197,7 @@ const formatFeedPost = (
     commentCount: post.commentCount ?? 0,
     reshareCount: post.reshareCount ?? 0,
     resharedByMe: reshared[String(post._id)] || false,
+    savedByMe: saved[String(post._id)] || false,
     isAuthor,
     canEdit: isAdmin || (isAuthor && within),
     isLocked: !isAdmin && isAuthor && !within,
@@ -247,6 +253,7 @@ const formatPost = (post, extras = {}) => {
     commentCount: extras.commentCount ?? post.commentCount ?? 0,
     reshareCount: extras.reshareCount ?? post.reshareCount ?? 0,
     resharedByMe: extras.resharedByMe ?? false,
+    savedByMe: extras.savedByMe ?? false,
     canEdit: extras.canEdit ?? false,
     canDelete: extras.canDelete ?? false,
     canEngage: extras.canEngage ?? false,
@@ -258,33 +265,33 @@ const formatPost = (post, extras = {}) => {
   };
 };
 
-const DISCOVERABLE_CACHE_MS = 15_000;
-let discoverableIdsCache = { ids: null, at: 0 };
+const OPEN_FEED_CACHE_MS = 15_000;
+let openFeedIdsCache = { ids: null, at: 0 };
 
-const getDiscoverableCommunityIds = async () => {
+const getOpenFeedCommunityIds = async () => {
   if (
-    discoverableIdsCache.ids &&
-    Date.now() - discoverableIdsCache.at < DISCOVERABLE_CACHE_MS
+    openFeedIdsCache.ids &&
+    Date.now() - openFeedIdsCache.at < OPEN_FEED_CACHE_MS
   ) {
-    return discoverableIdsCache.ids;
+    return openFeedIdsCache.ids;
   }
   const rows = await Community.find({
-    type: { $in: DISCOVERABLE_COMMUNITY_TYPES },
+    type: { $in: OPEN_FEED_COMMUNITY_TYPES },
   })
     .select("_id")
     .lean();
   const ids = rows.map((row) => row._id);
-  discoverableIdsCache = { ids, at: Date.now() };
+  openFeedIdsCache = { ids, at: Date.now() };
   return ids;
 };
 
-const getCommunityIdsByChannel = async (channelName, { discoverableOnly = false } = {}) => {
+const getCommunityIdsByChannel = async (channelName, { openFeedOnly = false } = {}) => {
   const name = String(channelName || "").trim();
   if (!name) return [];
   const escaped = escapeRegex(name);
   const filter = { channel: new RegExp(`^${escaped}$`, "i") };
-  if (discoverableOnly) {
-    filter.type = { $in: DISCOVERABLE_COMMUNITY_TYPES };
+  if (openFeedOnly) {
+    filter.type = { $in: OPEN_FEED_COMMUNITY_TYPES };
   }
   const rows = await Community.find(filter).select("_id").lean();
   return rows.map((row) => row._id);
@@ -300,14 +307,14 @@ const resolveCommunityType = async (post) => {
   return doc?.type || null;
 };
 
-/** Anyone may view community-less + discoverable community posts; private invite needs membership. */
+/** Anyone may view community-less + public community posts; private communities need membership. */
 export const canViewPost = async (post, user) => {
   if (hasContentAdminPower(user)) return true;
   const communityId = post.community?._id || post.community;
   if (!communityId) return true;
 
   const type = await resolveCommunityType(post);
-  if (DISCOVERABLE_COMMUNITY_TYPES.includes(type)) return true;
+  if (OPEN_FEED_COMMUNITY_TYPES.includes(type)) return true;
 
   if (!user) return false;
   return canEngageInCommunity(communityId, user);
@@ -436,10 +443,10 @@ export const listPosts = async (req, res) => {
         orConditions.push({ community: { $in: scopeIds } });
       }
       if (followedIds.length) {
-        const discoverableIds = await getDiscoverableCommunityIds();
+        const openFeedIds = await getOpenFeedCommunityIds();
         const visibleCommunities = [
           ...new Set([
-            ...discoverableIds.map(String),
+            ...openFeedIds.map(String),
             ...joinedIds.map(String),
           ]),
         ];
@@ -509,7 +516,7 @@ export const listPosts = async (req, res) => {
       : { rows: found, hasMore: false };
 
     const postIds = posts.map((p) => p._id);
-    const [{ liked, reshared }, editWindowMinutes] = await Promise.all([
+    const [{ liked, reshared, saved }, editWindowMinutes] = await Promise.all([
       getViewerEngagement(postIds, req.user._id),
       getEditWindowMinutes(),
     ]);
@@ -520,6 +527,7 @@ export const listPosts = async (req, res) => {
         formatFeedPost(p, req.user, {
           liked,
           reshared,
+          saved,
           joinedIdSet,
           manageableIdSet,
           editWindowMinutes,
@@ -555,7 +563,7 @@ export const getPost = async (req, res) => {
       });
     }
 
-    const { liked, reshared } = await getViewerEngagement([post._id], req.user._id);
+    const { liked, reshared, saved } = await getViewerEngagement([post._id], req.user._id);
 
     const canDelete = await userCanDeletePost(post, req.user);
     const flags = await buildOwnContentFlags(post, req.user);
@@ -567,6 +575,7 @@ export const getPost = async (req, res) => {
         commentCount: post.commentCount ?? 0,
         reshareCount: post.reshareCount ?? 0,
         resharedByMe: reshared[String(post._id)] || false,
+        savedByMe: saved[String(post._id)] || false,
         canDelete,
         canEngage: await canEngageWithPost(post, req.user),
         ...flags,
@@ -602,9 +611,9 @@ const collectHashtagsFromPosts = (posts = []) => {
 export const listTrendingTopics = async (req, res) => {
   try {
     const limit = Math.min(Math.max(Number(req.query.limit) || 10, 1), 20);
-    const discoverableIds = await getDiscoverableCommunityIds();
+    const openFeedIds = await getOpenFeedCommunityIds();
     const posts = await Post.find({
-      community: { $in: [null, ...discoverableIds] },
+      community: { $in: [null, ...openFeedIds] },
     })
       .select("title text")
       .sort({ createdAt: -1 })
@@ -630,7 +639,7 @@ export const listTrendingTopics = async (req, res) => {
   }
 };
 
-/** Discover feed: community-less + posts in public / request-to-join communities. */
+/** Discover feed: community-less + posts in public communities only. */
 export const listPublicPosts = async (req, res) => {
   try {
     const { q } = req.query;
@@ -641,11 +650,11 @@ export const listPublicPosts = async (req, res) => {
       maxLimit: 100,
     });
 
-    const [channelCommunityIds, discoverableIds, access] = await Promise.all([
+    const [channelCommunityIds, openFeedIds, access] = await Promise.all([
       channel
-        ? getCommunityIdsByChannel(channel, { discoverableOnly: true })
+        ? getCommunityIdsByChannel(channel, { openFeedOnly: true })
         : Promise.resolve(null),
-      channel ? Promise.resolve(null) : getDiscoverableCommunityIds(),
+      channel ? Promise.resolve(null) : getOpenFeedCommunityIds(),
       req.user
         ? getViewerCommunityAccess(req.user)
         : Promise.resolve({
@@ -656,7 +665,7 @@ export const listPublicPosts = async (req, res) => {
 
     const visibility = channel
       ? { community: { $in: channelCommunityIds } }
-      : { community: { $in: [null, ...discoverableIds] } };
+      : { community: { $in: [null, ...openFeedIds] } };
 
     let filter = { ...visibility };
     if (q && String(q).trim()) {
@@ -692,7 +701,7 @@ export const listPublicPosts = async (req, res) => {
       : { rows: found, hasMore: false };
 
     const postIds = posts.map((p) => p._id);
-    const [{ liked, reshared }, editWindowMinutes] = await Promise.all([
+    const [{ liked, reshared, saved }, editWindowMinutes] = await Promise.all([
       getViewerEngagement(postIds, req.user?._id),
       req.user ? getEditWindowMinutes() : Promise.resolve(null),
     ]);
@@ -703,6 +712,7 @@ export const listPublicPosts = async (req, res) => {
         formatFeedPost(p, req.user, {
           liked,
           reshared,
+          saved,
           joinedIdSet: access.joinedIdSet,
           manageableIdSet: access.manageableIdSet,
           editWindowMinutes,
@@ -740,7 +750,7 @@ export const getPublicPost = async (req, res) => {
     }
 
     const userId = req.user?._id;
-    const { liked, reshared } = await getViewerEngagement([post._id], userId);
+    const { liked, reshared, saved } = await getViewerEngagement([post._id], userId);
 
     if (!req.user) {
       return res.status(200).json({
@@ -751,6 +761,7 @@ export const getPublicPost = async (req, res) => {
           commentCount: post.commentCount ?? 0,
           reshareCount: post.reshareCount ?? 0,
           resharedByMe: false,
+          savedByMe: false,
           canEngage: false,
         }),
       });
@@ -766,6 +777,7 @@ export const getPublicPost = async (req, res) => {
         commentCount: post.commentCount ?? 0,
         reshareCount: post.reshareCount ?? 0,
         resharedByMe: reshared[String(post._id)] || false,
+        savedByMe: saved[String(post._id)] || false,
         canDelete,
         canEngage: await canEngageWithPost(post, req.user),
         ...flags,
@@ -812,13 +824,6 @@ export const createPost = async (req, res) => {
     const cleanTitle = String(title || "").trim();
     const cleanText = String(text || "").trim();
     const mediaList = Array.isArray(media) ? media : [];
-
-    if (!cleanTitle) {
-      return res.status(400).json({
-        success: false,
-        message: "Post title is required.",
-      });
-    }
 
     if (!cleanText && !mediaList.length) {
       return res.status(400).json({
@@ -896,14 +901,7 @@ export const updatePost = async (req, res) => {
 
     const { title, text, media } = req.body;
     if (title !== undefined) {
-      const cleanTitle = String(title).trim();
-      if (!cleanTitle) {
-        return res.status(400).json({
-          success: false,
-          message: "Post title cannot be empty.",
-        });
-      }
-      post.title = cleanTitle;
+      post.title = String(title).trim();
     }
     if (text !== undefined) post.text = String(text).trim();
     if (media !== undefined) {
@@ -928,13 +926,20 @@ export const updatePost = async (req, res) => {
       }
     }
 
+    if (!String(post.title || "").trim() && !String(post.text || "").trim() && !(post.media || []).length) {
+      return res.status(400).json({
+        success: false,
+        message: "Post needs a title, description, or media.",
+      });
+    }
+
     if (await respondIfBanned(res, post.title, post.text)) return;
 
     await post.save();
     await post.populate("author", "username name avatar role");
     await post.populate("community", "name coverImage shortCode");
 
-    const { liked, reshared } = await getViewerEngagement([post._id], req.user._id);
+    const { liked, reshared, saved } = await getViewerEngagement([post._id], req.user._id);
     const flags = await buildOwnContentFlags(post, req.user);
     const postObj = post.toObject();
 
@@ -947,6 +952,7 @@ export const updatePost = async (req, res) => {
         commentCount: postObj.commentCount ?? 0,
         reshareCount: postObj.reshareCount ?? 0,
         resharedByMe: reshared[String(post._id)] || false,
+        savedByMe: saved[String(post._id)] || false,
         canDelete: await userCanDeletePost(post, req.user),
         ...flags,
       }),
@@ -1172,6 +1178,7 @@ export const createComment = async (req, res) => {
         isLocked: false,
         editWindowMinutes: await getEditWindowMinutes(),
       }),
+      commentCount: (post.commentCount ?? 0) + 1,
     });
   } catch (error) {
     return sendServerError(res, error);
@@ -1840,4 +1847,21 @@ export const adminListModerationComments = async (req, res) => {
   } catch (error) {
     return sendServerError(res, error, "Failed to list comments.");
   }
+};
+
+/** Shared formatter for bookmark lists. */
+export const formatPostForBookmark = async (post, user) => {
+  const [access, editWindowMinutes, engagement] = await Promise.all([
+    getViewerCommunityAccess(user),
+    getEditWindowMinutes(),
+    getViewerEngagement([post._id], user._id),
+  ]);
+  return formatFeedPost(post, user, {
+    liked: engagement.liked,
+    reshared: engagement.reshared,
+    saved: engagement.saved,
+    joinedIdSet: access.joinedIdSet,
+    manageableIdSet: access.manageableIdSet,
+    editWindowMinutes,
+  });
 };

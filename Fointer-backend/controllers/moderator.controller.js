@@ -6,7 +6,6 @@ import {
   canModerateCommunity,
   formatMember,
   getActorCommunityRole,
-  getEffectiveMemberRole,
 } from "../utils/communityPermissions.js";
 import {
   getCommunitiesUrl,

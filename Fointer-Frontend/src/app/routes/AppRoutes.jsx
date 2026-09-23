@@ -1,4 +1,4 @@
-import React, { Suspense, lazy } from 'react';
+import { Suspense, lazy } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import PublicSiteLayout from '../../shared/layouts/PublicSiteLayout';
 import HomePage from '../../features/public/pages/home/HomePage';

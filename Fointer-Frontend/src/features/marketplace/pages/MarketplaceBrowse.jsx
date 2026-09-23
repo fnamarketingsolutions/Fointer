@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   LuFilter as Filter,
@@ -8,12 +8,14 @@ import {
   LuShoppingBag as ShoppingBag,
 } from "react-icons/lu";
 import { createListing, fetchListings } from "../../../api/marketplace";
+import { toggleBookmark } from "../../../api/bookmarks";
 import { useAuth } from "../../../context/AuthContext";
 import { useToast } from "../../../shared/components/feedback/ToastContext";
 import ListingCard from "../components/ListingCard";
 import ListingFormModal from "../components/ListingFormModal";
 import MarketplaceRail from "../components/MarketplaceRail";
 import { LISTING_CATEGORIES } from "../constants";
+import { listingSegment } from "../../../shared/services/entityLinks";
 
 const SORT_OPTIONS = [
   { id: "newest", label: "Newest first" },
@@ -92,13 +94,47 @@ export default function MarketplaceBrowse() {
       const res = await createListing(payload);
       showToast("Listing created.");
       setModalOpen(false);
-      const id = res?.listing?.shortCode || res?.listing?.id;
-      if (id) navigate(`/marketplace/${id}`);
+      const segment = listingSegment(res?.listing);
+      if (segment) navigate(`/marketplace/${segment}`);
       else load();
     } catch (err) {
       showToast(err?.response?.data?.message || "Failed to create listing.");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleSaveListing = async (listing) => {
+    if (!isAuthenticated) {
+      navigate("/login", { state: { from: "/marketplace" } });
+      return;
+    }
+    const prev = listings;
+    setListings((list) =>
+      list.map((item) =>
+        item.id === listing.id
+          ? { ...item, savedByMe: !item.savedByMe }
+          : item
+      )
+    );
+    try {
+      const data = await toggleBookmark({
+        targetType: "listing",
+        targetId: listing.id,
+      });
+      setListings((list) =>
+        list.map((item) =>
+          item.id === listing.id
+            ? { ...item, savedByMe: Boolean(data?.saved) }
+            : item
+        )
+      );
+      showToast(
+        data?.message || (data?.saved ? "Saved." : "Removed from saved.")
+      );
+    } catch (err) {
+      setListings(prev);
+      showToast(err?.response?.data?.message || "Failed to update bookmark.");
     }
   };
 
@@ -228,7 +264,11 @@ export default function MarketplaceBrowse() {
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
               {listings.map((listing) => (
-                <ListingCard key={listing.id} listing={listing} />
+                <ListingCard
+                  key={listing.id}
+                  listing={listing}
+                  onSave={handleSaveListing}
+                />
               ))}
             </div>
           )}

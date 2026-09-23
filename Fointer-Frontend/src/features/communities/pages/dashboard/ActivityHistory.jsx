@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
+  LuBookmark as Bookmark,
   LuClock as Clock,
   LuSquarePen as Edit3,
   LuHeart as Heart,
@@ -19,6 +20,8 @@ import {
   togglePostLike,
   togglePostReshare,
 } from "../../../../api/posts";
+import { fetchMyBookmarks, toggleBookmark } from "../../../../api/bookmarks";
+import ListingCard from "../../../marketplace/components/ListingCard";
 import PostDetail from "../../../posts/pages/PostDetail";
 import UserProfileLink from "../../../../shared/components/UserProfileLink";
 import ConfirmDeleteModal from "../../../../shared/components/modals/ConfirmDeleteModal";
@@ -31,6 +34,7 @@ const TABS = [
   { id: "comments", label: "Comments" },
   { id: "likes", label: "Liked" },
   { id: "reposts", label: "Reposts" },
+  { id: "saved", label: "Saved" },
 ];
 
 const getEditWindowLabel = (createdAt, canEdit, editWindowMinutes = 60) => {
@@ -97,6 +101,7 @@ export default function ActivityHistory() {
   const [myComments, setMyComments] = useState([]);
   const [likedPosts, setLikedPosts] = useState([]);
   const [repostedPosts, setRepostedPosts] = useState([]);
+  const [savedItems, setSavedItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deletePostId, setDeletePostId] = useState(null);
   const [deleteCommentId, setDeleteCommentId] = useState(null);
@@ -159,17 +164,32 @@ export default function ActivityHistory() {
     }
   }, [showToast]);
 
+  const loadSaved = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await fetchMyBookmarks();
+      setSavedItems(data?.items || []);
+    } catch (err) {
+      showToast(err?.response?.data?.message || "Failed to load saved items.");
+      setSavedItems([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [showToast]);
+
   useEffect(() => {
     if (subTab === "posts") loadPosts();
     else if (subTab === "comments") loadComments();
     else if (subTab === "likes") loadLikes();
+    else if (subTab === "saved") loadSaved();
     else loadReshares();
-  }, [subTab, loadPosts, loadComments, loadLikes, loadReshares]);
+  }, [subTab, loadPosts, loadComments, loadLikes, loadReshares, loadSaved]);
 
   const reloadCurrent = () => {
     if (subTab === "posts") loadPosts();
     else if (subTab === "comments") loadComments();
     else if (subTab === "likes") loadLikes();
+    else if (subTab === "saved") loadSaved();
     else loadReshares();
   };
 
@@ -298,7 +318,7 @@ export default function ActivityHistory() {
           Activity
         </h1>
         <p className="text-sm text-fo-subtle">
-          Your posts, comments, likes, and reposts in one place.
+          Your posts, comments, likes, reposts, and saved items in one place.
         </p>
       </header>
 
@@ -711,6 +731,129 @@ export default function ActivityHistory() {
                 </article>
               );
             })
+          )}
+        </div>
+      )}
+
+      {subTab === "saved" && (
+        <div className="space-y-4">
+          {loading ? (
+            <LoadingState label="Loading saved items…" />
+          ) : savedItems.length === 0 ? (
+            <EmptyState>
+              Nothing saved yet. Bookmark posts or marketplace listings to find
+              them here.
+            </EmptyState>
+          ) : (
+            <>
+              {savedItems.some((item) => item.targetType === "post") ? (
+                <div className="space-y-2.5">
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-fo-subtle">
+                    Posts
+                  </h3>
+                  {savedItems
+                    .filter((item) => item.targetType === "post" && item.post)
+                    .map((item) => {
+                      const post = item.post;
+                      const cover = post?.media?.find((m) => m.type === "image");
+                      return (
+                        <article
+                          key={item.id}
+                          className="group flex gap-3 bg-fo-surface border border-fo-border hover:border-fo-accent/35 rounded-xl p-3.5 sm:p-4 transition-colors"
+                        >
+                          <button
+                            type="button"
+                            onClick={() => setViewingPostId(post.id)}
+                            className="flex-1 min-w-0 text-left space-y-2"
+                          >
+                            <MetaLine>
+                              <span className="inline-flex items-center gap-1 text-fo-accent">
+                                <Bookmark size={12} className="fill-current" />
+                                Saved
+                              </span>
+                              <span>·</span>
+                              <span>{timeAgo(item.savedAt || post.createdAt)}</span>
+                            </MetaLine>
+                            <h2 className="text-sm sm:text-base font-semibold text-fo-text leading-snug group-hover:text-fo-accent transition-colors line-clamp-2">
+                              {post.title || post.text || "Untitled"}
+                            </h2>
+                          </button>
+                          {cover ? (
+                            <div className="hidden sm:block w-20 h-16 shrink-0 rounded-lg overflow-hidden bg-fo-surface-2 border border-fo-border">
+                              <img
+                                src={cover.url}
+                                alt=""
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                          ) : null}
+                          <div className="shrink-0">
+                            <ActionButton
+                              onClick={async () => {
+                                try {
+                                  await toggleBookmark({
+                                    targetType: "post",
+                                    targetId: post.id,
+                                  });
+                                  setSavedItems((prev) =>
+                                    prev.filter((row) => row.id !== item.id)
+                                  );
+                                  showToast("Removed from saved.");
+                                } catch (err) {
+                                  showToast(
+                                    err?.response?.data?.message ||
+                                      "Failed to update bookmark."
+                                  );
+                                }
+                              }}
+                            >
+                              <Bookmark size={12} className="fill-current text-fo-accent" />
+                              <span className="hidden sm:inline">Unsave</span>
+                            </ActionButton>
+                          </div>
+                        </article>
+                      );
+                    })}
+                </div>
+              ) : null}
+
+              {savedItems.some((item) => item.targetType === "listing") ? (
+                <div className="space-y-2.5">
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-fo-subtle">
+                    Marketplace
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                    {savedItems
+                      .filter(
+                        (item) => item.targetType === "listing" && item.listing
+                      )
+                      .map((item) => (
+                        <ListingCard
+                          key={item.id}
+                          listing={item.listing}
+                          onSave={async (listing) => {
+                            try {
+                              await toggleBookmark({
+                                targetType: "listing",
+                                targetId: listing.id,
+                              });
+                              setSavedItems((prev) =>
+                                prev.filter((row) => row.id !== item.id)
+                              );
+                              showToast("Removed from saved.");
+                            } catch (err) {
+                              showToast(
+                                err?.response?.data?.message ||
+                                  "Failed to update bookmark."
+                              );
+                            }
+                          }}
+                        />
+                      ))}
+                  </div>
+                </div>
+              ) : null}
+            </>
           )}
         </div>
       )}

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   LuArrowLeft as ArrowLeft,
@@ -22,6 +22,7 @@ import {
   togglePostReshare,
   toggleCommentLike,
 } from "../../../api/posts";
+import { toggleBookmark } from "../../../api/bookmarks";
 import {
   fetchBrowsableCommunities,
   joinPublicCommunity,
@@ -70,13 +71,13 @@ export default function PostDetail({
   const [comments, setComments] = useState([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentsExpanded, setCommentsExpanded] = useState(false);
-  // In compact mode the discussion stays collapsed until the comment count is tapped
+  // In compact mode the discussion stays collapsed until Comment is tapped
   const [commentsOpen, setCommentsOpen] = useState(!compact);
 
   // Active reply box target ID (null = main post input, ID = target comment ID)
   const [replyTargetId, setReplyTargetId] = useState(null);
-  const [showMainCommentInput, setShowMainCommentInput] = useState(false);
   const [commentText, setCommentText] = useState("");
+  const commentInputRef = useRef(null);
 
   // Expandable Replies State tracking expanded parent comment IDs
   const [expandedReplies, setExpandedReplies] = useState({});
@@ -149,6 +150,8 @@ export default function PostDetail({
     loadPost();
     setCommentsExpanded(false);
     setCommentsOpen(!compact);
+    setReplyTargetId(null);
+    setCommentText("");
     loadComments();
   }, [loadPost, loadComments, compact, postId]);
 
@@ -296,8 +299,8 @@ export default function PostDetail({
 
   const handleSaveEdit = async (e) => {
     e.preventDefault();
-    if (!form.title.trim()) {
-      showToast("Title is required.");
+    if (!form.title.trim() && !form.text.trim() && !form.media?.length) {
+      showToast("Add a title, text, or media.");
       return;
     }
     setSaving(true);
@@ -400,6 +403,27 @@ export default function PostDetail({
     }
   };
 
+  const handleSavePost = async () => {
+    if (!post) return;
+    if (!isAuthenticated) {
+      navigate("/login");
+      return;
+    }
+    const prev = { ...post };
+    setPost({ ...post, savedByMe: !post.savedByMe });
+    try {
+      const data = await toggleBookmark({
+        targetType: "post",
+        targetId: post.id,
+      });
+      setPost((p) => ({ ...p, savedByMe: Boolean(data?.saved) }));
+      showToast(data?.message || (data?.saved ? "Saved." : "Removed from saved."));
+    } catch (err) {
+      setPost(prev);
+      showToast(err?.response?.data?.message || "Failed to update bookmark.");
+    }
+  };
+
   const submitComment = async (parentId = null) => {
     const text = commentText.trim();
     if (!text) return;
@@ -423,7 +447,6 @@ export default function PostDetail({
       setComments((list) => [...list, data.comment]);
       setCommentText("");
       setReplyTargetId(null);
-      setShowMainCommentInput(false);
 
       // Auto expand replies for parent when replied
       if (parentId) {
@@ -740,7 +763,7 @@ export default function PostDetail({
   );
 
   const commentsVisible = !compact || commentsOpen;
-  const mainInputVisible = compact ? commentsOpen : showMainCommentInput;
+  const mainInputVisible = commentsVisible;
 
   const mainContent = (
     <>
@@ -748,9 +771,11 @@ export default function PostDetail({
         <div className="p-4 sm:p-5 space-y-4">
           {authorBlock}
 
-          <h1 className="text-xl font-semibold tracking-tight text-fo-text leading-snug">
-            {post.title || "Untitled"}
-          </h1>
+          {post.title ? (
+            <h1 className="text-xl font-semibold tracking-tight text-fo-text leading-snug">
+              {post.title}
+            </h1>
+          ) : null}
 
           {post.media && post.media.length > 0 ? (
             <div className="relative w-full rounded-lg overflow-hidden border border-fo-border">
@@ -810,14 +835,16 @@ export default function PostDetail({
               post={post}
               onLike={handleLikePost}
               onReshare={handleResharePost}
+              onSave={handleSavePost}
               onComment={() => {
                 setReplyTargetId(null);
                 setCommentText("");
                 if (compact) {
-                  setCommentsOpen((prev) => !prev);
-                } else {
-                  setShowMainCommentInput((prev) => !prev);
+                  setCommentsOpen(true);
                 }
+                window.requestAnimationFrame(() => {
+                  commentInputRef.current?.focus?.();
+                });
               }}
             />
 
@@ -857,9 +884,9 @@ export default function PostDetail({
         toggleRepliesExpand={toggleRepliesExpand}
         replyTargetId={replyTargetId}
         setReplyTargetId={setReplyTargetId}
-        setShowMainCommentInput={setShowMainCommentInput}
         commentText={commentText}
         setCommentText={setCommentText}
+        commentInputRef={commentInputRef}
         mainInputVisible={mainInputVisible}
         editingComment={editingComment}
         setEditingComment={setEditingComment}

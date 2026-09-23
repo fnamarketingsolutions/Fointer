@@ -1,4 +1,3 @@
-import React from "react";
 import {
   LuX as X,
   LuLoader as Loader2
@@ -36,14 +35,14 @@ export default function PostEditModal({
         </div>
         <div className="space-y-1">
           <label className="block text-[10px] uppercase tracking-wider text-fo-subtle">
-            Title
+            Title (optional)
           </label>
           <input
             value={form.title}
             onChange={(e) =>
               setForm((p) => ({ ...p, title: e.target.value }))
             }
-            required
+            maxLength={200}
             className="w-full bg-fo-bg border border-fo-border rounded-lg px-3 py-2 text-xs text-fo-text focus:outline-none focus:border-fo-accent/60"
           />
         </div>

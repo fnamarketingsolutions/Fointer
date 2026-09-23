@@ -1,4 +1,8 @@
-import { communitySegment, postSegment } from '../../shared/services/entityLinks';
+import {
+  communitySegment,
+  listingSegment,
+  postSegment,
+} from '../../shared/services/entityLinks';
 
 const SYSTEM_TYPES = new Set([
   'join_request',
@@ -110,7 +114,11 @@ export const notificationPath = (notification) => {
     return communityPath || '/communities';
   }
   if (type === 'listing_inquiry') {
-    const listingPath = entity?.shortCode || entity?.targetId || entity?.id;
+    const listingPath = listingSegment({
+      id: entity?.id || entity?.targetId,
+      shortCode: entity?.shortCode,
+      title: entity?.title,
+    });
     if (listingPath) return `/marketplace/${listingPath}`;
     return '/marketplace/my-listings';
   }

@@ -36,6 +36,7 @@ import DirectCall from "../components/DirectCall";
 import { timeAgo } from "../../../shared/utils/date";
 import ReportContentModal from "../../../shared/components/modals/ReportContentModal";
 import MediaPicker from "../../../shared/components/media/MediaPicker";
+import { listingSegment } from "../../../shared/services/entityLinks";
 
 const DM_MEDIA_MAX = 4;
 
@@ -553,7 +554,11 @@ export default function ConversationThread() {
             listing={conversation.listing}
             onClick={() =>
               navigate(
-                `/marketplace/${conversation.listing.shortCode || conversation.listing.listingId}`
+                `/marketplace/${
+                  listingSegment(conversation.listing) ||
+                  conversation.listing.shortCode ||
+                  conversation.listing.listingId
+                }`
               )
             }
           />
@@ -607,7 +612,11 @@ export default function ConversationThread() {
                       listing={message.listing}
                       onClick={() =>
                         navigate(
-                          `/marketplace/${message.listing.shortCode || message.listing.listingId}`
+                          `/marketplace/${
+                            listingSegment(message.listing) ||
+                            message.listing.shortCode ||
+                            message.listing.listingId
+                          }`
                         )
                       }
                     />

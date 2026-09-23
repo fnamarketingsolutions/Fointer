@@ -12,6 +12,32 @@ import { getAdminAccessPayload } from "../utils/adminAccess.js";
 const MAX_OTP_ATTEMPTS = 5;
 const getGoogleClient = () => new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
+const normalizeSignupInterests = (interests) => {
+  if (!interests) return [];
+  const list = Array.isArray(interests)
+    ? interests
+    : String(interests)
+        .split(",")
+        .map((t) => t.trim());
+  return [
+    ...new Set(
+      list
+        .map((t) => String(t).trim())
+        .filter(Boolean)
+        .slice(0, 20)
+    ),
+  ];
+};
+
+const profileFieldsFromBody = (body = {}) => {
+  const bio = String(body.bio || "").trim().slice(0, 500);
+  const interests = normalizeSignupInterests(body.interests);
+  const city = String(body.city || "").trim().slice(0, 100);
+  const state = String(body.state || "").trim().slice(0, 100);
+  const country = String(body.country || "").trim().slice(0, 100);
+  return { bio, interests, city, state, country };
+};
+
 const normalizeRole = (user) => {
   const role = String(user?.role || "user").toLowerCase().trim();
   if (user) user.role = role;
@@ -159,7 +185,22 @@ export const signup = async (req, res) => {
       });
     }
 
-    if (await respondIfBanned(res, username, name)) return;
+    const profile = profileFieldsFromBody(req.body);
+
+    if (
+      await respondIfBanned(
+        res,
+        username,
+        name,
+        profile.bio || undefined,
+        ...profile.interests,
+        profile.city || undefined,
+        profile.state || undefined,
+        profile.country || undefined
+      )
+    ) {
+      return;
+    }
 
     const normalizedEmail = String(email).trim().toLowerCase();
     const genericSignup = {
@@ -177,6 +218,11 @@ export const signup = async (req, res) => {
         emailExists.emailVerificationOtp = hashedOtp;
         emailExists.emailVerificationOtpExpires = expiresAt;
         emailExists.emailVerificationOtpAttempts = 0;
+        if (profile.bio) emailExists.bio = profile.bio;
+        if (profile.interests.length) emailExists.interests = profile.interests;
+        if (profile.city) emailExists.city = profile.city;
+        if (profile.state) emailExists.state = profile.state;
+        if (profile.country) emailExists.country = profile.country;
         await emailExists.save();
         await sendVerificationEmail({
           to: emailExists.email,
@@ -208,6 +254,11 @@ export const signup = async (req, res) => {
       emailVerificationOtpExpires: expiresAt,
       emailVerificationOtpAttempts: 0,
       role: "user",
+      bio: profile.bio,
+      interests: profile.interests,
+      city: profile.city,
+      state: profile.state,
+      country: profile.country,
     });
 
     try {
@@ -369,7 +420,7 @@ export const googleLogin = async (req, res) => {
 
     if (rejectIfNotMemberPortal(res, user)) return;
 
-    return sendToken(user, 200, res);
+    return sendToken(user, 200, res, { promptProfileSetup: isNewUser });
   } catch (error) {
     return sendServerError(res, error, "Google login failed. Please try again.");
   }
@@ -532,7 +583,7 @@ export const facebookLogin = async (req, res) => {
 
     if (rejectIfNotMemberPortal(res, user)) return;
 
-    return sendToken(user, 200, res);
+    return sendToken(user, 200, res, { promptProfileSetup: isNewUser });
   } catch (error) {
     return sendServerError(
       res,
@@ -839,7 +890,7 @@ export const verifyEmailOtp = async (req, res) => {
 
     if (rejectIfNotMemberPortal(res, user)) return;
 
-    return sendToken(user, 200, res);
+    return sendToken(user, 200, res, { promptProfileSetup: true });
   } catch (error) {
     return sendServerError(
       res,

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { FiEye, FiEyeOff, FiHome } from 'react-icons/fi';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { loginUser, resendVerificationEmail, verifyEmailOtp } from '../../../api/auth';

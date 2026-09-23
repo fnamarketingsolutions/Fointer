@@ -1,4 +1,3 @@
-import React from 'react';
 import {
   LuShieldCheck as ShieldCheck,
   LuHeartHandshake as HeartHandshake,

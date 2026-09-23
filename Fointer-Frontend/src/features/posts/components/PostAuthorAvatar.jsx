@@ -1,4 +1,3 @@
-import React from "react";
 import UserProfileLink from "../../../shared/components/UserProfileLink";
 
 export default function PostAuthorAvatar({

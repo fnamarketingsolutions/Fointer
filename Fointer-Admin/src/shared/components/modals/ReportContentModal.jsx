@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   LuArrowLeft as ArrowLeft,
   LuCircleCheck as CheckCircle2,

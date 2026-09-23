@@ -142,6 +142,18 @@ const userSchema = new mongoose.Schema(
       default: 0,
       min: 0,
     },
+
+    /** When true, others cannot see who follows this user (counts still public). */
+    hideFollowersList: {
+      type: Boolean,
+      default: false,
+    },
+
+    /** When true, others cannot see who this user follows (counts still public). */
+    hideFollowingList: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,

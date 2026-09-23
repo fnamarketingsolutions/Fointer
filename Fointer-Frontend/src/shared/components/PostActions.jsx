@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import {
+  LuBookmark as Bookmark,
   LuHeart as Heart,
   LuMessageCircle as MessageCircle,
   LuRepeat2 as Repeat2,
@@ -25,6 +26,7 @@ export default function PostActions({
   onLike,
   onReshare,
   onComment,
+  onSave,
   compact = false,
   className = "",
 }) {
@@ -56,8 +58,13 @@ export default function PostActions({
   };
 
   const handleComment = (event) => {
-    event?.stopPropagation?.();
+    if (!requireAuth(event)) return;
     onComment?.(event);
+  };
+
+  const handleSave = (event) => {
+    if (!requireAuth(event)) return;
+    onSave?.(event);
   };
 
   const handleShare = async (event) => {
@@ -128,6 +135,21 @@ export default function PostActions({
         <Repeat2 size={iconSize} />
         <span>{post?.reshareCount || 0}</span>
       </button>
+
+      {onSave ? (
+        <button
+          type="button"
+          onClick={handleSave}
+          className={itemClass(post?.savedByMe)}
+          title={post?.savedByMe ? "Remove bookmark" : "Save"}
+        >
+          <Bookmark
+            size={iconSize}
+            className={post?.savedByMe ? "fill-current" : ""}
+          />
+          <span>{post?.savedByMe ? "Saved" : "Save"}</span>
+        </button>
+      ) : null}
 
       <button
         type="button"

@@ -1,4 +1,3 @@
-import React from "react";
 import {
   LuPencil as Pencil,
   LuTrash2 as Trash2,

@@ -1,4 +1,3 @@
-import React from "react";
 import {
   LuX as X,
   LuLoader as Loader2

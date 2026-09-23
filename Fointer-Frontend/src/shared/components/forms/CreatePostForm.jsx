@@ -71,13 +71,12 @@ export default function CreatePostForm({
 
         <div>
           <label className="block text-[11px] uppercase tracking-wide text-fo-subtle mb-1.5">
-            Title
+            Title (optional)
           </label>
           <input
             type="text"
             value={title}
             onChange={(e) => onTitleChange(e.target.value)}
-            required
             maxLength={200}
             placeholder="Post title"
             className="w-full bg-fo-bg border border-fo-border rounded-xl px-3 py-3 text-sm text-fo-text focus:outline-none focus:border-fo-accent/50 placeholder:text-fo-subtle"

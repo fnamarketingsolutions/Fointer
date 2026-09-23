@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   LuArrowLeft as ArrowLeft,
@@ -19,6 +19,7 @@ import ListingCard from "../components/ListingCard";
 import ListingFormModal from "../components/ListingFormModal";
 import MarketplaceRail from "../components/MarketplaceRail";
 import { LISTING_STATUSES, statusLabel } from "../constants";
+import { listingSegment } from "../../../shared/services/entityLinks";
 
 const STATUS_FILTERS = [
   { id: "all", label: "All" },
@@ -85,8 +86,8 @@ export default function MyListings() {
       const res = await createListing(payload);
       showToast("Listing created.");
       setModalOpen(false);
-      const id = res?.listing?.shortCode || res?.listing?.id;
-      if (id) navigate(`/marketplace/${id}`);
+      const segment = listingSegment(res?.listing);
+      if (segment) navigate(`/marketplace/${segment}`);
       else load();
     } catch (err) {
       showToast(err?.response?.data?.message || "Failed to create listing.");

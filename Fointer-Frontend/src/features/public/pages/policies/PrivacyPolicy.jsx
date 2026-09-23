@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   LuShieldCheck as ShieldCheck,
   LuDatabase as Database,
@@ -10,7 +10,6 @@ import {
   LuRefreshCw as RefreshCw,
   LuMail as Mail,
   LuMapPin as MapPin,
-  LuLock as Lock
 } from 'react-icons/lu';
 import { SiteEmail, SiteEmailPlain } from '../../../../context/SiteContactContext';
 

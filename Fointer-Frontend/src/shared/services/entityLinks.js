@@ -4,11 +4,13 @@ import { toSlugParam } from '../utils/slug';
 const RESOLVE_PATHS = {
   community: (code) => `/communities/resolve/${code}`,
   post: (code) => `/posts/resolve/${code}`,
+  listing: (code) => `/marketplace/resolve/${code}`,
 };
 
 const caches = {
   community: new Map(),
   post: new Map(),
+  listing: new Map(),
 };
 
 const isObjectId = (value) => /^[a-f\d]{24}$/i.test(String(value ?? ''));
@@ -53,3 +55,15 @@ export const communitySegment = (community) =>
   buildSegment('community', community, community?.name);
 
 export const postSegment = (post) => buildSegment('post', post, post?.title);
+
+export const listingSegment = (listing) =>
+  buildSegment(
+    'listing',
+    listing
+      ? {
+          id: listing.id || listing.listingId,
+          shortCode: listing.shortCode,
+        }
+      : null,
+    listing?.title
+  );

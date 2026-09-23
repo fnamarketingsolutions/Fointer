@@ -1,4 +1,3 @@
-import React from "react";
 import {
   LuPencil as Pencil,
   LuTrash2 as Trash2,
@@ -28,9 +27,9 @@ export default function PostCommentsSection({
   toggleRepliesExpand,
   replyTargetId,
   setReplyTargetId,
-  setShowMainCommentInput,
   commentText,
   setCommentText,
+  commentInputRef,
   mainInputVisible,
   editingComment,
   setEditingComment,
@@ -56,9 +55,7 @@ export default function PostCommentsSection({
       }`}
     >
       <div
-        className={`flex items-center justify-between gap-3 border-b border-fo-border ${
-          compact ? "pb-3" : "pb-3"
-        }`}
+        className="flex items-center justify-between gap-3 border-b border-fo-border pb-3"
       >
         <h2
           className={`font-semibold text-fo-text ${
@@ -93,6 +90,7 @@ export default function PostCommentsSection({
       >
         <div className="rounded-lg border border-fo-border bg-fo-bg p-4 space-y-3">
           <textarea
+            ref={commentInputRef}
             value={commentText}
             onChange={(e) => setCommentText(e.target.value)}
             rows={3}
@@ -103,9 +101,9 @@ export default function PostCommentsSection({
             <button
               type="button"
               onClick={() => {
-                setShowMainCommentInput(false);
-                if (compact) setCommentsOpen(false);
                 setCommentText("");
+                setReplyTargetId(null);
+                if (compact) setCommentsOpen(false);
               }}
               className="px-3.5 py-2 rounded-lg text-xs text-fo-muted hover:text-fo-text transition-colors"
             >
@@ -270,7 +268,6 @@ export default function PostCommentsSection({
                           <button
                             type="button"
                             onClick={() => {
-                              setShowMainCommentInput(false);
                               if (isReplyingHere) {
                                 setReplyTargetId(null);
                                 setCommentText("");

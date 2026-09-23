@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Link,
   useNavigate,
@@ -24,6 +24,7 @@ import {
   requestToJoin,
 } from "../../../../api/communities";
 import { createPost, fetchPost, fetchPosts, togglePostLike, togglePostReshare } from "../../../../api/posts";
+import { toggleBookmark } from "../../../../api/bookmarks";
 import { fetchLiveEvents } from "../../../../api/liveEvents";
 import { fetchWatchGroups } from "../../../../api/watchGroups";
 import PostDetail from "../../../posts/pages/PostDetail";
@@ -462,6 +463,26 @@ export default function CommunityFeed() {
     }
   };
 
+  const handleSavePost = async (post) => {
+    if (!isAuthenticated) {
+      navigate("/login", { state: { from: window.location.pathname } });
+      return;
+    }
+    const prev = posts;
+    patchFeedPost(post.id, { savedByMe: !post.savedByMe });
+    try {
+      const data = await toggleBookmark({
+        targetType: "post",
+        targetId: post.id,
+      });
+      patchFeedPost(post.id, { savedByMe: Boolean(data?.saved) });
+      showToast(data?.message || (data?.saved ? "Saved." : "Removed from saved."));
+    } catch (err) {
+      setPosts(prev);
+      showToast(err?.response?.data?.message || "Failed to update bookmark.");
+    }
+  };
+
   const handleJoin = async () => {
     if (!community) return;
     if (!isAuthenticated) {
@@ -518,8 +539,12 @@ export default function CommunityFeed() {
 
   const handleCreatePost = async (e) => {
     e.preventDefault();
-    if (!communityId || !postForm.title.trim()) {
-      showToast("Post title is required.");
+    if (!communityId) {
+      showToast("Community is required.");
+      return;
+    }
+    if (!postForm.title.trim() && !postForm.text.trim() && !postForm.media?.length) {
+      showToast("Add a title, text, or media to post.");
       return;
     }
     setPostSaving(true);
@@ -771,8 +796,8 @@ export default function CommunityFeed() {
         ) : null}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px] gap-5 items-start">
-        <div className="min-w-0 space-y-4">
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_300px] gap-5 items-start">
+        <div className="min-w-0 space-y-4 order-2 xl:order-1">
           {community.isMember ? (
             <>
               <form
@@ -854,7 +879,10 @@ export default function CommunityFeed() {
                         active={String(post.id) === String(openPostId)}
                         onLike={() => handleLikePost(post)}
                         onReshare={() => handleResharePost(post)}
-                        onComment={() => openPost(post)}
+                        onSave={() => handleSavePost(post)}
+                        onCommentPosted={(item, { commentCount }) => {
+                          patchFeedPost(item.id, { commentCount });
+                        }}
                       />
                     ))}
                   </div>
@@ -887,10 +915,8 @@ export default function CommunityFeed() {
           )}
         </div>
 
-        <div className="hidden lg:block lg:sticky lg:top-4">{sidebar}</div>
+        <div className="order-1 xl:order-2 xl:sticky xl:top-4">{sidebar}</div>
       </div>
-
-      <div className="lg:hidden mt-8">{sidebar}</div>
     </div>
   );
 }

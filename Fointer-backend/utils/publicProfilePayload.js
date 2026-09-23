@@ -8,7 +8,7 @@ import {
   isFollowing,
 } from "./followHelpers.js";
 
-const DISCOVERABLE_TYPES = ["public", "private_request"];
+const DISCOVERABLE_TYPES = ["public"];
 const LIST_LIMIT = 20;
 
 export const computeAchievements = ({
@@ -210,9 +210,10 @@ export const buildPublicProfilePayload = async (user, viewer = null) => {
     isMod,
   });
 
-  const [followCounts, viewerFollowing] = await Promise.all([
+  const [followCounts, viewerFollowing, viewerFollowedBy] = await Promise.all([
     getFollowCounts(user._id),
     viewerId ? isFollowing(viewerId, user._id) : Promise.resolve(false),
+    viewerId ? isFollowing(user._id, viewerId) : Promise.resolve(false),
   ]);
 
   return {
@@ -227,6 +228,9 @@ export const buildPublicProfilePayload = async (user, viewer = null) => {
     country: user.country || "",
     createdAt: user.createdAt,
     isFollowing: viewerFollowing,
+    isFollowedBy: viewerFollowedBy,
+    hideFollowersList: Boolean(user.hideFollowersList),
+    hideFollowingList: Boolean(user.hideFollowingList),
     communities: communities.map((community) => ({
       id: community._id,
       name: community.name,

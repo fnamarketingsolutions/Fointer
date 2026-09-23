@@ -1,4 +1,3 @@
-import React from 'react';
 import ProtectedRoute from './ProtectedRoute';
 
 const AUTH_ONLY_LOADING_CLASS =

@@ -47,6 +47,8 @@ const formatProfileUser = (user) => ({
   phone: user.phone || "",
   yearOfBirth: user.yearOfBirth ?? null,
   hasPassword: Boolean(user.password),
+  hideFollowersList: Boolean(user.hideFollowersList),
+  hideFollowingList: Boolean(user.hideFollowingList),
   createdAt: user.createdAt,
 });
 
@@ -254,6 +256,14 @@ export const updateMyProfile = async (req, res) => {
         }
       }
       user.yearOfBirth = year;
+    }
+
+    if (req.body.hideFollowersList !== undefined) {
+      user.hideFollowersList = Boolean(req.body.hideFollowersList);
+    }
+
+    if (req.body.hideFollowingList !== undefined) {
+      user.hideFollowingList = Boolean(req.body.hideFollowingList);
     }
 
     if (

@@ -3,6 +3,7 @@ import Follow from "../models/follow.js";
 import {
   formatFollowUser,
   getFollowCounts,
+  getViewerFollowFlags,
   isFollowing,
 } from "../utils/followHelpers.js";
 import { normalizeUsername } from "./user.controller.js";
@@ -18,7 +19,7 @@ const findActiveUserByUsername = async (username) => {
   const clean = normalizeUsername(username);
   if (!clean) return null;
   return User.findOne({ username: clean, status: "active" }).select(
-    "username name avatar bio status"
+    "username name avatar bio status hideFollowersList hideFollowingList"
   );
 };
 
@@ -135,6 +136,25 @@ const listFollowRelations = async (req, res, field) => {
       });
     }
 
+    const isOwner =
+      req.user && String(req.user._id) === String(user._id);
+    const listHidden =
+      field === "following"
+        ? Boolean(user.hideFollowersList)
+        : Boolean(user.hideFollowingList);
+
+    if (listHidden && !isOwner) {
+      return res.status(200).json({
+        success: true,
+        users: [],
+        hidden: true,
+        message:
+          field === "following"
+            ? "This user's followers list is hidden."
+            : "This user's following list is hidden.",
+      });
+    }
+
     const { enabled, page, limit, skip } = parsePagination(req.query, {
       defaultLimit: 20,
       maxLimit: 100,
@@ -160,10 +180,24 @@ const listFollowRelations = async (req, res, field) => {
       : { rows: found, hasMore: false };
 
     const userField = field === "following" ? "follower" : "following";
-    const users = rows
+    const activeUsers = rows
       .map((row) => row[userField])
-      .filter((item) => item && item.status === "active")
-      .map(formatFollowUser);
+      .filter((item) => item && item.status === "active");
+
+    const { followingIds, followedByIds } = req.user
+      ? await getViewerFollowFlags(
+          req.user._id,
+          activeUsers.map((item) => item._id)
+        )
+      : { followingIds: new Set(), followedByIds: new Set() };
+
+    const users = activeUsers.map((item) => {
+      const id = String(item._id);
+      return formatFollowUser(item, {
+        isFollowing: followingIds.has(id),
+        isFollowedBy: followedByIds.has(id),
+      });
+    });
 
     const payload = {
       success: true,

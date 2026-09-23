@@ -1,9 +1,9 @@
-import React from "react";
 import { useNavigate } from "react-router-dom";
-import { LuMapPin as MapPin } from "react-icons/lu";
+import { LuBookmark as Bookmark, LuMapPin as MapPin } from "react-icons/lu";
 import { categoryLabel, formatLocation, formatPrice } from "../constants";
+import { listingSegment } from "../../../shared/services/entityLinks";
 
-export default function ListingCard({ listing, onClick }) {
+export default function ListingCard({ listing, onClick, onSave }) {
   const navigate = useNavigate();
   const cover = listing.media?.[0];
   const location = formatLocation(listing);
@@ -13,72 +13,96 @@ export default function ListingCard({ listing, onClick }) {
       onClick(listing);
       return;
     }
-    const id = listing.shortCode || listing.id;
-    navigate(`/marketplace/${id}`);
+    const segment = listingSegment(listing) || listing.shortCode || listing.id;
+    navigate(`/marketplace/${segment}`);
   };
 
   return (
-    <button
-      type="button"
-      onClick={handleClick}
-      className="group text-left rounded-xl border border-fo-border bg-fo-surface overflow-hidden hover:border-fo-accent/40 transition-colors w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40"
-    >
-      <div className="relative w-full pt-[56.25%] bg-fo-surface-2 overflow-hidden">
-        {cover ? (
-          cover.type === "video" ? (
-            <video
-              src={cover.url}
-              className="absolute inset-0 w-full h-full object-cover group-hover:scale-[1.02] transition-transform"
-            />
+    <div className="group relative rounded-xl border border-fo-border bg-fo-surface overflow-hidden hover:border-fo-accent/40 transition-colors w-full">
+      <button
+        type="button"
+        onClick={handleClick}
+        className="text-left w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40"
+      >
+        <div className="relative w-full pt-[56.25%] bg-fo-surface-2 overflow-hidden">
+          {cover ? (
+            cover.type === "video" ? (
+              <video
+                src={cover.url}
+                className="absolute inset-0 w-full h-full object-cover group-hover:scale-[1.02] transition-transform"
+              />
+            ) : (
+              <img
+                src={cover.url}
+                alt=""
+                className="absolute inset-0 w-full h-full object-cover group-hover:scale-[1.02] transition-transform"
+              />
+            )
           ) : (
-            <img
-              src={cover.url}
-              alt=""
-              className="absolute inset-0 w-full h-full object-cover group-hover:scale-[1.02] transition-transform"
-            />
-          )
-        ) : (
-          <div className="absolute inset-0 flex items-center justify-center text-fo-subtle text-xs">
-            No image
-          </div>
-        )}
-        {listing.status === "sold" ? (
-          <span className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-black/70 text-white text-[10px] font-semibold uppercase tracking-wide">
-            Sold
-          </span>
-        ) : null}
-        {listing.status === "hidden" ? (
-          <span className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-amber-900/80 text-amber-100 text-[10px] font-semibold uppercase tracking-wide">
-            Hidden
-          </span>
-        ) : null}
-        {listing.status === "removed" ? (
-          <span className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-red-900/80 text-red-100 text-[10px] font-semibold uppercase tracking-wide">
-            Removed
-          </span>
-        ) : null}
-      </div>
-      <div className="p-3 space-y-1">
-        <p className="text-sm font-semibold text-fo-text">
-          {formatPrice(listing.price, listing.currency)}
-        </p>
-        <p className="text-[13px] text-fo-text line-clamp-2 leading-snug">
-          {listing.title}
-        </p>
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-fo-muted">
-          {location ? (
-            <span className="inline-flex items-center gap-1 min-w-0">
-              <MapPin size={11} className="shrink-0" />
-              <span className="truncate">{location}</span>
+            <div className="absolute inset-0 flex items-center justify-center text-fo-subtle text-xs">
+              No image
+            </div>
+          )}
+          {listing.status === "sold" ? (
+            <span className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-black/70 text-white text-[10px] font-semibold uppercase tracking-wide">
+              Sold
             </span>
           ) : null}
-          {listing.category ? (
-            <span className="text-fo-subtle">
-              {categoryLabel(listing.category)}
+          {listing.status === "hidden" ? (
+            <span className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-amber-900/80 text-amber-100 text-[10px] font-semibold uppercase tracking-wide">
+              Hidden
+            </span>
+          ) : null}
+          {listing.status === "removed" ? (
+            <span className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-red-900/80 text-red-100 text-[10px] font-semibold uppercase tracking-wide">
+              Removed
             </span>
           ) : null}
         </div>
-      </div>
-    </button>
+        <div className="p-3 space-y-1">
+          <p className="text-sm font-semibold text-fo-text">
+            {formatPrice(listing.price, listing.currency)}
+          </p>
+          <p className="text-[13px] text-fo-text line-clamp-2 leading-snug">
+            {listing.title}
+          </p>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-fo-muted">
+            {location ? (
+              <span className="inline-flex items-center gap-1 min-w-0">
+                <MapPin size={11} className="shrink-0" />
+                <span className="truncate">{location}</span>
+              </span>
+            ) : null}
+            {listing.category ? (
+              <span className="text-fo-subtle">
+                {categoryLabel(listing.category)}
+              </span>
+            ) : null}
+          </div>
+        </div>
+      </button>
+
+      {onSave ? (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onSave(listing);
+          }}
+          className={`absolute top-2 right-2 inline-flex items-center justify-center w-8 h-8 rounded-full border backdrop-blur-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40 ${
+            listing.savedByMe
+              ? "bg-fo-accent text-black border-fo-accent"
+              : "bg-fo-surface/90 text-fo-muted border-fo-border hover:text-fo-accent hover:border-fo-accent/40"
+          }`}
+          title={listing.savedByMe ? "Remove bookmark" : "Save listing"}
+          aria-label={listing.savedByMe ? "Remove bookmark" : "Save listing"}
+        >
+          <Bookmark
+            size={14}
+            className={listing.savedByMe ? "fill-current" : ""}
+          />
+        </button>
+      ) : null}
+    </div>
   );
 }

@@ -21,7 +21,7 @@ export const getPublicProfile = async (req, res) => {
       username,
       status: "active",
     }).select(
-      "username name avatar bio interests city state country createdAt status"
+      "username name avatar bio interests city state country createdAt status hideFollowersList hideFollowingList"
     );
 
     if (!user) {

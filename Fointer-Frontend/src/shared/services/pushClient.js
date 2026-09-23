@@ -2,7 +2,6 @@ import api from './http/client';
 
 const DEVICE_KEY = 'fointer-push-device-id';
 const TOKEN_KEY = 'fointer-push-token';
-const LAST_ERROR_KEY = 'fointer-push-last-error';
 
 let activeUserId = '';
 let syncing = null;
@@ -36,26 +35,6 @@ const rememberToken = (token) => {
   }
 };
 
-const rememberError = (reason, detail = '') => {
-  try {
-    sessionStorage.setItem(
-      LAST_ERROR_KEY,
-      JSON.stringify({ reason, detail: String(detail || ''), at: Date.now() })
-    );
-  } catch {
-    /* ignore */
-  }
-};
-
-export const getPushLastError = () => {
-  try {
-    const raw = sessionStorage.getItem(LAST_ERROR_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-};
-
 const waitForActiveRegistration = async (registration) => {
   if (registration.active) return registration;
   await navigator.serviceWorker.ready;
@@ -77,7 +56,7 @@ const waitForActiveRegistration = async (registration) => {
   return registration;
 };
 
-const waitForReady = (registration) =>
+const waitForReady = () =>
   new Promise((resolve) => {
     const timeout = window.setTimeout(resolve, 5000);
     const onMessage = (event) => {
@@ -198,26 +177,22 @@ export const syncPushRegistration = (userId, options = {}) => {
 
   syncing = (async () => {
     if (!('Notification' in window) || !('serviceWorker' in navigator)) {
-      rememberError('unsupported');
       return { ok: false, reason: 'unsupported' };
     }
 
     const permission = await waitForPushPermission();
     if (permission !== 'granted') {
-      rememberError('permission', permission);
       return { ok: false, reason: 'permission', permission };
     }
 
     const { data } = await api.get('/notifications/push/config');
     if (!data?.enabled || !data?.web?.apiKey || !data.web.vapidKey) {
-      rememberError('config_disabled');
       return { ok: false, reason: 'config_disabled' };
     }
 
     const { getApps, initializeApp } = await import('firebase/app');
     const { getMessaging, isSupported } = await import('firebase/messaging');
     if (!(await isSupported().catch(() => false))) {
-      rememberError('not_supported');
       return { ok: false, reason: 'not_supported' };
     }
 
@@ -227,8 +202,7 @@ export const syncPushRegistration = (userId, options = {}) => {
         scope: '/',
       });
       registration = await waitForActiveRegistration(registration);
-    } catch (error) {
-      rememberError('sw_register_failed', error?.message);
+    } catch {
       return { ok: false, reason: 'sw_register_failed' };
     }
 
@@ -236,7 +210,7 @@ export const syncPushRegistration = (userId, options = {}) => {
       ...data.web,
       configUrl: resolvePushConfigUrl(),
     });
-    await waitForReady(registration);
+    await waitForReady();
 
     const web = data.web;
     const app = getApps().length
@@ -254,12 +228,10 @@ export const syncPushRegistration = (userId, options = {}) => {
     try {
       token = await fetchFcmToken(messaging, web.vapidKey, registration);
     } catch (error) {
-      rememberError('token_failed', error?.code || error?.message);
       activeUserId = '';
       return { ok: false, reason: 'token_failed', detail: error?.code || error?.message };
     }
     if (!token) {
-      rememberError('no_token');
       activeUserId = '';
       return { ok: false, reason: 'no_token' };
     }
@@ -279,17 +251,11 @@ export const syncPushRegistration = (userId, options = {}) => {
       deviceId: deviceId(),
     });
     rememberToken(token);
-    try {
-      sessionStorage.removeItem(LAST_ERROR_KEY);
-    } catch {
-      /* ignore */
-    }
     activeUserId = id;
     return { ok: true };
   })()
     .catch((error) => {
       activeUserId = '';
-      rememberError('failed', error?.message);
       return { ok: false, reason: 'failed', detail: error?.message };
     })
     .finally(() => {

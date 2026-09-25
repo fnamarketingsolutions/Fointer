@@ -2,7 +2,6 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { Link, useNavigate } from "react-router-dom";
 import {
   LuArrowLeft as ArrowLeft,
-  LuFlag as Flag,
   LuGlobe as Globe,
   LuLoaderCircle as Loader2,
   LuPencil as Pencil,
@@ -31,6 +30,7 @@ import {
 import { fetchChannels } from "../../../api/channels";
 import PostMediaGallery from "../../../shared/components/media/PostMediaGallery";
 import PostActions from "../../../shared/components/PostActions";
+import { PostMoreMenu } from "../../../shared/components/FeedPostRow";
 import ConfirmDeleteModal from "../../../shared/components/modals/ConfirmDeleteModal";
 import EditWindowExpiredModal from "../../../shared/components/modals/EditWindowExpiredModal";
 import ReportContentModal from "../../../shared/components/modals/ReportContentModal";
@@ -546,11 +546,6 @@ export default function PostDetail({
   const showPostDelete = canShowDelete(post);
   const showPostActions = showPostEdit || showPostDelete;
   const currentUserId = String(user?.id || user?._id || "");
-  const canReportPost =
-    isAuthenticated &&
-    post &&
-    currentUserId &&
-    String(post.author?.id || post.author?._id || "") !== currentUserId;
   const canReportComment = (comment) =>
     Boolean(
       isAuthenticated &&
@@ -758,7 +753,10 @@ export default function PostDetail({
           )}
         </div>
       </div>
-      {postActions}
+      <div className="shrink-0 flex items-center gap-1">
+        {postActions}
+        <PostMoreMenu post={post} />
+      </div>
     </div>
   );
 
@@ -830,8 +828,9 @@ export default function PostDetail({
             </div>
           ) : null}
 
-          <div className="flex items-center gap-4 border-t border-fo-border/60 pt-3">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 w-full min-w-0 border-t border-fo-border/60 pt-3">
             <PostActions
+              className="min-w-0 max-w-full"
               post={post}
               onLike={handleLikePost}
               onReshare={handleResharePost}
@@ -847,24 +846,6 @@ export default function PostDetail({
                 });
               }}
             />
-
-            {canReportPost ? (
-              <button
-                type="button"
-                onClick={() =>
-                  setReportTarget({
-                    type: "post",
-                    id: post.id,
-                    label: post.title || "this post",
-                  })
-                }
-                className="inline-flex items-center gap-2 text-xs font-medium text-fo-muted hover:text-red-400 transition-colors ml-auto"
-                title="Report post"
-              >
-                <Flag size={15} />
-                <span>Report</span>
-              </button>
-            ) : null}
           </div>
         </div>
       </article>

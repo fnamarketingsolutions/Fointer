@@ -52,6 +52,161 @@ const mediaHmacSecret = () =>
 
 const normalizeMediaType = (type) => (type === "video" ? "video" : "image");
 
+const DIRECT_UPLOAD_MAX_BYTES = 25 * 1024 * 1024;
+const UPLOAD_PROOF_TTL_SECONDS = 2 * 60 * 60;
+
+const operationalError = (status, message) => {
+  const error = new Error(message);
+  error.status = status;
+  error.isOperational = true;
+  return error;
+};
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const cloudinaryHttpCode = (error) =>
+  error?.http_code || error?.error?.http_code || null;
+
+const uploadProofPayload = ({ userId, folder, assetId, resourceType, timestamp }) =>
+  `${String(userId)}:${folder}:${assetId}:${resourceType}:${timestamp}`;
+
+const signUploadProof = (parts) =>
+  crypto
+    .createHmac("sha256", mediaHmacSecret())
+    .update(uploadProofPayload(parts))
+    .digest("hex");
+
+const proofsMatch = (left, right) => {
+  try {
+    const a = Buffer.from(String(left || ""), "hex");
+    const b = Buffer.from(String(right || ""), "hex");
+    if (!a.length || a.length !== b.length) return false;
+    return crypto.timingSafeEqual(a, b);
+  } catch {
+    return false;
+  }
+};
+
+/** Browser uploads straight to Cloudinary. The API secret never leaves the server. */
+export const createDirectUploadSignature = ({ userId, folder, resourceType }) => {
+  const cloudName = String(process.env.CLOUDINARY_CLOUD_NAME || "").trim();
+  const apiKey = String(process.env.CLOUDINARY_API_KEY || "").trim();
+  const apiSecret = String(process.env.CLOUDINARY_API_SECRET || "").trim();
+  if (!cloudName || !apiKey || !apiSecret) {
+    throw operationalError(500, "Upload is not configured.");
+  }
+
+  const assetId = crypto.randomBytes(16).toString("hex");
+  const timestamp = Math.round(Date.now() / 1000);
+  const params = { folder, public_id: assetId, timestamp };
+  const signature = cloudinary.utils.api_sign_request(params, apiSecret);
+  const proof = signUploadProof({
+    userId,
+    folder,
+    assetId,
+    resourceType,
+    timestamp,
+  });
+
+  return {
+    cloudName,
+    apiKey,
+    timestamp,
+    signature,
+    folder,
+    assetId,
+    resourceType,
+    proof,
+  };
+};
+
+const readCloudinaryResource = async (publicId, resourceType) => {
+  try {
+    return await cloudinary.api.resource(publicId, {
+      resource_type: resourceType,
+      type: "upload",
+    });
+  } catch (error) {
+    const code = cloudinaryHttpCode(error);
+    if (code === 404 || code === 400) return null;
+    throw error;
+  }
+};
+
+const findDirectUpload = async (folder, assetId, resourceType) => {
+  const ids = [`${folder}/${assetId}`, assetId];
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    for (const publicId of ids) {
+      const info = await readCloudinaryResource(publicId, resourceType);
+      if (!info) continue;
+      const returned = String(info.public_id || "");
+      if (returned !== `${folder}/${assetId}` && returned !== assetId) continue;
+      return info;
+    }
+    if (attempt < 3) await sleep(350);
+  }
+  return null;
+};
+
+/**
+ * Confirms the browser upload landed in our Cloudinary account, then returns
+ * the media fields the rest of the API already signs.
+ */
+export const confirmDirectUpload = async ({
+  userId,
+  folder,
+  assetId,
+  resourceType,
+  timestamp,
+  proof,
+}) => {
+  const ts = Number(timestamp);
+  const now = Math.floor(Date.now() / 1000);
+  const fresh =
+    Number.isFinite(ts) &&
+    Math.floor(ts) === ts &&
+    now - ts <= UPLOAD_PROOF_TTL_SECONDS &&
+    ts - now <= 5 * 60;
+  const proofOk =
+    fresh &&
+    proofsMatch(
+      proof,
+      signUploadProof({ userId, folder, assetId, resourceType, timestamp: ts })
+    );
+  if (!proofOk) {
+    throw operationalError(400, "Invalid upload.");
+  }
+
+  const info = await findDirectUpload(folder, assetId, resourceType);
+  if (!info?.secure_url) {
+    throw operationalError(400, "Upload not found.");
+  }
+  if (info.resource_type !== resourceType) {
+    throw operationalError(400, "Invalid upload.");
+  }
+  if (Number(info.bytes) > DIRECT_UPLOAD_MAX_BYTES) {
+    try {
+      await cloudinary.uploader.destroy(info.public_id, {
+        resource_type: resourceType,
+      });
+    } catch (error) {
+      console.error(error);
+    }
+    throw operationalError(400, "That file is too large. Use a file under 25 MB.");
+  }
+
+  const url = String(info.secure_url);
+  if (!isAllowedCloudinaryUrl(url)) {
+    throw operationalError(400, "Invalid upload.");
+  }
+
+  return {
+    url,
+    publicId: info.public_id,
+    type: resourceType,
+  };
+};
+
 export const isAllowedCloudinaryUrl = (url) => {
   const cloud = String(process.env.CLOUDINARY_CLOUD_NAME || "").trim();
   const raw = String(url || "").trim();

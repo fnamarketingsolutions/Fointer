@@ -27,7 +27,7 @@ export const isFollowing = async (followerId, followingId) => {
     .select("_id")
     .lean();
   return Boolean(row);
-};
+}; 
 
 /** Returns Sets of string ids for viewer↔listed-user follow edges. */
 export const getViewerFollowFlags = async (viewerId, userIds) => {

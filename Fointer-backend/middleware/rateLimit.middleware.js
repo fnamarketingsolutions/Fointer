@@ -23,10 +23,10 @@ export const otpRateLimit = rateLimit({
   message: jsonLimitMessage("Too many OTP requests. Please try again later."),
 });
 
-/** Media uploads — memory-backed buffers. */
+/** Each file uses a signature request plus a confirm request. */
 export const uploadRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 40,
+  max: 80,
   standardHeaders: true,
   legacyHeaders: false,
   message: jsonLimitMessage("Too many uploads. Please try again later."),

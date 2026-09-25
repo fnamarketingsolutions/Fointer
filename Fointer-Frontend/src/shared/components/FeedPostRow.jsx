@@ -19,7 +19,7 @@ import { timeAgo } from "../utils/date";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "./feedback/ToastContext";
 
-function PostMoreMenu({ post }) {
+export function PostMoreMenu({ post }) {
   const { user, isAuthenticated } = useAuth();
   const [open, setOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);

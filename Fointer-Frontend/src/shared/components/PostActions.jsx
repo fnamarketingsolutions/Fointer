@@ -102,7 +102,7 @@ export default function PostActions({
     }`;
 
   return (
-    <div className={`flex items-center gap-4 ${className}`}>
+    <div className={`flex flex-wrap items-center gap-x-3 gap-y-2 sm:gap-x-4 ${className}`}>
       <button
         type="button"
         onClick={handleLike}

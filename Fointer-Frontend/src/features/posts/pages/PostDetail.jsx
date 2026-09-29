@@ -262,13 +262,7 @@ export default function PostDetail({
   };
 
   const openDeletePost = () => {
-    if (!post) return;
-    if (!post.canDelete) {
-      if (post.isAuthor || post.isLocked) {
-        showContentLockModal(post, "post");
-      }
-      return;
-    }
+    if (!post?.canDelete) return;
     setShowDelete(true);
   };
 
@@ -287,13 +281,7 @@ export default function PostDetail({
   };
 
   const openDeleteComment = (comment) => {
-    if (!comment) return;
-    if (!comment.canDelete) {
-      if (comment.isAuthor || comment.isLocked) {
-        showContentLockModal(comment, "comment");
-      }
-      return;
-    }
+    if (!comment?.canDelete) return;
     setDeleteCommentId(comment.id);
   };
 
@@ -943,8 +931,8 @@ export default function PostDetail({
         title="Time's up"
         message={
           lockModal?.target === "comment"
-            ? "You can no longer edit or delete this comment."
-            : "You can no longer edit or delete this post."
+            ? "You can no longer edit this comment."
+            : "You can no longer edit this post."
         }
         editWindowMinutes={lockModal?.editWindowMinutes}
       />

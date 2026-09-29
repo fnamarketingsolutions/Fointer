@@ -5,6 +5,11 @@ export const fetchConversations = async () => {
   return response.data;
 };
 
+export const fetchUnreadTotal = async () => {
+  const response = await api.get('/conversations/unread-total');
+  return response.data;
+};
+
 export const createConversation = async (payload) => {
   const response = await api.post('/conversations', payload);
   return response.data;

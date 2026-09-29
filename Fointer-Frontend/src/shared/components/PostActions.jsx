@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   LuBookmark as Bookmark,
@@ -8,7 +9,7 @@ import {
 } from "react-icons/lu";
 import { useAuth } from "../../context/AuthContext";
 import { communitySegment, postSegment } from "../services/entityLinks";
-import { useToast } from "./feedback/ToastContext";
+import ShareSheetModal from "./modals/ShareSheetModal";
 
 function postSharePath(post) {
   const postSeg = postSegment(post) || post?.id;
@@ -32,7 +33,7 @@ export default function PostActions({
 }) {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
-  const { showToast } = useToast();
+  const [shareOpen, setShareOpen] = useState(false);
 
   const requireAuth = (event) => {
     event?.stopPropagation?.();
@@ -67,32 +68,18 @@ export default function PostActions({
     onSave?.(event);
   };
 
-  const handleShare = async (event) => {
+  const handleShare = (event) => {
     event?.stopPropagation?.();
     event?.preventDefault?.();
-    const url = `${window.location.origin}${postSharePath(post)}`;
-    const title = post?.title || "Fointer post";
-    const text = String(post?.text || post?.content || "")
-      .replace(/\s+/g, " ")
-      .trim()
-      .slice(0, 140);
-
-    try {
-      if (typeof navigator.share === "function") {
-        await navigator.share({ title, text: text || title, url });
-        return;
-      }
-    } catch (err) {
-      if (err?.name === "AbortError") return;
-    }
-
-    try {
-      await navigator.clipboard.writeText(url);
-      showToast("Link copied.");
-    } catch {
-      showToast("Could not copy link.");
-    }
+    setShareOpen(true);
   };
+
+  const shareUrl = `${window.location.origin}${postSharePath(post)}`;
+  const shareTitle = post?.title || "Fointer post";
+  const shareText = String(post?.text || post?.content || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 140);
 
   const iconSize = compact ? 15 : 16;
 
@@ -102,64 +89,77 @@ export default function PostActions({
     }`;
 
   return (
-    <div className={`flex flex-wrap items-center gap-x-3 gap-y-2 sm:gap-x-4 ${className}`}>
-      <button
-        type="button"
-        onClick={handleLike}
-        className={itemClass(post?.likedByMe)}
-        title="Like"
+    <>
+      <div
+        className={`flex flex-wrap items-center gap-x-3 gap-y-2 sm:gap-x-4 ${className}`}
       >
-        <Heart
-          size={iconSize}
-          className={post?.likedByMe ? "fill-current" : ""}
-        />
-        <span>{post?.likeCount || 0}</span>
-      </button>
-
-      <button
-        type="button"
-        onClick={handleComment}
-        className={itemClass(false)}
-        title="Comment"
-      >
-        <MessageCircle size={iconSize} />
-        <span>{post?.commentCount || 0}</span>
-      </button>
-
-      <button
-        type="button"
-        onClick={handleReshare}
-        className={itemClass(post?.resharedByMe)}
-        title={post?.resharedByMe ? "Undo repost" : "Repost"}
-      >
-        <Repeat2 size={iconSize} />
-        <span>{post?.reshareCount || 0}</span>
-      </button>
-
-      {onSave ? (
         <button
           type="button"
-          onClick={handleSave}
-          className={itemClass(post?.savedByMe)}
-          title={post?.savedByMe ? "Remove bookmark" : "Save"}
+          onClick={handleLike}
+          className={itemClass(post?.likedByMe)}
+          title="Like"
         >
-          <Bookmark
+          <Heart
             size={iconSize}
-            className={post?.savedByMe ? "fill-current" : ""}
+            className={post?.likedByMe ? "fill-current" : ""}
           />
-          <span>{post?.savedByMe ? "Saved" : "Save"}</span>
+          <span>{post?.likeCount || 0}</span>
         </button>
-      ) : null}
 
-      <button
-        type="button"
-        onClick={handleShare}
-        className={itemClass(false)}
-        title="Share"
-      >
-        <Share2 size={iconSize} />
-        <span>Share</span>
-      </button>
-    </div>
+        <button
+          type="button"
+          onClick={handleComment}
+          className={itemClass(false)}
+          title="Comment"
+        >
+          <MessageCircle size={iconSize} />
+          <span>{post?.commentCount || 0}</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={handleReshare}
+          className={itemClass(post?.resharedByMe)}
+          title={post?.resharedByMe ? "Undo repost" : "Repost"}
+        >
+          <Repeat2 size={iconSize} />
+          <span>{post?.reshareCount || 0}</span>
+        </button>
+
+        {onSave ? (
+          <button
+            type="button"
+            onClick={handleSave}
+            className={itemClass(post?.savedByMe)}
+            title={post?.savedByMe ? "Remove bookmark" : "Save"}
+          >
+            <Bookmark
+              size={iconSize}
+              className={post?.savedByMe ? "fill-current" : ""}
+            />
+            <span>{post?.savedByMe ? "Saved" : "Save"}</span>
+          </button>
+        ) : null}
+
+        <button
+          type="button"
+          onClick={handleShare}
+          className={itemClass(false)}
+          title="Share"
+        >
+          <Share2 size={iconSize} />
+          <span>Share</span>
+        </button>
+      </div>
+
+      <ShareSheetModal
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        title={shareTitle}
+        text={shareText}
+        url={shareUrl}
+        postId={post?.id || post?._id || null}
+      />
+    </>
   );
 }

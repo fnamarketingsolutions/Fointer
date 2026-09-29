@@ -27,6 +27,7 @@ import conversationRoute from "./routes/conversationRoute.js";
 import blockRoute from "./routes/blockRoute.js";
 import bannerRoute from "./routes/bannerRoute.js";
 import userSupportRoute from "./routes/userSupportRoute.js";
+import locationRoute from "./routes/locationRoute.js";
 import { initLiveSocket } from "./sockets/liveSocket.js";
 import { initWatchGroupSocket } from "./sockets/watchGroupSocket.js";
 import { initNotificationSocket } from "./sockets/notificationSocket.js";
@@ -38,7 +39,21 @@ import { csrfProtect } from "./middleware/csrf.middleware.js";
 const app = express();
 const server = http.createServer(app);
 const PORT = process.env.PORT;
-app.set("trust proxy", 1);
+
+// Only trust X-Forwarded-* when explicitly enabled (or a hop count is set).
+// Leaving this always-on lets clients spoof IPs and bypass rate limits when
+// the app is exposed without a reverse proxy.
+const trustProxyRaw = String(process.env.TRUST_PROXY || "").trim().toLowerCase();
+if (trustProxyRaw === "true" || trustProxyRaw === "1") {
+  app.set("trust proxy", 1);
+} else if (/^\d+$/.test(trustProxyRaw)) {
+  app.set("trust proxy", Number(trustProxyRaw));
+} else if (trustProxyRaw === "false" || trustProxyRaw === "0" || !trustProxyRaw) {
+  app.set("trust proxy", false);
+} else {
+  // e.g. TRUST_PROXY=loopback, TRUST_PROXY=uniquelocal
+  app.set("trust proxy", trustProxyRaw);
+}
 
 app.use(
   helmet({
@@ -101,6 +116,7 @@ app.use("/api/marketplace", marketplaceRoute);
 app.use("/api/bookmarks", bookmarkRoute);
 app.use("/api/conversations", conversationRoute);
 app.use("/api/blocks", blockRoute);
+app.use("/api/locations", locationRoute);
 app.use("/api", bannerRoute);
 app.use("/api", userSupportRoute);
 

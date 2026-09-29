@@ -20,6 +20,7 @@ const bannerAdminGate = [
   requireAdminTab("banners"),
 ];
 
+// Public active banners — intentional for the member SPA feed.
 router.get("/banners/active", listActiveBanners);
 router.get("/admin/banners", ...bannerAdminGate, listAdminBanners);
 router.post("/admin/banners", ...bannerAdminGate, createAdminBanner);

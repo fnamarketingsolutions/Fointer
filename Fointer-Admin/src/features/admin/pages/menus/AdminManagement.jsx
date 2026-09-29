@@ -172,7 +172,12 @@ function AdminFormModal({
         : 'Edit tab access';
 
   const emailOk = isValidEmail(email);
-  const passwordOk = password.length >= 8;
+  const passwordOk =
+    password.length >= 8 &&
+    password.length <= 128 &&
+    /[a-z]/.test(password) &&
+    /[A-Z]/.test(password) &&
+    /\d/.test(password);
   const tabsOk = adminTabs.length > 0;
   const nameOk = Boolean(name.trim());
 
@@ -188,7 +193,7 @@ function AdminFormModal({
       touched && mode === 'create' && !password
         ? 'Password is required.'
         : touched && mode === 'create' && !passwordOk
-          ? 'Password must be at least 8 characters.'
+          ? 'Password must include uppercase, lowercase, and a number (8–128 chars).'
           : '',
     tabs: touched && !tabsOk ? 'Select at least one tab.' : '',
   };

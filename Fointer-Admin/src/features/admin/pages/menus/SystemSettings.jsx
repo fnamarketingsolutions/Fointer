@@ -233,8 +233,10 @@ export default function SystemSettings() {
             className={inputClass}
           />
           <p className={hintClass}>
-            Authors can edit or delete their own posts and comments only within
-            this window. After it expires, content is locked for the author.
+            Authors can edit their own posts, comments, listings, and direct
+            messages only within this window. Deleting their own content stays
+            allowed anytime. After the window expires, edits are locked for the
+            author.
           </p>
         </div>
 

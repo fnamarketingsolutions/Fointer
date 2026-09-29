@@ -4,7 +4,7 @@ export const formatCommunityType = (type) =>
   COMMUNITY_TYPE_LABELS[type] || type || 'Public';
 
 /** Strip leading list markers like `1.`, `2)`, `3]` so UI numbering is not doubled. */
-export const stripRuleNumberPrefix = (text) =>
+const stripRuleNumberPrefix = (text) =>
   String(text || '')
     .replace(/^\d+[\.\])]\s*/, '')
     .trim();

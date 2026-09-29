@@ -32,6 +32,15 @@ export const uploadRateLimit = rateLimit({
   message: jsonLimitMessage("Too many uploads. Please try again later."),
 });
 
+/** Country, state, city, and postal lookups during signup. */
+export const locationRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 150,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: jsonLimitMessage("Too many location lookups. Please try again later."),
+});
+
 /** Admin warnings / report actions — abuse & auto-ban floods. */
 export const adminModerationRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -50,4 +59,26 @@ export const memberReportRateLimit = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: jsonLimitMessage("Too many requests. Please try again later."),
+});
+
+/** Start a new 1:1 conversation — curb mass outreach / harassment. */
+export const dmCreateRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: jsonLimitMessage(
+    "Too many new chats. Please wait a bit and try again."
+  ),
+});
+
+/** Send a DM (text/media/share) — curb spam floods. */
+export const dmSendRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: jsonLimitMessage(
+    "Too many messages. Please wait a bit and try again."
+  ),
 });

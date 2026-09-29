@@ -12,7 +12,10 @@ import {
   verifyEmailOtp,
   resendVerificationEmail,
 } from "../controllers/auth.controller.js";
-import { isAuthenticated } from "../middleware/auth.middleware.js";
+import {
+  isAuthenticated,
+  authorize,
+} from "../middleware/auth.middleware.js";
 import {
   authRateLimit,
   otpRateLimit,
@@ -32,5 +35,7 @@ router.post("/facebook", authRateLimit, facebookLogin);
 
 router.post("/logout", logout);
 router.get("/me", isAuthenticated, getMe);
+// Admin SPA bootstrap — role enforced on the server, not only in the UI.
+router.get("/admin/me", isAuthenticated, authorize("admin"), getMe);
 
 export default router;

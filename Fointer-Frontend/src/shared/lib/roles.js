@@ -1,5 +1,6 @@
-export const FEED_PATH = "/feed";
-export const PROFILE_SETUP_PATH = "/profile?setup=1";
+import { FEED_PATH } from "../constants/paths";
+
+const PROFILE_SETUP_PATH = "/profile?setup=1";
 
 export const getDashboardPathForRole = () => FEED_PATH;
 

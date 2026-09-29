@@ -210,22 +210,12 @@ export default function ActivityHistory() {
   };
 
   const openDelete = (post) => {
-    if (!post) return;
-    if (!post.canDelete) {
-      if (post.isAuthor || post.isLocked) showLockModal(post);
-      return;
-    }
+    if (!post?.canDelete) return;
     setDeletePostId(post.id);
   };
 
   const openDeleteComment = (comment) => {
-    if (!comment) return;
-    if (!comment.canDelete) {
-      if (comment.isAuthor || comment.isLocked) {
-        showLockModal(comment, "comment");
-      }
-      return;
-    }
+    if (!comment?.canDelete) return;
     setDeleteCommentId(comment.id);
   };
 
@@ -888,8 +878,8 @@ export default function ActivityHistory() {
         title="Time's up"
         message={
           lockModal?.kind === "comment"
-            ? "You can no longer edit or delete this comment."
-            : "You can no longer edit or delete this post."
+            ? "You can no longer edit this comment."
+            : "You can no longer edit this post."
         }
         editWindowMinutes={lockModal?.editWindowMinutes}
       />

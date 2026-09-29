@@ -1,4 +1,4 @@
-export const normalizeUsername = (value) =>
+const normalizeUsername = (value) =>
   String(value || '')
     .trim()
     .replace(/^@+/, '');

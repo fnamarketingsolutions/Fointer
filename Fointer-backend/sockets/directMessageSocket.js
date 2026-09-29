@@ -164,6 +164,7 @@ export const initDirectMessageSocket = (io) => {
           author: socket.user,
           text,
           media,
+          replyTo: payload.replyTo || null,
           io,
         });
 
@@ -200,6 +201,9 @@ export const initDirectMessageSocket = (io) => {
           status: "ringing",
           mode,
           peers: new Map([[socket.id, caller]]),
+          invitedBy: String(socket.user._id),
+          invitedAt: new Date(),
+          acceptedAt: null,
         });
 
         const invite = {
@@ -267,6 +271,7 @@ export const initDirectMessageSocket = (io) => {
         const existingPeers = dmCallRoster(conversationId);
         call.peers.set(socket.id, callee);
         call.status = "active";
+        call.acceptedAt = new Date();
 
         const accepted = {
           conversationId,

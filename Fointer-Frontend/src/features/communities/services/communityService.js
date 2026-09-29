@@ -106,11 +106,6 @@ export const unbanCommunityMember = async (communityId, memberId) => {
   return response.data;
 };
 
-export const fetchAllCommunities = async () => {
-  const response = await api.get('/communities');
-  return response.data;
-};
-
 export const fetchCommunityManage = async (id) => {
   const response = await api.get(`/communities/${id}/manage`);
   return response.data;

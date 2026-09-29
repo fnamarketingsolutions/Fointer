@@ -17,6 +17,8 @@ import {
 
 const router = express.Router();
 
+// Public browse is intentional for guests; seller phone/email never leave formatListing
+// unless the viewer is owner/admin (includeSellerContact).
 router.get("/", optionalAuthenticate, listListings);
 router.get("/mine", isAuthenticated, listMyListings);
 router.post("/", isAuthenticated, createListing);

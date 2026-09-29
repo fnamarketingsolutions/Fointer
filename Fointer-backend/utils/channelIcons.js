@@ -1,5 +1,5 @@
 /** Allowed Lucide icon keys for channels. Keep in sync with admin + frontend catalogs. */
-export const CHANNEL_ICON_IDS = [
+const CHANNEL_ICON_IDS = [
   "palette",
   "camera",
   "music",

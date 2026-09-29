@@ -16,7 +16,8 @@ export const adminFacebookAuth = async (accessToken) => {
 };
 
 export const getMe = async () => {
-  const response = await api.get('/auth/me');
+  // Server rejects non-admins — do not rely on /auth/me + client role filter alone.
+  const response = await api.get('/auth/admin/me');
   return response.data;
 };
 

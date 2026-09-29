@@ -10,9 +10,7 @@ import {
 import { invalidateWatchGroupMaxCache } from "../utils/watchGroupLimits.js";
 import { sendServerError } from "../utils/safeError.js";
 
-import { PHONE_RE } from "../utils/validate.js";
-
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+import { PHONE_RE, EMAIL_RE } from "../utils/validate.js";
 
 const formatContact = (settings) => ({
   contactEmail: String(settings?.contactEmail || "").trim(),

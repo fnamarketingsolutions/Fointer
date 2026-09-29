@@ -8,8 +8,18 @@ import { sendServerError } from "../utils/safeError.js";
 import { getAuthCookieOptions } from "../utils/cookieOptions.js";
 import { respondIfBanned } from "../utils/bannedKeywords.js";
 import { getAdminAccessPayload } from "../utils/adminAccess.js";
+import {
+  formatDateOfBirth,
+  parseDateOfBirth,
+  parseGender,
+} from "../utils/profileIdentity.js";
+import { normalizePostalCode, postalCodeError } from "../utils/postalCode.js";
+import { validatePasswordStrength } from "../utils/validate.js";
 
 const MAX_OTP_ATTEMPTS = 5;
+/** Fixed bcrypt hash used only to keep login timing similar when user/password missing. */
+const DUMMY_PASSWORD_HASH =
+  "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
 const getGoogleClient = () => new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 const normalizeSignupInterests = (interests) => {
@@ -34,8 +44,50 @@ const profileFieldsFromBody = (body = {}) => {
   const interests = normalizeSignupInterests(body.interests);
   const city = String(body.city || "").trim().slice(0, 100);
   const state = String(body.state || "").trim().slice(0, 100);
+  const district = String(body.district || "").trim().slice(0, 100);
   const country = String(body.country || "").trim().slice(0, 100);
-  return { bio, interests, city, state, country };
+  const zipCode = normalizePostalCode(body.zipCode);
+  const address = String(body.address || "").trim().slice(0, 300);
+  const gender = parseGender(body.gender);
+  const dob = parseDateOfBirth(body.dateOfBirth);
+  return {
+    bio,
+    interests,
+    city,
+    state,
+    district,
+    country,
+    zipCode,
+    address,
+    gender,
+    dob,
+  };
+};
+
+const requireSignupIdentity = (res, profile) => {
+  if (!profile.gender) {
+    res.status(400).json({
+      success: false,
+      message: "Gender is required.",
+    });
+    return false;
+  }
+  if (profile.dob.error) {
+    res.status(400).json({
+      success: false,
+      message: profile.dob.error,
+    });
+    return false;
+  }
+  const postalError = postalCodeError(profile.zipCode);
+  if (postalError) {
+    res.status(400).json({
+      success: false,
+      message: postalError,
+    });
+    return false;
+  }
+  return true;
 };
 
 const normalizeRole = (user) => {
@@ -84,13 +136,19 @@ const passwordLogin = async (req, res, { portal }) => {
     email: String(email).trim().toLowerCase(),
   });
 
-  if (!user) {
+  // Always run a bcrypt compare so missing users / social-only accounts
+  // do not return faster than a wrong-password attempt (enumeration).
+  const hash = user?.password || DUMMY_PASSWORD_HASH;
+  const isMatch = await bcrypt.compare(String(password), hash);
+
+  if (!user || !user.password || !isMatch) {
     return res.status(401).json({
       success: false,
       message: "Invalid email or password.",
     });
   }
 
+  // Only after credentials are valid — needed for OTP UX, not for probing.
   if (!user.isEmailVerified) {
     return res.status(403).json({
       success: false,
@@ -98,28 +156,6 @@ const passwordLogin = async (req, res, { portal }) => {
         "Please verify your email with the 6-digit OTP sent to your inbox.",
       requiresEmailVerification: true,
       email: user.email,
-    });
-  }
-
-  if (!user.password) {
-    const providers = [];
-    if (user.googleId) providers.push("Google");
-    if (user.facebookId) providers.push("Facebook");
-    const providerLabel = providers.length
-      ? providers.join(" or ")
-      : "social";
-
-    return res.status(401).json({
-      success: false,
-      message: `This account uses ${providerLabel} sign-in. Please continue with ${providerLabel}.`,
-    });
-  }
-
-  const isMatch = await bcrypt.compare(password, user.password);
-  if (!isMatch) {
-    return res.status(401).json({
-      success: false,
-      message: "Invalid email or password.",
     });
   }
 
@@ -171,10 +207,11 @@ export const signup = async (req, res) => {
       });
     }
 
-    if (String(password).length < 8) {
+    const passwordCheck = validatePasswordStrength(password);
+    if (!passwordCheck.ok) {
       return res.status(400).json({
         success: false,
-        message: "Password must be at least 8 characters.",
+        message: passwordCheck.message,
       });
     }
 
@@ -186,6 +223,7 @@ export const signup = async (req, res) => {
     }
 
     const profile = profileFieldsFromBody(req.body);
+    if (!requireSignupIdentity(res, profile)) return;
 
     if (
       await respondIfBanned(
@@ -196,7 +234,9 @@ export const signup = async (req, res) => {
         ...profile.interests,
         profile.city || undefined,
         profile.state || undefined,
-        profile.country || undefined
+        profile.district || undefined,
+        profile.country || undefined,
+        profile.address || undefined
       )
     ) {
       return;
@@ -222,7 +262,13 @@ export const signup = async (req, res) => {
         if (profile.interests.length) emailExists.interests = profile.interests;
         if (profile.city) emailExists.city = profile.city;
         if (profile.state) emailExists.state = profile.state;
+        if (profile.district) emailExists.district = profile.district;
         if (profile.country) emailExists.country = profile.country;
+        if (profile.zipCode) emailExists.zipCode = profile.zipCode;
+        if (profile.address) emailExists.address = profile.address;
+        emailExists.gender = profile.gender;
+        emailExists.dateOfBirth = profile.dob.date;
+        emailExists.yearOfBirth = profile.dob.year;
         await emailExists.save();
         await sendVerificationEmail({
           to: emailExists.email,
@@ -258,7 +304,13 @@ export const signup = async (req, res) => {
       interests: profile.interests,
       city: profile.city,
       state: profile.state,
+      district: profile.district,
       country: profile.country,
+      zipCode: profile.zipCode,
+      address: profile.address,
+      gender: profile.gender,
+      dateOfBirth: profile.dob.date,
+      yearOfBirth: profile.dob.year,
     });
 
     try {
@@ -515,11 +567,12 @@ export const facebookLogin = async (req, res) => {
       const byEmail = await User.findOne({ email: normalizedEmail });
       if (byEmail) {
         // Do not auto-link Facebook onto an existing account (takeover risk).
+        // Keep the message generic to avoid email enumeration.
         return res.status(409).json({
           success: false,
           message:
-            "An account with this email already exists. Sign in with your password or Google instead.",
-          code: "ACCOUNT_EXISTS",
+            "Unable to complete Facebook sign-in for this account. Try another sign-in method.",
+          code: "FACEBOOK_SIGNIN_UNAVAILABLE",
         });
       }
 
@@ -975,7 +1028,11 @@ export const getMe = async (req, res) => {
         state: user.state || "",
         country: user.country || "",
         zipCode: user.zipCode || "",
+        address: user.address || "",
+        district: user.district || "",
         phone: user.phone || "",
+        gender: user.gender || "",
+        dateOfBirth: formatDateOfBirth(user.dateOfBirth),
         yearOfBirth: user.yearOfBirth ?? null,
         isSuperAdmin: adminAccess.isSuperAdmin,
         adminTabs: adminAccess.adminTabs,

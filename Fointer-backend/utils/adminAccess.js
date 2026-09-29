@@ -1,5 +1,5 @@
 /** Sidebar / route tab ids used by Fointer-Admin (AdminDashboard NAV_ITEMS). */
-export const ADMIN_TAB_IDS = [
+const ADMIN_TAB_IDS = [
   "users",
   "communities",
   "channels",
@@ -18,7 +18,7 @@ export const ADMIN_TAB_IDS = [
 ];
 
 /** Tabs a super admin may grant to a limited admin (excludes Admin Management). */
-export const ASSIGNABLE_ADMIN_TAB_IDS = ADMIN_TAB_IDS.filter(
+const ASSIGNABLE_ADMIN_TAB_IDS = ADMIN_TAB_IDS.filter(
   (id) => id !== "admins"
 );
 
@@ -124,14 +124,14 @@ export const getAdminAccessPayload = (user) => {
  * - user_warning → Warnings
  * Unmapped types → super only.
  */
-export const ADMIN_NOTIFICATION_TAB_BY_TYPE = {
+const ADMIN_NOTIFICATION_TAB_BY_TYPE = {
   content_report: "analytics",
   channel_request: "support",
   user_warning: "warnings",
   user_support: "usersupport",
 };
 
-export const tabForAdminNotificationType = (type) => {
+const tabForAdminNotificationType = (type) => {
   const key = String(type || "")
     .toLowerCase()
     .trim();
@@ -157,7 +157,7 @@ export const allowedAdminNotificationTypes = (user, allTypes = []) => {
  * Limited admins only get elevated member-API powers for tabs they hold.
  * Super admins keep full platform powers.
  */
-export const hasAdminTabPower = (user, ...tabIds) => {
+const hasAdminTabPower = (user, ...tabIds) => {
   if (normalizeRole(user?.role) !== "admin") return false;
   if (resolveIsSuperAdmin(user)) return true;
   return tabIds.some((tabId) => canAccessAdminTab(user, tabId));

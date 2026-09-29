@@ -4,6 +4,7 @@ import {
   LuArrowRight as ArrowRight,
   LuCircleCheck as CheckCircle2,
   LuClock as Clock,
+  LuHash as Hash,
   LuLoaderCircle as Loader2,
   LuSearch as Search,
   LuPlus as Plus,
@@ -11,7 +12,11 @@ import {
   LuCircleX as XCircle,
 } from "react-icons/lu";
 import CommunityCard from "../../components/CommunityCard";
-import CommunitiesRail from "../../components/CommunitiesRail";
+import CommunitiesRail, {
+  CommunitiesCategoryFilters,
+} from "../../components/CommunitiesRail";
+import { fetchChannels } from "../../../../api/channels";
+import { FeedFilterToggle } from "./FeedRail";
 import {
   acceptInvite,
   declineInvite,
@@ -121,6 +126,21 @@ const matchesName = (community, query) => {
     .includes(query.toLowerCase());
 };
 
+const categoryNameOf = (community) => {
+  const channel = community?.channel;
+  if (!channel) return "";
+  if (typeof channel === "string") return channel.trim();
+  return String(channel.name || "").trim();
+};
+
+const matchesCommunity = (community, query, category) => {
+  if (!matchesName(community, query)) return false;
+  if (!category) return true;
+  return categoryNameOf(community).toLowerCase() === category.toLowerCase();
+};
+
+const FILTERS_PANEL_ID = "communities-filters-panel";
+
 export default function JoinedCommunities() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -132,6 +152,9 @@ export default function JoinedCommunities() {
   );
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [channels, setChannels] = useState([]);
+  const [channelsLoading, setChannelsLoading] = useState(true);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const [discover, setDiscover] = useState([]);
   const [joined, setJoined] = useState([]);
@@ -190,6 +213,24 @@ export default function JoinedCommunities() {
   }, [load]);
 
   useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setChannelsLoading(true);
+      try {
+        const data = await fetchChannels();
+        if (!cancelled) setChannels(data?.channels || data?.data || []);
+      } catch {
+        if (!cancelled) setChannels([]);
+      } finally {
+        if (!cancelled) setChannelsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     if (tabFromUrl === "manage") {
       navigate("/communities/manage", { replace: true });
       return;
@@ -205,25 +246,30 @@ export default function JoinedCommunities() {
   }, [tabFromUrl, isAuthenticated, navigate]);
 
   const q = search.trim();
+  const category = String(searchParams.get("category") || "").trim();
 
   const filteredDiscover = useMemo(
-    () => discover.filter((c) => matchesName(c, q)),
-    [discover, q]
+    () => discover.filter((c) => matchesCommunity(c, q, category)),
+    [discover, q, category]
   );
 
   const filteredJoined = useMemo(
-    () => joined.filter((c) => matchesName(c, q)),
-    [joined, q]
+    () => joined.filter((c) => matchesCommunity(c, q, category)),
+    [joined, q, category]
   );
 
   const filteredInvites = useMemo(
-    () => invites.filter((invite) => matchesName(invite.community, q)),
-    [invites, q]
+    () =>
+      invites.filter((invite) =>
+        matchesCommunity(invite.community, q, category)
+      ),
+    [invites, q, category]
   );
 
   const filteredRequests = useMemo(
-    () => requests.filter((req) => matchesName(req.community, q)),
-    [requests, q]
+    () =>
+      requests.filter((req) => matchesCommunity(req.community, q, category)),
+    [requests, q, category]
   );
 
   const pendingInviteCount = useMemo(
@@ -250,6 +296,22 @@ export default function JoinedCommunities() {
     else next.set("tab", id);
     next.delete("create");
     setSearchParams(next, { replace: true });
+  };
+
+  const setCategory = (name) => {
+    const next = new URLSearchParams(searchParams);
+    const value = String(name || "").trim();
+    if (value) next.set("category", value);
+    else next.delete("category");
+    setSearchParams(next, { replace: true });
+    setFiltersOpen(false);
+  };
+
+  const emptyFilterCopy = (noun, noneCopy) => {
+    if (q && category) return `No ${noun} match your search in this category.`;
+    if (q) return `No ${noun} match your search.`;
+    if (category) return `No ${noun} in this category.`;
+    return noneCopy;
   };
 
   const railItems = isAuthenticated
@@ -332,6 +394,20 @@ export default function JoinedCommunities() {
                   ? "Discover communities to join, plus your invites and requests."
                   : "Browse public communities. Log in to join and participate."}
               </p>
+              {category ? (
+                <button
+                  type="button"
+                  onClick={() => setCategory("")}
+                  className="inline-flex items-center gap-1.5 mt-1 px-2.5 py-1 rounded-lg text-xs bg-fo-accent/15 text-fo-accent hover:bg-fo-accent/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40"
+                >
+                  <Hash size={11} aria-hidden />
+                  {category}
+                  <span className="opacity-70" aria-hidden>
+                    ×
+                  </span>
+                  <span className="sr-only">Clear category filter</span>
+                </button>
+              ) : null}
             </div>
             {isAuthenticated ? (
               <div className="flex flex-wrap gap-2 shrink-0">
@@ -381,17 +457,25 @@ export default function JoinedCommunities() {
             </div>
           ) : null}
 
-          <div className="relative">
-            <Search
-              size={16}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-fo-subtle pointer-events-none"
-            />
-            <input
-              type="search"
-              placeholder="Search communities..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full rounded-xl border border-fo-border bg-fo-surface pl-9 pr-3 py-2.5 text-sm text-fo-text placeholder:text-fo-subtle focus:outline-none focus:border-fo-accent/50"
+          <div className="flex items-center gap-2">
+            <div className="relative min-w-0 flex-1">
+              <Search
+                size={16}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-fo-subtle pointer-events-none"
+              />
+              <input
+                type="search"
+                placeholder="Search communities..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full rounded-xl border border-fo-border bg-fo-surface pl-9 pr-3 py-2.5 text-sm text-fo-text placeholder:text-fo-subtle focus:outline-none focus:border-fo-accent/50"
+              />
+            </div>
+            <FeedFilterToggle
+              open={filtersOpen}
+              active={Boolean(category)}
+              onClick={() => setFiltersOpen((open) => !open)}
+              controlsId={FILTERS_PANEL_ID}
             />
           </div>
 
@@ -423,7 +507,7 @@ export default function JoinedCommunities() {
               </div>
             ) : filteredDiscover.length === 0 ? (
               <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle">
-                No communities match your search.
+                {emptyFilterCopy("communities", "No communities match your search.")}
               </div>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -480,7 +564,10 @@ export default function JoinedCommunities() {
               </div>
             ) : filteredJoined.length === 0 ? (
               <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle">
-                No communities match your search.
+                {emptyFilterCopy(
+                  "communities",
+                  "No communities match your search."
+                )}
               </div>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -501,7 +588,7 @@ export default function JoinedCommunities() {
               <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle">
                 {invites.length === 0
                   ? "No invites yet."
-                  : "No invites match your search."}
+                  : emptyFilterCopy("invites", "No invites match your search.")}
               </div>
             ) : (
               <div className="space-y-2.5">
@@ -589,7 +676,10 @@ export default function JoinedCommunities() {
               <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle">
                 {requests.length === 0
                   ? "You haven’t sent any join requests."
-                  : "No requests match your search."}
+                  : emptyFilterCopy(
+                      "requests",
+                      "No requests match your search."
+                    )}
               </div>
             ) : (
               <div className="space-y-2.5">
@@ -657,6 +747,11 @@ export default function JoinedCommunities() {
             selectedId={tab}
             onSelect={setActiveTab}
             isGuest={!isAuthenticated}
+            showCategories
+            channels={channels}
+            channelsLoading={channelsLoading}
+            selectedCategory={category}
+            onSelectCategory={setCategory}
           />
         </div>
       </div>
@@ -669,6 +764,15 @@ export default function JoinedCommunities() {
           isGuest={!isAuthenticated}
         />
       </div>
+
+      <CommunitiesCategoryFilters
+        open={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        channels={channels}
+        channelsLoading={channelsLoading}
+        selectedChannel={category}
+        onSelectChannel={setCategory}
+      />
     </div>
   );
 }

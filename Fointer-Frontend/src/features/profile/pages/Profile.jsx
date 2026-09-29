@@ -11,7 +11,6 @@ import {
   LuSave as Save,
   LuShield as Shield,
   LuUsers as Users,
-  LuX as X,
 } from "react-icons/lu";
 import {
   fetchMyProfile,
@@ -23,11 +22,15 @@ import { useAuth } from "../../../context/AuthContext";
 import { MAX_FILE_SIZE } from "../../../shared/constants/uploads";
 import { useToast } from "../../../shared/components/feedback/ToastContext";
 import ProfileAvatar from "../../../shared/components/ProfileAvatar";
+import InterestSuggestions from "../../../shared/components/InterestSuggestions";
+import LocationFields from "../../../shared/components/LocationFields";
 import ThemeToggle from "../../../shared/components/ThemeToggle";
 import {
   communitySegment,
   postSegment,
 } from "../../../shared/services/entityLinks";
+import { dateOfBirthError } from "../../../shared/lib/dateOfBirth";
+import { postalCodeError } from "../../../shared/lib/postalCode";
 import { normalizeUsername } from "../../../shared/services/profileLinks";
 import { formatCommunityType } from "../../../shared/utils/community";
 import { formatLongDate, timeAgo } from "../../../shared/utils/date";
@@ -51,8 +54,10 @@ const EMPTY_FORM = {
   state: "",
   country: "",
   zipCode: "",
+  address: "",
   phone: "",
-  yearOfBirth: "",
+  gender: "",
+  dateOfBirth: "",
 };
 
 const EMPTY_PASSWORD = {
@@ -90,11 +95,10 @@ function formFromProfile(p) {
     state: p?.state || "",
     country: p?.country || "",
     zipCode: p?.zipCode || "",
+    address: p?.address || "",
     phone: p?.phone || "",
-    yearOfBirth:
-      p?.yearOfBirth !== null && p?.yearOfBirth !== undefined
-        ? String(p.yearOfBirth)
-        : "",
+    gender: p?.gender || "",
+    dateOfBirth: p?.dateOfBirth || "",
   };
 }
 
@@ -122,7 +126,6 @@ export default function Profile() {
   const [passwordSaving, setPasswordSaving] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [passwordForm, setPasswordForm] = useState(EMPTY_PASSWORD);
-  const [interestInput, setInterestInput] = useState("");
   const [passwordVisibility, setPasswordVisibility] = useState({
     currentPassword: false,
     newPassword: false,
@@ -162,25 +165,40 @@ export default function Profile() {
     [form.interests]
   );
 
-  const addInterest = () => {
-    const value = interestInput.trim();
+  const addInterest = (raw) => {
+    const value = String(raw || "").trim().replace(/^#/, "");
     if (!value) return;
-    if (interestList.includes(value)) {
-      setInterestInput("");
+    if (interestList.some((tag) => tag.toLowerCase() === value.toLowerCase())) {
       return;
     }
     const next = [...interestList, value].slice(0, 20);
     setForm((p) => ({ ...p, interests: next.join(", ") }));
-    setInterestInput("");
   };
 
   const removeInterest = (tag) => {
-    const next = interestList.filter((t) => t !== tag);
+    const next = interestList.filter(
+      (item) => item.toLowerCase() !== String(tag || "").toLowerCase()
+    );
     setForm((p) => ({ ...p, interests: next.join(", ") }));
   };
 
   const handleSaveProfile = async (e) => {
     e.preventDefault();
+
+    if (!form.gender) {
+      showToast("Gender is required.");
+      return;
+    }
+    const dobError = dateOfBirthError(form.dateOfBirth);
+    if (dobError) {
+      showToast(dobError);
+      return;
+    }
+    const postalError = postalCodeError(form.zipCode);
+    if (postalError) {
+      showToast(postalError);
+      return;
+    }
 
     const next = {
       name: form.name.trim(),
@@ -191,8 +209,10 @@ export default function Profile() {
       state: form.state.trim(),
       country: form.country.trim(),
       zipCode: form.zipCode.trim(),
+      address: form.address.trim(),
       phone: form.phone.trim(),
-      yearOfBirth: form.yearOfBirth.trim(),
+      gender: form.gender,
+      dateOfBirth: form.dateOfBirth,
     };
     const prevInterests = profile?.interests || [];
     const unchanged =
@@ -203,11 +223,10 @@ export default function Profile() {
       next.state === (profile?.state || "") &&
       next.country === (profile?.country || "") &&
       next.zipCode === (profile?.zipCode || "") &&
+      next.address === (profile?.address || "") &&
       next.phone === (profile?.phone || "") &&
-      next.yearOfBirth ===
-        (profile?.yearOfBirth !== null && profile?.yearOfBirth !== undefined
-          ? String(profile.yearOfBirth)
-          : "") &&
+      next.gender === (profile?.gender || "") &&
+      next.dateOfBirth === (profile?.dateOfBirth || "") &&
       next.interests.length === prevInterests.length &&
       next.interests.every((t, i) => t === prevInterests[i]);
 
@@ -497,23 +516,7 @@ export default function Profile() {
               <p className="text-xs text-fo-subtle">
                 Joined {formatLongDate(profile.createdAt)}
               </p>
-            ) : null}
-
-            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-fo-muted">
-              {stats.map((stat) => (
-                <button
-                  key={stat.id}
-                  type="button"
-                  onClick={() => setTab(stat.id)}
-                  className="hover:text-fo-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40 rounded"
-                >
-                  <span className="font-semibold text-fo-text tabular-nums">
-                    {stat.count}
-                  </span>{" "}
-                  {stat.label}
-                </button>
-              ))}
-            </div>
+            ) : null} 
           </div>
         </div>
       </div>
@@ -626,79 +629,57 @@ export default function Profile() {
 
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>
-                  <label htmlFor="profile-city" className={labelClass}>
-                    City
+                  <label htmlFor="profile-gender" className={labelClass}>
+                    Gender
                   </label>
-                  <input
-                    id="profile-city"
-                    value={form.city}
+                  <select
+                    id="profile-gender"
+                    value={form.gender}
                     onChange={(e) =>
-                      setForm((p) => ({ ...p, city: e.target.value }))
+                      setForm((p) => ({ ...p, gender: e.target.value }))
                     }
+                    required
                     className={fieldClass}
-                  />
+                  >
+                    <option value="">Select gender</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                  </select>
                 </div>
                 <div>
-                  <label htmlFor="profile-state" className={labelClass}>
-                    State
+                  <label htmlFor="profile-dob" className={labelClass}>
+                    Date of birth
                   </label>
                   <input
-                    id="profile-state"
-                    value={form.state}
+                    id="profile-dob"
+                    type="date"
+                    value={form.dateOfBirth}
                     onChange={(e) =>
-                      setForm((p) => ({ ...p, state: e.target.value }))
+                      setForm((p) => ({ ...p, dateOfBirth: e.target.value }))
                     }
+                    required
+                    max={new Date().toISOString().slice(0, 10)}
+                    min="1900-01-01"
                     className={fieldClass}
                   />
                 </div>
               </div>
 
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="profile-country" className={labelClass}>
-                    Country
-                  </label>
-                  <input
-                    id="profile-country"
-                    value={form.country}
-                    onChange={(e) =>
-                      setForm((p) => ({ ...p, country: e.target.value }))
-                    }
-                    className={fieldClass}
-                  />
-                </div>
-                <div>
-                  <label htmlFor="profile-zip" className={labelClass}>
-                    Zip code
-                  </label>
-                  <input
-                    id="profile-zip"
-                    value={form.zipCode}
-                    onChange={(e) =>
-                      setForm((p) => ({ ...p, zipCode: e.target.value }))
-                    }
-                    className={fieldClass}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label htmlFor="profile-yob" className={labelClass}>
-                  Year of birth
-                </label>
-                <input
-                  id="profile-yob"
-                  type="number"
-                  min={1900}
-                  max={new Date().getFullYear()}
-                  value={form.yearOfBirth}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, yearOfBirth: e.target.value }))
-                  }
-                  placeholder="e.g. 1990"
-                  className={fieldClass}
-                />
-              </div>
+              <LocationFields
+                value={{
+                  zipCode: form.zipCode,
+                  state: form.state,
+                  city: form.city,
+                  country: form.country,
+                  address: form.address,
+                }}
+                onChange={(location) =>
+                  setForm((current) => ({ ...current, ...location }))
+                }
+                inputClass={fieldClass}
+                labelClass={labelClass}
+              />
             </div>
 
             <div>
@@ -722,51 +703,13 @@ export default function Profile() {
             </div>
 
             <div>
-              <label htmlFor="profile-interest-input" className={labelClass}>
-                Interests
-              </label>
-              {interestList.length > 0 ? (
-                <div className="flex flex-wrap gap-1.5 mb-2">
-                  {interestList.map((tag) => (
-                    <span
-                      key={tag}
-                      className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-fo-border bg-fo-bg text-xs text-fo-muted"
-                    >
-                      {tag}
-                      <button
-                        type="button"
-                        onClick={() => removeInterest(tag)}
-                        className="hover:text-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40 rounded"
-                        aria-label={`Remove ${tag}`}
-                      >
-                        <X size={11} />
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              ) : null}
-              <div className="flex gap-2">
-                <input
-                  id="profile-interest-input"
-                  value={interestInput}
-                  onChange={(e) => setInterestInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      addInterest();
-                    }
-                  }}
-                  placeholder="Add interest and press Enter"
-                  className={fieldClass}
-                />
-                <button
-                  type="button"
-                  onClick={addInterest}
-                  className="inline-flex items-center justify-center min-h-10 px-3 rounded-lg border border-fo-border text-xs text-fo-muted hover:text-fo-accent hover:border-fo-accent/40 shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40"
-                >
-                  Add
-                </button>
-              </div>
+              <label className={labelClass}>Interests</label>
+              <InterestSuggestions
+                selected={interestList}
+                onAdd={addInterest}
+                onRemove={removeInterest}
+                inputClass={fieldClass}
+              />
             </div>
 
             <button
@@ -933,7 +876,7 @@ export default function Profile() {
                     key: "newPassword",
                     id: "password-new",
                     label: "New password",
-                    placeholder: "New password (min 8 characters)",
+                    placeholder: "New password (uppercase, lowercase, number)",
                   },
                   {
                     key: "confirmPassword",

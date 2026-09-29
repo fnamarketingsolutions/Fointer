@@ -1,4 +1,3 @@
-import mongoose from "mongoose";
 import Post from "../models/post.js";
 import Comment from "../models/comment.js";
 import Reaction from "../models/reaction.js";
@@ -203,7 +202,7 @@ const formatFeedPost = (
     isLocked: !isAdmin && isAuthor && !within,
     canDelete:
       isAdmin ||
-      (isAuthor && within) ||
+      isAuthor ||
       (communityKey ? manageableIdSet.has(communityKey) : false),
     canEngage: isAdmin || !communityKey || joinedIdSet.has(communityKey),
     editWindowMinutes,
@@ -374,7 +373,7 @@ const buildOwnContentFlags = async (doc, user) => {
 const userCanDeletePost = async (post, user) => {
   const isAuthor = isDocAuthor(post, user);
   if (hasContentAdminPower(user)) return true;
-  if (isAuthor && (await isWithinEditWindow(post.createdAt))) return true;
+  if (isAuthor) return true;
   const communityId = post.community?._id || post.community;
   if (!communityId) return false;
   return canManagePostsInCommunity(communityId, user);
@@ -383,7 +382,7 @@ const userCanDeletePost = async (post, user) => {
 const userCanDeleteComment = async (comment, user) => {
   const isAuthor = isDocAuthor(comment, user);
   if (hasContentAdminPower(user)) return true;
-  if (isAuthor && (await isWithinEditWindow(comment.createdAt))) return true;
+  if (isAuthor) return true;
   const post = await Post.findById(comment.post).select("community").lean();
   if (!post?.community) return false;
   return canManagePostsInCommunity(post.community, user);
@@ -611,6 +610,12 @@ const collectHashtagsFromPosts = (posts = []) => {
 export const listTrendingTopics = async (req, res) => {
   try {
     const limit = Math.min(Math.max(Number(req.query.limit) || 10, 1), 20);
+    const query = String(req.query.q || "")
+      .trim()
+      .replace(/^#/, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9_]/g, "")
+      .slice(0, 50);
     const openFeedIds = await getOpenFeedCommunityIds();
     const posts = await Post.find({
       community: { $in: [null, ...openFeedIds] },
@@ -622,13 +627,22 @@ export const listTrendingTopics = async (req, res) => {
 
     const counts = collectHashtagsFromPosts(posts);
 
-    const topics = [...counts.values()]
-      .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag))
-      .slice(0, limit)
-      .map((row) => ({
-        tag: row.tag,
-        postCount: row.count,
-      }));
+    let ranked = [...counts.values()];
+    if (query) {
+      ranked = ranked.filter((row) => row.tag.toLowerCase().includes(query));
+      ranked.sort((a, b) => {
+        const aStart = a.tag.toLowerCase().startsWith(query) ? 0 : 1;
+        const bStart = b.tag.toLowerCase().startsWith(query) ? 0 : 1;
+        return aStart - bStart || b.count - a.count || a.tag.localeCompare(b.tag);
+      });
+    } else {
+      ranked.sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
+    }
+
+    const topics = ranked.slice(0, limit).map((row) => ({
+      tag: row.tag,
+      postCount: row.count,
+    }));
 
     return res.status(200).json({
       success: true,
@@ -973,9 +987,7 @@ export const deletePost = async (req, res) => {
     if (!canDelete) {
       return res.status(403).json({
         success: false,
-        message: isDocAuthor(post, req.user)
-          ? "Edit window expired. This post is locked."
-          : "You do not have permission to delete this post.",
+        message: "You do not have permission to delete this post.",
       });
     }
 
@@ -1250,9 +1262,7 @@ export const deleteComment = async (req, res) => {
     if (!canDelete) {
       return res.status(403).json({
         success: false,
-        message: isDocAuthor(comment, req.user)
-          ? "Edit window expired. This comment is locked."
-          : "You do not have permission to delete this comment.",
+        message: "You do not have permission to delete this comment.",
       });
     }
 

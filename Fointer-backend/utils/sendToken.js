@@ -4,6 +4,7 @@ import {
   getAuthCookieOptions,
 } from "./cookieOptions.js";
 import { getAdminAccessPayload } from "./adminAccess.js";
+import { formatDateOfBirth } from "./profileIdentity.js";
 
 const sendToken = (user, statusCode, res, options = {}) => {
   const token = generateToken(user._id, user.role);
@@ -36,7 +37,12 @@ const sendToken = (user, statusCode, res, options = {}) => {
       interests: user.interests || [],
       city: user.city || "",
       state: user.state || "",
+      district: user.district || "",
       country: user.country || "",
+      zipCode: user.zipCode || "",
+      address: user.address || "",
+      gender: user.gender || "",
+      dateOfBirth: formatDateOfBirth(user.dateOfBirth),
       isSuperAdmin: adminAccess.isSuperAdmin,
       adminTabs: adminAccess.adminTabs,
     },

@@ -10,6 +10,7 @@ import {
   LuMapPin as MapPin,
   LuMessageCircle as MessageCircle,
   LuPencil as Pencil,
+  LuShare2 as Share2,
   LuTrash2 as Trash2,
 } from "react-icons/lu";
 import {
@@ -24,7 +25,10 @@ import { useAuth } from "../../../context/AuthContext";
 import { useToast } from "../../../shared/components/feedback/ToastContext";
 import ConfirmDeleteModal from "../../../shared/components/modals/ConfirmDeleteModal";
 import ReportContentModal from "../../../shared/components/modals/ReportContentModal";
+import ShareSheetModal from "../../../shared/components/modals/ShareSheetModal";
+import EditWindowExpiredModal from "../../../shared/components/modals/EditWindowExpiredModal";
 import ListingFormModal from "../components/ListingFormModal";
+import MarketplaceImageViewer from "../components/MarketplaceImageViewer";
 import MarketplaceRail from "../components/MarketplaceRail";
 import {
   categoryLabel,
@@ -50,6 +54,7 @@ export default function ListingDetail() {
   const [listing, setListing] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeImage, setActiveImage] = useState(0);
+  const [viewerOpen, setViewerOpen] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
   const [contactMessage, setContactMessage] = useState("");
   const [contacting, setContacting] = useState(false);
@@ -58,6 +63,8 @@ export default function ListingDetail() {
   const [reportOpen, setReportOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [lockModal, setLockModal] = useState(null);
 
   const listingPath =
     (listing ? listingSegment(listing) : "") || listingParam || listingId || "";
@@ -153,6 +160,19 @@ export default function ListingDetail() {
     }
   };
 
+  const openEdit = () => {
+    if (!listing) return;
+    if (!listing.canEdit) {
+      if (listing.isOwner || listing.isLocked) {
+        setLockModal({
+          editWindowMinutes: listing.editWindowMinutes ?? 60,
+        });
+      }
+      return;
+    }
+    setEditOpen(true);
+  };
+
   const handleEdit = async (payload) => {
     setSubmitting(true);
     try {
@@ -161,7 +181,14 @@ export default function ListingDetail() {
       showToast("Listing updated.");
       setEditOpen(false);
     } catch (err) {
-      showToast(err?.response?.data?.message || "Failed to update listing.");
+      if (err?.response?.data?.code === "EDIT_WINDOW_EXPIRED") {
+        setEditOpen(false);
+        setLockModal({
+          editWindowMinutes: err.response.data.editWindowMinutes ?? 60,
+        });
+      } else {
+        showToast(err?.response?.data?.message || "Failed to update listing.");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -194,6 +221,10 @@ export default function ListingDetail() {
       setListing(prev);
       showToast(err?.response?.data?.message || "Failed to update bookmark.");
     }
+  };
+
+  const handleShare = () => {
+    setShareOpen(true);
   };
 
   const goCategory = (value) => {
@@ -253,11 +284,18 @@ export default function ListingDetail() {
                     className="absolute inset-0 w-full h-full object-contain bg-black"
                   />
                 ) : (
-                  <img
-                    src={current.url}
-                    alt=""
-                    className="absolute inset-0 w-full h-full object-contain"
-                  />
+                  <button
+                    type="button"
+                    onClick={() => setViewerOpen(true)}
+                    className="absolute inset-0 z-0 cursor-zoom-in focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-fo-accent/40"
+                    aria-label="View image full screen"
+                  >
+                    <img
+                      src={current.url}
+                      alt=""
+                      className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+                    />
+                  </button>
                 )
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center text-fo-subtle text-sm">
@@ -374,6 +412,15 @@ export default function ListingDetail() {
                   {listing.savedByMe ? "Saved" : "Save"}
                 </button>
 
+                <button
+                  type="button"
+                  onClick={handleShare}
+                  className="inline-flex items-center gap-1.5 min-h-9 px-3.5 rounded-full border border-fo-border text-[13px] font-medium text-fo-text hover:border-fo-accent/40 hover:text-fo-accent"
+                >
+                  <Share2 size={15} />
+                  Share
+                </button>
+
                 {!listing.isOwner && listing.status === "active" ? (
                   <>
                     <button
@@ -401,10 +448,10 @@ export default function ListingDetail() {
                   </>
                 ) : null}
 
-                {listing.canEdit ? (
+                {listing.canEdit || (listing.isOwner && listing.isLocked) ? (
                   <button
                     type="button"
-                    onClick={() => setEditOpen(true)}
+                    onClick={openEdit}
                     className="inline-flex items-center gap-1.5 min-h-9 px-3.5 rounded-full border border-fo-border text-[13px] font-medium text-fo-text hover:border-fo-accent/40 hover:text-fo-accent"
                   >
                     <Pencil size={15} /> Edit
@@ -444,6 +491,15 @@ export default function ListingDetail() {
           />
         </div>
       </div>
+
+      {viewerOpen && current ? (
+        <MarketplaceImageViewer
+          media={media}
+          initialIndex={safeIndex}
+          onIndexChange={setActiveImage}
+          onClose={() => setViewerOpen(false)}
+        />
+      ) : null}
 
       {contactOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -514,12 +570,34 @@ export default function ListingDetail() {
         undone.
       </ConfirmDeleteModal>
 
+      <EditWindowExpiredModal
+        open={Boolean(lockModal)}
+        onClose={() => setLockModal(null)}
+        title="Time's up"
+        message="You can no longer edit this listing."
+        editWindowMinutes={lockModal?.editWindowMinutes}
+      />
+
       <ReportContentModal
         open={reportOpen}
         onClose={() => setReportOpen(false)}
         targetType="listing"
         targetId={listing.id}
         targetLabel={listing.title}
+      />
+
+      <ShareSheetModal
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        title={listing.title || "Fointer listing"}
+        text={String(listing.description || "")
+          .replace(/\s+/g, " ")
+          .trim()
+          .slice(0, 140)}
+        url={`${window.location.origin}/marketplace/${
+          listingSegment(listing) || listing.shortCode || listing.id || listingPath
+        }`}
+        listingId={listing.id}
       />
     </div>
   );

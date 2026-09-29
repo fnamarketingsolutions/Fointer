@@ -1,4 +1,4 @@
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useCallback, useEffect, useState } from "react";
 import {
   useNavigate,
   useLocation,
@@ -23,6 +23,8 @@ import {
 import AuthOnly from "../../../../guards/AuthOnly";
 import PanelShell from "../../../../shared/layouts/PanelShell";
 import IncomingDmCallBridge from "../../../messages/components/IncomingDmCallBridge";
+import { fetchUnreadTotal } from "../../../messages/services/messageService";
+import { getLiveSocket } from "../../../../shared/services/liveSocket";
 import {
   EXPLORE_PATH,
   FEED_PATH,
@@ -146,6 +148,37 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const isGuest = !loading && !user;
+  const [messagesUnread, setMessagesUnread] = useState(0);
+
+  const refreshMessagesUnread = useCallback(async () => {
+    if (!user) {
+      setMessagesUnread(0);
+      return;
+    }
+    try {
+      const data = await fetchUnreadTotal();
+      setMessagesUnread(Number(data?.unreadTotal) || 0);
+    } catch {
+      /* keep previous */
+    }
+  }, [user]);
+
+  useEffect(() => {
+    refreshMessagesUnread();
+  }, [refreshMessagesUnread, location.pathname]);
+
+  useEffect(() => {
+    if (!user) return undefined;
+    const socket = getLiveSocket();
+    if (!socket) return undefined;
+    const onChange = () => refreshMessagesUnread();
+    socket.on("dm_new", onChange);
+    socket.on("dm_unread_changed", onChange);
+    return () => {
+      socket.off("dm_new", onChange);
+      socket.off("dm_unread_changed", onChange);
+    };
+  }, [user, refreshMessagesUnread]);
 
   const isRootFeed =
     location.pathname === FEED_PATH ||
@@ -232,7 +265,17 @@ const Dashboard = () => {
   const navItems = [
     { id: "postfeed", label: "Feed", icon: Newspaper },
     { id: "marketplace", label: "Marketplace", icon: ShoppingBag },
-    { id: "messages", label: "Messages", icon: MessageCircle },
+    {
+      id: "messages",
+      label: "Messages",
+      icon: MessageCircle,
+      badge:
+        messagesUnread > 0
+          ? messagesUnread > 99
+            ? "99+"
+            : messagesUnread
+          : null,
+    },
     { id: "communities", label: "Communities", icon: Users },
     { id: "events", label: "Live Events", icon: Video },
     { id: "watchgroups", label: "Watch Groups", icon: Radio },

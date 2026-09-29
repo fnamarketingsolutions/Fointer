@@ -638,7 +638,7 @@ export default function Profile() {
                 },
                 {
                   key: "newPassword",
-                  placeholder: "New password (min 8 characters)",
+                  placeholder: "New password (uppercase, lowercase, number)",
                 },
                 {
                   key: "confirmPassword",

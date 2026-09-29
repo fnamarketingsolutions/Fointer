@@ -9,9 +9,15 @@ import {
 } from "../utils/cloudinary.js";
 import { sendServerError } from "../utils/safeError.js";
 import { respondIfBanned } from "../utils/bannedKeywords.js";
-import { PHONE_RE, parseOptionalYear } from "../utils/validate.js";
+import { PHONE_RE, parseOptionalYear, validatePasswordStrength } from "../utils/validate.js";
 import { getFollowCounts } from "../utils/followHelpers.js";
 import { computeAchievements } from "../utils/publicProfilePayload.js";
+import {
+  formatDateOfBirth,
+  parseDateOfBirth,
+  parseGender,
+} from "../utils/profileIdentity.js";
+import { normalizePostalCode, postalCodeError } from "../utils/postalCode.js";
 
 const normalizeInterests = (interests) => {
   if (!interests) return [];
@@ -44,7 +50,11 @@ const formatProfileUser = (user) => ({
   state: user.state || "",
   country: user.country || "",
   zipCode: user.zipCode || "",
+  address: user.address || "",
+  district: user.district || "",
   phone: user.phone || "",
+  gender: user.gender || "",
+  dateOfBirth: formatDateOfBirth(user.dateOfBirth),
   yearOfBirth: user.yearOfBirth ?? null,
   hasPassword: Boolean(user.password),
   hideFollowersList: Boolean(user.hideFollowersList),
@@ -224,7 +234,46 @@ export const updateMyProfile = async (req, res) => {
     }
 
     if (req.body.zipCode !== undefined) {
-      user.zipCode = String(req.body.zipCode || "").trim().slice(0, 20);
+      const zipCode = normalizePostalCode(req.body.zipCode);
+      const postalError = postalCodeError(zipCode);
+      if (postalError) {
+        return res.status(400).json({
+          success: false,
+          message: postalError,
+        });
+      }
+      user.zipCode = zipCode;
+    }
+
+    if (req.body.address !== undefined) {
+      user.address = String(req.body.address || "").trim().slice(0, 300);
+    }
+
+    if (req.body.district !== undefined) {
+      user.district = String(req.body.district || "").trim().slice(0, 100);
+    }
+
+    if (req.body.gender !== undefined) {
+      const gender = parseGender(req.body.gender);
+      if (!gender) {
+        return res.status(400).json({
+          success: false,
+          message: "Gender is required.",
+        });
+      }
+      user.gender = gender;
+    }
+
+    if (req.body.dateOfBirth !== undefined) {
+      const dob = parseDateOfBirth(req.body.dateOfBirth);
+      if (dob.error) {
+        return res.status(400).json({
+          success: false,
+          message: dob.error,
+        });
+      }
+      user.dateOfBirth = dob.date;
+      user.yearOfBirth = dob.year;
     }
 
     if (req.body.phone !== undefined) {
@@ -275,8 +324,10 @@ export const updateMyProfile = async (req, res) => {
         ...(req.body.interests !== undefined ? user.interests || [] : []),
         req.body.city !== undefined ? user.city : undefined,
         req.body.state !== undefined ? user.state : undefined,
+        req.body.district !== undefined ? user.district : undefined,
         req.body.country !== undefined ? user.country : undefined,
-        req.body.zipCode !== undefined ? user.zipCode : undefined
+        req.body.zipCode !== undefined ? user.zipCode : undefined,
+        req.body.address !== undefined ? user.address : undefined
       )
     ) {
       return;
@@ -334,10 +385,11 @@ export const updateMyPassword = async (req, res) => {
       });
     }
 
-    if (String(newPassword).length < 8) {
+    const passwordCheck = validatePasswordStrength(newPassword);
+    if (!passwordCheck.ok) {
       return res.status(400).json({
         success: false,
-        message: "New password must be at least 8 characters.",
+        message: passwordCheck.message,
       });
     }
 

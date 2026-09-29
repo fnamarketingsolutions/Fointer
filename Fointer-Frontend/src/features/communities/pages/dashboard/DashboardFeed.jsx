@@ -62,7 +62,7 @@ const EMPTY_POST_FORM = {
 
 const FEED_MODES = [
   { id: "discover", label: "Discover", icon: Compass },
-  { id: "personalized", label: "Personalized", icon: Sparkles },
+  { id: "personalized", label: "For you", icon: Sparkles },
 ];
 
 const SORT_OPTIONS = [
@@ -135,7 +135,7 @@ export default function DashboardFeed() {
     ? ""
     : String(searchParams.get("channel") || "").trim();
 
-  const pageTitle = isGuest ? "Explore" : viewingMine ? "My Posts" : "Feed";
+  const pageTitle = isGuest ? "Explore" : viewingMine ? "My Posts" : "";
   const pageSubtitle = isGuest
     ? "Discover public posts across Fointer communities."
     : viewingMine
@@ -660,10 +660,14 @@ export default function DashboardFeed() {
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
-              <h1 className="text-xl font-semibold tracking-tight text-fo-text leading-tight">
-                {pageTitle}
-              </h1>
-              <p className="mt-1 text-sm text-fo-subtle leading-snug max-w-xl">
+              {pageTitle ? (
+                <h1 className="text-xl font-semibold tracking-tight text-fo-text leading-tight">
+                  {pageTitle}
+                </h1>
+              ) : (
+                <h1 className="sr-only">Feed</h1>
+              )}
+              <p className={`${pageTitle ? "mt-1 " : ""}text-sm text-fo-subtle leading-snug max-w-xl`}>
                 {pageSubtitle}
               </p>
               {selectedChannel ? (

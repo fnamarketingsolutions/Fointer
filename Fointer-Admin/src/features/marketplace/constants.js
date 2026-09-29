@@ -1,4 +1,4 @@
-export const LISTING_CATEGORIES = [
+const LISTING_CATEGORIES = [
   { value: "electronics", label: "Electronics" },
   { value: "vehicles", label: "Vehicles" },
   { value: "furniture", label: "Furniture" },
@@ -12,7 +12,7 @@ export const LISTING_CATEGORIES = [
   { value: "other", label: "Other" },
 ];
 
-export const LISTING_CONDITIONS = [
+const LISTING_CONDITIONS = [
   { value: "new", label: "New" },
   { value: "like_new", label: "Like New" },
   { value: "good", label: "Good" },

@@ -33,7 +33,8 @@ router.post("/", isAuthenticated, createPost);
 // Short-code lookup — must stay ahead of the /:id routes
 router.get("/resolve/:code", optionalAuthenticate, resolvePostCode);
 
-// Public browse (community-less posts) — before /:id
+// Public browse (intentional — guests can read open feed content).
+// Mutations and private community posts still require auth + canViewPost.
 router.get("/trending", optionalAuthenticate, listTrendingTopics);
 router.get("/public", optionalAuthenticate, listPublicPosts);
 router.get("/public/:id", optionalAuthenticate, getPublicPost);

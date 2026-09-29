@@ -43,7 +43,7 @@ export const withShortCode = (schema) => {
   return schema;
 };
 
-export const isObjectId = (value) => /^[a-f\d]{24}$/i.test(String(value ?? ""));
+const isObjectId = (value) => /^[a-f\d]{24}$/i.test(String(value ?? ""));
 
 /**
  * Accept only a plain hex ObjectId string (or ObjectId instance).

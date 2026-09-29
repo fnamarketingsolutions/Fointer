@@ -6,7 +6,7 @@ import {
   parsePagination,
   buildPaginationMeta,
 } from "../utils/pagination.js";
-import { escapeRegex } from "../utils/validate.js";
+import { escapeRegex, validatePasswordStrength } from "../utils/validate.js";
 import {
   getAdminAccessPayload,
   normalizeAssignableAdminTabs,
@@ -122,10 +122,11 @@ export const createAdmin = async (req, res) => {
       });
     }
 
-    if (String(password).length < 8) {
+    const passwordCheck = validatePasswordStrength(password);
+    if (!passwordCheck.ok) {
       return res.status(400).json({
         success: false,
-        message: "Password must be at least 8 characters.",
+        message: passwordCheck.message,
       });
     }
 

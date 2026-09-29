@@ -26,6 +26,7 @@ import {
 } from "../utils/cloudinary.js";
 import { hasMarketplaceAdminPower } from "../utils/adminAccess.js";
 import { getBookmarkMeta } from "../utils/bookmarkHelpers.js";
+import { getEditWindowMinutes } from "../utils/communityPermissions.js";
 
 const LISTING_SORT_MAP = {
   newest: { createdAt: -1 },
@@ -33,6 +34,12 @@ const LISTING_SORT_MAP = {
   "price-asc": { price: 1, createdAt: -1 },
   "price-desc": { price: -1, createdAt: -1 },
 };
+
+/** Never put phone/email here — only attach via SELLER_CONTACT_SELECT when allowed. */
+const SELLER_PUBLIC_SELECT =
+  "username name avatar city state country status";
+const SELLER_CONTACT_SELECT =
+  "username name avatar city state country phone email status";
 
 const formatUser = (user, { includeContact = false } = {}) => {
   if (!user || typeof user !== "object" || !user._id) {
@@ -50,6 +57,7 @@ const formatUser = (user, { includeContact = false } = {}) => {
   if (user.status) {
     payload.status = user.status;
   }
+  // Contact fields are only copied when explicitly allowed — even if populated.
   if (includeContact) {
     payload.phone = user.phone || "";
     payload.email = user.email || "";
@@ -87,31 +95,53 @@ export const formatListing = (listing, extras = {}) => ({
   isOwner: extras.isOwner ?? false,
   canEdit: extras.canEdit ?? false,
   canDelete: extras.canDelete ?? false,
+  isLocked: extras.isLocked ?? false,
+  editWindowMinutes: extras.editWindowMinutes ?? null,
   canMarkSold: extras.canMarkSold ?? false,
   savedByMe: extras.savedByMe ?? false,
   createdAt: listing.createdAt,
   updatedAt: listing.updatedAt,
 });
 
-export const findListingByParam = async (param) => {
+export const findListingByParam = async (
+  param,
+  { includeSellerContact = false } = {}
+) => {
   const id = await resolveDocumentId(Listing, param);
   if (!id) return null;
+  // Public seller fields by default — phone/email only when explicitly requested
+  // (owner/admin flows) so raw docs never carry contact for guests.
   return Listing.findById(id).populate(
     "seller",
-    "username name avatar city state country phone email status"
+    includeSellerContact ? SELLER_CONTACT_SELECT : SELLER_PUBLIC_SELECT
   );
 };
 
-const buildListingFlags = (listing, user) => {
+const hydrateSellerContact = async (listing) => {
+  if (!listing) return listing;
+  await listing.populate("seller", SELLER_CONTACT_SELECT);
+  return listing;
+};
+
+const isWithinWindow = (createdAt, minutes) => {
+  if (!createdAt || minutes == null) return false;
+  const windowMs = Math.max(1, Number(minutes) || 60) * 60 * 1000;
+  return Date.now() - new Date(createdAt).getTime() < windowMs;
+};
+
+const buildListingFlags = (listing, user, editWindowMinutes = 60) => {
   const isOwner =
     Boolean(user) &&
     String(listing.seller?._id || listing.seller) === String(user._id);
   const isAdmin = hasMarketplaceAdminPower(user);
+  const within = isWithinWindow(listing.createdAt, editWindowMinutes);
   return {
     isOwner,
     isAdmin,
-    canEdit: isOwner || isAdmin,
+    canEdit: isAdmin || (isOwner && within),
     canDelete: isOwner || isAdmin,
+    isLocked: Boolean(isOwner && !isAdmin && !within),
+    editWindowMinutes,
     canMarkSold: isOwner && listing.status === "active" && !listing.removedBy,
     includeSellerContact: isOwner || isAdmin,
   };
@@ -215,7 +245,7 @@ export const listListings = async (req, res) => {
 
     const query = Listing.find(filter)
       .sort(sort)
-      .populate("seller", "username name avatar city state country");
+      .populate("seller", SELLER_PUBLIC_SELECT);
 
     if (enabled) {
       query.skip(skip).limit(limit + 1);
@@ -234,8 +264,9 @@ export const listListings = async (req, res) => {
       req.user?._id
     );
 
+    const editWindowMinutes = await getEditWindowMinutes();
     const listings = pageRows.map((listing) => {
-      const flags = buildListingFlags(listing, req.user);
+      const flags = buildListingFlags(listing, req.user, editWindowMinutes);
       return formatListing(listing, {
         ...flags,
         savedByMe: saved[String(listing._id)] || false,
@@ -269,7 +300,7 @@ export const listMyListings = async (req, res) => {
 
     const listings = await Listing.find(filter)
       .sort({ createdAt: -1 })
-      .populate("seller", "username name avatar city state country phone email")
+      .populate("seller", SELLER_CONTACT_SELECT)
       .lean();
 
     const { saved } = await getBookmarkMeta(
@@ -278,10 +309,11 @@ export const listMyListings = async (req, res) => {
       req.user._id
     );
 
+    const editWindowMinutes = await getEditWindowMinutes();
     return res.json({
       success: true,
       listings: listings.map((listing) => {
-        const flags = buildListingFlags(listing, req.user);
+        const flags = buildListingFlags(listing, req.user, editWindowMinutes);
         return formatListing(listing, {
           ...flags,
           savedByMe: saved[String(listing._id)] || false,
@@ -303,7 +335,8 @@ export const getListing = async (req, res) => {
       });
     }
 
-    const flags = buildListingFlags(listing, req.user);
+    const editWindowMinutes = await getEditWindowMinutes();
+    const flags = buildListingFlags(listing, req.user, editWindowMinutes);
     const isOwner = flags.isOwner;
     const isAdmin = flags.isAdmin;
 
@@ -312,6 +345,10 @@ export const getListing = async (req, res) => {
         success: false,
         message: "Listing not found.",
       });
+    }
+
+    if (flags.includeSellerContact) {
+      await hydrateSellerContact(listing);
     }
 
     const { saved } = await getBookmarkMeta(
@@ -428,12 +465,13 @@ export const createListing = async (req, res) => {
       status: cleanStatus,
     });
 
-    await listing.populate(
-      "seller",
-      "username name avatar city state country phone email"
-    );
+    await hydrateSellerContact(listing);
 
-    const flags = buildListingFlags(listing, req.user);
+    const flags = buildListingFlags(
+      listing,
+      req.user,
+      await getEditWindowMinutes()
+    );
     return res.status(201).json({
       success: true,
       message: "Listing created.",
@@ -454,11 +492,16 @@ export const updateListing = async (req, res) => {
       });
     }
 
-    const flags = buildListingFlags(listing, req.user);
+    const editWindowMinutes = await getEditWindowMinutes();
+    const flags = buildListingFlags(listing, req.user, editWindowMinutes);
     if (!flags.canEdit) {
       return res.status(403).json({
         success: false,
-        message: "You cannot edit this listing.",
+        message: flags.isOwner
+          ? "Edit window expired. This listing is locked."
+          : "You cannot edit this listing.",
+        editWindowMinutes,
+        code: flags.isOwner ? "EDIT_WINDOW_EXPIRED" : undefined,
       });
     }
 
@@ -573,15 +616,19 @@ export const updateListing = async (req, res) => {
     if (await respondIfBanned(res, listing.title, listing.description)) return;
 
     await listing.save();
-    await listing.populate(
-      "seller",
-      "username name avatar city state country phone email"
+    const responseFlags = buildListingFlags(
+      listing,
+      req.user,
+      editWindowMinutes
     );
+    if (responseFlags.includeSellerContact) {
+      await hydrateSellerContact(listing);
+    }
 
     return res.json({
       success: true,
       message: "Listing updated.",
-      listing: formatListing(listing, buildListingFlags(listing, req.user)),
+      listing: formatListing(listing, responseFlags),
     });
   } catch (error) {
     return sendServerError(res, error, "Failed to update listing.");
@@ -598,7 +645,11 @@ export const markListingSold = async (req, res) => {
       });
     }
 
-    const flags = buildListingFlags(listing, req.user);
+    const flags = buildListingFlags(
+      listing,
+      req.user,
+      await getEditWindowMinutes()
+    );
     if (!flags.canMarkSold) {
       return res.status(403).json({
         success: false,
@@ -609,15 +660,14 @@ export const markListingSold = async (req, res) => {
     listing.status = "sold";
     listing.soldAt = new Date();
     await listing.save();
-    await listing.populate(
-      "seller",
-      "username name avatar city state country phone email"
-    );
+    if (flags.includeSellerContact) {
+      await hydrateSellerContact(listing);
+    }
 
     return res.json({
       success: true,
       message: "Listing marked as sold.",
-      listing: formatListing(listing, buildListingFlags(listing, req.user)),
+      listing: formatListing(listing, flags),
     });
   } catch (error) {
     return sendServerError(res, error, "Failed to mark listing as sold.");
@@ -634,7 +684,11 @@ export const deleteListing = async (req, res) => {
       });
     }
 
-    const flags = buildListingFlags(listing, req.user);
+    const flags = buildListingFlags(
+      listing,
+      req.user,
+      await getEditWindowMinutes()
+    );
     if (!flags.canDelete) {
       return res.status(403).json({
         success: false,
@@ -753,7 +807,6 @@ export const resolveListingCode = async (req, res) => {
         message: "Listing not found.",
       });
     }
-
     return res.json({
       success: true,
       id: listing._id,

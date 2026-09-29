@@ -1,3 +1,5 @@
+import { callerPayload } from "./callerPayload.js";
+
 const roomName = (eventId) => `live:${eventId}`;
 
 /** eventId -> Map<socketId, caller> */
@@ -5,16 +7,7 @@ const eventCalls = new Map();
 
 export const MAX_CALLERS = 6;
 
-export const callerPayload = (caller) => ({
-  socketId: caller.socketId,
-  userId: caller.userId,
-  name: caller.name,
-  username: caller.username,
-  avatar: caller.avatar,
-  mode: caller.mode,
-  mic: caller.mic,
-  camera: caller.camera,
-});
+export { callerPayload };
 
 export const getCallRoom = (eventId) => {
   if (!eventCalls.has(eventId)) eventCalls.set(eventId, new Map());

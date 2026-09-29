@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { FiEye, FiEyeOff } from 'react-icons/fi';
 import {
   LuArrowLeft as ArrowLeft,
-  LuX as X,
 } from 'react-icons/lu';
 import { Link, useNavigate } from 'react-router-dom';
 import { signupUser, resendVerificationEmail, verifyEmailOtp } from '../../../api/auth';
@@ -12,22 +11,11 @@ import { useToast } from '../../../shared/components/feedback/ToastContext';
 import SocialAuthButtons from './SocialAuthButtons';
 import BrandLogo from '../../../shared/components/BrandLogo';
 import ThemeToggle from '../../../shared/components/ThemeToggle';
+import LocationFields from '../../../shared/components/LocationFields';
+import InterestSuggestions from '../../../shared/components/InterestSuggestions';
+import { dateOfBirthError } from '../../../shared/lib/dateOfBirth';
+import { postalCodeError } from '../../../shared/lib/postalCode';
 import { getPostAuthPath } from '../../../shared/lib/roles';
-
-const SUGGESTED_INTERESTS = [
-  'Technology',
-  'Business',
-  'Design',
-  'Sports',
-  'Music',
-  'Travel',
-  'Fitness',
-  'Food',
-  'Education',
-  'Startups',
-  'Marketing',
-  'Photography',
-];
 
 const STEPS = [
   { id: 'account', label: 'Account' },
@@ -57,12 +45,15 @@ export default function SignUp() {
     password: '',
     confirmPassword: '',
     bio: '',
+    gender: '',
+    dateOfBirth: '',
     city: '',
     state: '',
     country: '',
+    zipCode: '',
+    address: '',
   });
   const [interests, setInterests] = useState([]);
-  const [interestInput, setInterestInput] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [emailLoading, setEmailLoading] = useState(false);
@@ -90,7 +81,8 @@ export default function SignUp() {
   );
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setFormData((current) => ({ ...current, [name]: value }));
   };
 
   const addInterest = (raw) => {
@@ -116,8 +108,36 @@ export default function SignUp() {
       showToast('Password must be at least 8 characters.');
       return false;
     }
+    if (
+      !/[a-z]/.test(formData.password) ||
+      !/[A-Z]/.test(formData.password) ||
+      !/\d/.test(formData.password)
+    ) {
+      showToast(
+        'Password must include uppercase, lowercase, and a number.'
+      );
+      return false;
+    }
     if (formData.password !== formData.confirmPassword) {
       showToast('Passwords do not match.');
+      return false;
+    }
+    return true;
+  };
+
+  const validateProfile = () => {
+    if (!formData.gender) {
+      showToast('Gender is required.');
+      return false;
+    }
+    const dobError = dateOfBirthError(formData.dateOfBirth);
+    if (dobError) {
+      showToast(dobError);
+      return false;
+    }
+    const postalError = postalCodeError(formData.zipCode);
+    if (postalError) {
+      showToast(postalError);
       return false;
     }
     return true;
@@ -135,6 +155,7 @@ export default function SignUp() {
       setStep('account');
       return;
     }
+    if (!validateProfile()) return;
 
     setEmailLoading(true);
     setSocialError('');
@@ -149,9 +170,13 @@ export default function SignUp() {
         confirmPassword: formData.confirmPassword,
         bio: formData.bio.trim(),
         interests,
+        gender: formData.gender,
+        dateOfBirth: formData.dateOfBirth,
         city: formData.city.trim(),
         state: formData.state.trim(),
         country: formData.country.trim(),
+        zipCode: formData.zipCode.trim(),
+        address: formData.address.trim(),
       };
       const response = await signupUser(payload);
       if (response?.success) {
@@ -223,7 +248,7 @@ export default function SignUp() {
     step === 'account'
       ? 'Enter your details to register and get started.'
       : step === 'profile'
-        ? 'Optional — helps others discover you. You can skip and finish later.'
+        ? 'Gender and date of birth are required. A postal code fills in your country, state, and city.'
         : `Enter the 6-digit OTP sent to ${activeVerificationEmail}.`;
 
   return (
@@ -380,7 +405,7 @@ export default function SignUp() {
                     name="password"
                     value={formData.password}
                     onChange={handleChange}
-                    placeholder="••••••••"
+                    placeholder="Min 8 chars, upper, lower, number"
                     required
                     minLength={8}
                     className={`${inputClass} pr-10`}
@@ -405,7 +430,7 @@ export default function SignUp() {
                     name="confirmPassword"
                     value={formData.confirmPassword}
                     onChange={handleChange}
-                    placeholder="••••••••"
+                    placeholder="Confirm password"
                     required
                     minLength={8}
                     className={`${inputClass} pr-10`}
@@ -461,109 +486,71 @@ export default function SignUp() {
                 <label className="block text-xs font-medium text-fo-muted uppercase tracking-wider mb-1.5">
                   Interests <span className="normal-case tracking-normal text-fo-subtle">(optional)</span>
                 </label>
-                {interests.length ? (
-                  <div className="flex flex-wrap gap-1.5 mb-2">
-                    {interests.map((tag) => (
-                      <button
-                        key={tag}
-                        type="button"
-                        onClick={() => removeInterest(tag)}
-                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-fo-brand/10 text-fo-brand text-[11px] font-medium"
-                      >
-                        #{tag}
-                        <X size={12} />
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-                <input
-                  type="text"
-                  value={interestInput}
-                  onChange={(e) => setInterestInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      addInterest(interestInput);
-                    }
-                  }}
-                  placeholder="Type an interest and press Enter"
-                  className={inputClass}
+                <InterestSuggestions
+                  selected={interests}
+                  onAdd={addInterest}
+                  onRemove={removeInterest}
+                  inputClass={inputClass}
                 />
-                <div className="flex flex-wrap gap-1.5 mt-2">
-                  {SUGGESTED_INTERESTS.filter((tag) => !interests.includes(tag)).map(
-                    (tag) => (
-                      <button
-                        key={tag}
-                        type="button"
-                        onClick={() => addInterest(tag)}
-                        className="px-2 py-1 rounded-md border border-fo-border text-[11px] text-fo-muted hover:border-fo-brand/40 hover:text-fo-brand transition-colors"
-                      >
-                        + {tag}
-                      </button>
-                    )
-                  )}
-                </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-fo-muted uppercase tracking-wider mb-1.5">
-                    City
+                    Gender
                   </label>
-                  <input
-                    type="text"
-                    name="city"
-                    value={formData.city}
+                  <select
+                    name="gender"
+                    value={formData.gender}
                     onChange={handleChange}
-                    placeholder="City"
+                    required
                     className={inputClass}
-                  />
+                  >
+                    <option value="">Select gender</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                  </select>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-fo-muted uppercase tracking-wider mb-1.5">
-                    State
+                    Date of birth
                   </label>
                   <input
-                    type="text"
-                    name="state"
-                    value={formData.state}
+                    type="date"
+                    name="dateOfBirth"
+                    value={formData.dateOfBirth}
                     onChange={handleChange}
-                    placeholder="State"
-                    className={inputClass}
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-fo-muted uppercase tracking-wider mb-1.5">
-                    Country
-                  </label>
-                  <input
-                    type="text"
-                    name="country"
-                    value={formData.country}
-                    onChange={handleChange}
-                    placeholder="Country"
+                    required
+                    max={new Date().toISOString().slice(0, 10)}
+                    min="1900-01-01"
                     className={inputClass}
                   />
                 </div>
               </div>
 
-              <div className="flex flex-col sm:flex-row gap-2 pt-1">
-                <button
-                  type="button"
-                  disabled={emailLoading}
-                  onClick={handleSubmit}
-                  className="w-full sm:w-auto px-4 py-3 rounded-lg border border-fo-border text-fo-muted text-sm font-semibold hover:text-fo-brand hover:border-fo-brand/40 disabled:opacity-50 transition-colors"
-                >
-                  Skip for now
-                </button>
-                <button
-                  type="submit"
-                  disabled={emailLoading}
-                  className="w-full flex-1 py-3 px-4 bg-fo-brand text-fo-brand-fg font-bold text-sm rounded-lg hover:bg-fo-brand-hover transition-colors shadow-md shadow-fo-brand/10 active:scale-[0.98] disabled:opacity-50"
-                >
-                  {emailLoading ? 'Creating account…' : 'Create account'}
-                </button>
-              </div>
+              <LocationFields
+                value={{
+                  zipCode: formData.zipCode,
+                  state: formData.state,
+                  city: formData.city,
+                  country: formData.country,
+                  address: formData.address,
+                }}
+                onChange={(location) =>
+                  setFormData((current) => ({ ...current, ...location }))
+                }
+                inputClass={inputClass}
+                labelClass="block text-xs font-medium text-fo-muted uppercase tracking-wider mb-1.5"
+              />
+
+              <button
+                type="submit"
+                disabled={emailLoading}
+                className="w-full py-3 px-4 bg-fo-brand text-fo-brand-fg font-bold text-sm rounded-lg hover:bg-fo-brand-hover transition-colors shadow-md shadow-fo-brand/10 active:scale-[0.98] disabled:opacity-50"
+              >
+                {emailLoading ? 'Creating account…' : 'Create account'}
+              </button>
             </form>
           ) : null}
 

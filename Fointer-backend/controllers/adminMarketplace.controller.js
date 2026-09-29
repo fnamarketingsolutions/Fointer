@@ -189,7 +189,7 @@ export const listAdminListings = async (req, res) => {
 
 export const getAdminListing = async (req, res) => {
   try {
-    const listing = await findListingByParam(req.params.id);
+    const listing = await findListingByParam(req.params.id, { includeSellerContact: true });
     if (!listing) {
       return res.status(404).json({
         success: false,
@@ -222,7 +222,7 @@ export const getAdminListing = async (req, res) => {
 
 export const updateAdminListing = async (req, res) => {
   try {
-    const listing = await findListingByParam(req.params.id);
+    const listing = await findListingByParam(req.params.id, { includeSellerContact: true });
     if (!listing) {
       return res.status(404).json({
         success: false,
@@ -313,7 +313,7 @@ export const updateAdminListing = async (req, res) => {
 
 export const removeAdminListing = async (req, res) => {
   try {
-    const listing = await findListingByParam(req.params.id);
+    const listing = await findListingByParam(req.params.id, { includeSellerContact: true });
     if (!listing) {
       return res.status(404).json({
         success: false,
@@ -339,7 +339,7 @@ export const removeAdminListing = async (req, res) => {
 
 export const restoreAdminListing = async (req, res) => {
   try {
-    const listing = await findListingByParam(req.params.id);
+    const listing = await findListingByParam(req.params.id, { includeSellerContact: true });
     if (!listing) {
       return res.status(404).json({
         success: false,
@@ -492,7 +492,7 @@ export const getAdminConversationMessages = async (req, res) => {
 
 export const warnListingSeller = async (req, res) => {
   try {
-    const listing = await findListingByParam(req.params.id);
+    const listing = await findListingByParam(req.params.id, { includeSellerContact: true });
     if (!listing) {
       return res.status(404).json({
         success: false,

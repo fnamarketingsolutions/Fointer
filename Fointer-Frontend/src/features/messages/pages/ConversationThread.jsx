@@ -10,6 +10,7 @@ import {
   LuLoaderCircle as Loader2,
   LuPencil as Pencil,
   LuPhone as Phone,
+  LuReply as LuReply,
   LuSend as Send,
   LuTrash2 as Trash2,
   LuVideo as Video,
@@ -32,13 +33,64 @@ import { useAuth } from "../../../context/AuthContext";
 import ProfileAvatar from "../../../shared/components/ProfileAvatar";
 import UserProfileLink from "../../../shared/components/UserProfileLink";
 import ListingReference from "../components/ListingReference";
+import PostReference from "../components/PostReference";
 import DirectCall from "../components/DirectCall";
 import { timeAgo } from "../../../shared/utils/date";
 import ReportContentModal from "../../../shared/components/modals/ReportContentModal";
+import EditWindowExpiredModal from "../../../shared/components/modals/EditWindowExpiredModal";
 import MediaPicker from "../../../shared/components/media/MediaPicker";
-import { listingSegment } from "../../../shared/services/entityLinks";
+import { listingSegment, postSegment, communitySegment } from "../../../shared/services/entityLinks";
 
 const DM_MEDIA_MAX = 4;
+const SWIPE_REPLY_PX = 64;
+
+const sharedPostPath = (post) => {
+  if (!post) return null;
+  const normalized = {
+    id: post.id || post.postId,
+    shortCode: post.shortCode,
+    title: post.title,
+  };
+  const postSeg =
+    postSegment(normalized) || normalized.shortCode || normalized.id;
+  if (!postSeg) return null;
+  const communitySeg =
+    post.communityShortCode ||
+    (post.community
+      ? communitySegment(post.community) || post.community.id
+      : null);
+  return communitySeg
+    ? `/communities/${communitySeg}/posts/${postSeg}`
+    : `/post/${postSeg}`;
+};
+
+const formatCallDuration = (seconds = 0) => {
+  const total = Math.max(0, Math.floor(Number(seconds) || 0));
+  const mins = Math.floor(total / 60);
+  const secs = total % 60;
+  return `${mins}:${String(secs).padStart(2, "0")}`;
+};
+
+const callHistoryLabel = (call) => {
+  if (!call) return "Call";
+  const kind = call.mode === "video" ? "Video call" : "Audio call";
+  if (call.status === "completed") {
+    return `${kind} · ${formatCallDuration(call.durationSec)}`;
+  }
+  if (call.status === "missed") return `Missed ${kind.toLowerCase()}`;
+  if (call.status === "rejected") return `Declined ${kind.toLowerCase()}`;
+  if (call.status === "cancelled") return `Cancelled ${kind.toLowerCase()}`;
+  return kind;
+};
+
+const deletedHistoryLabel = (message, myId) => {
+  const deletedById = String(message?.deletedBy?.id || message?.deletedBy || "");
+  if (deletedById && deletedById === String(myId)) {
+    return "You deleted this message";
+  }
+  if (deletedById) return "This message was deleted";
+  return "Message deleted";
+};
 
 const headerIconBtn =
   "min-h-9 min-w-9 sm:min-h-10 sm:min-w-10 items-center justify-center rounded-lg border border-fo-border text-fo-muted shrink-0 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40";
@@ -97,9 +149,12 @@ export default function ConversationThread() {
   const [deletingConversation, setDeletingConversation] = useState(false);
   const [blockBusy, setBlockBusy] = useState(false);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
+  const [replyingTo, setReplyingTo] = useState(null);
+  const [lockModal, setLockModal] = useState(null);
   const listRef = useRef(null);
   const directCallRef = useRef(null);
   const headerMenuRef = useRef(null);
+  const swipeRef = useRef({ id: null, x: 0, active: false });
 
   const myId = String(user?.id || user?._id || "");
 
@@ -211,39 +266,39 @@ export default function ConversationThread() {
 
     const value = text.trim();
     const payloadMedia = media;
+    const replyTarget = replyingTo;
     setSending(true);
     try {
       const socket = getLiveSocket();
+      const outbound = {
+        conversationId,
+        text: value,
+        media: payloadMedia,
+        replyTo: replyTarget?.id || undefined,
+      };
       if (socket.connected) {
         await new Promise((resolve) => {
-          socket.emit(
-            "send_dm",
-            {
-              conversationId,
-              text: value,
-              media: payloadMedia,
-            },
-            (ack) => {
-              if (!ack?.success) {
-                showToast(ack?.message || "Failed to send message.");
-              } else if (ack?.message) {
-                setMessages((prev) => {
-                  if (
-                    prev.some((m) => String(m.id) === String(ack.message.id))
-                  ) {
-                    return prev;
-                  }
-                  return [...prev, ack.message];
-                });
-              }
-              resolve();
+          socket.emit("send_dm", outbound, (ack) => {
+            if (!ack?.success) {
+              showToast(ack?.message || "Failed to send message.");
+            } else if (ack?.message) {
+              setMessages((prev) => {
+                if (
+                  prev.some((m) => String(m.id) === String(ack.message.id))
+                ) {
+                  return prev;
+                }
+                return [...prev, ack.message];
+              });
             }
-          );
+            resolve();
+          });
         });
       } else {
         const res = await sendMessage(conversationId, {
           text: value,
           media: payloadMedia,
+          replyTo: replyTarget?.id || undefined,
         });
         if (res?.message) {
           setMessages((prev) => {
@@ -257,6 +312,7 @@ export default function ConversationThread() {
       setText("");
       setMedia([]);
       setShowMediaPicker(false);
+      setReplyingTo(null);
       scrollToBottom();
     } catch (err) {
       showToast(err?.response?.data?.message || "Failed to send message.");
@@ -330,6 +386,12 @@ export default function ConversationThread() {
   };
 
   const startEdit = (message) => {
+    if (message?.canEdit === false) {
+      setLockModal({
+        editWindowMinutes: message.editWindowMinutes ?? 60,
+      });
+      return;
+    }
     setEditingMessage(message);
     setEditText(message.text || "");
   };
@@ -362,13 +424,24 @@ export default function ConversationThread() {
       cancelEdit();
       showToast("Message updated.");
     } catch (err) {
-      showToast(err?.response?.data?.message || "Failed to update message.");
+      if (err?.response?.data?.code === "EDIT_WINDOW_EXPIRED") {
+        setLockModal({
+          editWindowMinutes: err.response.data.editWindowMinutes ?? 60,
+        });
+        cancelEdit();
+      } else {
+        showToast(err?.response?.data?.message || "Failed to update message.");
+      }
     } finally {
       setMessageBusyId(null);
     }
   };
 
   const handleDeleteMessage = async (message) => {
+    if (message?.canDelete === false) {
+      showToast("You cannot delete this message.");
+      return;
+    }
     if (!window.confirm("Delete this message for everyone in this chat?")) {
       return;
     }
@@ -383,11 +456,28 @@ export default function ConversationThread() {
           )
         );
       }
+      if (replyingTo && String(replyingTo.id) === String(message.id)) {
+        setReplyingTo(null);
+      }
       showToast("Message deleted.");
     } catch (err) {
       showToast(err?.response?.data?.message || "Failed to delete message.");
     } finally {
       setMessageBusyId(null);
+    }
+  };
+
+  const beginSwipe = (messageId, clientX) => {
+    swipeRef.current = { id: messageId, x: clientX, active: true };
+  };
+
+  const endSwipe = (message, clientX) => {
+    const swipe = swipeRef.current;
+    swipeRef.current = { id: null, x: 0, active: false };
+    if (!swipe.active || String(swipe.id) !== String(message.id)) return;
+    if (message.isDeleted || message.type === "call") return;
+    if (clientX - swipe.x >= SWIPE_REPLY_PX) {
+      setReplyingTo(message);
     }
   };
 
@@ -596,11 +686,45 @@ export default function ConversationThread() {
               String(editingMessage.id) === String(message.id);
             const isBusy = messageBusyId === message.id;
             const mediaItems = message.media || [];
+            const isCall = message.type === "call" || Boolean(message.call);
+            const canEdit =
+              isMine &&
+              !message.isDeleted &&
+              !isCall;
+            const canDelete =
+              isMine &&
+              !message.isDeleted &&
+              !isCall &&
+              message.canDelete !== false;
+
+            if (isCall) {
+              return (
+                <div key={message.id} className="flex justify-center px-2">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-fo-border bg-fo-surface px-3 py-1.5 text-xs text-fo-muted">
+                    {message.call?.mode === "video" ? (
+                      <Video size={12} className="text-fo-accent" />
+                    ) : (
+                      <Phone size={12} className="text-fo-accent" />
+                    )}
+                    <span>{callHistoryLabel(message.call)}</span>
+                    <span className="text-fo-subtle">
+                      · {timeAgo(message.createdAt)}
+                    </span>
+                  </div>
+                </div>
+              );
+            }
 
             return (
               <div
                 key={message.id}
                 className={`flex ${isMine ? "justify-end" : "justify-start"}`}
+                onTouchStart={(event) =>
+                  beginSwipe(message.id, event.touches[0]?.clientX || 0)
+                }
+                onTouchEnd={(event) =>
+                  endSwipe(message, event.changedTouches[0]?.clientX || 0)
+                }
               >
                 <div
                   className={`max-w-[min(85%,22rem)] sm:max-w-[85%] space-y-2 ${
@@ -619,6 +743,16 @@ export default function ConversationThread() {
                           }`
                         )
                       }
+                    />
+                  ) : null}
+
+                  {message.post && !message.isDeleted ? (
+                    <PostReference
+                      post={message.post}
+                      onClick={() => {
+                        const path = sharedPostPath(message.post);
+                        if (path) navigate(path);
+                      }}
                     />
                   ) : null}
 
@@ -659,7 +793,10 @@ export default function ConversationThread() {
                         </button>
                       </div>
                     </div>
-                  ) : (
+                  ) : message.isDeleted ||
+                    message.replyTo ||
+                    mediaItems.length ||
+                    message.text ? (
                     <div
                       className={`rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed space-y-2 ${
                         message.isDeleted
@@ -670,9 +807,31 @@ export default function ConversationThread() {
                       }`}
                     >
                       {message.isDeleted ? (
-                        "Message deleted"
+                        deletedHistoryLabel(message, myId)
                       ) : (
                         <>
+                          {message.replyTo ? (
+                            <div
+                              className={`rounded-lg px-2.5 py-1.5 text-[11px] border ${
+                                isMine
+                                  ? "border-black/15 bg-black/5"
+                                  : "border-fo-border bg-fo-bg"
+                              }`}
+                            >
+                              <p className="font-semibold truncate">
+                                {message.replyTo.isDeleted
+                                  ? "Original message deleted"
+                                  : message.replyTo.author?.name ||
+                                    message.replyTo.author?.username ||
+                                    "Reply"}
+                              </p>
+                              <p className="truncate opacity-80">
+                                {message.replyTo.isDeleted
+                                  ? "This message was deleted"
+                                  : message.replyTo.text || "Attachment"}
+                              </p>
+                            </div>
+                          ) : null}
                           {mediaItems.length ? (
                             <MessageMedia media={mediaItems} accent={isMine} />
                           ) : null}
@@ -682,7 +841,7 @@ export default function ConversationThread() {
                         </>
                       )}
                     </div>
-                  )}
+                  ) : null}
 
                   <div
                     className={`flex items-center gap-2 px-1 ${
@@ -693,32 +852,46 @@ export default function ConversationThread() {
                       {timeAgo(message.createdAt)}
                       {message.editedAt ? " · edited" : ""}
                     </p>
-                    {isMine && !message.isDeleted && !isEditing ? (
+                    {!message.isDeleted && !isEditing ? (
                       <div className="flex items-center gap-0.5">
                         <button
                           type="button"
-                          onClick={() => startEdit(message)}
-                          disabled={isBusy}
+                          onClick={() => setReplyingTo(message)}
+                          disabled={messagingLocked}
                           className="min-h-8 min-w-8 inline-flex items-center justify-center rounded text-fo-subtle hover:text-fo-text disabled:opacity-50"
-                          title="Edit message"
-                          aria-label="Edit message"
+                          title="Reply"
+                          aria-label="Reply"
                         >
-                          <Pencil size={12} />
+                          <LuReply size={12} />
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteMessage(message)}
-                          disabled={isBusy}
-                          className="min-h-8 min-w-8 inline-flex items-center justify-center rounded text-fo-subtle hover:text-red-400 disabled:opacity-50"
-                          title="Delete message"
-                          aria-label="Delete message"
-                        >
-                          {isBusy ? (
-                            <Loader2 size={12} className="animate-spin" />
-                          ) : (
-                            <Trash2 size={12} />
-                          )}
-                        </button>
+                        {canEdit ? (
+                          <button
+                            type="button"
+                            onClick={() => startEdit(message)}
+                            disabled={isBusy}
+                            className="min-h-8 min-w-8 inline-flex items-center justify-center rounded text-fo-subtle hover:text-fo-text disabled:opacity-50"
+                            title="Edit message"
+                            aria-label="Edit message"
+                          >
+                            <Pencil size={12} />
+                          </button>
+                        ) : null}
+                        {canDelete ? (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteMessage(message)}
+                            disabled={isBusy}
+                            className="min-h-8 min-w-8 inline-flex items-center justify-center rounded text-fo-subtle hover:text-red-400 disabled:opacity-50"
+                            title="Delete message"
+                            aria-label="Delete message"
+                          >
+                            {isBusy ? (
+                              <Loader2 size={12} className="animate-spin" />
+                            ) : (
+                              <Trash2 size={12} />
+                            )}
+                          </button>
+                        ) : null}
                       </div>
                     ) : null}
                   </div>
@@ -734,6 +907,31 @@ export default function ConversationThread() {
           onSubmit={handleSend}
           className="shrink-0 space-y-2 pt-3 border-t border-fo-border"
         >
+          {replyingTo ? (
+            <div className="flex items-start gap-2 rounded-xl border border-fo-border bg-fo-surface px-3 py-2">
+              <div className="min-w-0 flex-1 text-xs">
+                <p className="font-semibold text-fo-text truncate">
+                  Replying to{" "}
+                  {replyingTo.author?.name ||
+                    replyingTo.author?.username ||
+                    "message"}
+                </p>
+                <p className="text-fo-subtle truncate">
+                  {replyingTo.isDeleted
+                    ? "Original message deleted"
+                    : replyingTo.text || "Attachment"}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReplyingTo(null)}
+                className="text-fo-subtle hover:text-fo-text"
+                aria-label="Cancel reply"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          ) : null}
           {showMediaPicker || media.length > 0 ? (
             <MediaPicker
               media={media}
@@ -761,7 +959,9 @@ export default function ConversationThread() {
               value={text}
               onChange={(e) => setText(e.target.value)}
               rows={1}
-              placeholder="Write a message..."
+              placeholder={
+                replyingTo ? "Write a reply..." : "Write a message..."
+              }
               className="min-w-0 flex-1 resize-none rounded-xl border border-fo-border bg-fo-bg px-3 sm:px-4 py-2.5 text-sm text-fo-text max-h-32 focus:outline-none focus:border-fo-accent/50"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
@@ -792,6 +992,12 @@ export default function ConversationThread() {
         targetType="conversation"
         targetId={conversationId}
         targetLabel={`conversation with ${other.name || other.username}`}
+      />
+      <EditWindowExpiredModal
+        open={Boolean(lockModal)}
+        onClose={() => setLockModal(null)}
+        editWindowMinutes={lockModal?.editWindowMinutes}
+        message="You can no longer edit this message."
       />
     </div>
   );

@@ -163,6 +163,7 @@ export function CategoryList({
   onSelectChannel,
   open = true,
   onOpen,
+  viewAllTo = "/communities",
 }) {
   const [showAll, setShowAll] = useState(false);
   const visible = showAll ? channels : channels.slice(0, CATEGORY_PREVIEW);
@@ -174,12 +175,14 @@ export function CategoryList({
       open={open}
       onOpen={onOpen}
       headerRight={
-        <Link
-          to="/communities"
-          className="text-xs text-fo-subtle hover:text-fo-accent shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40 rounded"
-        >
-          View all
-        </Link>
+        viewAllTo ? (
+          <Link
+            to={viewAllTo}
+            className="text-xs text-fo-subtle hover:text-fo-accent shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40 rounded"
+          >
+            View all
+          </Link>
+        ) : null
       }
     >
       {channelsLoading ? (

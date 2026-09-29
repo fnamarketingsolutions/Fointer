@@ -4,21 +4,21 @@ import {
 } from "react-icons/lu";
 
 /**
- * Informational modal shown when an author tries to edit/delete
+ * Informational modal shown when an author tries to edit
  * after the configured time window has expired.
  */
 export default function EditWindowExpiredModal({
   open,
   onClose,
   title = "Time's up",
-  message = "You can no longer edit or delete this post.",
+  message = "You can no longer edit this post.",
   editWindowMinutes,
 }) {
   if (!open) return null;
 
   const windowHint =
     editWindowMinutes != null
-      ? ` Edits and deletions are only allowed within ${editWindowMinutes} minutes of posting.`
+      ? ` Edits are only allowed within ${editWindowMinutes} minutes of posting. You can still delete your own content anytime.`
       : "";
 
   return (

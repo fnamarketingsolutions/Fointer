@@ -1,5 +1,5 @@
 /** Must stay aligned with Fointer-backend/utils/adminAccess.js ADMIN_TAB_IDS */
-export const ADMIN_TAB_IDS = [
+const ADMIN_TAB_IDS = [
   'users',
   'communities',
   'channels',

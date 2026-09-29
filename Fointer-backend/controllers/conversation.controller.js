@@ -3,6 +3,7 @@ import Conversation from "../models/conversation.js";
 import DirectMessage from "../models/directMessage.js";
 import User from "../models/user.js";
 import Listing from "../models/listing.js";
+import Post from "../models/post.js";
 import {
   parsePagination,
   buildPaginationMeta,
@@ -15,11 +16,52 @@ import { notify, personName, snippet } from "../utils/notify.js";
 import { normalizeUsername } from "./user.controller.js";
 import { acceptSignedMediaList } from "../utils/cloudinary.js";
 import { getBlockState, isMessagingBlocked } from "./block.controller.js";
+import {
+  getEditWindowMinutes,
+  isWithinEditWindow,
+} from "../utils/communityPermissions.js";
+import { canViewPost } from "./post.controller.js";
+import { hasMarketplaceAdminPower } from "../utils/adminAccess.js";
 
 const DM_MEDIA_MAX = 4;
 
-const previewFromMessage = (text, media = []) => {
-  const clean = String(text || "").trim();
+const formatDuration = (seconds = 0) => {
+  const total = Math.max(0, Math.floor(Number(seconds) || 0));
+  const mins = Math.floor(total / 60);
+  const secs = total % 60;
+  return `${mins}:${String(secs).padStart(2, "0")}`;
+};
+
+const previewFromCall = (call) => {
+  if (!call) return "Call";
+  const kind = call.mode === "video" ? "Video call" : "Audio call";
+  if (call.status === "completed") {
+    return `${kind} · ${formatDuration(call.durationSec)}`;
+  }
+  if (call.status === "missed") return `Missed ${kind.toLowerCase()}`;
+  if (call.status === "rejected") return `Declined ${kind.toLowerCase()}`;
+  if (call.status === "cancelled") return `Cancelled ${kind.toLowerCase()}`;
+  return kind;
+};
+
+const previewFromMessage = (messageOrText, media = []) => {
+  if (messageOrText && typeof messageOrText === "object") {
+    if (messageOrText.type === "call" || messageOrText.call) {
+      return previewFromCall(messageOrText.call);
+    }
+    const cleanText = String(messageOrText.text || "").trim();
+    if (cleanText) return snippet(cleanText, 200);
+    if (messageOrText.listing?.title) {
+      return `Listing: ${snippet(messageOrText.listing.title, 80)}`;
+    }
+    if (messageOrText.listing) return "Shared a listing";
+    if (messageOrText.post?.title) {
+      return `Post: ${snippet(messageOrText.post.title, 80)}`;
+    }
+    if (messageOrText.post) return "Shared a post";
+    return previewFromMessage("", messageOrText.media);
+  }
+  const clean = String(messageOrText || "").trim();
   if (clean) return snippet(clean, 200);
   const items = Array.isArray(media) ? media : [];
   if (!items.length) return "";
@@ -28,6 +70,17 @@ const previewFromMessage = (text, media = []) => {
   if (hasVideo && hasImage) return "Sent media";
   if (hasVideo) return items.length > 1 ? "Sent videos" : "Sent a video";
   return items.length > 1 ? "Sent photos" : "Sent a photo";
+};
+
+const formatReplySnapshot = (reply) => {
+  if (!reply || typeof reply !== "object" || !reply._id) return null;
+  return {
+    id: reply._id,
+    text: reply.isDeleted ? "" : reply.text || "",
+    type: reply.type || "text",
+    isDeleted: Boolean(reply.isDeleted),
+    author: formatUser(reply.author),
+  };
 };
 
 const formatUser = (user) => {
@@ -58,18 +111,77 @@ export const formatListingSnapshot = (listing) => {
   };
 };
 
-export const formatMessage = (message) => ({
-  id: message._id,
-  conversationId: message.conversation?._id || message.conversation,
-  text: message.isDeleted ? "" : message.text || "",
-  media: message.isDeleted ? [] : message.media || [],
-  listing: message.listing || null,
-  author: formatUser(message.author),
-  isDeleted: Boolean(message.isDeleted),
-  editedAt: message.editedAt || null,
-  createdAt: message.createdAt,
-  updatedAt: message.updatedAt,
-});
+export const formatPostSnapshot = (post) => {
+  if (!post) return null;
+  const id = post._id || post.id || post.postId;
+  if (!id) return null;
+  const media = post.media || [];
+  const firstImage = media.find((m) => m.type === "image") || media[0];
+  const community =
+    post.community && typeof post.community === "object"
+      ? post.community
+      : null;
+  const communityId =
+    community?._id || community?.id || post.community || null;
+  return {
+    postId: id,
+    shortCode: post.shortCode || "",
+    title: post.title || "",
+    text: snippet(String(post.text || "").trim(), 120),
+    imageUrl: firstImage?.url || "",
+    communityId: communityId || undefined,
+    communityShortCode: community?.shortCode || "",
+    communityName: community?.name || "",
+  };
+};
+
+export const formatMessage = (message, extras = {}) => {
+  const type =
+    message.type ||
+    (message.call ? "call" : (message.media || []).length ? "media" : "text");
+  const isAuthor =
+    extras.viewerId != null &&
+    String(message.author?._id || message.author) === String(extras.viewerId);
+  const withinWindow =
+    extras.editWindowMinutes != null
+      ? Date.now() - new Date(message.createdAt).getTime() <
+        Math.max(1, Number(extras.editWindowMinutes) || 60) * 60 * 1000
+      : null;
+
+  return {
+    id: message._id,
+    conversationId: message.conversation?._id || message.conversation,
+    type,
+    text: message.isDeleted ? "" : message.text || "",
+    media: message.isDeleted ? [] : message.media || [],
+    call: message.isDeleted ? null : message.call || null,
+    listing: message.isDeleted ? null : message.listing || null,
+    post: message.isDeleted ? null : message.post || null,
+    replyTo: formatReplySnapshot(message.replyTo),
+    author: formatUser(message.author),
+    isDeleted: Boolean(message.isDeleted),
+    deletedBy: message.deletedBy
+      ? formatUser(message.deletedBy)
+      : message.deletedBy || null,
+    editedAt: message.editedAt || null,
+    canEdit:
+      extras.canEdit != null
+        ? extras.canEdit
+        : Boolean(
+            isAuthor &&
+              !message.isDeleted &&
+              type !== "call" &&
+              withinWindow
+          ),
+    canDelete:
+      extras.canDelete != null
+        ? extras.canDelete
+        : Boolean(isAuthor && !message.isDeleted && type !== "call"),
+    editWindowMinutes: extras.editWindowMinutes ?? null,
+    createdAt: message.createdAt,
+    updatedAt: message.updatedAt,
+  };
+};
 
 const getParticipantRow = (conversation, userId) => {
   const uid = String(userId);
@@ -84,14 +196,14 @@ const syncConversationPreview = async (conversation) => {
     isDeleted: { $ne: true },
   })
     .sort({ createdAt: -1 })
-    .select("text media author createdAt");
+    .select("text media author createdAt type call listing post");
 
   if (!latest) {
     conversation.lastMessageText = "";
     conversation.lastMessageAt = conversation.createdAt;
     conversation.lastMessageAuthor = null;
   } else {
-    conversation.lastMessageText = previewFromMessage(latest.text, latest.media);
+    conversation.lastMessageText = previewFromMessage(latest);
     conversation.lastMessageAt = latest.createdAt;
     conversation.lastMessageAuthor = latest.author;
   }
@@ -133,23 +245,6 @@ const getOtherParticipantId = (conversation, userId) => {
     (row) => String(row.user?._id || row.user) !== uid
   );
   return other?.user?._id || other?.user || null;
-};
-
-const populateParticipants = async (conversationIds) => {
-  const conversations = await Conversation.find({
-    _id: { $in: conversationIds },
-  }).lean();
-  const userIds = new Set();
-  for (const conv of conversations) {
-    for (const row of conv.participants || []) {
-      if (row.user) userIds.add(String(row.user));
-    }
-  }
-  const users = await User.find({ _id: { $in: [...userIds] } })
-    .select("username name avatar")
-    .lean();
-  const userMap = new Map(users.map((u) => [String(u._id), u]));
-  return { conversations, userMap };
 };
 
 const countUnread = async (conversation, userId) => {
@@ -234,23 +329,59 @@ export const sendDirectMessage = async ({
   text,
   media = [],
   listingSnapshot = null,
+  postSnapshot = null,
+  replyTo = null,
+  type = "text",
+  call = null,
   io = null,
+  notifyRecipient = true,
 }) => {
   const cleanText = String(text || "").trim();
   const mediaItems = Array.isArray(media) ? media.slice(0, DM_MEDIA_MAX) : [];
-  if (!cleanText && !mediaItems.length) {
+  const hasShareCard = Boolean(listingSnapshot || postSnapshot);
+  const messageType =
+    type === "call"
+      ? "call"
+      : mediaItems.length
+        ? cleanText
+          ? "text"
+          : "media"
+        : "text";
+
+  if (
+    messageType !== "call" &&
+    !cleanText &&
+    !mediaItems.length &&
+    !hasShareCard
+  ) {
     throw new Error("Message cannot be empty.");
+  }
+
+  let replyToId = null;
+  if (replyTo) {
+    const parent = await DirectMessage.findOne({
+      _id: replyTo,
+      conversation: conversation._id,
+    }).select("_id");
+    if (!parent) {
+      throw new Error("Reply target message not found.");
+    }
+    replyToId = parent._id;
   }
 
   const message = await DirectMessage.create({
     conversation: conversation._id,
     author: author._id || author,
-    text: cleanText,
+    type: messageType,
+    text: messageType === "call" ? cleanText || previewFromCall(call) : cleanText,
     media: mediaItems,
+    call: messageType === "call" ? call : null,
+    replyTo: replyToId,
     listing: listingSnapshot || null,
+    post: postSnapshot || null,
   });
 
-  conversation.lastMessageText = previewFromMessage(cleanText, mediaItems);
+  conversation.lastMessageText = previewFromMessage(message);
   conversation.lastMessageAt = new Date();
   conversation.lastMessageAuthor = author._id || author;
 
@@ -265,18 +396,29 @@ export const sendDirectMessage = async ({
   }
   await conversation.save();
 
-  await message.populate("author", "username name avatar");
-  const formatted = formatMessage(message);
+  await message.populate([
+    { path: "author", select: "username name avatar" },
+    {
+      path: "replyTo",
+      select: "text type isDeleted author",
+      populate: { path: "author", select: "username name avatar" },
+    },
+  ]);
+  const editWindowMinutes = await getEditWindowMinutes();
+  const formatted = formatMessage(message, {
+    viewerId: author._id || author,
+    editWindowMinutes,
+  });
 
   const recipientId = getOtherParticipantId(conversation, author._id || author);
-  if (recipientId) {
+  if (notifyRecipient && recipientId && messageType !== "call") {
     await notify({
       io,
       recipientId,
       actor: author,
       type: "direct_message",
       title: `${personName(author)} sent you a message`,
-      body: previewFromMessage(cleanText, mediaItems),
+      body: previewFromMessage(message),
       entity: {
         kind: "conversation",
         _id: conversation._id,
@@ -291,9 +433,51 @@ export const sendDirectMessage = async ({
       conversationId: String(conversation._id),
       message: formatted,
     });
+    if (recipientId) {
+      io.to(`user:${recipientId}`).emit("dm_unread_changed", {
+        conversationId: String(conversation._id),
+      });
+    }
   }
 
   return { message: formatted, conversation };
+};
+
+export const recordCallHistoryMessage = async ({
+  conversationId,
+  authorId,
+  mode = "audio",
+  status = "completed",
+  durationSec = 0,
+  startedAt = null,
+  endedAt = null,
+  io = null,
+}) => {
+  const conversation = await Conversation.findById(conversationId);
+  if (!conversation || !authorId) return null;
+
+  const call = {
+    mode: mode === "video" ? "video" : "audio",
+    status: ["completed", "missed", "rejected", "cancelled"].includes(status)
+      ? status
+      : "completed",
+    durationSec: Math.max(0, Math.floor(Number(durationSec) || 0)),
+    startedAt: startedAt ? new Date(startedAt) : null,
+    endedAt: endedAt ? new Date(endedAt) : new Date(),
+  };
+
+  const author = await User.findById(authorId).select("username name avatar");
+  if (!author) return null;
+
+  return sendDirectMessage({
+    conversation,
+    author,
+    text: previewFromCall(call),
+    type: "call",
+    call,
+    io,
+    notifyRecipient: false,
+  });
 };
 
 export const listConversations = async (req, res) => {
@@ -346,12 +530,51 @@ export const listConversations = async (req, res) => {
       )
     );
 
+    const unreadTotal = formatted.reduce(
+      (sum, conv) => sum + (Number(conv.unreadCount) || 0),
+      0
+    );
+
     return res.json({
       success: true,
       conversations: formatted,
+      unreadTotal,
     });
   } catch (error) {
     return sendServerError(res, error, "Failed to load conversations.");
+  }
+};
+
+export const getUnreadTotal = async (req, res) => {
+  try {
+    const conversations = await Conversation.find({
+      "participants.user": req.user._id,
+    })
+      .select("participants lastMessageAt createdAt")
+      .lean();
+
+    const uid = String(req.user._id);
+    const visible = conversations.filter((conv) => {
+      const row = (conv.participants || []).find(
+        (p) => String(p.user?._id || p.user) === uid
+      );
+      if (!row?.hiddenAt) return true;
+      const hiddenAt = new Date(row.hiddenAt).getTime();
+      const lastAt = new Date(conv.lastMessageAt || conv.createdAt).getTime();
+      return lastAt > hiddenAt;
+    });
+
+    const counts = await Promise.all(
+      visible.map((conv) => countUnread(conv, req.user._id))
+    );
+    const unreadTotal = counts.reduce((sum, count) => sum + count, 0);
+
+    return res.json({
+      success: true,
+      unreadTotal,
+    });
+  } catch (error) {
+    return sendServerError(res, error, "Failed to load unread count.");
   }
 };
 
@@ -420,9 +643,25 @@ export const createConversation = async (req, res) => {
       const listing = await Listing.findById(
         await resolveDocumentId(Listing, listingId)
       );
-      if (listing) {
-        listingSnapshot = formatListingSnapshot(listing);
+      if (!listing) {
+        return res.status(404).json({
+          success: false,
+          message: "Listing not found.",
+        });
       }
+      const isOwner =
+        String(listing.seller?._id || listing.seller) === String(req.user._id);
+      const canShareListing =
+        listing.status === "active" ||
+        isOwner ||
+        hasMarketplaceAdminPower(req.user);
+      if (!canShareListing) {
+        return res.status(403).json({
+          success: false,
+          message: "You cannot share this listing.",
+        });
+      }
+      listingSnapshot = formatListingSnapshot(listing);
     }
 
     const conversation = await getOrCreateConversation(
@@ -529,7 +768,13 @@ export const listMessages = async (req, res) => {
 
     const query = DirectMessage.find(messageFilter)
       .sort({ createdAt: -1 })
-      .populate("author", "username name avatar");
+      .populate("author", "username name avatar")
+      .populate("deletedBy", "username name avatar")
+      .populate({
+        path: "replyTo",
+        select: "text type isDeleted author",
+        populate: { path: "author", select: "username name avatar" },
+      });
 
     if (enabled) {
       query.skip(skip).limit(limit + 1);
@@ -542,7 +787,13 @@ export const listMessages = async (req, res) => {
       ? takePage(rows, limit)
       : { rows, hasMore: false };
 
-    const messages = pageRows.reverse().map(formatMessage);
+    const editWindowMinutes = await getEditWindowMinutes();
+    const messages = pageRows.reverse().map((message) =>
+      formatMessage(message, {
+        viewerId: req.user._id,
+        editWindowMinutes,
+      })
+    );
     const total = enabled
       ? await DirectMessage.countDocuments(messageFilter)
       : messages.length;
@@ -586,7 +837,23 @@ export const postMessage = async (req, res) => {
 
     const text = String(req.body.text || "").trim();
     const mediaList = Array.isArray(req.body.media) ? req.body.media : [];
-    if (!text && !mediaList.length) {
+    const listingId = req.body.listingId;
+    const postId = req.body.postId;
+
+    if (isUnsafeObjectInput(listingId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid listing id.",
+      });
+    }
+    if (isUnsafeObjectInput(postId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid post id.",
+      });
+    }
+
+    if (!text && !mediaList.length && !listingId && !postId) {
       return res.status(400).json({
         success: false,
         message: "Message cannot be empty.",
@@ -614,21 +881,72 @@ export const postMessage = async (req, res) => {
 
     if (text && (await respondIfBanned(res, text))) return;
 
-    let listingSnapshot = null;
-    const listingId = req.body.listingId;
-    if (isUnsafeObjectInput(listingId)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid listing id.",
-      });
+    let replyTo = null;
+    if (req.body.replyTo) {
+      const parent = await DirectMessage.findOne({
+        _id: req.body.replyTo,
+        conversation: conversation._id,
+      }).select("_id");
+      if (!parent) {
+        return res.status(400).json({
+          success: false,
+          message: "Reply target message not found.",
+        });
+      }
+      replyTo = parent._id;
     }
+
+    let listingSnapshot = null;
     if (listingId) {
       const listing = await Listing.findById(
         await resolveDocumentId(Listing, listingId)
       );
-      if (listing) {
-        listingSnapshot = formatListingSnapshot(listing);
+      if (!listing) {
+        return res.status(404).json({
+          success: false,
+          message: "Listing not found.",
+        });
       }
+      const isOwner =
+        String(listing.seller?._id || listing.seller) === String(req.user._id);
+      const canShareListing =
+        listing.status === "active" ||
+        isOwner ||
+        hasMarketplaceAdminPower(req.user);
+      if (!canShareListing) {
+        return res.status(403).json({
+          success: false,
+          message: "You cannot share this listing.",
+        });
+      }
+      listingSnapshot = formatListingSnapshot(listing);
+    }
+
+    let postSnapshot = null;
+    if (postId) {
+      const post = await Post.findById(
+        await resolveDocumentId(Post, postId)
+      ).populate("community", "name shortCode type");
+      if (!post) {
+        return res.status(404).json({
+          success: false,
+          message: "Post not found.",
+        });
+      }
+      if (!(await canViewPost(post, req.user))) {
+        return res.status(403).json({
+          success: false,
+          message: "You cannot share this post.",
+        });
+      }
+      postSnapshot = formatPostSnapshot(post);
+    }
+
+    if (!text && !media.length && !listingSnapshot && !postSnapshot) {
+      return res.status(400).json({
+        success: false,
+        message: "Message cannot be empty.",
+      });
     }
 
     const { message } = await sendDirectMessage({
@@ -637,6 +955,8 @@ export const postMessage = async (req, res) => {
       text,
       media,
       listingSnapshot,
+      postSnapshot,
+      replyTo,
       io: req.app.get("io"),
     });
 
@@ -673,6 +993,11 @@ export const markConversationRead = async (req, res) => {
       }
     }
     await conversation.save();
+
+    const io = req.app.get("io");
+    io?.to(`user:${req.user._id}`).emit("dm_unread_changed", {
+      conversationId: String(conversation._id),
+    });
 
     return res.json({
       success: true,
@@ -763,6 +1088,23 @@ export const updateMessage = async (req, res) => {
       });
     }
 
+    if (message.type === "call" || message.call) {
+      return res.status(400).json({
+        success: false,
+        message: "Call history cannot be edited.",
+      });
+    }
+
+    const editWindowMinutes = await getEditWindowMinutes();
+    if (!(await isWithinEditWindow(message.createdAt))) {
+      return res.status(403).json({
+        success: false,
+        message: "Edit window expired.",
+        editWindowMinutes,
+        code: "EDIT_WINDOW_EXPIRED",
+      });
+    }
+
     const text = String(req.body.text || "").trim();
     if (!text && !(message.media || []).length) {
       return res.status(400).json({
@@ -785,11 +1127,20 @@ export const updateMessage = async (req, res) => {
       .select("_id");
 
     if (latest && String(latest._id) === String(message._id)) {
-      conversation.lastMessageText = previewFromMessage(text, message.media);
+      conversation.lastMessageText = previewFromMessage(message);
       await conversation.save();
     }
 
-    const formatted = formatMessage(message);
+    await message.populate({
+      path: "replyTo",
+      select: "text type isDeleted author",
+      populate: { path: "author", select: "username name avatar" },
+    });
+
+    const formatted = formatMessage(message, {
+      viewerId: req.user._id,
+      editWindowMinutes,
+    });
     emitConversationEvent(req.app.get("io"), conversation._id, "dm_updated", {
       conversationId: String(conversation._id),
       message: formatted,
@@ -843,18 +1194,36 @@ export const deleteMessage = async (req, res) => {
     if (message.isDeleted) {
       return res.json({
         success: true,
-        message: formatMessage(message),
+        message: formatMessage(message, {
+          viewerId: req.user._id,
+          editWindowMinutes: await getEditWindowMinutes(),
+        }),
       });
     }
 
+    if (message.type === "call" || message.call) {
+      return res.status(400).json({
+        success: false,
+        message: "Call history cannot be deleted.",
+      });
+    }
+
+    const editWindowMinutes = await getEditWindowMinutes();
+
     message.isDeleted = true;
     message.deletedAt = new Date();
+    message.deletedBy = req.user._id;
     message.text = "";
+    message.media = [];
     await message.save();
+    await message.populate("deletedBy", "username name avatar");
 
     await syncConversationPreview(conversation);
 
-    const formatted = formatMessage(message);
+    const formatted = formatMessage(message, {
+      viewerId: req.user._id,
+      editWindowMinutes,
+    });
     emitConversationEvent(req.app.get("io"), conversation._id, "dm_deleted", {
       conversationId: String(conversation._id),
       message: formatted,

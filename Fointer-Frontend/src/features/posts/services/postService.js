@@ -20,8 +20,8 @@ export const fetchPublicPost = async (id) => {
   return response.data;
 };
 
-export const fetchTrendingTopics = async (params = {}) => {
-  const response = await api.get('/posts/trending', { params });
+export const fetchTrendingTopics = async ({ signal, ...params } = {}) => {
+  const response = await api.get('/posts/trending', { params, signal });
   return response.data;
 };
 

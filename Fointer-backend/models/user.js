@@ -78,6 +78,30 @@ const userSchema = new mongoose.Schema(
       maxlength: 20,
     },
 
+    address: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: 300,
+    },
+
+    district: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: 100,
+    },
+
+    gender: {
+      type: String,
+      enum: ["Male", "Female", "Other", ""],
+      default: "",
+    },
+
+    dateOfBirth: {
+      type: Date,
+    },
+
     phone: {
       type: String,
       default: "",

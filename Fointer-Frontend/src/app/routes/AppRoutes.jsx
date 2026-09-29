@@ -59,6 +59,7 @@ const PUBLIC_PAGE_ELEMENTS = {
   'content-policy': <ContentPolicy />,
   'cookie-policy': <CookiePolicy />,
   'user-support': <UserSupport />,
+  'user-delete': <UserDelete />,
 };
 
 function RootHome() {
@@ -85,7 +86,6 @@ export default function AppRoutes() {
               element={PUBLIC_PAGE_ELEMENTS[link.segment]}
             />
           ))}
-          <Route path="/user-delete" element={<UserDelete />} />
         </Route>
 
         <Route path="/*" element={<Dashboard />} />

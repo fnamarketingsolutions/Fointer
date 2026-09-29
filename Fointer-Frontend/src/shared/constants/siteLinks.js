@@ -43,6 +43,11 @@ export const SITE_LINKS = [
     to: "/user-support",
     segment: "user-support",
   },
+  {
+    label: "Delete Account",
+    to: "/user-delete",
+    segment: "user-delete",
+  },
 ];
 
 /** Placeholder social profiles — replace `href` when accounts are live. */

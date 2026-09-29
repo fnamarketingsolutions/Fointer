@@ -278,6 +278,7 @@ export default function Login() {
           <div className="flex space-x-4">
             <Link to="/terms-and-conditions" className="hover:text-fo-muted transition-colors">Terms</Link>
             <Link to="/privacy-policy" className="hover:text-fo-muted transition-colors">Privacy</Link>
+            <Link to="/user-delete" className="hover:text-fo-muted transition-colors">Delete account</Link>
           </div>
         </div>
       </div>

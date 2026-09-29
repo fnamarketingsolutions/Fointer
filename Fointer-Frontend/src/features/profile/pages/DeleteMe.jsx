@@ -142,7 +142,12 @@ export default function DeleteMe() {
             <Trash2 size={18} className="text-red-400 shrink-0" aria-hidden />
             Delete account
           </h1>
-          <p className="text-xs text-fo-subtle">/delete-me</p>
+          <p className="text-xs text-fo-subtle">
+            Need help?{" "}
+            <Link to="/user-delete" className="text-fo-accent hover:underline">
+              Account deletion guide
+            </Link>
+          </p>
         </div>
       </div>
 

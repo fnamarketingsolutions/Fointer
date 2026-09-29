@@ -1,4 +1,8 @@
 import nodemailer from "nodemailer";
+import {
+  getPublicAdminUrl,
+  getPublicFrontendUrl,
+} from "./publicAppUrls.js";
 
 const createTransporter = () => {
   const host = process.env.SMTP_HOST;
@@ -32,8 +36,7 @@ const escapeHtml = (value) =>
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 
-const frontendBase = () =>
-  String(process.env.FRONTEND_URL || "").replace(/\/$/, "");
+const frontendBase = () => getPublicFrontendUrl();
 
 const communityPathSegment = (community) => {
   if (!community) return "";
@@ -74,11 +77,7 @@ const getSupportUserUrl = () => `${frontendBase()}/support`;
 
 const getSupportAdminUrl = () => `${frontendBase()}/admin/support`;
 
-const adminBase = () =>
-  String(process.env.ADMIN_URL || process.env.FRONTEND_URL || "").replace(
-    /\/$/,
-    ""
-  );
+const adminBase = () => getPublicAdminUrl();
 
 const getUserSupportAdminUrl = () => `${adminBase()}/usersupport`;
 

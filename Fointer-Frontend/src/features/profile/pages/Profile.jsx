@@ -964,7 +964,13 @@ export default function Profile() {
               Permanently delete your account, posts, listings, and personal
               data. Messages you sent may stay visible to others as{" "}
               <span className="text-fo-text">Deleted User</span>. This cannot
-              be undone.
+              be undone.{" "}
+              <Link
+                to="/user-delete"
+                className="text-fo-accent hover:underline"
+              >
+                Full instructions
+              </Link>
             </p>
             <Link
               to="/delete-me"

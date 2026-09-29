@@ -28,6 +28,7 @@ export const NOTIFICATION_TYPES = [
   "direct_call",
   "watch_group_invite",
   "ownership_transferred",
+  "referral_qualified",
 ];
 export const ADMIN_NOTIFICATION_TYPES = [
   "content_report",

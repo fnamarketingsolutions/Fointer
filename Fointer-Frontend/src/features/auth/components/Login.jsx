@@ -10,6 +10,7 @@ import BrandLogo from '../../../shared/components/BrandLogo';
 import ThemeToggle from '../../../shared/components/ThemeToggle';
 import { getDashboardPathForRole } from '../../../shared/lib/roles';
 import { getSafeReturnPath } from '../../../shared/lib/safeRedirect';
+import { captureReferralFromLocation } from '../../../shared/lib/referralCapture';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -33,6 +34,10 @@ export default function Login() {
   const [otp, setOtp] = useState('');
   const [verifyLoading, setVerifyLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
+
+  useEffect(() => {
+    captureReferralFromLocation(location.search);
+  }, [location.search]);
 
   const redirectAfterLogin = () => {
     const safe = getSafeReturnPath(location.state?.from);

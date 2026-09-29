@@ -15,6 +15,11 @@ import {
 } from "../utils/profileIdentity.js";
 import { normalizePostalCode, postalCodeError } from "../utils/postalCode.js";
 import { validatePasswordStrength } from "../utils/validate.js";
+import {
+  attachReferralOnSignup,
+  ensureUserReferralCode,
+  qualifyReferralForUser,
+} from "../services/referral.service.js";
 
 const MAX_OTP_ATTEMPTS = 5;
 /** Fixed bcrypt hash used only to keep login timing similar when user/password missing. */
@@ -314,6 +319,12 @@ export const signup = async (req, res) => {
     });
 
     try {
+      await ensureUserReferralCode(user);
+    } catch (referralError) {
+      console.error("[referral] code alloc:", referralError?.message || referralError);
+    }
+
+    try {
       await sendVerificationEmail({
         to: user.email,
         name: user.name,
@@ -323,6 +334,11 @@ export const signup = async (req, res) => {
       await User.deleteOne({ _id: user._id });
       throw mailError;
     }
+
+    await attachReferralOnSignup({
+      refereeUser: user,
+      referralCode: req.body?.referralCode,
+    });
 
     return res.status(200).json(genericSignup);
   } catch (error) {
@@ -426,6 +442,11 @@ export const googleLogin = async (req, res) => {
         role: "user",
       });
       isNewUser = true;
+      try {
+        await ensureUserReferralCode(user);
+      } catch (referralError) {
+        console.error("[referral] google code:", referralError?.message || referralError);
+      }
     } else {
       if (!user.googleId) user.googleId = googleId;
       if (picture) user.avatar = picture;
@@ -452,6 +473,13 @@ export const googleLogin = async (req, res) => {
           await User.deleteOne({ _id: user._id });
         }
         throw mailError;
+      }
+
+      if (isNewUser) {
+        await attachReferralOnSignup({
+          refereeUser: user,
+          referralCode: req.body?.referralCode,
+        });
       }
 
       return res.status(200).json({
@@ -593,6 +621,11 @@ export const facebookLogin = async (req, res) => {
         role: "user",
       });
       isNewUser = true;
+      try {
+        await ensureUserReferralCode(user);
+      } catch (referralError) {
+        console.error("[referral] facebook code:", referralError?.message || referralError);
+      }
     } else if (!user.avatar && avatar) {
       user.avatar = avatar;
       await user.save();
@@ -616,6 +649,13 @@ export const facebookLogin = async (req, res) => {
           await User.deleteOne({ _id: user._id });
         }
         throw mailError;
+      }
+
+      if (isNewUser) {
+        await attachReferralOnSignup({
+          refereeUser: user,
+          referralCode: req.body?.referralCode,
+        });
       }
 
       return res.status(200).json({
@@ -940,6 +980,8 @@ export const verifyEmailOtp = async (req, res) => {
     user.isEmailVerified = true;
     clearEmailVerification(user);
     await user.save();
+
+    await qualifyReferralForUser(user, { io: req.app?.get?.("io") });
 
     if (rejectIfNotMemberPortal(res, user)) return;
 

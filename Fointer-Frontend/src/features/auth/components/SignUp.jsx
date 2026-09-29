@@ -3,7 +3,7 @@ import { FiEye, FiEyeOff } from 'react-icons/fi';
 import {
   LuArrowLeft as ArrowLeft,
 } from 'react-icons/lu';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { signupUser, resendVerificationEmail, verifyEmailOtp } from '../../../api/auth';
 import { useAuth } from '../../../context/AuthContext';
 import { useSocialAuth } from '../hooks/useSocialAuth';
@@ -16,6 +16,13 @@ import InterestSuggestions from '../../../shared/components/InterestSuggestions'
 import { dateOfBirthError } from '../../../shared/lib/dateOfBirth';
 import { postalCodeError } from '../../../shared/lib/postalCode';
 import { getPostAuthPath } from '../../../shared/lib/roles';
+import {
+  captureReferralCode,
+  captureReferralFromLocation,
+  clearStoredReferralCode,
+  getStoredReferralCode,
+  normalizeReferralCode,
+} from '../../../shared/lib/referralCapture';
 
 const STEPS = [
   { id: 'account', label: 'Account' },
@@ -25,6 +32,7 @@ const STEPS = [
 
 export default function SignUp() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { loginSuccess } = useAuth();
   const { showToast } = useToast();
   const {
@@ -52,6 +60,7 @@ export default function SignUp() {
     country: '',
     zipCode: '',
     address: '',
+    referralCode: '',
   });
   const [interests, setInterests] = useState([]);
   const [showPassword, setShowPassword] = useState(false);
@@ -63,6 +72,16 @@ export default function SignUp() {
   const [resendLoading, setResendLoading] = useState(false);
 
   const activeVerificationEmail = verificationEmail || pendingVerification?.email || '';
+
+  useEffect(() => {
+    const fromUrl = captureReferralFromLocation(searchParams.toString());
+    const stored = fromUrl || getStoredReferralCode();
+    if (stored) {
+      setFormData((current) =>
+        current.referralCode ? current : { ...current, referralCode: stored }
+      );
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (socialError) showToast(socialError);
@@ -82,6 +101,17 @@ export default function SignUp() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    if (name === 'referralCode') {
+      const cleaned = String(value || '')
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, '')
+        .slice(0, 32);
+      setFormData((current) => ({ ...current, referralCode: cleaned }));
+      const normalized = normalizeReferralCode(cleaned);
+      if (normalized) captureReferralCode(normalized);
+      else clearStoredReferralCode();
+      return;
+    }
     setFormData((current) => ({ ...current, [name]: value }));
   };
 
@@ -178,8 +208,12 @@ export default function SignUp() {
         zipCode: formData.zipCode.trim(),
         address: formData.address.trim(),
       };
+      const referralCode =
+        normalizeReferralCode(formData.referralCode) || getStoredReferralCode();
+      if (referralCode) payload.referralCode = referralCode;
       const response = await signupUser(payload);
       if (response?.success) {
+        clearStoredReferralCode();
         setVerificationEmail(response?.email || formData.email);
         setOtp('');
         setStep('verify');
@@ -443,6 +477,30 @@ export default function SignUp() {
                     {showConfirmPassword ? <FiEyeOff size={18} /> : <FiEye size={18} />}
                   </button>
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-fo-muted uppercase tracking-wider mb-1.5">
+                  Referral code{' '}
+                  <span className="normal-case tracking-normal text-fo-subtle">
+                    (optional)
+                  </span>
+                </label>
+                <input
+                  type="text"
+                  name="referralCode"
+                  value={formData.referralCode}
+                  onChange={handleChange}
+                  placeholder="Enter a friend's invite code"
+                  autoComplete="off"
+                  spellCheck={false}
+                  maxLength={32}
+                  className={`${inputClass} uppercase tracking-wider`}
+                />
+                <p className="mt-1.5 text-[11px] text-fo-subtle">
+                  Have an invite link or code? Paste the code here — or open their
+                  link and it will fill in automatically.
+                </p>
               </div>
 
               <SocialAuthButtons

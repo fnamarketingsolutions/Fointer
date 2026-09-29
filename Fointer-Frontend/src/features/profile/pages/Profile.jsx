@@ -36,6 +36,7 @@ import { normalizeUsername } from "../../../shared/services/profileLinks";
 import { formatCommunityType } from "../../../shared/utils/community";
 import { formatLongDate, timeAgo } from "../../../shared/utils/date";
 import FollowUserList from "../components/FollowUserList";
+import InviteFriendsCard from "../components/InviteFriendsCard";
 
 const TABS = [
   { id: "profile", label: "Profile" },
@@ -735,6 +736,8 @@ export default function Profile() {
               Save profile
             </button>
           </form>
+
+          <InviteFriendsCard />
 
           <section className="bg-fo-surface border border-fo-border rounded-xl p-4 sm:p-5 space-y-3">
             <div className="flex items-center gap-2">

@@ -20,13 +20,17 @@ export const resendVerificationEmail = async (email) => {
   return response.data;
 };
 
-export const googleAuth = async (token) => {
-  const response = await api.post(`/auth/google`, { token });
+export const googleAuth = async (token, referralCode) => {
+  const body = { token };
+  if (referralCode) body.referralCode = referralCode;
+  const response = await api.post(`/auth/google`, body);
   return response.data;
 };
 
-export const facebookAuth = async (accessToken) => {
-  const response = await api.post(`/auth/facebook`, { accessToken });
+export const facebookAuth = async (accessToken, referralCode) => {
+  const body = { accessToken };
+  if (referralCode) body.referralCode = referralCode;
+  const response = await api.post(`/auth/facebook`, body);
   return response.data;
 };
 

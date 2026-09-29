@@ -23,6 +23,7 @@ import {
   getAccountDeletionBlockers,
   purgeUserAccount,
 } from "../services/accountDeletion.service.js";
+import { countQualifiedReferrals } from "../services/referral.service.js";
 
 const normalizeInterests = (interests) => {
   if (!interests) return [];
@@ -105,12 +106,14 @@ export const getMyProfile = async (req, res) => {
       .lean();
 
     const postCount = await Post.countDocuments({ author: user._id });
+    const qualifiedReferrals = await countQualifiedReferrals(user._id);
 
     const achievements = computeAchievements({
       ownedCount,
       joinedCount: memberships.length,
       postCount,
       isMod,
+      qualifiedReferrals,
     });
 
     const followCounts = await getFollowCounts(user._id);
@@ -148,6 +151,7 @@ export const getMyProfile = async (req, res) => {
           posts: postCount,
           followers: followCounts.followers,
           following: followCounts.following,
+          referrals: qualifiedReferrals,
         },
       },
     });

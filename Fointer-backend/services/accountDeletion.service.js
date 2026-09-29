@@ -25,6 +25,7 @@ import Report from "../models/report.js";
 import Warning from "../models/warning.js";
 import SupportTicket from "../models/supportTicket.js";
 import UserSupportRequest from "../models/userSupportRequest.js";
+import Referral from "../models/referral.js";
 import { destroyManyFromCloudinary } from "../utils/cloudinary.js";
 
 const mediaUrlsFromDocs = (docs = []) =>
@@ -197,6 +198,10 @@ export const purgeUserAccount = async (userId) => {
     $or: [{ inviter: uid }, { invitee: uid }],
   });
   await CommunityJoinRequest.deleteMany({ user: uid });
+
+  // Referrals: keep audit rows (referee may show as deleted); clear reverse pointer.
+  await Referral.deleteMany({ referee: uid, status: "pending" });
+  await User.updateMany({ referredBy: uid }, { $set: { referredBy: null } });
 
   // --- Watch groups / live ---
   await WatchGroupMember.deleteMany({ user: uid });

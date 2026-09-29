@@ -18,6 +18,11 @@ import {
   parseGender,
 } from "../utils/profileIdentity.js";
 import { normalizePostalCode, postalCodeError } from "../utils/postalCode.js";
+import { getAuthCookieOptions } from "../utils/cookieOptions.js";
+import {
+  getAccountDeletionBlockers,
+  purgeUserAccount,
+} from "../services/accountDeletion.service.js";
 
 const normalizeInterests = (interests) => {
   if (!interests) return [];
@@ -407,6 +412,98 @@ export const updateMyPassword = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "Password updated successfully.",
+    });
+  } catch (error) {
+    return sendServerError(res, error);
+  }
+};
+
+export const deleteMyAccount = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found.",
+      });
+    }
+
+    const role = String(user.role || "user").toLowerCase().trim();
+    if (role === "admin" || user.isSuperAdmin) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "Admin accounts cannot be self-deleted. Ask another super admin to remove this account.",
+      });
+    }
+
+    const { password, confirmText } = req.body || {};
+
+    if (user.password) {
+      if (!password) {
+        return res.status(400).json({
+          success: false,
+          message: "Current password is required to delete your account.",
+        });
+      }
+      const match = await bcrypt.compare(String(password), user.password);
+      if (!match) {
+        return res.status(401).json({
+          success: false,
+          message: "Password is incorrect.",
+        });
+      }
+    } else {
+      const typed = String(confirmText || "").trim().toUpperCase();
+      if (typed !== "DELETE") {
+        return res.status(400).json({
+          success: false,
+          message: 'Type DELETE to confirm account deletion.',
+        });
+      }
+    }
+
+    const blockers = await getAccountDeletionBlockers(user._id);
+    if (blockers.communities.length || blockers.watchGroups.length) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Transfer or delete communities and watch groups you own before deleting your account.",
+        blockers,
+      });
+    }
+
+    await purgeUserAccount(user._id);
+
+    res.cookie("token", "", {
+      ...getAuthCookieOptions(),
+      expires: new Date(0),
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Account deleted.",
+    });
+  } catch (error) {
+    if (error?.statusCode === 404) {
+      return res.status(404).json({
+        success: false,
+        message: error.message || "User not found.",
+      });
+    }
+    return sendServerError(res, error);
+  }
+};
+
+export const getMyDeletionBlockers = async (req, res) => {
+  try {
+    const blockers = await getAccountDeletionBlockers(req.user._id);
+    const blocked =
+      blockers.communities.length > 0 || blockers.watchGroups.length > 0;
+    return res.status(200).json({
+      success: true,
+      blocked,
+      blockers,
     });
   } catch (error) {
     return sendServerError(res, error);

@@ -241,7 +241,7 @@ export default function ManageCommunities() {
           onBack={backToList}
           onEdit={openEdit}
           onDelete={openDelete}
-          onRefresh={loadManage}
+          onRefresh={() => loadManage(selectedId)}
         />
 
         <EditCommunityModal

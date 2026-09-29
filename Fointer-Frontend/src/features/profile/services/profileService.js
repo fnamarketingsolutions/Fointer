@@ -15,6 +15,16 @@ export const updateMyPassword = async (payload) => {
   return response.data;
 };
 
+export const deleteMyAccount = async (payload) => {
+  const response = await api.delete('/profile/me', { data: payload });
+  return response.data;
+};
+
+export const fetchDeletionBlockers = async () => {
+  const response = await api.get('/profile/me/deletion-blockers');
+  return response.data;
+};
+
 export const fetchPublicProfile = async (username) => {
   const clean = String(username || '').trim().replace(/^@+/, '');
   const response = await api.get(`/users/${encodeURIComponent(clean)}`);

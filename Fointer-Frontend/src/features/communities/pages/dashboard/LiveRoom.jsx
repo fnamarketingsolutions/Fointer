@@ -22,6 +22,10 @@ import UserProfileLink from "../../../../shared/components/UserProfileLink";
 import { useToast } from "../../../../shared/components/feedback/ToastContext";
 import { useAuth } from "../../../../context/AuthContext";
 import EventCall from "./EventCall";
+import {
+  DELETED_USER_LABEL,
+  personDisplayName,
+} from "../../../../shared/utils/personDisplay";
 
 const categoryLabel = (event) => {
   if (!event) return "";
@@ -251,7 +255,7 @@ export default function LiveRoom() {
 
   const isLive = event.status === "live";
   const displayName = (msg) =>
-    msg.author?.name || msg.author?.username || "Member";
+    personDisplayName(msg.author, DELETED_USER_LABEL);
   const isOwn = (msg) =>
     String(msg.author?.id) === String(user?.id || user?._id);
 

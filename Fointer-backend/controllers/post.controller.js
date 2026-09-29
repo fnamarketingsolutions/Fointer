@@ -30,24 +30,15 @@ import {
   acceptSignedMediaList,
   destroyManyFromCloudinary,
 } from "../utils/cloudinary.js";
+import { formatUserRef } from "../utils/deletedUser.js";
 
 const POST_SORT_MAP = {
   newest: { createdAt: -1 },
   oldest: { createdAt: 1 },
 };
 
-const formatUser = (user) => {
-  if (!user || typeof user !== "object" || !user._id) {
-    return { id: user };
-  }
-  return {
-    id: user._id,
-    username: user.username,
-    name: user.name,
-    avatar: user.avatar || "",
-    role: user.role || "user",
-  };
-};
+const formatUser = (user) =>
+  formatUserRef(user, { role: user?.role || "user" });
 
 const formatMedia = (media = []) =>
   media.map((m) => ({

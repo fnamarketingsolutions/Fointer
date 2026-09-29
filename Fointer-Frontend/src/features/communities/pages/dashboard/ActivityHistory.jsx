@@ -27,6 +27,10 @@ import UserProfileLink from "../../../../shared/components/UserProfileLink";
 import ConfirmDeleteModal from "../../../../shared/components/modals/ConfirmDeleteModal";
 import EditWindowExpiredModal from "../../../../shared/components/modals/EditWindowExpiredModal";
 import { timeAgo } from "../../../../shared/utils/date";
+import {
+  DELETED_USER_LABEL,
+  personDisplayName,
+} from "../../../../shared/utils/personDisplay";
 import { useToast } from "../../../../shared/components/feedback/ToastContext";
 
 const TABS = [
@@ -537,8 +541,10 @@ export default function ActivityHistory() {
           ) : (
             likedPosts.map((post) => {
               const cover = post?.media?.find((m) => m.type === "image");
-              const author =
-                post.author?.name || post.author?.username || "Unknown";
+              const author = personDisplayName(
+                post.author,
+                DELETED_USER_LABEL
+              );
 
               return (
                 <article
@@ -636,8 +642,10 @@ export default function ActivityHistory() {
           ) : (
             repostedPosts.map((post) => {
               const cover = post?.media?.find((m) => m.type === "image");
-              const author =
-                post.author?.name || post.author?.username || "Unknown";
+              const author = personDisplayName(
+                post.author,
+                DELETED_USER_LABEL
+              );
 
               return (
                 <article

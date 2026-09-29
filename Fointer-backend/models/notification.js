@@ -27,6 +27,7 @@ export const NOTIFICATION_TYPES = [
   "direct_message",
   "direct_call",
   "watch_group_invite",
+  "ownership_transferred",
 ];
 export const ADMIN_NOTIFICATION_TYPES = [
   "content_report",
@@ -50,6 +51,7 @@ export const SYSTEM_NOTIFICATION_TYPES = [
   "support_ticket",
   "user_warning",
   "watch_group_invite",
+  "ownership_transferred",
 ];
 
 export const ENTITY_KINDS = [

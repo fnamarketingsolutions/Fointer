@@ -26,6 +26,7 @@ import {
   fetchMyInvites,
   fetchMyJoinRequests,
   joinPublicCommunity,
+  leaveCommunity,
   requestToJoin,
 } from "../../../../api/communities";
 import { COMMUNITY_TYPE_LABELS } from "../../../../shared/constants/community";
@@ -34,6 +35,7 @@ import UserProfileLink from "../../../../shared/components/UserProfileLink";
 import { communitySegment } from "../../../../shared/services/entityLinks";
 import { timeAgo } from "../../../../shared/utils/date";
 import { useAuth } from "../../../../context/AuthContext";
+import { getErrorMessage } from "../../../../shared/utils/errors";
 
 const TYPE_LABELS = COMMUNITY_TYPE_LABELS;
 
@@ -163,6 +165,7 @@ export default function JoinedCommunities() {
 
   const [actionId, setActionId] = useState(null);
   const [joiningId, setJoiningId] = useState(null);
+  const [leavingId, setLeavingId] = useState(null);
 
   const openCommunity = (community, { inviteId } = {}) => {
     const segment = communitySegment(community) || community?.id;
@@ -348,6 +351,35 @@ export default function JoinedCommunities() {
       );
     } finally {
       setJoiningId(null);
+    }
+  };
+
+  const handleLeaveCommunity = async (e, community) => {
+    e.stopPropagation();
+    if (!community?.id || leavingId) return;
+    const role = community.membershipRole || "member";
+    if (role === "owner") {
+      navigate(
+        `/communities/manage/${communitySegment(community) || community.id}?transfer=1`
+      );
+      return;
+    }
+    if (
+      !window.confirm(
+        `Leave ${community.name || "this community"}? You can join again later if it is public or you get invited.`
+      )
+    ) {
+      return;
+    }
+    setLeavingId(community.id);
+    try {
+      await leaveCommunity(community.id);
+      showToast("Left community.");
+      await load();
+    } catch (err) {
+      showToast(getErrorMessage(err, "Could not leave community."));
+    } finally {
+      setLeavingId(null);
     }
   };
 
@@ -571,14 +603,38 @@ export default function JoinedCommunities() {
               </div>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                {filteredJoined.map((c) => (
-                  <CommunityCard
-                    key={c.id}
-                    community={c}
-                    onClick={openCommunity}
-                    badge={c.membershipRole || "member"}
-                  />
-                ))}
+                {filteredJoined.map((c) => {
+                  const isOwner = (c.membershipRole || "member") === "owner";
+                  const busy = leavingId === c.id;
+                  return (
+                    <CommunityCard
+                      key={c.id}
+                      community={c}
+                      onClick={openCommunity}
+                      badge={c.membershipRole || "member"}
+                      action={
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={(e) => handleLeaveCommunity(e, c)}
+                          className={`mt-1 inline-flex items-center justify-center min-h-8 w-full rounded-lg border text-[11px] font-semibold transition-colors disabled:opacity-60 ${
+                            isOwner
+                              ? "border-fo-border text-fo-muted hover:text-fo-accent hover:border-fo-accent/40"
+                              : "border-red-500/35 text-red-400 hover:bg-red-500/10"
+                          }`}
+                        >
+                          {busy ? (
+                            <Loader2 size={12} className="animate-spin" />
+                          ) : isOwner ? (
+                            "Manage / transfer"
+                          ) : (
+                            "Leave"
+                          )}
+                        </button>
+                      }
+                    />
+                  );
+                })}
               </div>
             ))}
 

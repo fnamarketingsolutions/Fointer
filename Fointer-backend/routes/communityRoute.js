@@ -11,10 +11,12 @@ import {
   getCommunity,
   updateCommunity,
   deleteCommunity,
+  transferCommunityOwnership,
   getCommunityManage,
   listJoinRequests,
   createJoinRequest,
   joinPublicCommunity,
+  leaveCommunity,
   createCommunityInvite,
   lookupInviteUser,
   listMyInvites,
@@ -72,6 +74,7 @@ router.post("/:id/members/:memberId/unban", isAuthenticated, unbanMember);
 router.get("/:id/join-requests", isAuthenticated, listJoinRequests);
 router.post("/:id/join-requests", isAuthenticated, createJoinRequest);
 router.post("/:id/join", isAuthenticated, joinPublicCommunity);
+router.post("/:id/leave", isAuthenticated, leaveCommunity);
 router.get("/:id/invites/lookup", isAuthenticated, lookupInviteUser);
 router.post("/:id/invites", isAuthenticated, createCommunityInvite);
 router.post(
@@ -86,6 +89,7 @@ router.post(
 );
 router.get("/:id", isAuthenticated, getCommunity);
 router.patch("/:id", isAuthenticated, updateCommunity);
+router.post("/:id/transfer", isAuthenticated, transferCommunityOwnership);
 router.delete("/:id", isAuthenticated, deleteCommunity);
 
 export default router;

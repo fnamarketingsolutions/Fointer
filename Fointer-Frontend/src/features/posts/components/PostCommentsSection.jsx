@@ -11,6 +11,10 @@ import {
 import PostAuthorAvatar from "./PostAuthorAvatar";
 import UserProfileLink from "../../../shared/components/UserProfileLink";
 import { timeAgo } from "../../../shared/utils/date";
+import {
+  DELETED_USER_LABEL,
+  personDisplayName,
+} from "../../../shared/utils/personDisplay";
 
 export default function PostCommentsSection({
   visible,
@@ -180,9 +184,10 @@ export default function PostCommentsSection({
                               author={comment.author}
                               className="text-xs font-bold text-fo-text hover:text-fo-accent transition-colors"
                             >
-                              {comment.author?.name ||
-                                comment.author?.username ||
-                                "Member"}
+                              {personDisplayName(
+                                comment.author,
+                                DELETED_USER_LABEL
+                              )}
                             </UserProfileLink>
                             <span className="text-[11px] text-fo-subtle">
                               {timeAgo(comment.createdAt)}
@@ -300,9 +305,10 @@ export default function PostCommentsSection({
                       value={commentText}
                       onChange={(e) => setCommentText(e.target.value)}
                       rows={2}
-                      placeholder={`Reply to ${
-                        comment.author?.name || "member"
-                      }...`}
+                      placeholder={`Reply to ${personDisplayName(
+                        comment.author,
+                        DELETED_USER_LABEL
+                      )}...`}
                       className="w-full bg-transparent text-xs text-fo-text placeholder:text-fo-subtle focus:outline-none resize-y"
                     />
                     <div className="flex justify-end gap-2">
@@ -404,9 +410,10 @@ export default function PostCommentsSection({
                                     author={reply.author}
                                     className="text-xs font-bold text-fo-text hover:text-fo-accent transition-colors"
                                   >
-                                    {reply.author?.name ||
-                                      reply.author?.username ||
-                                      "Member"}
+                                    {personDisplayName(
+                                      reply.author,
+                                      DELETED_USER_LABEL
+                                    )}
                                   </UserProfileLink>
                                   <span className="text-[11px] text-fo-subtle">
                                     {timeAgo(reply.createdAt)}
@@ -526,9 +533,10 @@ export default function PostCommentsSection({
                               value={commentText}
                               onChange={(e) => setCommentText(e.target.value)}
                               rows={2}
-                              placeholder={`Reply to ${
-                                reply.author?.name || "member"
-                              }...`}
+                              placeholder={`Reply to ${personDisplayName(
+                                reply.author,
+                                DELETED_USER_LABEL
+                              )}...`}
                               className="w-full bg-transparent text-xs text-fo-text placeholder:text-fo-subtle focus:outline-none resize-y"
                             />
                             <div className="flex justify-end gap-2">

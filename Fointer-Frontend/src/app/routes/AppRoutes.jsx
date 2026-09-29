@@ -43,6 +43,9 @@ const UserSupport = lazy(() =>
 const CodeOfConduct = lazy(() =>
   import('../../features/public/pages/policies/CodeofConduct')
 );
+const UserDelete = lazy(() =>
+  import('../../features/public/pages/policies/UserDelete')
+);
 
 const PUBLIC_PAGE_ELEMENTS = {
   about: <AboutHero />,
@@ -82,6 +85,7 @@ export default function AppRoutes() {
               element={PUBLIC_PAGE_ELEMENTS[link.segment]}
             />
           ))}
+          <Route path="/user-delete" element={<UserDelete />} />
         </Route>
 
         <Route path="/*" element={<Dashboard />} />

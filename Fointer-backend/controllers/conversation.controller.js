@@ -22,6 +22,7 @@ import {
 } from "../utils/communityPermissions.js";
 import { canViewPost } from "./post.controller.js";
 import { hasMarketplaceAdminPower } from "../utils/adminAccess.js";
+import { formatUserRef } from "../utils/deletedUser.js";
 
 const DM_MEDIA_MAX = 4;
 
@@ -83,17 +84,7 @@ const formatReplySnapshot = (reply) => {
   };
 };
 
-const formatUser = (user) => {
-  if (!user || typeof user !== "object" || !user._id) {
-    return { id: user };
-  }
-  return {
-    id: user._id,
-    username: user.username,
-    name: user.name,
-    avatar: user.avatar || "",
-  };
-};
+const formatUser = (user) => formatUserRef(user);
 
 export const formatListingSnapshot = (listing) => {
   if (!listing) return null;

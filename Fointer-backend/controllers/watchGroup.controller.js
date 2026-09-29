@@ -11,21 +11,12 @@ import { respondIfBanned } from "../utils/bannedKeywords.js";
 import { getWatchGroupCreateLimits } from "../utils/watchGroupLimits.js";
 import { hasWatchGroupsAdminPower } from "../utils/adminAccess.js";
 import { notify, personName } from "../utils/notify.js";
+import { formatUserRef } from "../utils/deletedUser.js";
 
 const isValidMemberId = (value) =>
   mongoose.Types.ObjectId.isValid(String(value || ""));
 
-const formatUser = (user) => {
-  if (!user || typeof user !== "object" || !user._id) {
-    return { id: user };
-  }
-  return {
-    id: user._id,
-    username: user.username,
-    name: user.name,
-    avatar: user.avatar || "",
-  };
-};
+const formatUser = (user) => formatUserRef(user);
 
 export const formatWatchGroup = (group, extras = {}) => ({
   id: group._id,
@@ -524,6 +515,114 @@ export const deleteWatchGroup = async (req, res) => {
     return res.json({ success: true, message: "Watch group deleted." });
   } catch (error) {
     return sendServerError(res, error, "Failed to delete watch group.");
+  }
+};
+
+export const transferWatchGroupOwnership = async (req, res) => {
+  try {
+    const group = await findWatchGroupByParam(req.params.id);
+    if (!group) {
+      return res.status(404).json({
+        success: false,
+        message: "Watch group not found.",
+      });
+    }
+
+    if (!(await userCanDeleteWatchGroup(group, req.user))) {
+      return res.status(403).json({
+        success: false,
+        message: "Only the group owner can transfer ownership.",
+      });
+    }
+
+    const newOwnerId = String(req.body?.newOwnerId || req.body?.userId || "").trim();
+    if (!isValidMemberId(newOwnerId)) {
+      return res.status(400).json({
+        success: false,
+        message: "newOwnerId is required.",
+      });
+    }
+
+    if (String(newOwnerId) === String(req.user._id)) {
+      return res.status(400).json({
+        success: false,
+        message: "You already own this watch group.",
+      });
+    }
+
+    if (String(group.owner?._id || group.owner) === String(newOwnerId)) {
+      return res.status(200).json({
+        success: true,
+        message: "Ownership already transferred.",
+        group: formatWatchGroup(group, {
+          viewerRole: "member",
+          canModerate: false,
+          canDelete: false,
+          isMember: true,
+        }),
+      });
+    }
+
+    const targetMember = await WatchGroupMember.findOne({
+      group: group._id,
+      user: newOwnerId,
+      status: "active",
+    }).populate("user", "username name avatar");
+
+    if (!targetMember) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "New owner must be an active participant. Invite them first.",
+      });
+    }
+
+    const previousOwnerId = group.owner?._id || group.owner;
+
+    group.owner = newOwnerId;
+    await group.save();
+
+    targetMember.role = "owner";
+    await targetMember.save();
+
+    await WatchGroupMember.updateOne(
+      {
+        group: group._id,
+        user: previousOwnerId,
+        status: "active",
+      },
+      { $set: { role: "member" } }
+    );
+
+    const io = req.app.get("io");
+    await notify({
+      io,
+      recipientId: newOwnerId,
+      actor: req.user,
+      type: "ownership_transferred",
+      title: `${personName(req.user)} made you owner of ${group.name}`,
+      body: "You are now the owner of this watch group.",
+      entity: {
+        kind: "watch_group",
+        _id: group._id,
+        shortCode: group.shortCode || "",
+        title: group.name || "",
+      },
+    });
+
+    const refreshed = await findWatchGroupByParam(group._id);
+    return res.json({
+      success: true,
+      message: "Ownership transferred.",
+      group: formatWatchGroup(refreshed, {
+        viewerRole: "member",
+        canModerate: false,
+        canDelete: false,
+        isMember: true,
+      }),
+    });
+  } catch (error) {
+    return sendServerError(res, error, "Failed to transfer ownership.");
   }
 };
 

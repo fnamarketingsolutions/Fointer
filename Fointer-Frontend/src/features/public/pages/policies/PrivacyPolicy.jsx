@@ -211,7 +211,15 @@ export default function PrivacyPolicy() {
               <div className="bg-fo-bg/80 border border-fo-border rounded-2xl p-5 space-y-2">
                 <h3 className="text-sm font-serif font-semibold text-fo-accent">Account Information</h3>
                 <p className="text-xs text-fo-muted font-light leading-relaxed">
-                  You may update, correct or delete information from your account at any time by logging into your online account.
+                  You may update or correct information anytime in Profile. To permanently delete your account and personal data, go to Profile → Security → Delete account (
+                  <a href="/delete-me" className="text-fo-accent hover:underline">
+                    /delete-me
+                  </a>
+                  ), or see{" "}
+                  <a href="/user-delete" className="text-fo-accent hover:underline">
+                    /user-delete
+                  </a>
+                  .
                 </p>
               </div>
               <div className="bg-fo-bg/80 border border-fo-border rounded-2xl p-5 space-y-2">

@@ -16,6 +16,10 @@ import PostAuthorAvatar from "../../features/posts/components/PostAuthorAvatar";
 import { createComment } from "../../api/posts";
 import { communitySegment } from "../services/entityLinks";
 import { timeAgo } from "../utils/date";
+import {
+  DELETED_USER_LABEL,
+  personDisplayName,
+} from "../utils/personDisplay";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "./feedback/ToastContext";
 
@@ -119,8 +123,7 @@ export default function FeedPostRow({
     return () => window.cancelAnimationFrame(id);
   }, [commentOpen]);
 
-  const authorName =
-    post?.author?.name || post?.author?.username || "Anonymous";
+  const authorName = personDisplayName(post?.author, DELETED_USER_LABEL);
   const username = String(post?.author?.username || "").replace(/^@+/, "");
   const isVerified = post?.author?.role === "admin";
   const communityName = post?.community?.name;

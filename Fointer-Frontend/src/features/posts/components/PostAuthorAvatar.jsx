@@ -1,11 +1,12 @@
 import UserProfileLink from "../../../shared/components/UserProfileLink";
+import { personDisplayName, DELETED_USER_LABEL } from "../../../shared/utils/personDisplay";
 
 export default function PostAuthorAvatar({
   author,
   size = "md",
   linkable = true,
 }) {
-  const name = author?.name || author?.username || "Member";
+  const name = personDisplayName(author, DELETED_USER_LABEL);
   const initial = name.charAt(0).toUpperCase();
   const sizeClass = size === "sm" ? "w-8 h-8 text-xs" : "w-10 h-10 text-sm";
 

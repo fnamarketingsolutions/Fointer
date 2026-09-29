@@ -38,6 +38,11 @@ import DirectCall from "../components/DirectCall";
 import { timeAgo } from "../../../shared/utils/date";
 import ReportContentModal from "../../../shared/components/modals/ReportContentModal";
 import EditWindowExpiredModal from "../../../shared/components/modals/EditWindowExpiredModal";
+import {
+  DELETED_USER_LABEL,
+  isDeletedPerson,
+  personDisplayName,
+} from "../../../shared/utils/personDisplay";
 import MediaPicker from "../../../shared/components/media/MediaPicker";
 import { listingSegment, postSegment, communitySegment } from "../../../shared/services/entityLinks";
 
@@ -323,7 +328,7 @@ export default function ConversationThread() {
 
   const handleDeleteConversation = async () => {
     const other = conversation?.otherUser || {};
-    const label = other.name || other.username || "this user";
+    const label = personDisplayName(other, "this user");
     if (
       !window.confirm(
         `Delete your message history with ${label}? This only removes it from your inbox.`
@@ -492,6 +497,8 @@ export default function ConversationThread() {
   if (!conversation) return null;
 
   const other = conversation.otherUser || {};
+  const otherLabel = personDisplayName(other, DELETED_USER_LABEL);
+  const otherDeleted = isDeletedPerson(other);
   const messagingLocked = Boolean(conversation.isBlocked);
 
   return (
@@ -507,7 +514,7 @@ export default function ConversationThread() {
         </button>
         <ProfileAvatar
           src={other.avatar}
-          name={other.name || other.username}
+          name={otherLabel}
           className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover border border-fo-border shrink-0"
         />
         <div className="min-w-0 flex-1">
@@ -515,9 +522,13 @@ export default function ConversationThread() {
             author={other}
             className="text-sm font-semibold text-fo-text hover:text-fo-accent truncate block"
           >
-            {other.name || other.username}
+            {otherLabel}
           </UserProfileLink>
-          <p className="text-xs text-fo-subtle truncate">@{other.username}</p>
+          {other.username && !otherDeleted ? (
+            <p className="text-xs text-fo-subtle truncate">@{other.username}</p>
+          ) : otherDeleted ? (
+            <p className="text-xs text-fo-subtle truncate">Account deleted</p>
+          ) : null}
         </div>
 
         <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
@@ -821,9 +832,10 @@ export default function ConversationThread() {
                               <p className="font-semibold truncate">
                                 {message.replyTo.isDeleted
                                   ? "Original message deleted"
-                                  : message.replyTo.author?.name ||
-                                    message.replyTo.author?.username ||
-                                    "Reply"}
+                                  : personDisplayName(
+                                      message.replyTo.author,
+                                      DELETED_USER_LABEL
+                                    )}
                               </p>
                               <p className="truncate opacity-80">
                                 {message.replyTo.isDeleted
@@ -912,9 +924,7 @@ export default function ConversationThread() {
               <div className="min-w-0 flex-1 text-xs">
                 <p className="font-semibold text-fo-text truncate">
                   Replying to{" "}
-                  {replyingTo.author?.name ||
-                    replyingTo.author?.username ||
-                    "message"}
+                  {personDisplayName(replyingTo.author, DELETED_USER_LABEL)}
                 </p>
                 <p className="text-fo-subtle truncate">
                   {replyingTo.isDeleted
@@ -991,7 +1001,7 @@ export default function ConversationThread() {
         onClose={() => setReportOpen(false)}
         targetType="conversation"
         targetId={conversationId}
-        targetLabel={`conversation with ${other.name || other.username}`}
+        targetLabel={`conversation with ${otherLabel}`}
       />
       <EditWindowExpiredModal
         open={Boolean(lockModal)}

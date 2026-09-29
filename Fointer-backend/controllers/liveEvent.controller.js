@@ -22,18 +22,9 @@ import { parseObjectIdInput, resolveDocumentId } from "../utils/shortCode.js";
 import { sendServerError } from "../utils/safeError.js";
 import { clearEventCall } from "../sockets/liveCallState.js";
 import { respondIfBanned } from "../utils/bannedKeywords.js";
+import { formatUserRef } from "../utils/deletedUser.js";
 
-const formatUser = (user) => {
-  if (!user || typeof user !== "object" || !user._id) {
-    return { id: user };
-  }
-  return {
-    id: user._id,
-    username: user.username,
-    name: user.name,
-    avatar: user.avatar || "",
-  };
-};
+const formatUser = (user) => formatUserRef(user);
 
 const formatCommunity = (community) => {
   if (!community || typeof community !== "object" || !community._id) {

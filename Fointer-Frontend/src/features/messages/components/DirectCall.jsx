@@ -24,6 +24,10 @@ import {
   closeCallPushNotification,
   createCallRingtone,
 } from "../utils/callRing";
+import {
+  DELETED_USER_LABEL,
+  personDisplayName,
+} from "../../../shared/utils/personDisplay";
 
 const DirectCall = forwardRef(function DirectCall(
   { conversationId, otherUser, disabled = false },
@@ -162,7 +166,8 @@ const DirectCall = forwardRef(function DirectCall(
 
       const peer = {
         socketId: remote.socketId,
-        name: remote.name || otherUser?.name || otherUser?.username || "Caller",
+        name: personDisplayName(remote, "") ||
+          personDisplayName(otherUser, "Caller"),
         username: remote.username || otherUser?.username || "",
         mode: remote.mode || modeRef.current,
         mic: remote.mic !== false,
@@ -593,11 +598,8 @@ const DirectCall = forwardRef(function DirectCall(
   if (phase === "idle" && !error) return null;
 
   const otherLabel =
-    incomingFrom?.name ||
-    incomingFrom?.username ||
-    otherUser?.name ||
-    otherUser?.username ||
-    "User";
+    personDisplayName(incomingFrom, "") ||
+    personDisplayName(otherUser, DELETED_USER_LABEL);
 
   if (phase === "ringing_in") {
     return (

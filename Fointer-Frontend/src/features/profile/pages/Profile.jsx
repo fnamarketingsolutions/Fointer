@@ -10,6 +10,7 @@ import {
   LuRefreshCw as RefreshCw,
   LuSave as Save,
   LuShield as Shield,
+  LuTrash2 as Trash2,
   LuUsers as Users,
 } from "react-icons/lu";
 import {
@@ -117,7 +118,9 @@ export default function Profile() {
   const { showToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const setupMode = searchParams.get("setup") === "1";
-  const [tab, setTab] = useState("profile");
+  const tabFromUrl = searchParams.get("tab");
+  const initialTab = TABS.some((t) => t.id === tabFromUrl) ? tabFromUrl : "profile";
+  const [tab, setTab] = useState(initialTab);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -132,6 +135,13 @@ export default function Profile() {
     confirmPassword: false,
   });
   const avatarInputRef = useRef(null);
+
+  useEffect(() => {
+    const next = searchParams.get("tab");
+    if (next && TABS.some((t) => t.id === next) && next !== tab) {
+      setTab(next);
+    }
+  }, [searchParams, tab]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -941,6 +951,28 @@ export default function Profile() {
                 </button>
               </form>
             )}
+          </section>
+
+          <section className="bg-fo-surface border border-red-500/30 rounded-xl p-4 sm:p-5 space-y-4">
+            <div className="flex items-center gap-2">
+              <Trash2 size={15} className="text-red-400" aria-hidden />
+              <h3 className="text-sm font-semibold text-fo-text">
+                Danger zone
+              </h3>
+            </div>
+            <p className="text-xs text-fo-subtle leading-relaxed">
+              Permanently delete your account, posts, listings, and personal
+              data. Messages you sent may stay visible to others as{" "}
+              <span className="text-fo-text">Deleted User</span>. This cannot
+              be undone.
+            </p>
+            <Link
+              to="/delete-me"
+              className="inline-flex items-center gap-2 min-h-10 px-4 rounded-lg border border-red-500/40 text-red-400 text-sm font-semibold hover:bg-red-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40"
+            >
+              <Trash2 size={14} aria-hidden />
+              Delete account
+            </Link>
           </section>
         </div>
       )}

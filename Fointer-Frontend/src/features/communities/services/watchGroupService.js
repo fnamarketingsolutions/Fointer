@@ -30,6 +30,13 @@ export const deleteWatchGroup = async (id) => {
   return response.data;
 };
 
+export const transferWatchGroupOwnership = async (id, newOwnerId) => {
+  const response = await api.post(`/watch-groups/${id}/transfer`, {
+    newOwnerId,
+  });
+  return response.data;
+};
+
 export const fetchWatchParticipants = async (id) => {
   const response = await api.get(`/watch-groups/${id}/participants`);
   return response.data;

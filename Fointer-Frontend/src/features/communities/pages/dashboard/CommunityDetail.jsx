@@ -13,7 +13,8 @@ import {
   LuLock as Lock,
   LuGlobe as Globe,
   LuLayers as Layers,
-  LuLayoutGrid as Grid
+  LuLayoutGrid as Grid,
+  LuArrowRightLeft as Transfer,
 } from "react-icons/lu";
 import {
   inviteToCommunity,
@@ -27,6 +28,7 @@ import {
   fetchJoinRequests,
   approveJoinRequest,
   denyJoinRequest,
+  transferCommunityOwnership,
 } from "../../../../api/communities";
 import { fetchPosts, createPost, togglePostLike, togglePostReshare } from "../../../../api/posts";
 import { toggleBookmark } from "../../../../api/bookmarks";
@@ -37,11 +39,13 @@ import { formatCount } from "../../../../shared/utils/format";
 import { parseCommunityRules } from "../../../../shared/utils/community";
 import FeedPostRow from "../../../../shared/components/FeedPostRow";
 import UserProfileLink from "../../../../shared/components/UserProfileLink";
+import TransferOwnershipModal from "../../../../shared/components/modals/TransferOwnershipModal";
 import {
   communitySegment,
   postSegment,
 } from "../../../../shared/services/entityLinks";
 import { useToast } from "../../../../shared/components/feedback/ToastContext";
+import { getErrorMessage } from "../../../../shared/utils/errors";
 
 const TYPE_META = {
   public: { label: COMMUNITY_TYPE_LABELS.public, icon: Globe },
@@ -165,6 +169,10 @@ export default function CommunityDetail({
   const [joinRequests, setJoinRequests] = useState([]);
   const [joinRequestsLoading, setJoinRequestsLoading] = useState(false);
   const [actionRequestId, setActionRequestId] = useState(null);
+  const [transferOpen, setTransferOpen] = useState(
+    searchParams.get("transfer") === "1"
+  );
+  const [transferSaving, setTransferSaving] = useState(false);
 
   const community = manageData?.community;
   const viewerRole = manageData?.viewerRole || "member";
@@ -225,6 +233,15 @@ export default function CommunityDetail({
     if (canInvite) tabs.push({ id: "invite", label: "Invite" });
     return tabs;
   }, [canModerate, canShowIncoming, canInvite, joinRequests]);
+
+  useEffect(() => {
+    if (searchParams.get("transfer") === "1" && isOwner) {
+      setTransferOpen(true);
+      if (memberStatusFilter !== "active") {
+        setMemberStatusFilter("active");
+      }
+    }
+  }, [searchParams, isOwner, memberStatusFilter]);
 
   const loadMembers = useCallback(async () => {
     if (!selectedId) return;
@@ -837,6 +854,20 @@ export default function CommunityDetail({
                     </button>
                     <button
                       type="button"
+                      onClick={() => {
+                        setTransferOpen(true);
+                        if (memberStatusFilter !== "active") {
+                          setMemberStatusFilter("active");
+                        } else {
+                          loadMembers();
+                        }
+                      }}
+                      className="inline-flex items-center gap-1.5 min-h-9 px-3.5 rounded-full border border-fo-border text-[13px] font-medium text-fo-text hover:border-fo-accent/40 hover:text-fo-accent"
+                    >
+                      <Transfer size={14} /> Transfer
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => onDelete?.(community)}
                       className="inline-flex items-center gap-1.5 min-h-9 px-3.5 rounded-full border border-red-500/30 text-[13px] font-medium text-red-500 hover:bg-red-500/10"
                     >
@@ -1360,6 +1391,44 @@ export default function CommunityDetail({
         </div>
         </>
       ) : null}
+
+      <TransferOwnershipModal
+        open={transferOpen && isOwner}
+        title="Transfer community ownership"
+        subtitle={`Choose a member of ${community?.name || "this community"} to become the new owner. You will stay as a member.`}
+        loading={membersLoading}
+        saving={transferSaving}
+        items={(members || [])
+          .filter((m) => m.status === "active" || !m.status)
+          .map((m) => ({
+            id: m.id,
+            userId: m.user?.id,
+            name: m.user?.name,
+            username: m.user?.username,
+            avatar: m.user?.avatar,
+            role: m.role,
+          }))}
+        onClose={() => setTransferOpen(false)}
+        onConfirm={async (newOwnerId) => {
+          if (!selectedId || !newOwnerId) return;
+          setTransferSaving(true);
+          try {
+            const data = await transferCommunityOwnership(
+              selectedId,
+              newOwnerId
+            );
+            showToast(data?.message || "Ownership transferred.");
+            setTransferOpen(false);
+            await onRefresh?.();
+          } catch (err) {
+            showToast(
+              getErrorMessage(err, "Failed to transfer ownership.")
+            );
+          } finally {
+            setTransferSaving(false);
+          }
+        }}
+      />
     </div>
   );
 }

@@ -30,6 +30,7 @@ export const getSafeReturnPath = (from) => {
     bare.startsWith("/my-activity") ||
     bare.startsWith("/support") ||
     bare.startsWith("/profile") ||
+    bare === "/delete-me" ||
     bare.startsWith("/notifications") ||
     bare.startsWith("/users") ||
     bare.startsWith("/search") ||

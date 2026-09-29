@@ -10,6 +10,11 @@ import { deleteConversation, fetchConversations } from "../../../api/messages";
 import { useToast } from "../../../shared/components/feedback/ToastContext";
 import ProfileAvatar from "../../../shared/components/ProfileAvatar";
 import { timeAgo } from "../../../shared/utils/date";
+import {
+  DELETED_USER_LABEL,
+  isDeletedPerson,
+  personDisplayName,
+} from "../../../shared/utils/personDisplay";
 
 const cardClass =
   "bg-fo-surface border border-fo-border rounded-xl overflow-hidden";
@@ -66,7 +71,7 @@ export default function MessagesInbox() {
   const handleDelete = async (event, conv) => {
     event.stopPropagation();
     const other = conv.otherUser || {};
-    const label = other.name || other.username || "this user";
+    const label = personDisplayName(other, "this user");
     if (
       !window.confirm(
         `Delete your message history with ${label}? This only removes it from your inbox.`
@@ -160,7 +165,8 @@ export default function MessagesInbox() {
         <div className="space-y-2.5">
           {conversations.map((conv) => {
             const other = conv.otherUser || {};
-            const displayName = other.name || other.username || "User";
+            const displayName = personDisplayName(other, DELETED_USER_LABEL);
+            const otherDeleted = isDeletedPerson(other);
             const preview = conv.listing?.title
               ? `Re: ${conv.listing.title}`
               : conv.lastMessageText || "No messages yet";
@@ -193,9 +199,13 @@ export default function MessagesInbox() {
                         </span>
                       ) : null}
                     </div>
-                    {other.username ? (
+                    {other.username && !otherDeleted ? (
                       <p className="text-xs text-fo-subtle truncate">
                         @{String(other.username).replace(/^@+/, "")}
+                      </p>
+                    ) : otherDeleted ? (
+                      <p className="text-xs text-fo-subtle truncate">
+                        Account deleted
                       </p>
                     ) : null}
                     <p className="text-xs text-fo-muted truncate">{preview}</p>

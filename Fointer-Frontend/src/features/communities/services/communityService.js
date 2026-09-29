@@ -72,6 +72,11 @@ export const joinPublicCommunity = async (id) => {
   return response.data;
 };
 
+export const leaveCommunity = async (id) => {
+  const response = await api.post(`/communities/${id}/leave`);
+  return response.data;
+};
+
 export const fetchCommunityMembers = async (id, status = 'active') => {
   const response = await api.get(`/communities/${id}/members`, {
     params: { status },
@@ -118,6 +123,13 @@ export const updateCommunity = async (id, payload) => {
 
 export const deleteCommunity = async (id) => {
   const response = await api.delete(`/communities/${id}`);
+  return response.data;
+};
+
+export const transferCommunityOwnership = async (id, newOwnerId) => {
+  const response = await api.post(`/communities/${id}/transfer`, {
+    newOwnerId,
+  });
   return response.data;
 };
 

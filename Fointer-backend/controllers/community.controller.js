@@ -30,7 +30,7 @@ import {
   resolveSort,
   buildPaginationMeta,
 } from "../utils/pagination.js";
-import { resolveDocumentId } from "../utils/shortCode.js";
+import { resolveDocumentId, parseObjectIdInput } from "../utils/shortCode.js";
 import {
   getManageCommunityIncomingUrl,
   getManageCommunityMembersUrl,
@@ -176,13 +176,21 @@ const formatUserRef = (user, fallbackId, { includeEmail = false } = {}) => {
       username: user.username,
       name: user.name,
       avatar: user.avatar || "",
+      isDeleted: false,
     };
     if (includeEmail && user.email) {
       ref.email = user.email;
     }
     return ref;
   }
-  return fallbackId ? { id: fallbackId } : null;
+  if (!fallbackId && !user) return null;
+  return {
+    id: fallbackId || (typeof user === "object" ? null : user) || null,
+    username: "",
+    name: "Deleted User",
+    avatar: "",
+    isDeleted: true,
+  };
 };
 
 const formatChannelRef = (channel) => {
@@ -856,6 +864,110 @@ export const deleteCommunity = async (req, res) => {
   }
 };
 
+export const transferCommunityOwnership = async (req, res) => {
+  try {
+    const communityId =
+      (await resolveDocumentId(Community, req.params.id)) || req.params.id;
+    const community = await Community.findById(communityId);
+
+    if (!community) {
+      return res.status(404).json({
+        success: false,
+        message: "Community not found.",
+      });
+    }
+
+    if (!canManageCommunity(community, req.user)) {
+      return res.status(403).json({
+        success: false,
+        message: "Only the community owner can transfer ownership.",
+      });
+    }
+
+    const newOwnerId = parseObjectIdInput(
+      req.body?.newOwnerId || req.body?.userId
+    );
+    if (!newOwnerId) {
+      return res.status(400).json({
+        success: false,
+        message: "newOwnerId is required.",
+      });
+    }
+
+    if (String(newOwnerId) === String(req.user._id)) {
+      return res.status(400).json({
+        success: false,
+        message: "You already own this community.",
+      });
+    }
+
+    if (String(community.owner) === String(newOwnerId)) {
+      return res.status(200).json({
+        success: true,
+        message: "Ownership already transferred.",
+        community: formatCommunity(community),
+      });
+    }
+
+    const targetMember = await CommunityMember.findOne({
+      community: community._id,
+      user: newOwnerId,
+      status: "active",
+    }).populate("user", "username name avatar");
+
+    if (!targetMember) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "New owner must be an active member of this community. Invite them first.",
+      });
+    }
+
+    const previousOwnerId = community.owner;
+
+    community.owner = newOwnerId;
+    await community.save();
+
+    targetMember.role = "owner";
+    await targetMember.save();
+
+    await CommunityMember.updateOne(
+      {
+        community: community._id,
+        user: previousOwnerId,
+        status: "active",
+      },
+      { $set: { role: "member" } }
+    );
+
+    const io = req.app.get("io");
+    await notify({
+      io,
+      recipientId: newOwnerId,
+      actor: req.user,
+      type: "ownership_transferred",
+      title: `${personName(req.user)} made you owner of ${community.name}`,
+      body: "You are now the owner of this community.",
+      community,
+      entity: {
+        kind: "community",
+        _id: community._id,
+        shortCode: community.shortCode || "",
+        title: community.name || "",
+      },
+    });
+
+    const populated = await getPopulatedCommunity(community._id);
+    return res.status(200).json({
+      success: true,
+      message: "Ownership transferred.",
+      community: formatCommunity(populated),
+    });
+  } catch (error) {
+    return sendServerError(res, error);
+  }
+};
+
 export const getCommunityManage = async (req, res) => {
   try {
     const community = await getPopulatedCommunity(req.params.id);
@@ -1391,6 +1503,68 @@ export const joinPublicCommunity = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "Joined community successfully.",
+      community: formatCommunity(community, {
+        memberCount: countMap[String(community._id)] || 0,
+      }),
+    });
+  } catch (error) {
+    return sendServerError(res, error);
+  }
+};
+
+export const leaveCommunity = async (req, res) => {
+  try {
+    const communityId =
+      (await resolveDocumentId(Community, req.params.id)) || req.params.id;
+    const community = await Community.findById(communityId);
+
+    if (!community) {
+      return res.status(404).json({
+        success: false,
+        message: "Community not found.",
+      });
+    }
+
+    const membership = await CommunityMember.findOne({
+      community: community._id,
+      user: req.user._id,
+      status: "active",
+    });
+
+    if (!membership) {
+      return res.status(400).json({
+        success: false,
+        message: "You are not a member of this community.",
+      });
+    }
+
+    if (membership.role === "owner") {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Owners cannot leave. Transfer ownership or delete the community first.",
+      });
+    }
+
+    await CommunityMember.deleteOne({ _id: membership._id });
+
+    // Drop any leftover pending invites / join requests for a clean rejoin path
+    await CommunityInvite.deleteMany({
+      community: community._id,
+      invitee: req.user._id,
+      status: "pending",
+    });
+    await CommunityJoinRequest.deleteMany({
+      community: community._id,
+      user: req.user._id,
+      status: "pending",
+    });
+
+    const countMap = await getMemberCounts([community._id]);
+
+    return res.status(200).json({
+      success: true,
+      message: "Left community.",
       community: formatCommunity(community, {
         memberCount: countMap[String(community._id)] || 0,
       }),

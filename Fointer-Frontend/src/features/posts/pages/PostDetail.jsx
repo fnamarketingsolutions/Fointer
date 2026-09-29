@@ -38,6 +38,10 @@ import PostAuthorAvatar from "../components/PostAuthorAvatar";
 import UserProfileLink from "../../../shared/components/UserProfileLink";
 import PostCommentsSection from "../components/PostCommentsSection";
 import PostEditModal from "../components/PostEditModal";
+import {
+  DELETED_USER_LABEL,
+  personDisplayName,
+} from "../../../shared/utils/personDisplay";
 import { useToast } from "../../../shared/components/feedback/ToastContext";
 import { useAuth } from "../../../context/AuthContext";
 import { communitySegment } from "../../../shared/services/entityLinks";
@@ -711,7 +715,7 @@ export default function PostDetail({
           author={post.author}
           className="text-sm font-semibold text-fo-text truncate block hover:text-fo-accent transition-colors"
         >
-          {post.author?.name || post.author?.username || "Member"}
+          {personDisplayName(post.author, DELETED_USER_LABEL)}
         </UserProfileLink>
         <div className="flex items-center gap-1 text-xs text-fo-subtle flex-wrap">
           {post.author?.username ? (

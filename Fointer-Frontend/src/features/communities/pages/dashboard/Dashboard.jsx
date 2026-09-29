@@ -40,6 +40,7 @@ const CommunityFeed = lazy(() => import("./CommunityFeed"));
 const ActivityHistory = lazy(() => import("./ActivityHistory"));
 const Support = lazy(() => import("./Support"));
 const Profile = lazy(() => import("../../../profile/pages/Profile"));
+const DeleteMe = lazy(() => import("../../../profile/pages/DeleteMe"));
 const PublicProfile = lazy(() => import("../../../profile/pages/PublicProfile"));
 const SearchResultsPage = lazy(() => import("../../../search/pages/SearchResultsPage"));
 const LiveEvents = lazy(() => import("./LiveEvents"));
@@ -390,6 +391,14 @@ const Dashboard = () => {
             element={
               <AuthOnly>
                 <Profile />
+              </AuthOnly>
+            }
+          />
+          <Route
+            path="/delete-me"
+            element={
+              <AuthOnly>
+                <DeleteMe />
               </AuthOnly>
             }
           />

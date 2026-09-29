@@ -4,6 +4,10 @@ import { FeedFooterRail } from "../../communities/pages/dashboard/FeedRail";
 import UserProfileLink from "../../../shared/components/UserProfileLink";
 import ProfileAvatar from "../../../shared/components/ProfileAvatar";
 import { LISTING_CATEGORIES } from "../constants";
+import {
+  DELETED_USER_LABEL,
+  personDisplayName,
+} from "../../../shared/utils/personDisplay";
 
 const SIDE_CARD =
   "bg-fo-surface border border-fo-border rounded-xl p-3 space-y-2 shadow-[0_1px_2px_rgba(26,22,18,0.04)]";
@@ -15,6 +19,7 @@ export default function MarketplaceRail({
   seller = null,
 }) {
   const location = useLocation();
+  const sellerLabel = personDisplayName(seller, DELETED_USER_LABEL);
 
   return (
     <aside className="space-y-3" aria-label="Marketplace sidebar">
@@ -24,14 +29,14 @@ export default function MarketplaceRail({
           <div className="flex items-center gap-2 min-w-0">
             <ProfileAvatar
               src={seller.avatar}
-              name={seller.name}
+              name={sellerLabel}
               className="w-8 h-8 rounded-full object-cover border border-fo-border shrink-0"
             />
             <UserProfileLink
               author={seller}
               className="text-[13px] font-medium text-fo-text hover:text-fo-accent truncate"
             >
-              {seller.name || seller.username || "Member"}
+              {sellerLabel}
             </UserProfileLink>
           </div>
         </div>

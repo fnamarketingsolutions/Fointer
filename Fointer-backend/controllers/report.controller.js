@@ -22,6 +22,7 @@ import {
 } from "./adminMarketplace.controller.js";
 import { userInConversation, formatListingSnapshot } from "./conversation.controller.js";
 import { resolveIsSuperAdmin, hasUsersAdminPower } from "../utils/adminAccess.js";
+import { formatUserRef } from "../utils/deletedUser.js";
 
 const assertCanBanTargetUser = async (actor, targetUserId) => {
   if (!hasUsersAdminPower(actor)) {
@@ -55,15 +56,9 @@ const assertCanBanTargetUser = async (actor, targetUserId) => {
 
 const formatUser = (user) => {
   if (!user || typeof user !== "object" || !user._id) {
-    return user ? { id: user } : null;
+    return user ? formatUserRef(user) : null;
   }
-  return {
-    id: user._id,
-    username: user.username,
-    name: user.name,
-    avatar: user.avatar || "",
-    status: user.status || "active",
-  };
+  return formatUserRef(user, { status: user.status || "active" });
 };
 
 const reasonLabel = (reason) =>

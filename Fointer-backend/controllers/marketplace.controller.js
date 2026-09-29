@@ -27,6 +27,7 @@ import {
 import { hasMarketplaceAdminPower } from "../utils/adminAccess.js";
 import { getBookmarkMeta } from "../utils/bookmarkHelpers.js";
 import { getEditWindowMinutes } from "../utils/communityPermissions.js";
+import { formatUserRef } from "../utils/deletedUser.js";
 
 const LISTING_SORT_MAP = {
   newest: { createdAt: -1 },
@@ -43,21 +44,16 @@ const SELLER_CONTACT_SELECT =
 
 const formatUser = (user, { includeContact = false } = {}) => {
   if (!user || typeof user !== "object" || !user._id) {
-    return { id: user };
+    return formatUserRef(user);
   }
-  const payload = {
-    id: user._id,
-    username: user.username,
-    name: user.name,
-    avatar: user.avatar || "",
+  const payload = formatUserRef(user, {
     city: user.city || "",
     state: user.state || "",
     country: user.country || "",
-  };
+  });
   if (user.status) {
     payload.status = user.status;
   }
-  // Contact fields are only copied when explicitly allowed — even if populated.
   if (includeContact) {
     payload.phone = user.phone || "";
     payload.email = user.email || "";

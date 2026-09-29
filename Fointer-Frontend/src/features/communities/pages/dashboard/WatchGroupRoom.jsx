@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   LuArrowLeft as ArrowLeft,
   LuLoaderCircle as Loader2,
@@ -11,7 +11,8 @@ import {
   LuUserPlus as UserPlus,
   LuUsers as Users,
   LuShield as Shield,
-  LuX as X
+  LuX as X,
+  LuArrowRightLeft as Transfer,
 } from "react-icons/lu";
 import {
   addWatchParticipant,
@@ -23,6 +24,7 @@ import {
   leaveWatchGroup,
   removeWatchParticipant,
   setWatchParticipantRole,
+  transferWatchGroupOwnership,
 } from "../../../../api/watchGroups";
 import { globalSearch } from "../../../../api/search";
 import { getLiveSocket } from "../../../../shared/services/liveSocket";
@@ -30,13 +32,20 @@ import { useToast } from "../../../../shared/components/feedback/ToastContext";
 import { useAuth } from "../../../../context/AuthContext";
 import UserProfileLink from "../../../../shared/components/UserProfileLink";
 import ProfileAvatar from "../../../../shared/components/ProfileAvatar";
+import TransferOwnershipModal from "../../../../shared/components/modals/TransferOwnershipModal";
 import useDebouncedValue from "../../../../shared/hooks/useDebouncedValue";
+import { getErrorMessage } from "../../../../shared/utils/errors";
+import {
+  DELETED_USER_LABEL,
+  personDisplayName,
+} from "../../../../shared/utils/personDisplay";
 
 const INVITE_SEARCH_MIN = 2;
 
 export default function WatchGroupRoom() {
   const { groupId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { showToast } = useToast();
   const { user } = useAuth();
 
@@ -54,6 +63,10 @@ export default function WatchGroupRoom() {
   const [inviteSuggestions, setInviteSuggestions] = useState([]);
   const [inviteSearchLoading, setInviteSearchLoading] = useState(false);
   const [inviting, setInviting] = useState(false);
+  const [transferOpen, setTransferOpen] = useState(
+    searchParams.get("transfer") === "1"
+  );
+  const [transferSaving, setTransferSaving] = useState(false);
   const debouncedInviteQuery = useDebouncedValue(inviteQuery.trim(), 300);
 
   const listRef = useRef(null);
@@ -417,7 +430,7 @@ export default function WatchGroupRoom() {
   if (!group) return null;
 
   const displayName = (msg) =>
-    msg.author?.name || msg.author?.username || "Member";
+    personDisplayName(msg.author, DELETED_USER_LABEL);
   const isOwn = (msg) =>
     String(msg.author?.id) === String(user?.id || user?._id);
   const isOwner =
@@ -475,14 +488,27 @@ export default function WatchGroupRoom() {
             </button>
           ) : null}
           {group.canDelete ? (
-            <button
-              type="button"
-              disabled={actionBusy}
-              onClick={handleDelete}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border border-red-500/40 text-red-400 hover:bg-red-500/10 disabled:opacity-50"
-            >
-              <Trash2 size={14} /> Delete
-            </button>
+            <>
+              <button
+                type="button"
+                disabled={actionBusy}
+                onClick={() => {
+                  setTransferOpen(true);
+                  loadParticipants();
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border border-fo-border text-fo-muted hover:text-fo-accent hover:border-fo-accent/40 disabled:opacity-50"
+              >
+                <Transfer size={14} /> Transfer
+              </button>
+              <button
+                type="button"
+                disabled={actionBusy}
+                onClick={handleDelete}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border border-red-500/40 text-red-400 hover:bg-red-500/10 disabled:opacity-50"
+              >
+                <Trash2 size={14} /> Delete
+              </button>
+            </>
           ) : null}
         </div>
       </div>
@@ -762,6 +788,38 @@ export default function WatchGroupRoom() {
           </aside>
         </div>
       ) : null}
+
+      <TransferOwnershipModal
+        open={Boolean(transferOpen && group?.canDelete)}
+        title="Transfer watch group ownership"
+        subtitle={`Choose a participant of ${group?.name || "this group"} to become the new owner. You will stay as a member.`}
+        saving={transferSaving}
+        items={(participants || [])
+          .filter((p) => p.status === "active" || !p.status)
+          .map((p) => ({
+            id: p.id,
+            userId: p.user?.id,
+            name: p.user?.name,
+            username: p.user?.username,
+            avatar: p.user?.avatar,
+            role: p.role,
+          }))}
+        onClose={() => setTransferOpen(false)}
+        onConfirm={async (newOwnerId) => {
+          if (!groupId || !newOwnerId) return;
+          setTransferSaving(true);
+          try {
+            const data = await transferWatchGroupOwnership(groupId, newOwnerId);
+            showToast(data?.message || "Ownership transferred.");
+            setTransferOpen(false);
+            await load();
+          } catch (err) {
+            showToast(getErrorMessage(err, "Failed to transfer ownership."));
+          } finally {
+            setTransferSaving(false);
+          }
+        }}
+      />
     </div>
   );
 }

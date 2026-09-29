@@ -53,7 +53,7 @@ const typeIcon = (type) => {
   if (type === "invite" || type === "invite_accepted" || type === "join_request") {
     return { Icon: UserPlus, className: "text-fo-accent" };
   }
-  if (type === "moderator_assigned" || type === "moderator_revoked") {
+  if (type === "moderator_assigned" || type === "moderator_revoked" || type === "ownership_transferred") {
     return { Icon: Shield, className: "text-amber-300" };
   }
   if (type === "member_banned" || type === "member_removed") {

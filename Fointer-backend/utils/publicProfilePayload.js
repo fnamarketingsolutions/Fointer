@@ -7,6 +7,7 @@ import {
   getFollowCounts,
   isFollowing,
 } from "./followHelpers.js";
+import { countQualifiedReferrals } from "../services/referral.service.js";
 
 const DISCOVERABLE_TYPES = ["public"];
 const LIST_LIMIT = 20;
@@ -16,6 +17,7 @@ export const computeAchievements = ({
   joinedCount,
   postCount,
   isMod,
+  qualifiedReferrals = 0,
 }) => {
   const badges = [];
   if (ownedCount > 0) {
@@ -51,6 +53,20 @@ export const computeAchievements = ({
       id: "elite_voice",
       label: "Elite Voice",
       description: "Shared 5 or more posts",
+    });
+  }
+  if (qualifiedReferrals >= 1) {
+    badges.push({
+      id: "inviter",
+      label: "Inviter",
+      description: "Invited a friend who joined Fointer",
+    });
+  }
+  if (qualifiedReferrals >= 5) {
+    badges.push({
+      id: "community_builder",
+      label: "Community Builder",
+      description: "Invited 5 or more friends who joined",
     });
   }
   return badges;
@@ -202,12 +218,14 @@ export const buildPublicProfilePayload = async (user, viewer = null) => {
   }
 
   const repostCount = await Reshare.countDocuments({ user: user._id });
+  const qualifiedReferrals = await countQualifiedReferrals(user._id);
 
   const achievements = computeAchievements({
     ownedCount,
     joinedCount: memberships.length,
     postCount,
     isMod,
+    qualifiedReferrals,
   });
 
   const [followCounts, viewerFollowing, viewerFollowedBy] = await Promise.all([
@@ -249,6 +267,7 @@ export const buildPublicProfilePayload = async (user, viewer = null) => {
       reposts: repostCount,
       followers: followCounts.followers,
       following: followCounts.following,
+      referrals: qualifiedReferrals,
     },
   };
 };

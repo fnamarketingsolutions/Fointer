@@ -29,6 +29,8 @@ const TYPE_LABELS = {
   support_ticket: 'Support',
   user_warning: 'Account warning',
   watch_group_invite: 'Watch group invite',
+  referral_qualified: 'Referral',
+  ownership_transferred: 'Ownership',
 };
 
 export const isSystemNotification = (type) => SYSTEM_TYPES.has(type);
@@ -129,6 +131,12 @@ export const notificationPath = (notification) => {
   }
   if (type === 'watch_group_invite') {
     return '/watch-groups?tab=invites';
+  }
+  if (type === 'referral_qualified') {
+    return '/profile';
+  }
+  if (type === 'ownership_transferred') {
+    return communityPath || '/communities';
   }
   return '/notifications';
 };

@@ -2,6 +2,7 @@ import { initializeApp, getApps, cert } from "firebase-admin/app";
 import { getMessaging as getFirebaseMessaging } from "firebase-admin/messaging";
 import PushDevice from "../models/pushDevice.js";
 import { notificationPath } from "./notificationPath.js";
+import { getPublicFrontendUrl } from "./publicAppUrls.js";
 
 export const ANDROID_CHANNEL_ID =
   String(process.env.FCM_ANDROID_CHANNEL_ID || "fointer_default").trim() ||
@@ -14,8 +15,7 @@ const readPrivateKey = () =>
     .replace(/^["']|["']$/g, "")
     .replace(/\\n/g, "\n");
 
-const frontendOrigin = () =>
-  String(process.env.FRONTEND_URL || "").replace(/\/$/, "");
+const frontendOrigin = () => getPublicFrontendUrl();
 
 export const getWebPushConfig = () => {
   const projectId = String(process.env.FIREBASE_PROJECT_ID || "").trim();

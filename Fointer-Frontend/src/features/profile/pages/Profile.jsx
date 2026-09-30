@@ -36,6 +36,7 @@ import { normalizeUsername } from "../../../shared/services/profileLinks";
 import { formatCommunityType } from "../../../shared/utils/community";
 import { formatLongDate, timeAgo } from "../../../shared/utils/date";
 import FollowUserList from "../components/FollowUserList";
+import InviteFriendsCard from "../components/InviteFriendsCard";
 
 const TABS = [
   { id: "profile", label: "Profile" },
@@ -736,6 +737,8 @@ export default function Profile() {
             </button>
           </form>
 
+          <InviteFriendsCard />
+
           <section className="bg-fo-surface border border-fo-border rounded-xl p-4 sm:p-5 space-y-3">
             <div className="flex items-center gap-2">
               <Award size={15} className="text-fo-accent" aria-hidden />
@@ -964,7 +967,13 @@ export default function Profile() {
               Permanently delete your account, posts, listings, and personal
               data. Messages you sent may stay visible to others as{" "}
               <span className="text-fo-text">Deleted User</span>. This cannot
-              be undone.
+              be undone.{" "}
+              <Link
+                to="/user-delete"
+                className="text-fo-accent hover:underline"
+              >
+                Full instructions
+              </Link>
             </p>
             <Link
               to="/delete-me"

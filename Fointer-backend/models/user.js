@@ -178,9 +178,36 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+
+    /** Unique invite code for this user (lazy-allocated). */
+    referralCode: {
+      type: String,
+      uppercase: true,
+      trim: true,
+      maxlength: 32,
+      default: null,
+    },
+
+    /** Who invited this account (set once at signup). */
+    referredBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+      index: true,
+    },
   },
   {
     timestamps: true,
+  }
+);
+
+userSchema.index(
+  { referralCode: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      referralCode: { $exists: true, $type: "string" },
+    },
   }
 );
 

@@ -4,6 +4,10 @@ import { googleAuth, facebookAuth } from '../services/authService';
 import { loginWithFacebook, ensureFacebookSdk } from '../../../shared/lib/facebookSdk';
 import { useAuth } from '../../../context/AuthContext';
 import { getPostAuthPath } from '../../../shared/lib/roles';
+import {
+  clearStoredReferralCode,
+  getStoredReferralCode,
+} from '../../../shared/lib/referralCapture';
 
 export function useSocialAuth() {
   const navigate = useNavigate();
@@ -20,8 +24,10 @@ export function useSocialAuth() {
     setPendingVerification(null);
 
     try {
-      const response = await authApiCall(token);
+      const referralCode = getStoredReferralCode();
+      const response = await authApiCall(token, referralCode || undefined);
       if (response?.success && response.user) {
+        clearStoredReferralCode();
         const ok = loginSuccess(response.user);
         if (!ok) {
           setError('Admin accounts must sign in through the admin portal.');
@@ -31,11 +37,13 @@ export function useSocialAuth() {
         return;
       }
       if (response?.requiresEmailVerification && response?.email) {
+        clearStoredReferralCode();
         setPendingVerification({ email: response.email, provider });
       }
       setError(response?.message || `${provider} authentication failed.`);
     } catch (err) {
       if (err?.response?.data?.requiresEmailVerification && err?.response?.data?.email) {
+        clearStoredReferralCode();
         setPendingVerification({
           email: err.response.data.email,
           provider,
@@ -52,7 +60,9 @@ export function useSocialAuth() {
       setError('Failed to retrieve token from Google.');
       return;
     }
-    completeAuth('google', credential, googleAuth);
+    completeAuth('google', credential, (token, referralCode) =>
+      googleAuth(token, referralCode)
+    );
   }, [completeAuth]);
 
   const handleFacebookAuth = async () => {
@@ -69,7 +79,9 @@ export function useSocialAuth() {
         return;
       }
 
-      await completeAuth('facebook', accessToken, facebookAuth);
+      await completeAuth('facebook', accessToken, (token, referralCode) =>
+        facebookAuth(token, referralCode)
+      );
     } catch (err) {
       setError(err?.message || 'Facebook login failed.');
       setLoading((prev) => ({ ...prev, facebook: false }));

@@ -1,9 +1,119 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { APP_SCROLL_ID } from "../../utils/scroll";
+import {
+  registerFeedVideo,
+  updateFeedVideoRatio,
+} from "../../utils/feedVideoAutoplay";
 
-function MediaFrame({ item, heightClass }) {
+function AutoplaysVideo({ item, heightClass, active = true }) {
+  const frameRef = useRef(null);
+  const videoRef = useRef(null);
+  const userPausedRef = useRef(false);
+  const observerPausedRef = useRef(false);
+  const playerRef = useRef({
+    ratio: 0,
+    play: () => {},
+    pause: () => {},
+  });
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return undefined;
+
+    const player = playerRef.current;
+    player.play = () => {
+      if (userPausedRef.current) return;
+      if (!video.paused) return;
+      video.muted = true;
+      const playAttempt = video.play();
+      if (playAttempt?.catch) playAttempt.catch(() => {});
+    };
+    player.pause = () => {
+      userPausedRef.current = false;
+      if (video.paused) {
+        video.muted = true;
+        return;
+      }
+      observerPausedRef.current = true;
+      video.pause();
+      video.muted = true;
+    };
+
+    const unregister = registerFeedVideo(player);
+    return () => {
+      unregister();
+    };
+  }, [item.url]);
+
+  useEffect(() => {
+    const frame = frameRef.current;
+    if (!frame) return undefined;
+
+    const player = playerRef.current;
+    if (!active) {
+      updateFeedVideoRatio(player, 0);
+      return undefined;
+    }
+
+    const root = document.getElementById(APP_SCROLL_ID) || null;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        updateFeedVideoRatio(player, entry?.intersectionRatio || 0);
+      },
+      {
+        root,
+        threshold: [0, 0.25, 0.5, 0.55, 0.75, 1],
+      }
+    );
+    observer.observe(frame);
+    return () => {
+      observer.disconnect();
+      updateFeedVideoRatio(player, 0);
+    };
+  }, [active, item.url]);
+
+  return (
+    <div ref={frameRef} className={heightClass}>
+      <video
+        ref={videoRef}
+        src={item.url}
+        className="absolute inset-0 w-full h-full object-contain"
+        preload="metadata"
+        playsInline
+        loop
+        muted
+        controls
+        onPause={() => {
+          if (observerPausedRef.current) {
+            observerPausedRef.current = false;
+            return;
+          }
+          userPausedRef.current = true;
+        }}
+        onPlay={() => {
+          userPausedRef.current = false;
+        }}
+      />
+    </div>
+  );
+}
+
+function MediaFrame({ item, heightClass, autoPlayOnView = false, active = true }) {
   const isVideo = item.type === "video";
   const frameClass = `relative w-full ${heightClass} bg-fo-surface-2 overflow-hidden`;
   const mediaClass = "absolute inset-0 w-full h-full object-contain";
+
+  if (isVideo && autoPlayOnView) {
+    return (
+      <div className={frameClass}>
+        <AutoplaysVideo
+          item={item}
+          heightClass="absolute inset-0"
+          active={active}
+        />
+      </div>
+    );
+  }
 
   if (isVideo) {
     return (
@@ -13,6 +123,7 @@ function MediaFrame({ item, heightClass }) {
           controls
           className={mediaClass}
           preload="metadata"
+          playsInline
         />
       </div>
     );
@@ -29,6 +140,7 @@ export default function PostMediaGallery({
   media = [],
   counterOverlay = false,
   heightClass = "aspect-video",
+  autoPlayOnView = false,
 }) {
   const scrollRef = useRef(null);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -36,7 +148,13 @@ export default function PostMediaGallery({
   if (!media.length) return null;
 
   if (media.length === 1) {
-    return <MediaFrame item={media[0]} heightClass={heightClass} />;
+    return (
+      <MediaFrame
+        item={media[0]}
+        heightClass={heightClass}
+        autoPlayOnView={autoPlayOnView}
+      />
+    );
   }
 
   const handleScroll = () => {
@@ -66,7 +184,12 @@ export default function PostMediaGallery({
             key={`${m.url}-${idx}`}
             className="min-w-full shrink-0 snap-center"
           >
-            <MediaFrame item={m} heightClass={heightClass} />
+            <MediaFrame
+              item={m}
+              heightClass={heightClass}
+              autoPlayOnView={autoPlayOnView}
+              active={idx === activeIndex}
+            />
           </div>
         ))}
       </div>

@@ -340,6 +340,7 @@ export default function FeedPostRow({
                 media={media}
                 counterOverlay={media.length > 1}
                 heightClass="aspect-video"
+                autoPlayOnView
               />
             </div>
           </div>

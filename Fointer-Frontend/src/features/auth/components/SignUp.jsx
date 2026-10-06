@@ -13,7 +13,7 @@ import BrandLogo from '../../../shared/components/BrandLogo';
 import ThemeToggle from '../../../shared/components/ThemeToggle';
 import LocationFields from '../../../shared/components/LocationFields';
 import InterestSuggestions from '../../../shared/components/InterestSuggestions';
-import { dateOfBirthError } from '../../../shared/lib/dateOfBirth';
+import { AGE_RANGES, ageRangeError } from '../../../shared/lib/ageRange';
 import { postalCodeError } from '../../../shared/lib/postalCode';
 import { getPostAuthPath } from '../../../shared/lib/roles';
 import {
@@ -54,7 +54,7 @@ export default function SignUp() {
     confirmPassword: '',
     bio: '',
     gender: '',
-    dateOfBirth: '',
+    ageRange: '',
     city: '',
     state: '',
     country: '',
@@ -160,9 +160,9 @@ export default function SignUp() {
       showToast('Gender is required.');
       return false;
     }
-    const dobError = dateOfBirthError(formData.dateOfBirth);
-    if (dobError) {
-      showToast(dobError);
+    const ageError = ageRangeError(formData.ageRange);
+    if (ageError) {
+      showToast(ageError);
       return false;
     }
     const postalError = postalCodeError(formData.zipCode);
@@ -201,7 +201,7 @@ export default function SignUp() {
         bio: formData.bio.trim(),
         interests,
         gender: formData.gender,
-        dateOfBirth: formData.dateOfBirth,
+        ageRange: formData.ageRange,
         city: formData.city.trim(),
         state: formData.state.trim(),
         country: formData.country.trim(),
@@ -282,7 +282,7 @@ export default function SignUp() {
     step === 'account'
       ? 'Enter your details to register and get started.'
       : step === 'profile'
-        ? 'Gender and date of birth are required. A postal code fills in your country, state, and city.'
+        ? 'Gender and age range are required. A postal code fills in your country, state, and city.'
         : `Enter the 6-digit OTP sent to ${activeVerificationEmail}.`;
 
   return (
@@ -572,18 +572,22 @@ export default function SignUp() {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-fo-muted uppercase tracking-wider mb-1.5">
-                    Date of birth
+                    Age range
                   </label>
-                  <input
-                    type="date"
-                    name="dateOfBirth"
-                    value={formData.dateOfBirth}
+                  <select
+                    name="ageRange"
+                    value={formData.ageRange}
                     onChange={handleChange}
                     required
-                    max={new Date().toISOString().slice(0, 10)}
-                    min="1900-01-01"
                     className={inputClass}
-                  />
+                  >
+                    <option value="">Select age range</option>
+                    {AGE_RANGES.map((range) => (
+                      <option key={range} value={range}>
+                        {range}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 

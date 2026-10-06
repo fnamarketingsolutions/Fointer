@@ -9,12 +9,11 @@ import {
 } from "../utils/cloudinary.js";
 import { sendServerError } from "../utils/safeError.js";
 import { respondIfBanned } from "../utils/bannedKeywords.js";
-import { PHONE_RE, parseOptionalYear, validatePasswordStrength } from "../utils/validate.js";
+import { PHONE_RE, validatePasswordStrength } from "../utils/validate.js";
 import { getFollowCounts } from "../utils/followHelpers.js";
 import { computeAchievements } from "../utils/publicProfilePayload.js";
 import {
-  formatDateOfBirth,
-  parseDateOfBirth,
+  parseAgeRange,
   parseGender,
 } from "../utils/profileIdentity.js";
 import { normalizePostalCode, postalCodeError } from "../utils/postalCode.js";
@@ -60,8 +59,7 @@ const formatProfileUser = (user) => ({
   district: user.district || "",
   phone: user.phone || "",
   gender: user.gender || "",
-  dateOfBirth: formatDateOfBirth(user.dateOfBirth),
-  yearOfBirth: user.yearOfBirth ?? null,
+  ageRange: user.ageRange || "",
   hasPassword: Boolean(user.password),
   hideFollowersList: Boolean(user.hideFollowersList),
   hideFollowingList: Boolean(user.hideFollowingList),
@@ -273,18 +271,6 @@ export const updateMyProfile = async (req, res) => {
       user.gender = gender;
     }
 
-    if (req.body.dateOfBirth !== undefined) {
-      const dob = parseDateOfBirth(req.body.dateOfBirth);
-      if (dob.error) {
-        return res.status(400).json({
-          success: false,
-          message: dob.error,
-        });
-      }
-      user.dateOfBirth = dob.date;
-      user.yearOfBirth = dob.year;
-    }
-
     if (req.body.phone !== undefined) {
       const phone = String(req.body.phone || "").trim();
       if (phone && !PHONE_RE.test(phone)) {
@@ -296,24 +282,15 @@ export const updateMyProfile = async (req, res) => {
       user.phone = phone.slice(0, 30);
     }
 
-    if (req.body.yearOfBirth !== undefined) {
-      const year = parseOptionalYear(req.body.yearOfBirth);
-      if (Number.isNaN(year)) {
+    if (req.body.ageRange !== undefined) {
+      const ageRange = parseAgeRange(req.body.ageRange);
+      if (!ageRange) {
         return res.status(400).json({
           success: false,
-          message: "Year of birth must be a valid year.",
+          message: "Select an age range.",
         });
       }
-      if (year !== null) {
-        const currentYear = new Date().getFullYear();
-        if (year < 1900 || year > currentYear) {
-          return res.status(400).json({
-            success: false,
-            message: `Year of birth must be between 1900 and ${currentYear}.`,
-          });
-        }
-      }
-      user.yearOfBirth = year;
+      user.ageRange = ageRange;
     }
 
     if (req.body.hideFollowersList !== undefined) {

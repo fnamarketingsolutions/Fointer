@@ -244,6 +244,7 @@ export const buildPublicProfilePayload = async (user, viewer = null) => {
     city: user.city || "",
     state: user.state || "",
     country: user.country || "",
+    ageRange: user.ageRange || "",
     createdAt: user.createdAt,
     isFollowing: viewerFollowing,
     isFollowedBy: viewerFollowedBy,

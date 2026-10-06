@@ -4,7 +4,6 @@ import {
   getAuthCookieOptions,
 } from "./cookieOptions.js";
 import { getAdminAccessPayload } from "./adminAccess.js";
-import { formatDateOfBirth } from "./profileIdentity.js";
 
 const sendToken = (user, statusCode, res, options = {}) => {
   const token = generateToken(user._id, user.role);
@@ -42,7 +41,7 @@ const sendToken = (user, statusCode, res, options = {}) => {
       zipCode: user.zipCode || "",
       address: user.address || "",
       gender: user.gender || "",
-      dateOfBirth: formatDateOfBirth(user.dateOfBirth),
+      ageRange: user.ageRange || "",
       isSuperAdmin: adminAccess.isSuperAdmin,
       adminTabs: adminAccess.adminTabs,
     },

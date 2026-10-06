@@ -30,7 +30,7 @@ import {
   communitySegment,
   postSegment,
 } from "../../../shared/services/entityLinks";
-import { dateOfBirthError } from "../../../shared/lib/dateOfBirth";
+import { AGE_RANGES, ageRangeError } from "../../../shared/lib/ageRange";
 import { postalCodeError } from "../../../shared/lib/postalCode";
 import { normalizeUsername } from "../../../shared/services/profileLinks";
 import { formatCommunityType } from "../../../shared/utils/community";
@@ -59,7 +59,7 @@ const EMPTY_FORM = {
   address: "",
   phone: "",
   gender: "",
-  dateOfBirth: "",
+  ageRange: "",
 };
 
 const EMPTY_PASSWORD = {
@@ -100,7 +100,7 @@ function formFromProfile(p) {
     address: p?.address || "",
     phone: p?.phone || "",
     gender: p?.gender || "",
-    dateOfBirth: p?.dateOfBirth || "",
+    ageRange: p?.ageRange || "",
   };
 }
 
@@ -200,9 +200,9 @@ export default function Profile() {
       showToast("Gender is required.");
       return;
     }
-    const dobError = dateOfBirthError(form.dateOfBirth);
-    if (dobError) {
-      showToast(dobError);
+    const ageError = ageRangeError(form.ageRange);
+    if (ageError) {
+      showToast(ageError);
       return;
     }
     const postalError = postalCodeError(form.zipCode);
@@ -223,7 +223,7 @@ export default function Profile() {
       address: form.address.trim(),
       phone: form.phone.trim(),
       gender: form.gender,
-      dateOfBirth: form.dateOfBirth,
+      ageRange: form.ageRange,
     };
     const prevInterests = profile?.interests || [];
     const unchanged =
@@ -237,7 +237,7 @@ export default function Profile() {
       next.address === (profile?.address || "") &&
       next.phone === (profile?.phone || "") &&
       next.gender === (profile?.gender || "") &&
-      next.dateOfBirth === (profile?.dateOfBirth || "") &&
+      next.ageRange === (profile?.ageRange || "") &&
       next.interests.length === prevInterests.length &&
       next.interests.every((t, i) => t === prevInterests[i]);
 
@@ -659,21 +659,25 @@ export default function Profile() {
                   </select>
                 </div>
                 <div>
-                  <label htmlFor="profile-dob" className={labelClass}>
-                    Date of birth
+                  <label htmlFor="profile-age-range" className={labelClass}>
+                    Age range
                   </label>
-                  <input
-                    id="profile-dob"
-                    type="date"
-                    value={form.dateOfBirth}
+                  <select
+                    id="profile-age-range"
+                    value={form.ageRange}
                     onChange={(e) =>
-                      setForm((p) => ({ ...p, dateOfBirth: e.target.value }))
+                      setForm((p) => ({ ...p, ageRange: e.target.value }))
                     }
                     required
-                    max={new Date().toISOString().slice(0, 10)}
-                    min="1900-01-01"
                     className={fieldClass}
-                  />
+                  >
+                    <option value="">Select age range</option>
+                    {AGE_RANGES.map((range) => (
+                      <option key={range} value={range}>
+                        {range}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 

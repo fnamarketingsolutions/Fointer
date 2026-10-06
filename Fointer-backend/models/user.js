@@ -98,6 +98,21 @@ const userSchema = new mongoose.Schema(
       default: "",
     },
 
+    ageRange: {
+      type: String,
+      enum: [
+        "13–17 years",
+        "18–24 years",
+        "25–34 years",
+        "35–44 years",
+        "45–54 years",
+        "55–64 years",
+        "65+ years",
+        "",
+      ],
+      default: "",
+    },
+
     dateOfBirth: {
       type: Date,
     },

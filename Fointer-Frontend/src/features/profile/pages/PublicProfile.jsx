@@ -329,6 +329,7 @@ export default function PublicProfile() {
         ) : null}
 
         <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-fo-subtle">
+          {profile.ageRange ? <span>Age range: {profile.ageRange}</span> : null}
           {locationParts.length ? (
             <span className="inline-flex items-center gap-1">
               <MapPin size={13} className="text-fo-accent shrink-0" />

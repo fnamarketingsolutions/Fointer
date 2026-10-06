@@ -9,8 +9,7 @@ import { getAuthCookieOptions } from "../utils/cookieOptions.js";
 import { respondIfBanned } from "../utils/bannedKeywords.js";
 import { getAdminAccessPayload } from "../utils/adminAccess.js";
 import {
-  formatDateOfBirth,
-  parseDateOfBirth,
+  parseAgeRange,
   parseGender,
 } from "../utils/profileIdentity.js";
 import { normalizePostalCode, postalCodeError } from "../utils/postalCode.js";
@@ -54,7 +53,7 @@ const profileFieldsFromBody = (body = {}) => {
   const zipCode = normalizePostalCode(body.zipCode);
   const address = String(body.address || "").trim().slice(0, 300);
   const gender = parseGender(body.gender);
-  const dob = parseDateOfBirth(body.dateOfBirth);
+  const ageRange = parseAgeRange(body.ageRange);
   return {
     bio,
     interests,
@@ -65,7 +64,7 @@ const profileFieldsFromBody = (body = {}) => {
     zipCode,
     address,
     gender,
-    dob,
+    ageRange,
   };
 };
 
@@ -77,10 +76,10 @@ const requireSignupIdentity = (res, profile) => {
     });
     return false;
   }
-  if (profile.dob.error) {
+  if (!profile.ageRange) {
     res.status(400).json({
       success: false,
-      message: profile.dob.error,
+      message: "Select an age range.",
     });
     return false;
   }
@@ -272,8 +271,7 @@ export const signup = async (req, res) => {
         if (profile.zipCode) emailExists.zipCode = profile.zipCode;
         if (profile.address) emailExists.address = profile.address;
         emailExists.gender = profile.gender;
-        emailExists.dateOfBirth = profile.dob.date;
-        emailExists.yearOfBirth = profile.dob.year;
+        emailExists.ageRange = profile.ageRange;
         await emailExists.save();
         await sendVerificationEmail({
           to: emailExists.email,
@@ -314,8 +312,7 @@ export const signup = async (req, res) => {
       zipCode: profile.zipCode,
       address: profile.address,
       gender: profile.gender,
-      dateOfBirth: profile.dob.date,
-      yearOfBirth: profile.dob.year,
+      ageRange: profile.ageRange,
     });
 
     try {
@@ -1074,8 +1071,7 @@ export const getMe = async (req, res) => {
         district: user.district || "",
         phone: user.phone || "",
         gender: user.gender || "",
-        dateOfBirth: formatDateOfBirth(user.dateOfBirth),
-        yearOfBirth: user.yearOfBirth ?? null,
+        ageRange: user.ageRange || "",
         isSuperAdmin: adminAccess.isSuperAdmin,
         adminTabs: adminAccess.adminTabs,
       },

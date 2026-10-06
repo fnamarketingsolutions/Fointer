@@ -103,6 +103,7 @@ const searchPosts = async (term, userId, limit) => {
   const filter = {
     $and: [
       visibility,
+      { isArchived: { $ne: true } },
       {
         $or: [
           { title: { $regex: term, $options: "i" } },

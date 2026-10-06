@@ -924,7 +924,7 @@ export const postMessage = async (req, res) => {
           message: "Post not found.",
         });
       }
-      if (!(await canViewPost(post, req.user))) {
+      if (post.isArchived || !(await canViewPost(post, req.user))) {
         return res.status(403).json({
           success: false,
           message: "You cannot share this post.",

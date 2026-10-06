@@ -20,6 +20,7 @@ import {
   acceptInvite,
   declineInvite,
   fetchBrowsableCommunity,
+  fetchCommunityMembers,
   joinPublicCommunity,
   requestToJoin,
 } from "../../../../api/communities";
@@ -123,6 +124,11 @@ function CommunitySidebar({
         </div>
       </div>
 
+      {community?.isMember &&
+      ["private_request", "private_invite"].includes(community.type) ? (
+        <CommunityMembersCard key={community.id} community={community} />
+      ) : null}
+
       {rules.length > 0 ? (
         <div className="bg-fo-surface border border-fo-border rounded-xl p-4 space-y-2">
           <h4 className="text-sm font-semibold text-fo-text">Rules</h4>
@@ -206,6 +212,83 @@ function CommunitySidebar({
         )}
       </div>
     </aside>
+  );
+}
+
+function CommunityMembersCard({ community }) {
+  const [members, setMembers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchCommunityMembers(community.id, "active")
+      .then((data) => {
+        if (!cancelled) setMembers(data?.members || []);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setError(
+            err?.response?.data?.message || "Could not load community members."
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [community.id]);
+
+  return (
+    <div className="bg-fo-surface border border-fo-border rounded-xl p-4 space-y-3">
+      <h4 className="text-sm font-semibold text-fo-text">Community members</h4>
+      {loading ? (
+        <div className="flex items-center gap-2 text-xs text-fo-subtle">
+          <Loader2 size={13} className="animate-spin text-fo-accent" />
+          Loading members…
+        </div>
+      ) : error ? (
+        <p role="alert" className="text-xs text-red-400">
+          {error}
+        </p>
+      ) : members.length === 0 ? (
+        <p className="text-xs text-fo-subtle">No members found.</p>
+      ) : (
+        <ul className="max-h-72 space-y-2 overflow-y-auto">
+          {members.map((member) => {
+            const name =
+              member.user?.name || member.user?.username || "Member";
+            return (
+              <li
+                key={member.id}
+                className="flex items-center justify-between gap-2"
+              >
+                <div className="min-w-0">
+                  <UserProfileLink
+                    author={member.user}
+                    className="block truncate text-xs font-medium text-fo-text hover:text-fo-accent"
+                  >
+                    {name}
+                  </UserProfileLink>
+                  <UserProfileLink
+                    author={member.user}
+                    className="block truncate text-[10px] text-fo-subtle hover:text-fo-accent"
+                  >
+                    @{member.user?.username || "user"}
+                  </UserProfileLink>
+                </div>
+                <span className="shrink-0 text-[10px] capitalize text-fo-subtle">
+                  {member.role}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
   );
 }
 

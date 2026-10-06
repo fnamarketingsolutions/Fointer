@@ -1,4 +1,10 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import {
+  LuChevronLeft as ChevronLeft,
+  LuChevronRight as ChevronRight,
+  LuX as Close,
+} from "react-icons/lu";
 import { APP_SCROLL_ID } from "../../utils/scroll";
 import {
   registerFeedVideo,
@@ -98,7 +104,13 @@ function AutoplaysVideo({ item, heightClass, active = true }) {
   );
 }
 
-function MediaFrame({ item, heightClass, autoPlayOnView = false, active = true }) {
+function MediaFrame({
+  item,
+  heightClass,
+  autoPlayOnView = false,
+  active = true,
+  onImageClick,
+}) {
   const isVideo = item.type === "video";
   const frameClass = `relative w-full ${heightClass} bg-fo-surface-2 overflow-hidden`;
   const mediaClass = "absolute inset-0 w-full h-full object-contain";
@@ -131,7 +143,14 @@ function MediaFrame({ item, heightClass, autoPlayOnView = false, active = true }
 
   return (
     <div className={frameClass}>
-      <img src={item.url} alt="" className={mediaClass} />
+      <button
+        type="button"
+        onClick={onImageClick}
+        className="absolute inset-0 block h-full w-full cursor-zoom-in"
+        aria-label="View image full screen"
+      >
+        <img src={item.url} alt="" className={mediaClass} />
+      </button>
     </div>
   );
 }
@@ -144,16 +163,55 @@ export default function PostMediaGallery({
 }) {
   const scrollRef = useRef(null);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [fullScreenIndex, setFullScreenIndex] = useState(null);
+  const photos = media.filter((item) => item.type !== "video");
+
+  useEffect(() => {
+    if (fullScreenIndex === null) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") setFullScreenIndex(null);
+      if (event.key === "ArrowRight") {
+        setFullScreenIndex((index) => (index + 1) % photos.length);
+      }
+      if (event.key === "ArrowLeft") {
+        setFullScreenIndex(
+          (index) => (index - 1 + photos.length) % photos.length
+        );
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [fullScreenIndex, photos.length]);
 
   if (!media.length) return null;
 
   if (media.length === 1) {
     return (
-      <MediaFrame
-        item={media[0]}
-        heightClass={heightClass}
-        autoPlayOnView={autoPlayOnView}
-      />
+      <>
+        <MediaFrame
+          item={media[0]}
+          heightClass={heightClass}
+          autoPlayOnView={autoPlayOnView}
+          onImageClick={
+            media[0].type === "video" ? undefined : () => setFullScreenIndex(0)
+          }
+        />
+        {fullScreenIndex !== null &&
+          createPortal(
+            <FullScreenImageViewer
+              photos={photos}
+              index={fullScreenIndex}
+              onClose={() => setFullScreenIndex(null)}
+              onChange={setFullScreenIndex}
+            />,
+            document.body
+          )}
+      </>
     );
   }
 
@@ -189,6 +247,15 @@ export default function PostMediaGallery({
               heightClass={heightClass}
               autoPlayOnView={autoPlayOnView}
               active={idx === activeIndex}
+              onImageClick={
+                m.type === "video"
+                  ? undefined
+                  : () =>
+                      setFullScreenIndex(
+                        media.slice(0, idx + 1).filter((item) => item.type !== "video")
+                          .length - 1
+                      )
+              }
             />
           </div>
         ))}
@@ -214,6 +281,73 @@ export default function PostMediaGallery({
           />
         ))}
       </div>
+      {fullScreenIndex !== null &&
+        createPortal(
+          <FullScreenImageViewer
+            photos={photos}
+            index={fullScreenIndex}
+            onClose={() => setFullScreenIndex(null)}
+            onChange={setFullScreenIndex}
+          />,
+          document.body
+        )}
+    </div>
+  );
+}
+
+function FullScreenImageViewer({ photos, index, onClose, onChange }) {
+  const photo = photos[index];
+  if (!photo) return null;
+
+  const hasMultiple = photos.length > 1;
+  const showPrevious = () =>
+    onChange((current) => (current - 1 + photos.length) % photos.length);
+  const showNext = () =>
+    onChange((current) => (current + 1) % photos.length);
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Full-screen image viewer"
+    >
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Close full-screen image"
+        className="absolute right-4 top-4 z-10 inline-flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-white hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+      >
+        <Close size={22} />
+      </button>
+      {hasMultiple ? (
+        <>
+          <button
+            type="button"
+            onClick={showPrevious}
+            aria-label="Previous image"
+            className="absolute left-2 sm:left-4 z-10 inline-flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-white hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+          >
+            <ChevronLeft size={24} />
+          </button>
+          <button
+            type="button"
+            onClick={showNext}
+            aria-label="Next image"
+            className="absolute right-2 sm:right-4 z-10 inline-flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-white hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+          >
+            <ChevronRight size={24} />
+          </button>
+          <span className="absolute bottom-5 left-1/2 -translate-x-1/2 rounded-full bg-black/60 px-3 py-1 text-sm text-white">
+            {index + 1} / {photos.length}
+          </span>
+        </>
+      ) : null}
+      <img
+        src={photo.url}
+        alt=""
+        className="max-h-full max-w-full select-none object-contain"
+      />
     </div>
   );
 }

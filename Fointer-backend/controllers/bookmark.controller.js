@@ -35,7 +35,11 @@ export const toggleMyBookmark = async (req, res) => {
       const post = await Post.findById(resolved.targetId)
         .populate("community", "type")
         .lean();
-      if (!post || !(await canViewPost(post, req.user))) {
+      if (
+        !post ||
+        post.isArchived ||
+        !(await canViewPost(post, req.user))
+      ) {
         return res.status(404).json({
           success: false,
           message: "Post not found.",
@@ -95,7 +99,10 @@ export const listMyBookmarks = async (req, res) => {
 
     const [posts, listings] = await Promise.all([
       postIds.length
-        ? Post.find({ _id: { $in: postIds } })
+        ? Post.find({
+            _id: { $in: postIds },
+            isArchived: { $ne: true },
+          })
             .populate("author", "username name avatar role")
             .populate("community", "name shortCode coverImage type")
             .lean()

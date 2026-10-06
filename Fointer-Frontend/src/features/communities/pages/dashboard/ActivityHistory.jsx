@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   LuBookmark as Bookmark,
+  LuArchive as Archive,
   LuClock as Clock,
   LuSquarePen as Edit3,
   LuHeart as Heart,
   LuLoaderCircle as Loader2,
   LuMessageCircle as MessageCircle,
   LuRepeat2 as Repeat2,
+  LuRotateCcw as Restore,
   LuReply as Reply,
   LuTrash2 as Trash2
 } from "react-icons/lu";
@@ -17,6 +19,7 @@ import {
   fetchMyLikedPosts,
   fetchMyResharedPosts,
   fetchPosts,
+  setPostArchived,
   togglePostLike,
   togglePostReshare,
 } from "../../../../api/posts";
@@ -35,6 +38,7 @@ import { useToast } from "../../../../shared/components/feedback/ToastContext";
 
 const TABS = [
   { id: "posts", label: "My Posts" },
+  { id: "archived", label: "Archived" },
   { id: "comments", label: "Comments" },
   { id: "likes", label: "Liked" },
   { id: "reposts", label: "Reposts" },
@@ -102,6 +106,7 @@ export default function ActivityHistory() {
   const { showToast } = useToast();
   const [subTab, setSubTab] = useState("posts");
   const [posts, setPosts] = useState([]);
+  const [archivedPosts, setArchivedPosts] = useState([]);
   const [myComments, setMyComments] = useState([]);
   const [likedPosts, setLikedPosts] = useState([]);
   const [repostedPosts, setRepostedPosts] = useState([]);
@@ -115,6 +120,7 @@ export default function ActivityHistory() {
   const [lockModal, setLockModal] = useState(null);
   const [unlikingId, setUnlikingId] = useState(null);
   const [unrepostingId, setUnrepostingId] = useState(null);
+  const [archivingId, setArchivingId] = useState(null);
 
   const loadPosts = useCallback(async () => {
     setLoading(true);
@@ -124,6 +130,21 @@ export default function ActivityHistory() {
     } catch (err) {
       showToast(err?.response?.data?.message || "Failed to load your posts.");
       setPosts([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [showToast]);
+
+  const loadArchivedPosts = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await fetchPosts({ mine: "1", archived: "1" });
+      setArchivedPosts(data?.posts || []);
+    } catch (err) {
+      showToast(
+        err?.response?.data?.message || "Failed to load your archived posts."
+      );
+      setArchivedPosts([]);
     } finally {
       setLoading(false);
     }
@@ -183,18 +204,47 @@ export default function ActivityHistory() {
 
   useEffect(() => {
     if (subTab === "posts") loadPosts();
+    else if (subTab === "archived") loadArchivedPosts();
     else if (subTab === "comments") loadComments();
     else if (subTab === "likes") loadLikes();
     else if (subTab === "saved") loadSaved();
     else loadReshares();
-  }, [subTab, loadPosts, loadComments, loadLikes, loadReshares, loadSaved]);
+  }, [
+    subTab,
+    loadPosts,
+    loadArchivedPosts,
+    loadComments,
+    loadLikes,
+    loadReshares,
+    loadSaved,
+  ]);
 
   const reloadCurrent = () => {
     if (subTab === "posts") loadPosts();
+    else if (subTab === "archived") loadArchivedPosts();
     else if (subTab === "comments") loadComments();
     else if (subTab === "likes") loadLikes();
     else if (subTab === "saved") loadSaved();
     else loadReshares();
+  };
+
+  const handleArchive = async (postId, archived) => {
+    setArchivingId(postId);
+    try {
+      await setPostArchived(postId, archived);
+      const setter = archived ? setPosts : setArchivedPosts;
+      setter((current) =>
+        current.filter((post) => String(post.id) !== String(postId))
+      );
+      showToast(archived ? "Post archived." : "Post restored.");
+    } catch (err) {
+      showToast(
+        err?.response?.data?.message ||
+          (archived ? "Failed to archive post." : "Failed to restore post.")
+      );
+    } finally {
+      setArchivingId(null);
+    }
   };
 
   const showLockModal = (item, kind = "post") => {
@@ -338,18 +388,32 @@ export default function ActivityHistory() {
       </div>
 
       {/* My Posts */}
-      {subTab === "posts" && (
+      {(subTab === "posts" || subTab === "archived") && (
         <div className="space-y-2.5">
           {loading ? (
-            <LoadingState label="Loading your posts…" />
-          ) : posts.length === 0 ? (
-            <EmptyState>You haven’t created any posts yet.</EmptyState>
-          ) : (
-            posts.map((post) => {
-              const showEdit =
-                post.canEdit || (post.isAuthor && post.isLocked);
-              const showDelete =
-                post.canDelete || (post.isAuthor && post.isLocked);
+                <LoadingState
+                  label={
+                    subTab === "archived"
+                      ? "Loading archived posts…"
+                      : "Loading your posts…"
+                  }
+                />
+              ) : (subTab === "archived" ? archivedPosts : posts).length === 0 ? (
+                <EmptyState>
+                  {subTab === "archived"
+                    ? "You don’t have any archived posts."
+                    : "You haven’t created any posts yet."}
+                </EmptyState>
+              ) : (
+                (subTab === "archived" ? archivedPosts : posts).map((post) => {
+                  const showEdit =
+                    !post.isArchived &&
+                    (post.canEdit || (post.isAuthor && post.isLocked));
+                  const showDelete = Boolean(post.canDelete);
+                  const showArchive = Boolean(
+                    post.isAuthor && !post.isArchived
+                  );
+                  const showRestore = Boolean(post.isAuthor && post.isArchived);
               const label = getEditWindowLabel(
                 post.createdAt,
                 post.canEdit,
@@ -373,6 +437,12 @@ export default function ActivityHistory() {
                       </span>
                       <span>·</span>
                       <span>{timeAgo(post.createdAt)}</span>
+                      {post.isArchived ? (
+                        <>
+                          <span>·</span>
+                          <span className="text-fo-accent">Archived</span>
+                        </>
+                      ) : null}
                     </MetaLine>
 
                     <h2 className="text-sm sm:text-base font-semibold text-fo-text leading-snug group-hover:text-fo-accent transition-colors line-clamp-2">
@@ -419,7 +489,7 @@ export default function ActivityHistory() {
                     </div>
                   ) : null}
 
-                  {(showEdit || showDelete) && (
+                  {(showEdit || showDelete || showArchive || showRestore) && (
                     <div className="flex flex-col gap-1.5 shrink-0 justify-start">
                       {showEdit && (
                         <ActionButton onClick={() => openEdit(post)}>
@@ -434,6 +504,24 @@ export default function ActivityHistory() {
                         >
                           <Trash2 size={12} />
                           <span className="hidden sm:inline">Delete</span>
+                        </ActionButton>
+                      )}
+                      {showArchive && (
+                        <ActionButton
+                          disabled={archivingId === post.id}
+                          onClick={() => handleArchive(post.id, true)}
+                        >
+                          <Archive size={12} />
+                          <span className="hidden sm:inline">Archive</span>
+                        </ActionButton>
+                      )}
+                      {showRestore && (
+                        <ActionButton
+                          disabled={archivingId === post.id}
+                          onClick={() => handleArchive(post.id, false)}
+                        >
+                          <Restore size={12} />
+                          <span className="hidden sm:inline">Restore</span>
                         </ActionButton>
                       )}
                     </div>

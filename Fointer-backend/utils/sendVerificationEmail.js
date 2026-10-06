@@ -402,7 +402,10 @@ export const sendUserSupportRequestEmail = async ({
   });
 };
 
-const getSupportStatusCopy = (status, { channelName = "", subchannelName = "" } = {}) => {
+const getSupportStatusCopy = (
+  status,
+  { channelName = "", subchannelName = "", rejectionReason = "" } = {}
+) => {
   if (status === "approved") {
     const created =
       channelName && subchannelName
@@ -418,10 +421,11 @@ const getSupportStatusCopy = (status, { channelName = "", subchannelName = "" } 
   }
 
   if (status === "rejected") {
+    const reason = String(rejectionReason || "").trim();
     return {
       title: "Support request rejected",
       subject: "Your channel request was rejected",
-      body: "Your channel and subchannel request has been reviewed and rejected. You can view the updated status on your support page.",
+      body: `Your channel and subchannel request has been reviewed and rejected.${reason ? ` Reason: ${escapeHtml(reason)}` : ""} You can view the updated status on your support page.`,
       ctaLabel: "View support status",
       statusLabel: "Rejected",
     };
@@ -442,12 +446,17 @@ export const sendSupportStatusUpdateEmail = async ({
   status,
   channelName,
   subchannelName,
+  rejectionReason,
 }) => {
   if (!to) {
     throw new Error("Recipient email is missing.");
   }
 
-  const copy = getSupportStatusCopy(status, { channelName, subchannelName });
+  const copy = getSupportStatusCopy(status, {
+    channelName,
+    subchannelName,
+    rejectionReason,
+  });
   const safeStatus = escapeHtml(copy.statusLabel);
 
   await sendDashboardNotificationEmail({

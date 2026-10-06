@@ -90,7 +90,74 @@ export const createSubchannel = async (req, res) => {
   }
 };
 
-export const listSubchannels = async (req, res) => {
+const getActiveCommunityCounts = async (subchannels) => {
+  const pairs = subchannels
+    .map((subchannel) => ({
+      channelName: String(subchannel.channel?.name || "").trim(),
+      subchannelName: String(subchannel.name || "").trim(),
+    }))
+    .filter((pair) => pair.channelName && pair.subchannelName);
+
+  if (!pairs.length) return new Map();
+
+  const channelNames = [...new Set(pairs.map((pair) => pair.channelName))];
+  const subchannelNames = [...new Set(pairs.map((pair) => pair.subchannelName))];
+  const counts = await Community.aggregate([
+    {
+      $match: {
+        channel: {
+          $in: channelNames.map(
+            (name) => new RegExp(`^${escapeRegex(name)}$`, "i")
+          ),
+        },
+        subchannels: {
+          $in: subchannelNames.map(
+            (name) => new RegExp(`^${escapeRegex(name)}$`, "i")
+          ),
+        },
+      },
+    },
+    { $unwind: "$subchannels" },
+    {
+      $match: {
+        $or: pairs.map((pair) => ({
+          channel: new RegExp(`^${escapeRegex(pair.channelName)}$`, "i"),
+          subchannels: new RegExp(
+            `^${escapeRegex(pair.subchannelName)}$`,
+            "i"
+          ),
+        })),
+      },
+    },
+    {
+      $group: {
+        _id: {
+          community: "$_id",
+          channel: { $toLower: { $trim: { input: "$channel" } } },
+          subchannel: { $toLower: { $trim: { input: "$subchannels" } } },
+        },
+      },
+    },
+    {
+      $group: {
+        _id: {
+          channel: "$_id.channel",
+          subchannel: "$_id.subchannel",
+        },
+        count: { $sum: 1 },
+      },
+    },
+  ]);
+
+  return new Map(
+    counts.map((row) => [
+      `${row._id.channel}\u0000${row._id.subchannel}`,
+      row.count,
+    ])
+  );
+};
+
+const listSubchannelsWithOptions = async (req, res, { includeCommunityCounts }) => {
   try {
     const q = String(req.query.q || "").trim();
     const channelId = String(req.query.channelId || "").trim();
@@ -113,15 +180,37 @@ export const listSubchannels = async (req, res) => {
     const subchannels = await Subchannel.find(filter)
       .populate("channel", "name")
       .sort({ name: 1 });
+    const communityCounts = includeCommunityCounts
+      ? await getActiveCommunityCounts(subchannels)
+      : null;
 
     return res.status(200).json({
       success: true,
-      subchannels: subchannels.map(formatSubchannel),
+      subchannels: subchannels.map((subchannel) => {
+        const formatted = formatSubchannel(subchannel);
+        if (communityCounts) {
+          const channelName = String(subchannel.channel?.name || "")
+            .trim()
+            .toLowerCase();
+          const subchannelName = String(subchannel.name || "")
+            .trim()
+            .toLowerCase();
+          formatted.activeCommunityCount =
+            communityCounts.get(`${channelName}\u0000${subchannelName}`) || 0;
+        }
+        return formatted;
+      }),
     });
   } catch (error) {
     return sendServerError(res, error);
   }
 };
+
+export const listSubchannels = (req, res) =>
+  listSubchannelsWithOptions(req, res, { includeCommunityCounts: false });
+
+export const listAdminSubchannels = (req, res) =>
+  listSubchannelsWithOptions(req, res, { includeCommunityCounts: true });
 
 export const updateSubchannel = async (req, res) => {
   try {

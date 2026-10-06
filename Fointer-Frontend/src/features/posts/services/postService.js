@@ -40,6 +40,11 @@ export const deletePost = async (id) => {
   return response.data;
 };
 
+export const setPostArchived = async (id, archived) => {
+  const response = await api.patch(`/posts/${id}/archive`, { archived });
+  return response.data;
+};
+
 export const fetchComments = async (postId) => {
   const response = await api.get(`/posts/${postId}/comments`);
   return response.data;

@@ -8,6 +8,7 @@ import {
   createPost,
   updatePost,
   deletePost,
+  setPostArchived,
   listComments,
   createComment,
   updateComment,
@@ -53,6 +54,7 @@ router.get("/:id/comments", optionalAuthenticate, listComments);
 router.post("/:id/comments", isAuthenticated, createComment);
 router.post("/:id/like", isAuthenticated, togglePostLike);
 router.post("/:id/reshare", isAuthenticated, togglePostReshare);
+router.patch("/:id/archive", isAuthenticated, setPostArchived);
 
 router.get("/:id", isAuthenticated, getPost);
 router.patch("/:id", isAuthenticated, updatePost);

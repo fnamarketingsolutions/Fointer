@@ -11,6 +11,7 @@ import { useToast } from "../../../../shared/components/feedback/ToastContext";
 import AdminActionBtn from "../../../../shared/components/AdminActionBtn";
 import WarnUserModal from "../../../../shared/components/modals/WarnUserModal";
 import { isSuperAdminUser } from "../../../../shared/lib/roles";
+import { formatLongDate } from "../../../../shared/utils/date";
 import {
   LuBan as Ban,
   LuCircleCheck as CheckCircle2,
@@ -59,6 +60,7 @@ const UserManagement = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
+  const [joinedSort, setJoinedSort] = useState("newest");
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
   const [warnTarget, setWarnTarget] = useState(null);
@@ -85,11 +87,13 @@ const UserManagement = () => {
       const nextFilter = opts.filter ?? filter;
       const nextSearch = opts.search ?? search;
       const nextPage = opts.page ?? page;
+      const nextJoinedSort = opts.joinedSort ?? joinedSort;
       setLoading(true);
       try {
         const params = {
           page: nextPage,
           limit: PAGE_SIZE,
+          joinedSort: nextJoinedSort,
         };
         if (nextSearch.trim()) params.q = nextSearch.trim();
         if (nextFilter === "active" || nextFilter === "banned") {
@@ -126,7 +130,7 @@ const UserManagement = () => {
         setLoading(false);
       }
     },
-    [filter, search, page, showToast]
+    [filter, search, page, joinedSort, showToast]
   );
 
   useEffect(() => {
@@ -175,6 +179,13 @@ const UserManagement = () => {
     e.preventDefault();
     setPage(1);
     loadUsers({ search, page: 1 });
+  };
+
+  const handleJoinedSortChange = (e) => {
+    const nextSort = e.target.value;
+    setJoinedSort(nextSort);
+    setPage(1);
+    loadUsers({ joinedSort: nextSort, page: 1 });
   };
 
   const goToPage = (nextPage) => {
@@ -269,6 +280,24 @@ const UserManagement = () => {
         />
       </form>
 
+      <div className="flex items-center justify-between gap-3">
+        <label
+          htmlFor="user-joined-sort"
+          className="text-xs font-medium text-fo-subtle"
+        >
+          Sort by date joined
+        </label>
+        <select
+          id="user-joined-sort"
+          value={joinedSort}
+          onChange={handleJoinedSortChange}
+          className="bg-fo-surface border border-fo-border rounded-lg px-3 py-2 text-xs text-fo-text focus:outline-none focus:border-fo-accent/50"
+        >
+          <option value="newest">Newest users first</option>
+          <option value="oldest">Oldest users first</option>
+        </select>
+      </div>
+
       {loading ? (
         <div className="flex items-center justify-center gap-2 py-14 text-sm text-fo-muted">
           <Loader2 size={16} className="animate-spin text-fo-accent" />
@@ -340,6 +369,9 @@ const UserManagement = () => {
                       <p className="text-[11px] text-fo-subtle truncate">
                         {u.name || "No display name"}
                         {u.email ? ` · ${u.email}` : ""}
+                      </p>
+                      <p className="text-[10px] text-fo-subtle">
+                        Joined {formatLongDate(u.createdAt)}
                       </p>
                     </div> 
                   </button>

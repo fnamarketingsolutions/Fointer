@@ -211,6 +211,16 @@ export default function Support() {
                 <p className="text-sm text-fo-text whitespace-pre-wrap break-words leading-relaxed">
                   {ticket.description}
                 </p>
+                {statusKey === "rejected" && ticket.rejectionReason ? (
+                  <div className="rounded-lg border border-red-500/25 bg-red-500/5 px-3 py-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-red-400">
+                      Reason for rejection
+                    </p>
+                    <p className="mt-1 text-xs text-fo-muted whitespace-pre-wrap break-words">
+                      {ticket.rejectionReason}
+                    </p>
+                  </div>
+                ) : null}
                 {ticket.fulfilled?.channel ? (
                   <p className="text-[11px] text-fo-muted">
                     Available now:{" "}

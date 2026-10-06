@@ -151,6 +151,7 @@ const getUserManagementSummary = async () => {
 export const listUsers = async (req, res) => {
   try {
     const { status, role, moderators, q } = req.query;
+    const joinedSort = String(req.query.joinedSort || "newest");
     const { enabled, page, limit, skip } = parsePagination(req.query, {
       defaultLimit: 25,
       maxLimit: 100,
@@ -183,12 +184,18 @@ export const listUsers = async (req, res) => {
       ];
     }
 
+    const joinedSortDirection = joinedSort === "oldest" ? 1 : -1;
+    const userSort = {
+      createdAt: joinedSortDirection,
+      _id: joinedSortDirection,
+    };
+
     const [users, total, summary] = await Promise.all([
       User.find(filter)
         .select(
           "username name email role status avatar googleId facebookId warningCount createdAt updatedAt"
         )
-        .sort({ createdAt: -1 })
+        .sort(userSort)
         .skip(pageSkip)
         .limit(pageLimit)
         .lean(),

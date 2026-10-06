@@ -18,6 +18,12 @@ const supportTicketSchema = new mongoose.Schema(
       enum: ["pending", "rejected", "approved"],
       default: "pending",
     },
+    rejectionReason: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: 1000,
+    },
     fulfilledChannelId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Channel",

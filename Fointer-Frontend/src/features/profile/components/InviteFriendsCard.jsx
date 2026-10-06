@@ -85,7 +85,9 @@ export default function InviteFriendsCard() {
         <div className="flex items-center gap-2 min-w-0">
           <Share2 size={15} className="text-fo-accent shrink-0" aria-hidden />
           <div className="min-w-0">
-            <h3 className="text-sm font-semibold text-fo-text">Invite friends</h3>
+            <h3 className="text-sm font-semibold text-fo-text">
+              Your referral link
+            </h3>
             <p className="text-xs text-fo-subtle mt-0.5">
               Share your link. Friends who verify email count toward your Inviter
               badge.

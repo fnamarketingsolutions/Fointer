@@ -293,9 +293,11 @@ export default function ChannelManagement() {
                     {channel.name}
                   </h2>
                   <p className="text-[11px] text-fo-subtle mt-0.5">
-                    {channel.createdAt
-                      ? `Created ${timeAgo(channel.createdAt)}`
-                      : "Channel"}
+                    {channel.activeCommunityCount || 0} active{" "}
+                    {(channel.activeCommunityCount || 0) === 1
+                      ? "community"
+                      : "communities"}
+                    {channel.createdAt ? ` · ${timeAgo(channel.createdAt)}` : ""}
                   </p>
                 </div>
                 <button
@@ -342,6 +344,11 @@ export default function ChannelManagement() {
                 </h2>
                 <p className="text-[11px] text-fo-subtle">
                   {sub.channel?.name || "Unassigned"}
+                  {" · "}
+                  {sub.activeCommunityCount || 0} active{" "}
+                  {(sub.activeCommunityCount || 0) === 1
+                    ? "community"
+                    : "communities"}
                   {sub.createdAt ? ` · ${timeAgo(sub.createdAt)}` : ""}
                 </p>
               </div>

@@ -1214,7 +1214,18 @@ export const getBrowsableCommunity = async (req, res) => {
       });
     }
 
-    if (!["public", "private_request"].includes(community.type)) {
+    const membership = req.user
+      ? await CommunityMember.findOne({
+          community: community._id,
+          user: req.user._id,
+          status: "active",
+        })
+      : null;
+
+    if (
+      !["public", "private_request"].includes(community.type) &&
+      !(community.type === "private_invite" && membership)
+    ) {
       return res.status(403).json({
         success: false,
         message: "This community is not publicly browsable.",
@@ -1227,18 +1238,11 @@ export const getBrowsableCommunity = async (req, res) => {
     };
 
     if (req.user) {
-      const [membership, pendingRequest] = await Promise.all([
-        CommunityMember.findOne({
-          community: community._id,
-          user: req.user._id,
-          status: "active",
-        }),
-        CommunityJoinRequest.findOne({
-          community: community._id,
-          user: req.user._id,
-          status: "pending",
-        }),
-      ]);
+      const pendingRequest = await CommunityJoinRequest.findOne({
+        community: community._id,
+        user: req.user._id,
+        status: "pending",
+      });
 
       extras.isMember = Boolean(membership);
       extras.membershipRole = membership?.role || null;

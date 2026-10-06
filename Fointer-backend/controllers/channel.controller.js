@@ -68,6 +68,63 @@ export const listChannels = async (req, res) => {
   }
 };
 
+export const listAdminChannels = async (req, res) => {
+  try {
+    const q = String(req.query.q || "").trim();
+    const filter = {};
+    if (q) {
+      const escaped = escapeRegex(q);
+      filter.name = new RegExp(escaped, "i");
+    }
+
+    const channels = await Channel.find(filter).sort({ name: 1 }).lean();
+    const names = channels
+      .map((channel) => String(channel.name || "").trim())
+      .filter(Boolean);
+    const counts = names.length
+      ? await Community.aggregate([
+          {
+            $match: {
+              channel: {
+                $in: names.map(
+                  (name) => new RegExp(`^${escapeRegex(name)}$`, "i")
+                ),
+              },
+            },
+          },
+          {
+            $group: {
+              _id: {
+                community: "$_id",
+                channel: { $toLower: { $trim: { input: "$channel" } } },
+              },
+            },
+          },
+          {
+            $group: {
+              _id: "$_id.channel",
+              count: { $sum: 1 },
+            },
+          },
+        ])
+      : [];
+    const countByName = new Map(
+      counts.map((row) => [row._id, row.count])
+    );
+
+    return res.status(200).json({
+      success: true,
+      channels: channels.map((channel) => ({
+        ...formatChannel(channel),
+        activeCommunityCount:
+          countByName.get(String(channel.name || "").trim().toLowerCase()) || 0,
+      })),
+    });
+  } catch (error) {
+    return sendServerError(res, error);
+  }
+};
+
 export const updateChannel = async (req, res) => {
   try {
     const { id } = req.params;

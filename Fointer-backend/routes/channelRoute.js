@@ -2,11 +2,13 @@ import express from "express";
 import {
   createChannel,
   listChannels,
+  listAdminChannels,
   updateChannel,
 } from "../controllers/channel.controller.js";
 import {
   createSubchannel,
   listSubchannels,
+  listAdminSubchannels,
   updateSubchannel,
 } from "../controllers/subchannel.controller.js";
 import {
@@ -42,7 +44,7 @@ router.get(
   isAuthenticated,
   authorize("admin"),
   requireAdminTab("channels", "support"),
-  listChannels
+  listAdminChannels
 );
 router.put("/admin/channels/:id", ...adminGate("channels"), updateChannel);
 
@@ -55,7 +57,7 @@ router.post(
 router.get(
   "/admin/subchannels",
   ...adminGate("channels"),
-  listSubchannels
+  listAdminSubchannels
 );
 router.put(
   "/admin/subchannels/:id",

@@ -167,12 +167,16 @@ export const buildPublicProfilePayload = async (user, viewer = null) => {
   const visibleCommunityIds = new Set(communities.map((c) => String(c._id)));
 
   const [posts, postCount, reshares] = await Promise.all([
-    Post.find({ author: user._id, ...visibility })
+    Post.find({ author: user._id, isArchived: { $ne: true }, ...visibility })
       .populate("community", "name shortCode coverImage")
       .sort({ createdAt: -1 })
       .limit(LIST_LIMIT)
       .lean(),
-    Post.countDocuments({ author: user._id, ...visibility }),
+    Post.countDocuments({
+      author: user._id,
+      isArchived: { $ne: true },
+      ...visibility,
+    }),
     Reshare.find({ user: user._id })
       .sort({ createdAt: -1 })
       .limit(LIST_LIMIT)
@@ -184,6 +188,7 @@ export const buildPublicProfilePayload = async (user, viewer = null) => {
   if (resharePostIds.length) {
     const repostPosts = await Post.find({
       _id: { $in: resharePostIds },
+      isArchived: { $ne: true },
       ...visibility,
     })
       .populate("author", "username name avatar")

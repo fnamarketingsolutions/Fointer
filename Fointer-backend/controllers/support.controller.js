@@ -32,6 +32,7 @@ const formatTicket = (ticket) => {
     id: ticket._id,
     description: ticket.description || "",
     status: normalizeStatus(ticket.status),
+    rejectionReason: ticket.rejectionReason || "",
     createdAt: ticket.createdAt,
     updatedAt: ticket.updatedAt,
     user:
@@ -257,11 +258,19 @@ export const updateSupportTicketStatus = async (req, res) => {
   try {
     const ticketId = req.params?.id;
     const status = String(req.body?.status || "").trim().toLowerCase();
+    const rejectionReason = String(req.body?.rejectionReason || "").trim();
 
     if (!VALID_STATUSES.includes(status)) {
       return res.status(400).json({
         success: false,
         message: "Status must be pending, rejected, or approved.",
+      });
+    }
+
+    if (rejectionReason.length > 1000) {
+      return res.status(400).json({
+        success: false,
+        message: "Rejection reason must be 1000 characters or fewer.",
       });
     }
 
@@ -277,7 +286,11 @@ export const updateSupportTicketStatus = async (req, res) => {
       });
     }
 
-    if (ticket.status === status) {
+    if (
+      ticket.status === status &&
+      (status !== "rejected" ||
+        ticket.rejectionReason === rejectionReason)
+    ) {
       return res.status(200).json({
         success: true,
         ticket: formatTicket(ticket),
@@ -319,6 +332,7 @@ export const updateSupportTicketStatus = async (req, res) => {
     }
 
     ticket.status = status;
+    ticket.rejectionReason = status === "rejected" ? rejectionReason : "";
     ticket.fulfilledChannelId = fulfilledChannelId;
     ticket.fulfilledChannelName = fulfilledChannelName;
     ticket.fulfilledSubchannelId = fulfilledSubchannelId;
@@ -334,6 +348,7 @@ export const updateSupportTicketStatus = async (req, res) => {
           status,
           channelName: fulfilledChannelName,
           subchannelName: fulfilledSubchannelName,
+          rejectionReason: ticket.rejectionReason,
         });
       } catch (emailError) {
         console.error("Support status email failed:", emailError.message);
@@ -353,7 +368,9 @@ export const updateSupportTicketStatus = async (req, res) => {
         body:
           status === "approved" && fulfilledChannelName
             ? `${fulfilledChannelName} / ${fulfilledSubchannelName || ""} is now available when you create a community.`
-            : "",
+            : status === "rejected"
+              ? ticket.rejectionReason
+              : "",
         entity: { kind: "support_ticket", id: ticket._id },
       });
     }

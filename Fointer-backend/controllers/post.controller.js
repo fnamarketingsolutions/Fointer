@@ -189,13 +189,14 @@ const formatFeedPost = (
     resharedByMe: reshared[String(post._id)] || false,
     savedByMe: saved[String(post._id)] || false,
     isAuthor,
-    canEdit: isAdmin || (isAuthor && within),
-    isLocked: !isAdmin && isAuthor && !within,
+    canEdit: isAdmin || (isAuthor && within && !post.isArchived),
+    isLocked: !isAdmin && isAuthor && !within && !post.isArchived,
     canDelete:
       isAdmin ||
-      isAuthor ||
       (communityKey ? manageableIdSet.has(communityKey) : false),
-    canEngage: isAdmin || !communityKey || joinedIdSet.has(communityKey),
+    canEngage:
+      !post.isArchived &&
+      (isAdmin || !communityKey || joinedIdSet.has(communityKey)),
     editWindowMinutes,
   });
 };
@@ -246,6 +247,10 @@ const formatPost = (post, extras = {}) => {
     savedByMe: extras.savedByMe ?? false,
     canEdit: extras.canEdit ?? false,
     canDelete: extras.canDelete ?? false,
+    canArchive:
+      extras.canArchive ?? Boolean(extras.isAuthor && !post.isArchived),
+    isArchived: Boolean(post.isArchived),
+    archivedAt: post.archivedAt || null,
     canEngage: extras.canEngage ?? false,
     isAuthor: extras.isAuthor ?? false,
     isLocked: extras.isLocked ?? false,
@@ -299,6 +304,19 @@ const resolveCommunityType = async (post) => {
 
 /** Anyone may view community-less + public community posts; private communities need membership. */
 export const canViewPost = async (post, user) => {
+  if (post.isArchived) {
+    if (!user) return false;
+    if (
+      hasContentAdminPower(user) ||
+      String(post.author?._id || post.author) === String(user._id)
+    ) {
+      return true;
+    }
+    const communityId = post.community?._id || post.community;
+    return Boolean(
+      communityId && (await canManagePostsInCommunity(communityId, user))
+    );
+  }
   if (hasContentAdminPower(user)) return true;
   const communityId = post.community?._id || post.community;
   if (!communityId) return true;
@@ -312,7 +330,7 @@ export const canViewPost = async (post, user) => {
 
 /** Like / comment: community-less ok when logged in; community posts require membership. */
 const canEngageWithPost = async (post, user) => {
-  if (!user) return false;
+  if (!user || post.isArchived) return false;
   if (hasContentAdminPower(user)) return true;
   const communityId = post.community?._id || post.community;
   if (!communityId) return true;
@@ -341,6 +359,7 @@ const isDocAuthor = (doc, user) =>
 
 const userCanEditOwn = async (doc, user) => {
   if (hasContentAdminPower(user)) return true;
+  if (doc.isArchived) return false;
   if (!isDocAuthor(doc, user)) return false;
   return isWithinEditWindow(doc.createdAt);
 };
@@ -362,9 +381,7 @@ const buildOwnContentFlags = async (doc, user) => {
 };
 
 const userCanDeletePost = async (post, user) => {
-  const isAuthor = isDocAuthor(post, user);
   if (hasContentAdminPower(user)) return true;
-  if (isAuthor) return true;
   const communityId = post.community?._id || post.community;
   if (!communityId) return false;
   return canManagePostsInCommunity(communityId, user);
@@ -397,7 +414,12 @@ export const listPosts = async (req, res) => {
 
     if (mineOnly) {
       filter.author = req.user._id;
-    } else if (communityId !== undefined && communityId !== null && communityId !== "") {
+      filter.isArchived = req.query.archived === "1" ? true : { $ne: true };
+    } else {
+      filter.isArchived = { $ne: true };
+    }
+
+    if (!mineOnly && communityId !== undefined && communityId !== null && communityId !== "") {
       const parsedCommunityId = parseObjectIdInput(communityId);
       if (!parsedCommunityId) {
         return res.status(400).json({
@@ -419,7 +441,7 @@ export const listPosts = async (req, res) => {
         });
       }
       filter.community = parsedCommunityId;
-    } else {
+    } else if (!mineOnly && (communityId === undefined || communityId === null || communityId === "")) {
       const followedIds = await getFollowedUserIds(req.user._id);
       let scopeIds = joinedIds;
       if (channel) {
@@ -610,6 +632,7 @@ export const listTrendingTopics = async (req, res) => {
     const openFeedIds = await getOpenFeedCommunityIds();
     const posts = await Post.find({
       community: { $in: [null, ...openFeedIds] },
+      isArchived: { $ne: true },
     })
       .select("title text")
       .sort({ createdAt: -1 })
@@ -668,11 +691,16 @@ export const listPublicPosts = async (req, res) => {
           }),
     ]);
 
-    const visibility = channel
-      ? { community: { $in: channelCommunityIds } }
-      : { community: { $in: [null, ...openFeedIds] } };
+    const visibility = {
+      $and: [
+        channel
+          ? { community: { $in: channelCommunityIds } }
+          : { community: { $in: [null, ...openFeedIds] } },
+        { isArchived: { $ne: true } },
+      ],
+    };
 
-    let filter = { ...visibility };
+    let filter = visibility;
     if (q && String(q).trim()) {
       const term = escapeRegex(String(q).trim());
       filter = {
@@ -747,7 +775,7 @@ export const getPublicPost = async (req, res) => {
       return res.status(404).json({ success: false, message: "Post not found." });
     }
 
-    if (!(await canViewPost(post, req.user || null))) {
+    if (post.isArchived || !(await canViewPost(post, req.user || null))) {
       return res.status(404).json({
         success: false,
         message: "This post is not publicly available.",
@@ -877,7 +905,7 @@ export const createPost = async (req, res) => {
         reshareCount: 0,
         resharedByMe: false,
         canEdit: true,
-        canDelete: true,
+        canDelete: false,
         isAuthor: true,
         isLocked: false,
         editWindowMinutes: await getEditWindowMinutes(),
@@ -998,6 +1026,44 @@ export const deletePost = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "Post deleted.",
+    });
+  } catch (error) {
+    return sendServerError(res, error);
+  }
+};
+
+export const setPostArchived = async (req, res) => {
+  try {
+    if (typeof req.body?.archived !== "boolean") {
+      return res.status(400).json({
+        success: false,
+        message: "The archived value must be a boolean.",
+      });
+    }
+
+    const post = await Post.findById(req.params.id);
+    if (!post) {
+      return res.status(404).json({ success: false, message: "Post not found." });
+    }
+    if (!isDocAuthor(post, req.user)) {
+      return res.status(403).json({
+        success: false,
+        message: "Only the post author can archive or restore this post.",
+      });
+    }
+
+    post.isArchived = req.body.archived;
+    post.archivedAt = req.body.archived ? new Date() : null;
+    await post.save();
+
+    return res.status(200).json({
+      success: true,
+      message: req.body.archived ? "Post archived." : "Post restored.",
+      post: {
+        id: post._id,
+        isArchived: post.isArchived,
+        archivedAt: post.archivedAt,
+      },
     });
   } catch (error) {
     return sendServerError(res, error);
@@ -1195,6 +1261,14 @@ export const updateComment = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: "Comment not found.",
+      });
+    }
+
+    const post = await Post.findById(comment.post).select("isArchived");
+    if (post?.isArchived) {
+      return res.status(403).json({
+        success: false,
+        message: "Comments on archived posts cannot be edited.",
       });
     }
 
@@ -1440,10 +1514,19 @@ export const toggleCommentLike = async (req, res) => {
       return res.status(404).json({ success: false, message: "Post not found." });
     }
 
-    if (!(await canEngageWithPost(post, req.user))) {
+    if (post.isArchived) {
       return res.status(403).json({
         success: false,
-        message: "Only community members can like comments.",
+        message: "Comments on archived posts cannot be liked.",
+      });
+    }
+
+    const isPostAuthor =
+      String(post.author) === String(req.user._id);
+    if (!isPostAuthor && !(await canViewPost(post, req.user))) {
+      return res.status(403).json({
+        success: false,
+        message: "You cannot like comments on this post.",
       });
     }
 
@@ -1482,7 +1565,9 @@ export const resolvePostCode = async (req, res) => {
       return res.status(404).json({ success: false, message: "Post not found." });
     }
 
-    const post = await Post.findById(id).select("community").lean();
+    const post = await Post.findById(id)
+      .select("community author isArchived")
+      .lean();
     if (!post || !(await canViewPost(post, req.user || null))) {
       return res.status(404).json({ success: false, message: "Post not found." });
     }
@@ -1502,7 +1587,7 @@ export const listMyComments = async (req, res) => {
       .populate("author", "username name avatar role")
       .populate({
         path: "post",
-        select: "title text community shortCode author createdAt",
+        select: "title text community shortCode author createdAt isArchived",
         populate: [
           { path: "community", select: "name shortCode coverImage" },
           { path: "author", select: "username name avatar" },
@@ -1514,8 +1599,14 @@ export const listMyComments = async (req, res) => {
     const { liked } = await getLikeMeta("comment", commentIds, req.user._id);
     const editWindowMinutes = await getEditWindowMinutes();
 
+    const visibleComments = comments.filter((comment) => {
+      const post = comment.post;
+      if (!post?.isArchived) return true;
+      return String(post.author?._id || post.author) === String(req.user._id);
+    });
+
     const items = await Promise.all(
-      comments.map(async (c) => {
+      visibleComments.map(async (c) => {
         const flags = await buildOwnContentFlags(c, req.user);
         const canDelete = await userCanDeleteComment(c, req.user);
         const post = c.post;
@@ -1585,7 +1676,10 @@ export const listMyLikedPosts = async (req, res) => {
       return res.json({ success: true, posts: [] });
     }
 
-    const posts = await Post.find({ _id: { $in: postIds } })
+    const posts = await Post.find({
+      _id: { $in: postIds },
+      isArchived: { $ne: true },
+    })
       .populate("author", "username name avatar role")
       .populate("community", "name shortCode coverImage")
       .lean();
@@ -1638,7 +1732,10 @@ export const listMyResharedPosts = async (req, res) => {
       return res.json({ success: true, posts: [] });
     }
 
-    const posts = await Post.find({ _id: { $in: postIds } })
+    const posts = await Post.find({
+      _id: { $in: postIds },
+      isArchived: { $ne: true },
+    })
       .populate("author", "username name avatar role")
       .populate("community", "name shortCode coverImage")
       .lean();

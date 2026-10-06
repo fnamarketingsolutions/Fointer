@@ -56,6 +56,8 @@ export default function SupportTicketCenter() {
   const [search, setSearch] = useState("");
   const [updatingId, setUpdatingId] = useState(null);
   const [approvingTicket, setApprovingTicket] = useState(null);
+  const [rejectingTicket, setRejectingTicket] = useState(null);
+  const [rejectionReason, setRejectionReason] = useState("");
 
   const loadTickets = useCallback(async () => {
     setLoading(true);
@@ -105,7 +107,10 @@ export default function SupportTicketCenter() {
       const email = String(ticket?.user?.email || "").toLowerCase();
       const description = String(ticket?.description || "").toLowerCase();
       return (
-        name.includes(q) || email.includes(q) || description.includes(q)
+        name.includes(q) ||
+        email.includes(q) ||
+        description.includes(q) ||
+        String(ticket?.rejectionReason || "").toLowerCase().includes(q)
       );
     });
   }, [filter, tickets, search]);
@@ -123,8 +128,10 @@ export default function SupportTicketCenter() {
       setApprovingTicket(null);
       await loadTickets();
       await loadChannels();
+      return true;
     } catch (err) {
       showToast(getErrorMessage(err, "Failed to update support request."));
+      return false;
     } finally {
       setUpdatingId(null);
     }
@@ -138,6 +145,19 @@ export default function SupportTicketCenter() {
       channelName,
       subchannelName,
     });
+  };
+
+  const handleRejectSubmit = async (event) => {
+    event.preventDefault();
+    if (!rejectingTicket) return;
+    const updated = await handleStatusUpdate(rejectingTicket.id, {
+      status: "rejected",
+      rejectionReason: rejectionReason.trim(),
+    });
+    if (updated) {
+      setRejectingTicket(null);
+      setRejectionReason("");
+    }
   };
 
   return (
@@ -271,6 +291,16 @@ export default function SupportTicketCenter() {
                     </span>
                   </p>
                 ) : null}
+                {ticket.status === "rejected" && ticket.rejectionReason ? (
+                  <div className="rounded-lg border border-red-500/25 bg-red-500/5 px-3 py-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-red-400">
+                      Rejection reason
+                    </p>
+                    <p className="mt-1 text-xs text-fo-muted whitespace-pre-wrap break-words">
+                      {ticket.rejectionReason}
+                    </p>
+                  </div>
+                ) : null}
 
                 {ticket.status === "pending" ? (
                   <div className="flex flex-wrap gap-1.5">
@@ -285,9 +315,10 @@ export default function SupportTicketCenter() {
                     <AdminActionBtn
                       tone="danger"
                       disabled={isUpdating}
-                      onClick={() =>
-                        handleStatusUpdate(ticket.id, { status: "rejected" })
-                      }
+                      onClick={() => {
+                        setRejectingTicket(ticket);
+                        setRejectionReason("");
+                      }}
                     >
                       {isUpdating ? (
                         <Loader2 size={12} className="animate-spin" />
@@ -315,6 +346,82 @@ export default function SupportTicketCenter() {
         }}
         onSubmit={handleApproveSubmit}
       />
+
+      {rejectingTicket ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !updatingId) {
+              setRejectingTicket(null);
+              setRejectionReason("");
+            }
+          }}
+        >
+          <form
+            onSubmit={handleRejectSubmit}
+            className="w-full max-w-lg space-y-4 rounded-2xl border border-fo-border bg-fo-surface p-5 shadow-2xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="reject-request-title"
+          >
+            <div>
+              <h2
+                id="reject-request-title"
+                className="text-lg font-semibold text-fo-text"
+              >
+                Reject request
+              </h2>
+              <p className="mt-1 text-sm text-fo-subtle">
+                Add an optional explanation for the requester.
+              </p>
+            </div>
+            <label
+              htmlFor="support-rejection-reason"
+              className="block text-xs font-semibold text-fo-muted"
+            >
+              Rejection reason (optional)
+              <textarea
+                id="support-rejection-reason"
+                value={rejectionReason}
+                onChange={(event) => setRejectionReason(event.target.value)}
+                maxLength={1000}
+                rows={4}
+                placeholder="For example, this sub-channel already exists."
+                className="mt-1.5 w-full resize-y rounded-lg border border-fo-border bg-fo-bg px-3 py-2 text-sm text-fo-text placeholder:text-fo-subtle focus:border-fo-accent/50 focus:outline-none"
+              />
+              <span className="mt-1 block text-right text-[10px] text-fo-subtle">
+                {rejectionReason.length}/1000
+              </span>
+            </label>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={Boolean(updatingId)}
+                onClick={() => {
+                  setRejectingTicket(null);
+                  setRejectionReason("");
+                }}
+                className="min-h-10 rounded-lg border border-fo-border px-4 text-sm font-semibold text-fo-muted hover:text-fo-text disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={Boolean(updatingId)}
+                className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-red-500 px-4 text-sm font-semibold text-white hover:bg-red-600 disabled:opacity-50"
+              >
+                {updatingId ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <XCircle size={14} />
+                )}
+                Reject request
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -9,6 +9,7 @@ import {
   LuLoaderCircle as Loader2,
   LuRefreshCw as RefreshCw,
   LuSave as Save,
+  LuShare2 as Share2,
   LuShield as Shield,
   LuTrash2 as Trash2,
   LuUsers as Users,
@@ -40,11 +41,12 @@ import InviteFriendsCard from "../components/InviteFriendsCard";
 
 const TABS = [
   { id: "profile", label: "Profile" },
-  { id: "security", label: "Security" },
-  { id: "communities", label: "Communities" },
   { id: "posts", label: "My Posts" },
   { id: "followers", label: "Followers" },
   { id: "following", label: "Following" },
+  { id: "communities", label: "Communities" },
+  { id: "security", label: "Security" },
+  { id: "referral", label: "Referral Link" },
 ];
 
 const EMPTY_FORM = {
@@ -357,7 +359,8 @@ export default function Profile() {
             Profile
           </h1>
           <p className="text-sm text-fo-subtle">
-            Identity, security, communities, and posts.
+            Manage your profile, posts, connections, communities, security, and
+            referral link.
           </p>
         </header>
         <div className="border border-dashed border-fo-border rounded-xl py-14 px-4 text-center space-y-3">
@@ -424,6 +427,13 @@ export default function Profile() {
     }
     return { ...item, shortLabel: item.label };
   });
+  const selectTab = (tabId) => {
+    setTab(tabId);
+    const next = new URLSearchParams(searchParams);
+    if (tabId === "profile") next.delete("tab");
+    else next.set("tab", tabId);
+    setSearchParams(next, { replace: true });
+  };
   return (
     <div className="w-full max-w-3xl mx-auto space-y-5">
       <header className="flex items-start justify-between gap-3">
@@ -432,19 +442,30 @@ export default function Profile() {
             Profile
           </h1>
           <p className="text-sm text-fo-subtle">
-            Identity, security, communities, and posts.
+            Manage your profile, posts, connections, communities, security, and
+            referral link.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={load}
-          disabled={loading}
-          title="Refresh"
-          aria-label="Refresh profile"
-          className="inline-flex items-center justify-center min-h-10 min-w-10 rounded-lg border border-fo-border text-fo-muted hover:text-fo-accent hover:border-fo-accent/40 transition-colors disabled:opacity-50 shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40"
-        >
-          <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => selectTab("referral")}
+            className="inline-flex items-center gap-1.5 min-h-10 px-3 rounded-lg bg-fo-accent text-black text-xs font-semibold hover:brightness-95 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40"
+          >
+            <Share2 size={14} aria-hidden />
+            Referral Link
+          </button>
+          <button
+            type="button"
+            onClick={load}
+            disabled={loading}
+            title="Refresh"
+            aria-label="Refresh profile"
+            className="inline-flex items-center justify-center min-h-10 min-w-10 rounded-lg border border-fo-border text-fo-muted hover:text-fo-accent hover:border-fo-accent/40 transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40"
+          >
+            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+          </button>
+        </div>
       </header>
 
       {setupMode ? (
@@ -545,7 +566,7 @@ export default function Profile() {
               type="button"
               role="tab"
               aria-selected={active}
-              onClick={() => setTab(item.id)}
+              onClick={() => selectTab(item.id)}
               className={tabBtnClass(active)}
             >
               <span className="sm:hidden">{item.shortLabel || item.label}</span>
@@ -740,8 +761,6 @@ export default function Profile() {
               Save profile
             </button>
           </form>
-
-          <InviteFriendsCard />
 
           <section className="bg-fo-surface border border-fo-border rounded-xl p-4 sm:p-5 space-y-3">
             <div className="flex items-center gap-2">
@@ -1077,6 +1096,18 @@ export default function Profile() {
       {tab === "following" && handle ? (
         <FollowUserList username={handle} mode="following" />
       ) : null}
+
+      {tab === "referral" && (
+        <section className="space-y-3" aria-label="Referral link">
+          <div>
+            <h2 className="text-lg font-semibold text-fo-text">Referral Link</h2>
+            <p className="text-sm text-fo-subtle mt-1">
+              Copy or share your personal link and track people who join.
+            </p>
+          </div>
+          <InviteFriendsCard />
+        </section>
+      )}
     </div>
   );
 }

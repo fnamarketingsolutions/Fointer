@@ -5,6 +5,8 @@ import {
   canManageCommunity,
   canModerateCommunity,
   formatMember,
+  getMembership,
+  getEffectiveMemberRole,
   getActorCommunityRole,
 } from "../utils/communityPermissions.js";
 import {
@@ -75,21 +77,32 @@ export const listCommunityMembers = async (req, res) => {
     const community = await assertCommunity(req.params.id, res);
     if (!community) return;
 
-    if (!(await canModerateCommunity(community, req.user))) {
+    const canModerate = await canModerateCommunity(community, req.user);
+    const membership = canModerate
+      ? null
+      : await getMembership(community._id, req.user._id);
+    const isPrivateCommunity = ["private_request", "private_invite"].includes(
+      community.type
+    );
+
+    if (
+      !canModerate &&
+      (!isPrivateCommunity || !getEffectiveMemberRole(membership))
+    ) {
       return res.status(403).json({
         success: false,
-        message: "You can only manage communities you moderate.",
+        message: "Only community members can view this member list.",
       });
     }
 
-    const status = req.query.status || "active";
+    const status = canModerate ? req.query.status || "active" : "active";
     const filter = { community: community._id };
     if (status !== "all") {
       filter.status = status;
     }
 
     const members = await CommunityMember.find(filter)
-      .populate("user", "username name email avatar")
+      .populate("user", "username name avatar")
       .sort({ role: 1, createdAt: -1 });
 
     return res.status(200).json({

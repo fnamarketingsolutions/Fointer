@@ -126,6 +126,8 @@ export default function FeedPostRow({
   const authorName = personDisplayName(post?.author, DELETED_USER_LABEL);
   const username = String(post?.author?.username || "").replace(/^@+/, "");
   const isVerified = post?.author?.role === "admin";
+  const hasCommunity = Boolean(post?.community);
+  const isPublicCommunity = post?.community?.type === "public";
   const communityName = post?.community?.name;
   const communityTo = post?.community
     ? `/communities/${communitySegment(post.community) || post.community.id}`
@@ -134,8 +136,6 @@ export default function FeedPostRow({
   const title = String(post?.title || "").trim();
   const openLabel = title || post?.text || "Open post";
   const coverImage = media.find((m) => m.type === "image");
-  const visibilityLabel = communityName || "Public";
-  const VisibilityIcon = communityName ? Users : Globe;
 
   const activate = () => onOpen?.(post);
 
@@ -295,22 +295,36 @@ export default function FeedPostRow({
                 {username ? <span>@{username}</span> : null}
                 {username ? <span aria-hidden>·</span> : null}
                 <span>{timeAgo(post?.createdAt)}</span>
-                <span aria-hidden>·</span>
-                {showCommunity && communityTo ? (
-                  <Link
-                    to={communityTo}
-                    onClick={(e) => e.stopPropagation()}
-                    className="inline-flex items-center gap-1 hover:text-fo-accent transition-colors"
-                  >
-                    <VisibilityIcon size={11} aria-hidden />
-                    {visibilityLabel}
-                  </Link>
-                ) : (
-                  <span className="inline-flex items-center gap-1">
-                    <VisibilityIcon size={11} aria-hidden />
-                    {visibilityLabel}
-                  </span>
-                )}
+                {hasCommunity ? (
+                  <>
+                    <span aria-hidden>·</span>
+                    {showCommunity && communityTo ? (
+                      <Link
+                        to={communityTo}
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex items-center gap-1 hover:text-fo-accent transition-colors"
+                      >
+                        {!isPublicCommunity ? (
+                          <Users size={11} aria-hidden />
+                        ) : null}
+                        {communityName || "Community"}
+                      </Link>
+                    ) : (
+                      <span className="inline-flex items-center gap-1">
+                        {!isPublicCommunity ? (
+                          <Users size={11} aria-hidden />
+                        ) : null}
+                        {communityName || "Community"}
+                      </span>
+                    )}
+                    {isPublicCommunity ? (
+                      <span className="inline-flex items-center gap-1">
+                        <Globe size={11} aria-hidden />
+                        Public
+                      </span>
+                    ) : null}
+                  </>
+                ) : null}
               </div>
             </div>
             <PostMoreMenu post={post} />

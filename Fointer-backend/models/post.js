@@ -44,6 +44,15 @@ const postSchema = new mongoose.Schema(
       type: [mediaSchema],
       default: [],
     },
+    isArchived: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    archivedAt: {
+      type: Date,
+      default: null,
+    },
     likeCount: {
       type: Number,
       default: 0,

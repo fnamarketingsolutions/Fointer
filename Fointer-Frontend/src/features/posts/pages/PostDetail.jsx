@@ -2,9 +2,11 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { Link, useNavigate } from "react-router-dom";
 import {
   LuArrowLeft as ArrowLeft,
+  LuArchive as Archive,
   LuGlobe as Globe,
   LuLoaderCircle as Loader2,
   LuPencil as Pencil,
+  LuRotateCcw as Restore,
   LuTrash2 as Trash2,
   LuUsers as Users,
 } from "react-icons/lu";
@@ -13,6 +15,7 @@ import {
   fetchTrendingTopics,
   updatePost,
   deletePost,
+  setPostArchived,
   fetchComments,
   createComment,
   updateComment,
@@ -241,6 +244,22 @@ export default function PostDetail({
     }));
   };
 
+  const handleArchive = async (archived) => {
+    setSaving(true);
+    try {
+      const data = await setPostArchived(postId, archived);
+      setPost((current) => ({ ...current, ...data.post }));
+      showToast(archived ? "Post archived." : "Post restored.");
+    } catch (err) {
+      showToast(
+        err?.response?.data?.message ||
+          (archived ? "Failed to archive post." : "Failed to restore post.")
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // Actions
   const showContentLockModal = (item, target) => {
     setLockModal({
@@ -458,14 +477,6 @@ export default function PostDetail({
       navigate("/login");
       return;
     }
-    if (!post?.canEngage) {
-      showToast(
-        post?.community
-          ? "Join this community to like comments."
-          : "You cannot like this comment."
-      );
-      return;
-    }
     const prev = comments;
     setComments((list) =>
       list.map((c) =>
@@ -489,8 +500,9 @@ export default function PostDetail({
             : c
         )
       );
-    } catch {
+    } catch (err) {
       setComments(prev);
+      showToast(err?.response?.data?.message || "Failed to like comment.");
     }
   };
 
@@ -534,9 +546,12 @@ export default function PostDetail({
   const canShowDelete = (item) =>
     Boolean(item?.canDelete || (item?.isAuthor && item?.isLocked));
 
-  const showPostEdit = canShowEdit(post);
-  const showPostDelete = canShowDelete(post);
-  const showPostActions = showPostEdit || showPostDelete;
+  const showPostEdit = !post?.isArchived && canShowEdit(post);
+  const showPostDelete = Boolean(post?.canDelete);
+  const showPostArchive = Boolean(post?.canArchive && !post?.isArchived);
+  const showPostRestore = Boolean(post?.isAuthor && post?.isArchived);
+  const showPostActions =
+    showPostEdit || showPostDelete || showPostArchive || showPostRestore;
   const currentUserId = String(user?.id || user?._id || "");
   const canReportComment = (comment) =>
     Boolean(
@@ -548,6 +563,7 @@ export default function PostDetail({
     );
 
   const needsCommunityJoin =
+    !post?.isArchived &&
     Boolean(post?.community?.id || post?.community) &&
     isAuthenticated &&
     post?.canEngage === false;
@@ -691,6 +707,28 @@ export default function PostDetail({
           <Pencil size={16} />
         </button>
       )}
+      {showPostArchive && (
+        <button
+          type="button"
+          onClick={() => handleArchive(true)}
+          disabled={saving}
+          title="Archive Post"
+          className="p-2 rounded-lg text-fo-muted hover:text-fo-accent hover:bg-fo-surface-hover transition-colors disabled:opacity-50"
+        >
+          <Archive size={16} />
+        </button>
+      )}
+      {showPostRestore && (
+        <button
+          type="button"
+          onClick={() => handleArchive(false)}
+          disabled={saving}
+          title="Restore Post"
+          className="p-2 rounded-lg text-fo-muted hover:text-fo-accent hover:bg-fo-surface-hover transition-colors disabled:opacity-50"
+        >
+          <Restore size={16} />
+        </button>
+      )}
       {showPostDelete && (
         <button
           type="button"
@@ -705,7 +743,8 @@ export default function PostDetail({
   ) : null;
 
   const communityName = post.community?.name;
-  const VisibilityIcon = communityName ? Users : Globe;
+  const hasCommunity = Boolean(post.community);
+  const isPublicCommunity = post.community?.type === "public";
 
   const authorBlock = (
     <div className="flex items-start gap-3 min-w-0">
@@ -728,31 +767,45 @@ export default function PostDetail({
           ) : null}
           {post.author?.username ? <span aria-hidden>·</span> : null}
           <span>{timeAgo(post.createdAt)}</span>
-          <span aria-hidden>·</span>
-          {communityPath ? (
-            <Link
-              to={communityPath}
-              className="inline-flex items-center gap-1 hover:text-fo-accent transition-colors"
-            >
-              <VisibilityIcon size={11} aria-hidden />
-              {communityName}
-            </Link>
-          ) : (
-            <span className="inline-flex items-center gap-1">
-              <VisibilityIcon size={11} aria-hidden />
-              {communityName || "Public"}
-            </span>
-          )}
+          {hasCommunity ? (
+            <>
+              <span aria-hidden>·</span>
+              {communityPath ? (
+                <Link
+                  to={communityPath}
+                  className="inline-flex items-center gap-1 hover:text-fo-accent transition-colors"
+                >
+                  {!isPublicCommunity ? (
+                    <Users size={11} aria-hidden />
+                  ) : null}
+                  {communityName || "Community"}
+                </Link>
+              ) : (
+                <span className="inline-flex items-center gap-1">
+                  {!isPublicCommunity ? (
+                    <Users size={11} aria-hidden />
+                  ) : null}
+                  {communityName || "Community"}
+                </span>
+              )}
+              {isPublicCommunity ? (
+                <span className="inline-flex items-center gap-1">
+                  <Globe size={11} aria-hidden />
+                  Public
+                </span>
+              ) : null}
+            </>
+          ) : null}
         </div>
       </div>
       <div className="shrink-0 flex items-center gap-1">
         {postActions}
-        <PostMoreMenu post={post} />
+      {!post.isArchived ? <PostMoreMenu post={post} /> : null}
       </div>
     </div>
   );
 
-  const commentsVisible = !compact || commentsOpen;
+  const commentsVisible = !post.isArchived && (!compact || commentsOpen);
   const mainInputVisible = commentsVisible;
 
   const mainContent = (
@@ -760,6 +813,13 @@ export default function PostDetail({
       <article className="bg-fo-surface border border-fo-border rounded-xl overflow-hidden w-full">
         <div className="p-4 sm:p-5 space-y-4">
           {authorBlock}
+
+          {post.isArchived ? (
+            <div className="rounded-lg border border-fo-accent/30 bg-fo-accent/10 px-3 py-2 text-xs text-fo-muted">
+              This post is archived and only visible to you. Restore it to make
+              it visible again.
+            </div>
+          ) : null}
 
           {post.title ? (
             <h1 className="text-xl font-semibold tracking-tight text-fo-text leading-snug">
@@ -820,25 +880,27 @@ export default function PostDetail({
             </div>
           ) : null}
 
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 w-full min-w-0 border-t border-fo-border/60 pt-3">
-            <PostActions
-              className="min-w-0 max-w-full"
-              post={post}
-              onLike={handleLikePost}
-              onReshare={handleResharePost}
-              onSave={handleSavePost}
-              onComment={() => {
-                setReplyTargetId(null);
-                setCommentText("");
-                if (compact) {
-                  setCommentsOpen(true);
-                }
-                window.requestAnimationFrame(() => {
-                  commentInputRef.current?.focus?.();
-                });
-              }}
-            />
-          </div>
+          {!post.isArchived ? (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 w-full min-w-0 border-t border-fo-border/60 pt-3">
+              <PostActions
+                className="min-w-0 max-w-full"
+                post={post}
+                onLike={handleLikePost}
+                onReshare={handleResharePost}
+                onSave={handleSavePost}
+                onComment={() => {
+                  setReplyTargetId(null);
+                  setCommentText("");
+                  if (compact) {
+                    setCommentsOpen(true);
+                  }
+                  window.requestAnimationFrame(() => {
+                    commentInputRef.current?.focus?.();
+                  });
+                }}
+              />
+            </div>
+          ) : null}
         </div>
       </article>
 

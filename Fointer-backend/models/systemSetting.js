@@ -42,6 +42,12 @@ const systemSettingSchema = new mongoose.Schema(
       min: 2,
       max: 200,
     },
+    communitySponsoredCommissionPercent: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 100,
+    },
 
     /** After this many platform warnings, auto-ban (if enabled). */
     maxWarningsBeforeBan: {

@@ -55,6 +55,7 @@ const ListingDetail = lazy(
   () => import("../../../marketplace/pages/ListingDetail")
 );
 const MyListings = lazy(() => import("../../../marketplace/pages/MyListings"));
+const SponsorListing = lazy(() => import("../../../marketplace/pages/SponsorListing"));
 const MessagesInbox = lazy(
   () => import("../../../messages/pages/MessagesInbox")
 );
@@ -429,6 +430,12 @@ const Dashboard = () => {
           <Route path="/marketplace/my-listings" element={
               <AuthOnly>
                 <MyListings />
+              </AuthOnly>
+            }
+          />
+          <Route path="/marketplace/promote/:listingId" element={
+              <AuthOnly>
+                <SponsorListing />
               </AuthOnly>
             }
           />

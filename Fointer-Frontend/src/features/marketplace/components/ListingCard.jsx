@@ -43,6 +43,11 @@ export default function ListingCard({ listing, onClick, onSave }) {
               No image
             </div>
           )}
+          {listing.isSponsored && listing.sponsorship?.badge ? (
+            <span className="absolute bottom-2 left-2 px-2 py-0.5 rounded-md bg-fo-accent text-black text-[10px] font-bold uppercase tracking-wide">
+              Sponsored
+            </span>
+          ) : null}
           {listing.status === "sold" ? (
             <span className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-black/70 text-white text-[10px] font-semibold uppercase tracking-wide">
               Sold

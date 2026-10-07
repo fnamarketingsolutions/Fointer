@@ -214,6 +214,33 @@ export const fetchAdminConversationMessages = async (id) => {
   return response.data;
 };
 
+export const fetchAdminSponsorshipData = async () => {
+  const response = await api.get('/marketplace/admin/sponsorships');
+  return response.data;
+};
+
+export const createSponsoredPackage = async (payload) => {
+  const response = await api.post('/marketplace/admin/sponsorship-packages', payload);
+  return response.data;
+};
+
+export const updateSponsoredPackage = async (id, payload) => {
+  const response = await api.patch(`/marketplace/admin/sponsorship-packages/${id}`, payload);
+  return response.data;
+};
+
+export const deleteSponsoredPackage = async (id) => {
+  const response = await api.delete(`/marketplace/admin/sponsorship-packages/${id}`);
+  return response.data;
+};
+
+export const updateSponsoredCommission = async (communitySponsoredCommissionPercent) => {
+  const response = await api.patch('/marketplace/admin/sponsorship-settings', {
+    communitySponsoredCommissionPercent,
+  });
+  return response.data;
+};
+
 export const fetchAdmins = async (params = {}) => {
   const response = await api.get('/admin/admins', { params });
   return response.data;

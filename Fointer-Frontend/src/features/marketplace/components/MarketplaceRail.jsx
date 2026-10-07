@@ -90,8 +90,8 @@ export default function MarketplaceRail({
           <h2 className="text-[13px] font-semibold text-fo-text">Safety</h2>
         </div>
         <p className="text-xs text-fo-subtle leading-relaxed">
-          Fointer does not process payments, escrow, or shipping. Meet in a
-          public place and arrange delivery directly with the other person.
+          Fointer processes only optional listing-promotion fees, not item-sale
+          payments, escrow, or shipping. Arrange item payment and delivery directly.
         </p>
         {location.pathname !== "/marketplace" ? (
           <Link

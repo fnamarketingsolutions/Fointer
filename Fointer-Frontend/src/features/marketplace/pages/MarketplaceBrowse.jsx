@@ -16,6 +16,10 @@ import ListingFormModal from "../components/ListingFormModal";
 import MarketplaceRail from "../components/MarketplaceRail";
 import { LISTING_CATEGORIES } from "../constants";
 import { listingSegment } from "../../../shared/services/entityLinks";
+import {
+  fetchBrowsableCommunities,
+  fetchJoinedCommunities,
+} from "../../communities/services/communityService";
 
 const SORT_OPTIONS = [
   { id: "newest", label: "Newest first" },
@@ -40,11 +44,50 @@ export default function MarketplaceBrowse() {
   const filterRef = useRef(null);
 
   const category = searchParams.get("category") || "";
+  const communityId = searchParams.get("communityId") || "";
+
+  const [communities, setCommunities] = useState([]);
+  const [communityLoadError, setCommunityLoadError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([
+      fetchBrowsableCommunities({ limit: 100, includeJoined: true }),
+      fetchJoinedCommunities(),
+    ])
+      .then(([browseResult, joinedResult]) => {
+        if (!active) return;
+        const merged = new Map();
+        for (const community of [
+          ...(browseResult?.communities || []),
+          ...(joinedResult?.communities || []),
+        ]) {
+          merged.set(String(community.id), community);
+        }
+        setCommunities([...merged.values()]);
+        setCommunityLoadError("");
+      })
+      .catch((error) => {
+        const message = error?.response?.data?.message || "Failed to load communities.";
+        setCommunityLoadError(message);
+        showToast(message);
+      });
+    return () => {
+      active = false;
+    };
+  }, [showToast]);
 
   const setCategory = (value) => {
     const next = new URLSearchParams(searchParams);
     if (value) next.set("category", value);
     else next.delete("category");
+    setSearchParams(next, { replace: true });
+  };
+
+  const setCommunity = (value) => {
+    const next = new URLSearchParams(searchParams);
+    if (value) next.set("communityId", value);
+    else next.delete("communityId");
     setSearchParams(next, { replace: true });
   };
 
@@ -54,6 +97,7 @@ export default function MarketplaceBrowse() {
       const res = await fetchListings({
         q: search.trim() || undefined,
         category: category || undefined,
+        communityId: communityId || undefined,
         sort,
         page: 1,
         limit: 48,
@@ -64,7 +108,7 @@ export default function MarketplaceBrowse() {
     } finally {
       setLoading(false);
     }
-  }, [search, category, sort, showToast]);
+  }, [search, category, communityId, sort, showToast]);
 
   useEffect(() => {
     const timer = setTimeout(load, 250);
@@ -139,6 +183,16 @@ export default function MarketplaceBrowse() {
   };
 
   const categoryName = LISTING_CATEGORIES.find((c) => c.value === category)?.label;
+  const topSponsored = listings.filter((listing) => listing.sponsorship?.top);
+  const sectionSponsored = listings.filter(
+    (listing) => listing.sponsorship?.section && !listing.sponsorship?.top
+  );
+  const featuredIds = new Set(
+    [...topSponsored, ...sectionSponsored].map((listing) => listing.id)
+  );
+  const organicListings = listings.filter(
+    (listing) => !featuredIds.has(listing.id)
+  );
 
   return (
     <div className="text-fo-text w-full max-w-[1180px] mx-auto pb-6">
@@ -153,8 +207,8 @@ export default function MarketplaceBrowse() {
                 Buy and sell with your community
               </h1>
               <p className="mt-1 text-sm text-fo-subtle leading-snug max-w-xl">
-                List items and connect with buyers directly. Fointer does not
-                handle payments or shipping.
+                List items and connect with buyers directly. Promotion fees are
+                processed separately; Fointer does not process item-sale payments.
               </p>
             </div>
             <div className="flex flex-wrap gap-2 shrink-0">
@@ -166,6 +220,21 @@ export default function MarketplaceBrowse() {
                 >
                   My listings
                 </button>
+              ) : null}
+              {communities.length ? (
+                <label className="inline-flex items-center gap-2 text-xs text-fo-subtle">
+                  Community placement
+                  <select
+                    value={communityId}
+                    onChange={(event) => setCommunity(event.target.value)}
+                    className="max-w-[220px] rounded-lg border border-fo-border bg-fo-surface px-2.5 py-1.5 text-xs text-fo-text"
+                  >
+                    <option value="">All marketplace listings</option>
+                    {communities.map((community) => (
+                      <option key={community.id} value={community.id}>{community.name}</option>
+                    ))}
+                  </select>
+                </label>
               ) : null}
               <button
                 type="button"
@@ -243,6 +312,11 @@ export default function MarketplaceBrowse() {
               <span aria-hidden>×</span>
             </button>
           ) : null}
+          {communityLoadError ? (
+            <p role="alert" className="text-xs text-red-400">
+              {communityLoadError} Community-targeted placements may not be visible.
+            </p>
+          ) : null}
 
           {loading ? (
             <div className="flex justify-center py-16 text-fo-muted">
@@ -262,14 +336,34 @@ export default function MarketplaceBrowse() {
               ) : null}
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              {listings.map((listing) => (
-                <ListingCard
-                  key={listing.id}
-                  listing={listing}
-                  onSave={handleSaveListing}
-                />
-              ))}
+            <div className="space-y-5">
+              {topSponsored.length ? (
+                <section aria-label="Top sponsored listings" className="space-y-2">
+                  <h2 className="text-sm font-semibold text-fo-text">Featured listings</h2>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {topSponsored.map((listing) => (
+                      <ListingCard key={listing.id} listing={listing} onSave={handleSaveListing} />
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+              {sectionSponsored.length ? (
+                <section aria-label="Sponsored listings" className="space-y-2">
+                  <h2 className="text-sm font-semibold text-fo-text">Sponsored</h2>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {sectionSponsored.map((listing) => (
+                      <ListingCard key={listing.id} listing={listing} onSave={handleSaveListing} />
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+              {organicListings.length ? (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {organicListings.map((listing) => (
+                    <ListingCard key={listing.id} listing={listing} onSave={handleSaveListing} />
+                  ))}
+                </div>
+              ) : null}
             </div>
           )}
         </div>

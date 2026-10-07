@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   LuArrowLeft as ArrowLeft,
   LuLoaderCircle as Loader2,
@@ -9,6 +9,8 @@ import {
   createListing,
   deleteListing,
   fetchMyListings,
+  fetchMyCommunitySponsoredEarnings,
+  fetchMySponsorships,
   markListingSold,
   updateListing,
 } from "../../../api/marketplace";
@@ -36,10 +38,13 @@ const filterBtnClass = (active) =>
 
 export default function MyListings() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { showToast } = useToast();
   const { isAuthenticated } = useAuth();
 
   const [listings, setListings] = useState([]);
+  const [sponsorships, setSponsorships] = useState([]);
+  const [communityEarnings, setCommunityEarnings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
   const [modalOpen, setModalOpen] = useState(false);
@@ -53,6 +58,18 @@ export default function MyListings() {
     try {
       const res = await fetchMyListings();
       setListings(res?.listings || []);
+      try {
+        const promotionHistory = await fetchMySponsorships();
+        setSponsorships(promotionHistory?.purchases || []);
+      } catch (error) {
+        showToast(error?.response?.data?.message || "Failed to load promotion history.");
+      }
+      try {
+        const earnings = await fetchMyCommunitySponsoredEarnings();
+        setCommunityEarnings(earnings?.earnings || []);
+      } catch (error) {
+        showToast(error?.response?.data?.message || "Failed to load community earnings.");
+      }
     } catch (err) {
       showToast(err?.response?.data?.message || "Failed to load your listings.");
     } finally {
@@ -79,6 +96,7 @@ export default function MyListings() {
     if (filter === "all") return listings;
     return listings.filter((item) => item.status === filter);
   }, [listings, filter]);
+  const paymentPending = searchParams.get("payment") === "pending";
 
   const handleCreate = async (payload) => {
     setSubmitting(true);
@@ -157,6 +175,39 @@ export default function MyListings() {
                 Create, edit, and manage what you are selling.
               </p>
             </div>
+            {paymentPending ? (
+              <div className="rounded-xl border border-fo-accent/30 bg-fo-accent/5 p-3 text-xs text-fo-muted">
+                Checkout returned. Your listing will be promoted after Flutterwave verifies payment; refresh this page to check the latest status.
+              </div>
+            ) : null}
+            {sponsorships.length ? (
+              <section className="rounded-xl border border-fo-border bg-fo-surface p-3 space-y-2">
+                <h2 className="text-sm font-semibold">Promotion history</h2>
+                {sponsorships.map((purchase) => (
+                  <div key={purchase._id} className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <span>{purchase.listing?.title || "Listing"} · {purchase.package?.name || "Promotion"}</span>
+                    <span className="text-fo-subtle">
+                      {purchase.paymentStatus}
+                      {purchase.expiresAt ? ` · ends ${new Date(purchase.expiresAt).toLocaleDateString()}` : ""}
+                    </span>
+                  </div>
+                ))}
+              </section>
+            ) : null}
+            {communityEarnings.length ? (
+              <section className="rounded-xl border border-fo-border bg-fo-surface p-3 space-y-2">
+                <h2 className="text-sm font-semibold">Community promotion earnings</h2>
+                {communityEarnings.map((earning) => (
+                  <div key={earning._id} className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <span>{earning.community?.name || "Community"} · {earning.percentUsed}% of {earning.gross} {earning.currency}</span>
+                    <span className="text-fo-subtle">
+                      {earning.commissionAmount} {earning.currency} · {earning.status}
+                    </span>
+                  </div>
+                ))}
+                <p className="text-[11px] text-fo-subtle">Ledger only; no automatic payout is issued.</p>
+              </section>
+            ) : null}
             <button
               type="button"
               onClick={() => setModalOpen(true)}
@@ -226,13 +277,24 @@ export default function MyListings() {
                       Edit
                     </button>
                     {listing.status === "active" ? (
-                      <button
-                        type="button"
-                        onClick={() => handleMarkSold(listing)}
-                        className="text-xs px-2.5 py-1 rounded-lg border border-fo-border text-fo-muted hover:text-fo-accent hover:border-fo-accent/40"
-                      >
-                        Mark sold
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => handleMarkSold(listing)}
+                          className="text-xs px-2.5 py-1 rounded-lg border border-fo-border text-fo-muted hover:text-fo-accent hover:border-fo-accent/40"
+                        >
+                          Mark sold
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            navigate(`/marketplace/promote/${listing.shortCode || listing.id}`)
+                          }
+                          className="text-xs px-2.5 py-1 rounded-lg border border-fo-accent/40 text-fo-accent hover:bg-fo-accent/10"
+                        >
+                          Promote
+                        </button>
+                      </>
                     ) : null}
                     <button
                       type="button"

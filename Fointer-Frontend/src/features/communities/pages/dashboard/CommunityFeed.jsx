@@ -13,6 +13,7 @@ import {
   LuPlus as Plus,
   LuRadio as Radio,
   LuSearch as Search,
+  LuShoppingBag as ShoppingBag,
   LuUsers as Users,
   LuVideo as Video
 } from "react-icons/lu";
@@ -41,6 +42,8 @@ import { formatCount } from "../../../../shared/utils/format";
 import { parseCommunityRules } from "../../../../shared/utils/community";
 import FeedPostRow from "../../../../shared/components/FeedPostRow";
 import UserProfileLink from "../../../../shared/components/UserProfileLink";
+import ListingCard from "../../../marketplace/components/ListingCard";
+import { fetchListings } from "../../../marketplace/services/marketplaceService";
 
 const PAGE_SIZE = 15;
 const RULES_PREVIEW_COUNT = 5;
@@ -311,6 +314,10 @@ export default function CommunityFeed() {
   const [community, setCommunity] = useState(null);
   const [communityLoading, setCommunityLoading] = useState(true);
   const [posts, setPosts] = useState([]);
+  const [communitySponsoredData, setCommunitySponsoredData] = useState({
+    communityId: "",
+    listings: [],
+  });
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [query, setQuery] = useState("");
@@ -333,6 +340,15 @@ export default function CommunityFeed() {
   const basePath = communityParam
     ? `/communities/${communityParam}`
     : "/communities";
+  const canViewCommunitySponsoredListings =
+    Boolean(community) &&
+    String(community.id) === String(communityId) &&
+    (community.type === "public" || community.isMember);
+  const communitySponsoredListings =
+    canViewCommunitySponsoredListings &&
+    communitySponsoredData.communityId === String(communityId)
+      ? communitySponsoredData.listings
+      : [];
 
   const loadCommunity = useCallback(async () => {
     if (!communityId) return;
@@ -387,6 +403,36 @@ export default function CommunityFeed() {
     if (!communityId) return;
     loadCommunity();
   }, [communityId, loadCommunity]);
+
+  useEffect(() => {
+    if (!communityId || !canViewCommunitySponsoredListings) return undefined;
+    let active = true;
+    fetchListings({
+      communityId,
+      sponsoredOnly: true,
+      page: 1,
+      limit: 6,
+    })
+      .then((data) => {
+        if (active) {
+          setCommunitySponsoredData({
+            communityId: String(communityId),
+            listings: data?.listings || [],
+          });
+        }
+      })
+      .catch((error) => {
+        if (active) {
+          showToast(
+            error?.response?.data?.message ||
+              "Failed to load sponsored community listings."
+          );
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [communityId, canViewCommunitySponsoredListings, showToast]);
 
   useEffect(() => {
     if (!communityId || viewingPost) return;
@@ -881,6 +927,36 @@ export default function CommunityFeed() {
 
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_300px] gap-5 items-start">
         <div className="min-w-0 space-y-4 order-2 xl:order-1">
+          {communitySponsoredListings.length > 0 ? (
+            <section
+              aria-label={`Sponsored listings in ${community.name}`}
+              className="rounded-xl border border-fo-accent/25 bg-fo-surface p-4 space-y-3"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <h2 className="inline-flex items-center gap-2 text-sm font-semibold text-fo-text">
+                    <ShoppingBag size={15} className="text-fo-accent" />
+                    Sponsored in {community.name}
+                  </h2>
+                  <p className="mt-1 text-xs text-fo-subtle">
+                    Promoted marketplace listings selected for this community.
+                  </p>
+                </div>
+                <Link
+                  to={`/marketplace?communityId=${encodeURIComponent(communityId)}`}
+                  className="shrink-0 text-xs font-medium text-fo-accent hover:text-fo-accent-hover"
+                >
+                  View marketplace
+                </Link>
+              </div>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {communitySponsoredListings.map((listing) => (
+                  <ListingCard key={listing.id} listing={listing} />
+                ))}
+              </div>
+            </section>
+          ) : null}
+
           {community.isMember ? (
             <>
               <form

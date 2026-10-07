@@ -7,6 +7,7 @@ const ADMIN_TAB_IDS = [
   "watchgroups",
   "moderation",
   "marketplace",
+  "sponsorships",
   "analytics",
   "warnings",
   "support",

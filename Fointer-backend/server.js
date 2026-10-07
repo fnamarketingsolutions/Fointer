@@ -29,6 +29,8 @@ import bannerRoute from "./routes/bannerRoute.js";
 import userSupportRoute from "./routes/userSupportRoute.js";
 import locationRoute from "./routes/locationRoute.js";
 import referralRoute from "./routes/referralRoute.js";
+import sponsorshipRoute from "./routes/sponsorshipRoute.js";
+import { handleFlutterwaveWebhook } from "./controllers/sponsorship.controller.js";
 import { initLiveSocket } from "./sockets/liveSocket.js";
 import { initWatchGroupSocket } from "./sockets/watchGroupSocket.js";
 import { initNotificationSocket } from "./sockets/notificationSocket.js";
@@ -62,6 +64,12 @@ app.use(
     crossOriginResourcePolicy: { policy: "cross-origin" },
     contentSecurityPolicy: false,
   })
+);
+
+app.post(
+  "/api/marketplace/sponsorships/webhook",
+  express.raw({ type: "application/json", limit: "1mb" }),
+  handleFlutterwaveWebhook
 );
 
 app.use(express.json({ limit: "1mb" }));
@@ -114,6 +122,7 @@ app.use("/api/reports", reportRoute);
 app.use("/api/notifications", notificationRoute);
 app.use("/api/search", searchRoute);
 app.use("/api/users", userRoute);
+app.use("/api/marketplace", sponsorshipRoute);
 app.use("/api/marketplace", marketplaceRoute);
 app.use("/api/bookmarks", bookmarkRoute);
 app.use("/api/conversations", conversationRoute);

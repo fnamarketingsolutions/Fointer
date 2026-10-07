@@ -100,6 +100,12 @@ const listingSchema = new mongoose.Schema(
       trim: true,
       maxlength: 100,
     },
+    community: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Community",
+      default: null,
+      index: true,
+    },
     media: {
       type: [mediaSchema],
       default: [],

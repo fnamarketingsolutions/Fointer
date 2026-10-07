@@ -9,8 +9,9 @@ const sections = [
   { id: 'content', title: '4. User-Generated Content' },
   { id: 'intellectual', title: '5. Intellectual Property' },
   { id: 'moderation', title: '6. Moderation & Termination' },
-  { id: 'liability', title: '7. Limitation of Liability' },
-  { id: 'contact', title: '8. Contact Us' },
+  { id: 'promotion', title: '7. Marketplace & Sponsored Listings' },
+  { id: 'liability', title: '8. Limitation of Liability' },
+  { id: 'contact', title: '9. Contact Us' },
 ];
 
 export default function TermsAndConditions() {
@@ -178,10 +179,20 @@ export default function TermsAndConditions() {
               </p>
             </section>
 
-            {/* Section 7 */}
-            <section id="liability" className="scroll-mt-8">
+            <section id="promotion" className="scroll-mt-8">
               <h2 className="text-xl sm:text-2xl font-serif text-fo-text flex items-center gap-3 border-b border-fo-border pb-3 mb-4">
                 <span className="text-fo-accent font-mono text-sm font-bold">07</span>
+                Marketplace & Sponsored Listings
+              </h2>
+              <p className="text-sm sm:text-base leading-relaxed text-fo-muted font-light">
+                Marketplace item transactions are arranged directly between buyers and sellers. Fointer does not process item-sale payments, escrow, shipping, or seller payouts. Sellers may separately purchase listing-promotion packages; Fointer processes only that promotion fee through Flutterwave. Sponsorship placement starts after payment verification and runs for the package duration. Community commissions are recorded for reporting and are not automatically paid out.
+              </p>
+            </section>
+
+            {/* Section 8 */}
+            <section id="liability" className="scroll-mt-8">
+              <h2 className="text-xl sm:text-2xl font-serif text-fo-text flex items-center gap-3 border-b border-fo-border pb-3 mb-4">
+                <span className="text-fo-accent font-mono text-sm font-bold">08</span>
                 Limitation of Liability
               </h2>
               <p className="text-sm sm:text-base leading-relaxed text-fo-muted font-light">
@@ -189,7 +200,7 @@ export default function TermsAndConditions() {
               </p>
             </section>
 
-            {/* Section 8 / Contact Box */}
+            {/* Section 9 / Contact Box */}
             <section id="contact" className="scroll-mt-8 pt-2">
               <div className="bg-fo-surface-3 border border-fo-accent/40 rounded-xl p-6 sm:p-8 text-center sm:text-left sm:flex sm:items-center sm:justify-between gap-6 shadow-xl">
                 <div>

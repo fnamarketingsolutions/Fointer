@@ -106,7 +106,7 @@ export default function PrivacyPolicy() {
                   </div>
                   <div className="bg-fo-bg/80 border border-fo-border rounded-xl p-4">
                     <p className="text-xs sm:text-sm text-fo-muted font-light leading-relaxed">
-                      <strong className="text-fo-text font-medium">Transactional Information:</strong> If you make purchases through our Services, we collect information necessary to complete the transaction, including payment information.
+                      <strong className="text-fo-text font-medium">Transactional Information:</strong> If you purchase a listing-promotion package, we retain the package, amount, currency, payment status, transaction reference, and activation period. Flutterwave processes the promotion fee; payment credentials are handled by the payment provider. Fointer does not process payments for marketplace items.
                     </p>
                   </div>
                 </div>

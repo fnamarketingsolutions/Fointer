@@ -23,6 +23,7 @@ import {
   LuUserCog as UserCog,
   LuTriangleAlert as AlertTriangle,
   LuImage as ImageIcon,
+  LuSparkles as Sparkles,
 } from 'react-icons/lu';
 
 import PanelShell from '../../../shared/layouts/PanelShell';
@@ -43,6 +44,7 @@ const AdminCommunityPostPage = lazy(() => import('./menus/AdminCommunityPostPage
 const SystemSettings = lazy(() => import('./menus/SystemSettings'));
 const BannerManagement = lazy(() => import('./menus/BannerManagement'));
 const MarketplaceManagement = lazy(() => import('./menus/MarketplaceManagement'));
+const SponsorshipManagement = lazy(() => import('./menus/SponsorshipManagement'));
 const AdminListingDetail = lazy(() => import('./menus/AdminListingDetail'));
 const AdminManagement = lazy(() => import('./menus/AdminManagement'));
 const WarningCenter = lazy(() => import('./menus/WarningCenter'));
@@ -66,6 +68,7 @@ const NAV_ITEMS = [
   { id: 'watchgroups', label: 'Watch Groups Management', icon: Radio },
   { id: 'moderation', label: 'Content Moderation', icon: Shield },
   { id: 'marketplace', label: 'Marketplace', icon: ShoppingBag },
+  { id: 'sponsorships', label: 'Sponsorships Management', icon: Sparkles },
   { id: 'analytics', label: 'Reporting & Analytics', icon: BarChart3 },
   { id: 'warnings', label: 'Warnings', icon: AlertTriangle },
   { id: 'support', label: 'Support Tools', icon: LifeBuoy },
@@ -234,6 +237,14 @@ const AdminDashboard = () => {
             element={
               <TabRoute tab="marketplace" fallbackTo={defaultTab}>
                 <AdminListingDetail />
+              </TabRoute>
+            }
+          />
+          <Route
+            path="sponsorships"
+            element={
+              <TabRoute tab="sponsorships" fallbackTo={defaultTab}>
+                <SponsorshipManagement />
               </TabRoute>
             }
           />

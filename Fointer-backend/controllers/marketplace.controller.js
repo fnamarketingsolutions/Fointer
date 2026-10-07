@@ -3,6 +3,9 @@ import Listing, {
   LISTING_CONDITIONS,
   LISTING_STATUSES,
 } from "../models/listing.js";
+import Community from "../models/community.js";
+import SponsoredPlacement from "../models/sponsoredPlacement.js";
+import { matchesSponsoredGeo } from "../utils/sponsoredTargeting.js";
 import User from "../models/user.js";
 import {
   parsePagination,
@@ -26,7 +29,11 @@ import {
 } from "../utils/cloudinary.js";
 import { hasMarketplaceAdminPower } from "../utils/adminAccess.js";
 import { getBookmarkMeta } from "../utils/bookmarkHelpers.js";
-import { getEditWindowMinutes } from "../utils/communityPermissions.js";
+import {
+  canViewCommunity,
+  getEditWindowMinutes,
+  getMembership,
+} from "../utils/communityPermissions.js";
 import { formatUserRef } from "../utils/deletedUser.js";
 
 const LISTING_SORT_MAP = {
@@ -68,6 +75,14 @@ const formatMedia = (media = []) =>
     type: m.type,
   }));
 
+const formatCommunity = (community) => {
+  if (!community) return null;
+  return {
+    id: String(community._id || community),
+    name: community.name || "",
+  };
+};
+
 export const formatListing = (listing, extras = {}) => ({
   id: listing._id,
   shortCode: listing.shortCode || "",
@@ -80,6 +95,7 @@ export const formatListing = (listing, extras = {}) => ({
   city: listing.city || "",
   state: listing.state || "",
   country: listing.country || "",
+  community: formatCommunity(listing.community),
   media: formatMedia(listing.media),
   status: listing.status,
   hiddenAt: listing.hiddenAt || null,
@@ -95,6 +111,8 @@ export const formatListing = (listing, extras = {}) => ({
   editWindowMinutes: extras.editWindowMinutes ?? null,
   canMarkSold: extras.canMarkSold ?? false,
   savedByMe: extras.savedByMe ?? false,
+  isSponsored: Boolean(extras.sponsorship),
+  sponsorship: extras.sponsorship || null,
   createdAt: listing.createdAt,
   updatedAt: listing.updatedAt,
 });
@@ -207,7 +225,55 @@ const buildBrowseFilter = (query = {}, { mine = false, userId = null } = {}) => 
     filter.city = { $regex: escapeRegex(city), $options: "i" };
   }
 
+  const communityId = String(query.communityId || "").trim();
+  if (/^[a-f\d]{24}$/i.test(communityId)) {
+    filter.community = communityId;
+  }
+
   return filter;
+};
+
+const getActiveSponsorships = async (
+  listings,
+  communityId = "",
+  { includeCommunity = false } = {}
+) => {
+  if (!listings.length) return new Map();
+  const now = new Date();
+  const communityFilter = communityId
+    ? { $in: [null, communityId] }
+    : null;
+  const placements = await SponsoredPlacement.find({
+    listing: { $in: listings.map((listing) => listing._id) },
+    status: "active",
+    startsAt: { $lte: now },
+    expiresAt: { $gt: now },
+    ...(communityFilter
+      ? { community: communityFilter }
+      : includeCommunity
+        ? {}
+        : { community: null }),
+  })
+    .sort({ "placement.top": -1, "placement.priority": -1, expiresAt: 1 })
+    .lean();
+  const byId = new Map();
+  for (const placement of placements) {
+    const listing = listings.find(
+      (row) => String(row._id) === String(placement.listing)
+    );
+    if (!listing || !matchesSponsoredGeo(placement.geo, listing)) continue;
+    const key = String(placement.listing);
+    if (byId.has(key)) continue;
+    byId.set(key, {
+      top: Boolean(placement.placement?.top),
+      section: Boolean(placement.placement?.section),
+      badge: Boolean(placement.placement?.badge),
+      priority: Number(placement.placement?.priority) || 0,
+      communityId: placement.community ? String(placement.community) : null,
+      expiresAt: placement.expiresAt,
+    });
+  }
+  return byId;
 };
 
 const applyActiveSellerFilter = async (filter) => {
@@ -235,13 +301,57 @@ export const listListings = async (req, res) => {
       createdAt: -1,
     });
     const filter = buildBrowseFilter(req.query);
+    if (String(req.query.sponsoredOnly || "").toLowerCase() === "true") {
+      const communityId = String(req.query.communityId || "").trim();
+      if (!/^[a-f\d]{24}$/i.test(communityId)) {
+        return res.status(400).json({
+          success: false,
+          message: "A valid community is required for sponsored listings.",
+        });
+      }
+      const community = await Community.findById(communityId).lean();
+      if (!community) {
+        return res.status(404).json({
+          success: false,
+          message: "Community not found.",
+        });
+      }
+      const membership = req.user
+        ? await getMembership(communityId, req.user._id)
+        : null;
+      if (!canViewCommunity(community, req.user, membership)) {
+        return res.status(403).json({
+          success: false,
+          message: "You cannot view sponsored listings in this community.",
+        });
+      }
+      const now = new Date();
+      const placements = await SponsoredPlacement.find({
+        community: communityId,
+        status: "active",
+        startsAt: { $lte: now },
+        expiresAt: { $gt: now },
+      })
+        .populate("listing")
+        .lean();
+      const sponsoredListingIds = placements
+        .filter(
+          (placement) =>
+            placement.listing?.status === "active" &&
+            matchesSponsoredGeo(placement.geo, placement.listing)
+        )
+        .map((placement) => placement.listing._id);
+      delete filter.community;
+      filter._id = { $in: sponsoredListingIds };
+    }
     if (!req.query.mine) {
       await applyActiveSellerFilter(filter);
     }
 
     const query = Listing.find(filter)
       .sort(sort)
-      .populate("seller", SELLER_PUBLIC_SELECT);
+      .populate("seller", SELLER_PUBLIC_SELECT)
+      .populate("community", "name");
 
     if (enabled) {
       query.skip(skip).limit(limit + 1);
@@ -253,6 +363,20 @@ export const listListings = async (req, res) => {
     const { rows: pageRows, hasMore } = enabled
       ? takePage(rows, limit)
       : { rows, hasMore: false };
+
+    const sponsorships = await getActiveSponsorships(
+      pageRows,
+      String(req.query.communityId || "").trim()
+    );
+    pageRows.sort((left, right) => {
+      const a = sponsorships.get(String(left._id));
+      const b = sponsorships.get(String(right._id));
+      if (!a && !b) return 0;
+      if (!a) return 1;
+      if (!b) return -1;
+      if (a.top !== b.top) return a.top ? -1 : 1;
+      return b.priority - a.priority;
+    });
 
     const { saved } = await getBookmarkMeta(
       "listing",
@@ -266,6 +390,7 @@ export const listListings = async (req, res) => {
       return formatListing(listing, {
         ...flags,
         savedByMe: saved[String(listing._id)] || false,
+        sponsorship: sponsorships.get(String(listing._id)) || null,
       });
     });
 
@@ -297,8 +422,12 @@ export const listMyListings = async (req, res) => {
     const listings = await Listing.find(filter)
       .sort({ createdAt: -1 })
       .populate("seller", SELLER_CONTACT_SELECT)
+      .populate("community", "name")
       .lean();
 
+    const sponsorships = await getActiveSponsorships(listings, "", {
+      includeCommunity: true,
+    });
     const { saved } = await getBookmarkMeta(
       "listing",
       listings.map((row) => row._id),
@@ -313,6 +442,7 @@ export const listMyListings = async (req, res) => {
         return formatListing(listing, {
           ...flags,
           savedByMe: saved[String(listing._id)] || false,
+          sponsorship: sponsorships.get(String(listing._id)) || null,
         });
       }),
     });
@@ -346,6 +476,12 @@ export const getListing = async (req, res) => {
     if (flags.includeSellerContact) {
       await hydrateSellerContact(listing);
     }
+    await listing.populate("community", "name");
+    const sponsorships = await getActiveSponsorships(
+      [listing.toObject()],
+      String(req.query.communityId || "").trim(),
+      { includeCommunity: flags.isOwner }
+    );
 
     const { saved } = await getBookmarkMeta(
       "listing",
@@ -358,6 +494,7 @@ export const getListing = async (req, res) => {
       listing: formatListing(listing, {
         ...flags,
         savedByMe: saved[String(listing._id)] || false,
+        sponsorship: sponsorships.get(String(listing._id)) || null,
       }),
     });
   } catch (error) {

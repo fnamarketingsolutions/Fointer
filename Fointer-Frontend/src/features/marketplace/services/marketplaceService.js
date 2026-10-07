@@ -39,3 +39,23 @@ export const contactSeller = async (id, payload) => {
   const response = await api.post(`/marketplace/${id}/contact`, payload);
   return response.data;
 };
+
+export const fetchSponsorOptions = async (listingId) => {
+  const response = await api.get(`/marketplace/sponsor-options/${listingId}`);
+  return response.data;
+};
+
+export const startSponsorshipCheckout = async (listingId, payload) => {
+  const response = await api.post(`/marketplace/${listingId}/sponsor`, payload);
+  return response.data;
+};
+
+export const fetchMySponsorships = async () => {
+  const response = await api.get('/marketplace/sponsorships/mine');
+  return response.data;
+};
+
+export const fetchMyCommunitySponsoredEarnings = async () => {
+  const response = await api.get('/marketplace/sponsorships/earnings/mine');
+  return response.data;
+};

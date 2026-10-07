@@ -260,8 +260,9 @@ export default function ListingFormModal({
           ) : null}
 
           <p className="text-[11px] text-fo-subtle leading-relaxed">
-            Fointer does not process payments, payouts, escrow, or shipping.
-            Buyers and sellers arrange those details directly.
+            Fointer may process an optional listing-promotion fee. It does not
+            process item-sale payments, escrow, seller payouts, or shipping.
+            Buyers and sellers arrange item-sale details directly.
           </p>
 
           {error ? (

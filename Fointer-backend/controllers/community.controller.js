@@ -13,7 +13,7 @@ import Reshare from "../models/reshare.js";
 import LiveEvent from "../models/liveEvent.js";
 import LiveMessage from "../models/liveMessage.js";
 import Report from "../models/report.js";
-import { destroyManyFromCloudinary, acceptSignedImageValue, acceptSignedImageList } from "../utils/cloudinary.js";
+import { destroyManyFromS3, acceptSignedImageValue, acceptSignedImageList } from "../utils/s3.js";
 import {
   getMembership,
   getEffectiveMemberRole,
@@ -684,7 +684,7 @@ export const updateCommunity = async (req, res) => {
       }
       community.coverImage = acceptedCover.url;
       if (prevCover && prevCover !== acceptedCover.url) {
-        await destroyManyFromCloudinary([prevCover]);
+        await destroyManyFromS3([prevCover]);
       }
     }
     if (galleryImages !== undefined) {
@@ -713,7 +713,7 @@ export const updateCommunity = async (req, res) => {
       const removed = prevGallery.filter((url) => !nextGallery.includes(url));
       community.galleryImages = nextGallery;
       if (removed.length) {
-        await destroyManyFromCloudinary(removed);
+        await destroyManyFromS3(removed);
       }
     }
     if (type !== undefined) {
@@ -852,7 +852,7 @@ export const deleteCommunity = async (req, res) => {
 
     const allMedia = [...mediaToRemove, ...postMediaUrls];
     if (allMedia.length) {
-      await destroyManyFromCloudinary(allMedia);
+      await destroyManyFromS3(allMedia);
     }
 
     return res.status(200).json({

@@ -14,7 +14,7 @@ import { sendServerError } from "../utils/safeError.js";
 import { respondIfBanned } from "../utils/bannedKeywords.js";
 import { notify, personName, snippet } from "../utils/notify.js";
 import { normalizeUsername } from "./user.controller.js";
-import { acceptSignedMediaList } from "../utils/cloudinary.js";
+import { acceptSignedMediaList } from "../utils/s3.js";
 import { getBlockState, isMessagingBlocked } from "./block.controller.js";
 import {
   getEditWindowMinutes,

@@ -28,8 +28,8 @@ import { getFollowedUserIds } from "../utils/followHelpers.js";
 import { getBookmarkMeta } from "../utils/bookmarkHelpers.js";
 import {
   acceptSignedMediaList,
-  destroyManyFromCloudinary,
-} from "../utils/cloudinary.js";
+  destroyManyFromS3,
+} from "../utils/s3.js";
 import { formatUserRef } from "../utils/deletedUser.js";
 
 const POST_SORT_MAP = {
@@ -955,7 +955,7 @@ export const updatePost = async (req, res) => {
         .filter((url) => url && !nextUrls.has(url));
       post.media = acceptedMedia.items;
       if (removed.length) {
-        await destroyManyFromCloudinary(removed);
+        await destroyManyFromS3(removed);
       }
     }
 

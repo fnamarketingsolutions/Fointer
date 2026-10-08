@@ -26,7 +26,7 @@ import Warning from "../models/warning.js";
 import SupportTicket from "../models/supportTicket.js";
 import UserSupportRequest from "../models/userSupportRequest.js";
 import Referral from "../models/referral.js";
-import { destroyManyFromCloudinary } from "../utils/cloudinary.js";
+import { destroyManyFromS3 } from "../utils/s3.js";
 
 const mediaUrlsFromDocs = (docs = []) =>
   docs.flatMap((doc) =>
@@ -60,7 +60,7 @@ const recountCommentCounts = async (postIds) => {
  */
 export const purgeUserAccount = async (userId) => {
   const uid = new mongoose.Types.ObjectId(String(userId));
-  const cloudinaryUrls = [];
+  const mediaUrls = [];
 
   const user = await User.findById(uid).lean();
   if (!user) {
@@ -69,7 +69,7 @@ export const purgeUserAccount = async (userId) => {
     throw err;
   }
 
-  if (user.avatar) cloudinaryUrls.push(user.avatar);
+  if (user.avatar) mediaUrls.push(user.avatar);
 
   // --- Social / private ---
   await PushDevice.deleteMany({ user: uid });
@@ -130,7 +130,7 @@ export const purgeUserAccount = async (userId) => {
   // --- Owned posts (cascade) ---
   const posts = await Post.find({ author: uid }).select("_id media").lean();
   const postIds = posts.map((p) => p._id);
-  cloudinaryUrls.push(...mediaUrlsFromDocs(posts));
+  mediaUrls.push(...mediaUrlsFromDocs(posts));
 
   if (postIds.length) {
     const commentsOnPosts = await Comment.find({ post: { $in: postIds } })
@@ -184,7 +184,7 @@ export const purgeUserAccount = async (userId) => {
 
   // --- Listings ---
   const listings = await Listing.find({ seller: uid }).select("media").lean();
-  cloudinaryUrls.push(...mediaUrlsFromDocs(listings));
+  mediaUrls.push(...mediaUrlsFromDocs(listings));
   await Listing.deleteMany({ seller: uid });
   await Listing.updateMany({ removedBy: uid }, { $set: { removedBy: null } });
 
@@ -226,7 +226,7 @@ export const purgeUserAccount = async (userId) => {
   })
     .select("media")
     .lean();
-  cloudinaryUrls.push(...mediaUrlsFromDocs(dmMediaMessages));
+  mediaUrls.push(...mediaUrlsFromDocs(dmMediaMessages));
 
   await DirectMessage.updateMany(
     { author: uid },
@@ -301,11 +301,11 @@ export const purgeUserAccount = async (userId) => {
 
   await Warning.deleteMany({ user: uid });
 
-  // --- Cloudinary (best-effort) ---
+  // --- S3 media (best-effort) ---
   try {
-    await destroyManyFromCloudinary(cloudinaryUrls);
+    await destroyManyFromS3(mediaUrls);
   } catch (err) {
-    console.error("[accountDeletion] Cloudinary cleanup failed:", err?.message || err);
+    console.error("[accountDeletion] S3 cleanup failed:", err?.message || err);
   }
 
   await User.deleteOne({ _id: uid });

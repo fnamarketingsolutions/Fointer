@@ -1,5 +1,6 @@
 import {
   getReferralDashboard,
+  getAdminReferrals,
   ensureUserReferralCode,
   buildInviteLink,
 } from "../services/referral.service.js";
@@ -33,5 +34,23 @@ export const getMyInviteLink = async (req, res) => {
     });
   } catch (error) {
     return sendServerError(res, error, "Unable to load invite link.");
+  }
+};
+
+/** Admin: list all referral attributions + counts. */
+export const listAdminReferrals = async (req, res) => {
+  try {
+    const data = await getAdminReferrals({
+      status: req.query.status,
+      q: req.query.q,
+      limit: req.query.limit,
+      cursor: req.query.cursor,
+    });
+    return res.status(200).json({
+      success: true,
+      ...data,
+    });
+  } catch (error) {
+    return sendServerError(res, error, "Unable to load referral admin data.");
   }
 };

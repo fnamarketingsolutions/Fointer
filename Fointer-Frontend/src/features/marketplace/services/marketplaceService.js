@@ -50,6 +50,13 @@ export const startSponsorshipCheckout = async (listingId, payload) => {
   return response.data;
 };
 
+export const verifySponsorshipPayment = async (transactionId) => {
+  const response = await api.post('/marketplace/sponsorships/verify', {
+    transactionId,
+  });
+  return response.data;
+};
+
 export const fetchMySponsorships = async () => {
   const response = await api.get('/marketplace/sponsorships/mine');
   return response.data;

@@ -33,6 +33,7 @@ import {
 import { fetchChannels } from "../../../api/channels";
 import PostMediaGallery from "../../../shared/components/media/PostMediaGallery";
 import PostActions from "../../../shared/components/PostActions";
+import LinkifiedText from "../../../shared/components/LinkifiedText";
 import { PostMoreMenu } from "../../../shared/components/FeedPostRow";
 import ConfirmDeleteModal from "../../../shared/components/modals/ConfirmDeleteModal";
 import EditWindowExpiredModal from "../../../shared/components/modals/EditWindowExpiredModal";
@@ -823,7 +824,7 @@ export default function PostDetail({
 
           {post.title ? (
             <h1 className="text-xl font-semibold tracking-tight text-fo-text leading-snug">
-              {post.title}
+              <LinkifiedText text={post.title} />
             </h1>
           ) : null}
 
@@ -839,7 +840,7 @@ export default function PostDetail({
 
           {post.text ? (
             <p className="text-sm sm:text-[15px] text-fo-muted whitespace-pre-wrap leading-relaxed">
-              {post.text}
+              <LinkifiedText text={post.text} />
             </p>
           ) : null}
 

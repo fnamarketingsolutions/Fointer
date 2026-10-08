@@ -4,6 +4,7 @@ import {
   updateUserStatus,
   getAdminUserDetail,
   getAdminCommunityDetail,
+  getAdminNavBadges,
 } from "../controllers/dashboard.controller.js";
 import {
   listAdmins,
@@ -84,6 +85,13 @@ const superAdminGate = [
 ];
 
 router.get("/site/contact", getPublicSiteContact);
+
+router.get(
+  "/admin/nav-badges",
+  isAuthenticated,
+  authorize("admin"),
+  getAdminNavBadges
+);
 
 router.get("/admin/settings", ...adminGate("settings"), getSystemSettings);
 router.patch(

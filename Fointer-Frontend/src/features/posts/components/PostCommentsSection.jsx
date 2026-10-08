@@ -10,6 +10,7 @@ import {
 } from "react-icons/lu";
 import PostAuthorAvatar from "./PostAuthorAvatar";
 import UserProfileLink from "../../../shared/components/UserProfileLink";
+import LinkifiedText from "../../../shared/components/LinkifiedText";
 import { timeAgo } from "../../../shared/utils/date";
 import {
   DELETED_USER_LABEL,
@@ -244,8 +245,8 @@ export default function PostCommentsSection({
                           </div>
                         </div>
 
-                        <p className="text-xs sm:text-sm text-fo-muted leading-relaxed">
-                          {comment.text}
+                        <p className="text-xs sm:text-sm text-fo-muted leading-relaxed whitespace-pre-wrap">
+                          <LinkifiedText text={comment.text} />
                         </p>
 
                         {/* Action Controls Below Comment */}
@@ -474,8 +475,8 @@ export default function PostCommentsSection({
                                 </div>
                               </div>
 
-                              <p className="text-xs sm:text-sm text-fo-muted leading-relaxed">
-                                {reply.text}
+                              <p className="text-xs sm:text-sm text-fo-muted leading-relaxed whitespace-pre-wrap">
+                                <LinkifiedText text={reply.text} />
                               </p>
 
                               <div className="flex items-center gap-4 pt-1 text-[11px] text-fo-muted">

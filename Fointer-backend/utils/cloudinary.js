@@ -7,22 +7,6 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-export const uploadToCloudinary = (buffer, options = {}) =>
-  new Promise((resolve, reject) => {
-    const stream = cloudinary.uploader.upload_stream(
-      {
-        folder: options.folder || "fointer/posts",
-        resource_type: options.resourceType || "auto",
-        ...options.extra,
-      },
-      (error, result) => {
-        if (error) return reject(error);
-        resolve(result);
-      }
-    );
-    stream.end(buffer);
-  });
-
 /** Extract Cloudinary public_id from a secure_url / url. */
 const publicIdFromUrl = (url) => {
   if (!url || typeof url !== "string") return null;

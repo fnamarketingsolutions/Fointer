@@ -62,6 +62,11 @@ export const updateAdminSubchannel = async (subchannelId, payload) => {
   return response.data;
 };
 
+export const fetchAdminNavBadges = async () => {
+  const response = await api.get('/admin/nav-badges');
+  return response.data;
+};
+
 export const fetchAdminSupportTickets = async (params = {}) => {
   const response = await api.get('/admin/support', { params });
   return response.data;
@@ -216,6 +221,11 @@ export const fetchAdminConversationMessages = async (id) => {
 
 export const fetchAdminSponsorshipData = async () => {
   const response = await api.get('/marketplace/admin/sponsorships');
+  return response.data;
+};
+
+export const fetchAdminReferrals = async (params = {}) => {
+  const response = await api.get('/referrals/admin', { params });
   return response.data;
 };
 

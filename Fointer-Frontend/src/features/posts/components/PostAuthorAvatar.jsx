@@ -1,5 +1,6 @@
 import UserProfileLink from "../../../shared/components/UserProfileLink";
 import { personDisplayName, DELETED_USER_LABEL } from "../../../shared/utils/personDisplay";
+import { getNameInitials } from "../../../shared/utils/nameInitials";
 
 export default function PostAuthorAvatar({
   author,
@@ -7,7 +8,7 @@ export default function PostAuthorAvatar({
   linkable = true,
 }) {
   const name = personDisplayName(author, DELETED_USER_LABEL);
-  const initial = name.charAt(0).toUpperCase();
+  const initials = getNameInitials(name, "?");
   const sizeClass = size === "sm" ? "w-8 h-8 text-xs" : "w-10 h-10 text-sm";
 
   const avatar = author?.avatar ? (
@@ -18,9 +19,9 @@ export default function PostAuthorAvatar({
     />
   ) : (
     <div
-      className={`${sizeClass} rounded-full bg-fo-accent/15 border border-fo-accent/30 flex items-center justify-center text-fo-accent font-semibold shrink-0`}
+      className={`${sizeClass} rounded-full bg-fo-accent/15 border border-fo-accent/30 flex items-center justify-center text-fo-accent font-semibold shrink-0 uppercase select-none`}
     >
-      {initial}
+      {initials}
     </div>
   );
 

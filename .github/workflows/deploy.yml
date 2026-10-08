@@ -5,19 +5,69 @@ on:
     branches:
       - main
 
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
+concurrency:
+  group: deploy-backend-production
+  cancel-in-progress: false
 
+jobs:
+  verify:
+    name: Verify backend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Fointer-backend
     steps:
-      - name: Deploy to AWS EC2
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: Fointer-backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Syntax check entrypoints
+        run: |
+          set -euo pipefail
+          node --check server.js
+          node --check controllers/sponsorship.controller.js
+          node --check controllers/upload.controller.js
+          node --check controllers/marketplace.controller.js
+          node --check middleware/auth.middleware.js
+
+  deploy:
+    name: Deploy to AWS EC2
+    needs: verify
+    runs-on: ubuntu-latest
+    # Configure required reviewers on this GitHub Environment before go-live.
+    environment: production
+    steps:
+      - name: Deploy pinned commit to AWS EC2
         uses: appleboy/ssh-action@v1.2.2
+        env:
+          DEPLOY_SHA: ${{ github.sha }}
         with:
           host: ${{ secrets.AWS_HOST }}
           username: ubuntu
           key: ${{ secrets.AWS_SSH_KEY }}
+          envs: DEPLOY_SHA
           script: |
+            set -euo pipefail
             cd /var/www/fointer/Fointer-backend
-            git pull origin main
+            git fetch --prune origin
+            # Prefer the exact CI commit when this clone shares the monorepo history;
+            # otherwise fall back to origin/main (CI already verified that push).
+            if git cat-file -e "${DEPLOY_SHA}^{commit}" 2>/dev/null; then
+              git checkout --force "$DEPLOY_SHA"
+            elif git fetch --depth 1 origin "$DEPLOY_SHA" 2>/dev/null && git cat-file -e "${DEPLOY_SHA}^{commit}" 2>/dev/null; then
+              git checkout --force "$DEPLOY_SHA"
+            else
+              git checkout --force origin/main
+            fi
             npm ci --omit=dev
             pm2 restart Fointer-backend --update-env
+            pm2 describe Fointer-backend >/dev/null

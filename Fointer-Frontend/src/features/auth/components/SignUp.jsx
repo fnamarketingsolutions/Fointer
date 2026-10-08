@@ -311,9 +311,15 @@ export default function SignUp() {
 
           <div className="auth-hero-separator pt-4 border-t flex items-center space-x-3">
             <div className="flex -space-x-2 overflow-hidden">
-              <img className="auth-hero-avatar inline-block h-8 w-8 rounded-full ring-2" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80" alt="user" />
-              <img className="auth-hero-avatar inline-block h-8 w-8 rounded-full ring-2" src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&q=80" alt="user" />
-              <img className="auth-hero-avatar inline-block h-8 w-8 rounded-full ring-2" src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=100&q=80" alt="user" />
+              {["AA", "VS", "MK"].map((initials) => (
+                <span
+                  key={initials}
+                  className="auth-hero-avatar inline-flex h-8 w-8 items-center justify-center rounded-full ring-2 text-[10px] font-semibold uppercase"
+                  aria-hidden="true"
+                >
+                  {initials}
+                </span>
+              ))}
             </div>
             <span className="auth-hero-meta text-xs font-medium">
               <strong>12k+</strong> professionals active today

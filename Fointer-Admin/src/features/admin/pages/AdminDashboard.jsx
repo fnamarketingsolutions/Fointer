@@ -1,4 +1,4 @@
-import { Suspense, lazy, useMemo } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
 import {
   useNavigate,
   Routes,
@@ -7,6 +7,7 @@ import {
   useLocation,
   Link,
 } from 'react-router-dom';
+import { fetchAdminNavBadges } from '../services/adminService';
 import {
   LuChartColumn as BarChart3,
   LuUsers as Users,
@@ -24,6 +25,7 @@ import {
   LuTriangleAlert as AlertTriangle,
   LuImage as ImageIcon,
   LuSparkles as Sparkles,
+  LuUserPlus as UserPlus,
 } from 'react-icons/lu';
 
 import PanelShell from '../../../shared/layouts/PanelShell';
@@ -45,6 +47,7 @@ const SystemSettings = lazy(() => import('./menus/SystemSettings'));
 const BannerManagement = lazy(() => import('./menus/BannerManagement'));
 const MarketplaceManagement = lazy(() => import('./menus/MarketplaceManagement'));
 const SponsorshipManagement = lazy(() => import('./menus/SponsorshipManagement'));
+const ReferralManagement = lazy(() => import('./menus/ReferralManagement'));
 const AdminListingDetail = lazy(() => import('./menus/AdminListingDetail'));
 const AdminManagement = lazy(() => import('./menus/AdminManagement'));
 const WarningCenter = lazy(() => import('./menus/WarningCenter'));
@@ -69,6 +72,7 @@ const NAV_ITEMS = [
   { id: 'moderation', label: 'Content Moderation', icon: Shield },
   { id: 'marketplace', label: 'Marketplace', icon: ShoppingBag },
   { id: 'sponsorships', label: 'Sponsorships Management', icon: Sparkles },
+  { id: 'referrals', label: 'Referrals', icon: UserPlus },
   { id: 'analytics', label: 'Reporting & Analytics', icon: BarChart3 },
   { id: 'warnings', label: 'Warnings', icon: AlertTriangle },
   { id: 'support', label: 'Support Tools', icon: LifeBuoy },
@@ -113,10 +117,13 @@ function TabRoute({ tab, fallbackTo, children, soft = false }) {
   return children;
 }
 
+const BADGE_TABS = new Set(['support', 'usersupport', 'analytics']);
+
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { canAccessTab } = useAuth();
+  const [navBadges, setNavBadges] = useState({});
 
   const allowedNavItems = useMemo(
     () => NAV_ITEMS.filter((item) => canAccessTab(item.id)),
@@ -128,13 +135,39 @@ const AdminDashboard = () => {
   const activeTab =
     allowedNavItems.some((item) => item.id === pathTab) ? pathTab : defaultTab;
 
+  useEffect(() => {
+    let active = true;
+    const needsBadges = allowedNavItems.some((item) => BADGE_TABS.has(item.id));
+    if (!needsBadges) {
+      setNavBadges({});
+      return undefined;
+    }
+
+    const loadBadges = async () => {
+      try {
+        const data = await fetchAdminNavBadges();
+        if (active) setNavBadges(data?.badges || {});
+      } catch {
+        if (active) setNavBadges({});
+      }
+    };
+
+    loadBadges();
+    const timer = setInterval(loadBadges, 60000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [allowedNavItems, location.pathname]);
+
   const navItems = useMemo(
     () =>
       allowedNavItems.map((item) => ({
         ...item,
         isActive: activeTab === item.id,
+        badge: BADGE_TABS.has(item.id) ? Number(navBadges[item.id]) || 0 : 0,
       })),
-    [allowedNavItems, activeTab]
+    [allowedNavItems, activeTab, navBadges]
   );
 
   // Deep-link / unknown segment without access → first allowed tab
@@ -245,6 +278,14 @@ const AdminDashboard = () => {
             element={
               <TabRoute tab="sponsorships" fallbackTo={defaultTab}>
                 <SponsorshipManagement />
+              </TabRoute>
+            }
+          />
+          <Route
+            path="referrals"
+            element={
+              <TabRoute tab="referrals" fallbackTo={defaultTab}>
+                <ReferralManagement />
               </TabRoute>
             }
           />

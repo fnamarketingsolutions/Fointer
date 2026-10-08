@@ -7,9 +7,9 @@ import {
   getSponsorOptions,
   listMyCommunitySponsoredEarnings,
   listMySponsoredPurchases,
-  listSponsoredPackages,
   updateSponsoredCommission,
   updateSponsoredPackage,
+  verifySponsoredPayment,
 } from "../controllers/sponsorship.controller.js";
 import {
   authorize,
@@ -24,9 +24,9 @@ const marketplaceAdminGate = [
   requireAdminTab("sponsorships"),
 ];
 
-router.get("/sponsorship-packages", listSponsoredPackages);
 router.get("/sponsorships/mine", isAuthenticated, listMySponsoredPurchases);
 router.get("/sponsorships/earnings/mine", isAuthenticated, listMyCommunitySponsoredEarnings);
+router.post("/sponsorships/verify", isAuthenticated, verifySponsoredPayment);
 router.get("/sponsor-options/:id", isAuthenticated, getSponsorOptions);
 router.post("/:id/sponsor", isAuthenticated, createSponsoredCheckout);
 

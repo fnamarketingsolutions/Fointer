@@ -18,6 +18,7 @@ function NavList({ items, onSelect, mobile = false }) {
   return items.map((item) => {
     const Icon = item.icon;
     const isActive = Boolean(item.isActive);
+    const badge = Number(item.badge) || 0;
     return (
       <button
         key={item.id}
@@ -38,6 +39,14 @@ function NavList({ items, onSelect, mobile = false }) {
           />
           <span className="truncate whitespace-nowrap">{item.label}</span>
         </div>
+        {badge > 0 ? (
+          <span
+            className="ml-2 shrink-0 min-w-[1.25rem] h-5 px-1.5 inline-flex items-center justify-center rounded-full bg-fo-accent text-black text-[10px] font-bold tabular-nums"
+            aria-label={`${badge} pending`}
+          >
+            {badge > 99 ? '99+' : badge}
+          </span>
+        ) : null}
       </button>
     );
   });
@@ -191,6 +200,7 @@ export default function PanelShell({
                 <ProfileAvatar
                   src={user?.avatar}
                   alt={user?.name}
+                  name={user?.name || user?.username}
                   className="w-9 h-9 rounded-full object-cover border border-fo-accent/50 shrink-0"
                 />
               </button>
@@ -253,6 +263,7 @@ export default function PanelShell({
                     <ProfileAvatar
                       src={user?.avatar}
                       alt="Avatar"
+                      name={user?.name || user?.username}
                       className="w-9 h-9 rounded-full object-cover border border-fo-accent/50 shrink-0"
                     />
                     <div className="truncate">

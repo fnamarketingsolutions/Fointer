@@ -12,6 +12,8 @@ import {
   LuRefreshCw as RefreshCw,
   LuSparkles as Sparkles,
   LuTrash2 as Trash2,
+  LuTrophy as TrophyIcon,
+  LuUsers as UsersIcon,
   LuWallet as WalletIcon,
 } from "react-icons/lu";
 import {
@@ -63,6 +65,19 @@ const amountLabel = (amount, currency) => {
   }
 };
 
+const moneyListLabel = (rows, empty = "—") => {
+  if (!rows?.length) return empty;
+  return rows
+    .map((row) => amountLabel(row.amount ?? row.net ?? row.earned, row.currency))
+    .join(" · ");
+};
+
+const leaderPrimaryMoney = (byCurrency) => {
+  if (!byCurrency?.length) return "—";
+  const top = byCurrency[0];
+  return amountLabel(top.net ?? top.earned ?? 0, top.currency);
+};
+
 function CheckField({ checked, label, onChange }) {
   return (
     <label className="inline-flex items-center gap-2 text-xs text-fo-muted">
@@ -80,7 +95,7 @@ export default function SponsorshipManagement() {
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState("");
   const [draft, setDraft] = useState(emptyPackage);
-  const [commissionPercent, setCommissionPercent] = useState(0);
+  const [commissionPercent, setCommissionPercent] = useState(20);
   const [reportView, setReportView] = useState("purchases");
   const [pageSection, setPageSection] = useState("packages");
   const [showPackageForm, setShowPackageForm] = useState(false);
@@ -93,7 +108,7 @@ export default function SponsorshipManagement() {
         const result = await fetchAdminSponsorshipData();
         if (!active) return;
         setData(result);
-        setCommissionPercent(result.communitySponsoredCommissionPercent ?? 0);
+        setCommissionPercent(result.communitySponsoredCommissionPercent ?? 20);
         setLoadError("");
       } catch (error) {
         if (active) {
@@ -116,7 +131,7 @@ export default function SponsorshipManagement() {
     try {
       const result = await fetchAdminSponsorshipData();
       setData(result);
-      setCommissionPercent(result.communitySponsoredCommissionPercent ?? 0);
+      setCommissionPercent(result.communitySponsoredCommissionPercent ?? 20);
       setLoadError("");
     } catch (error) {
       const message = getErrorMessage(error, "Failed to load sponsorship data.");
@@ -168,9 +183,21 @@ export default function SponsorshipManagement() {
       durationDays: Number(draft.durationDays),
       placement: { ...draft.placement, priority: Number(draft.placement.priority) },
       geo: {
-        countries: splitValues(Array.isArray(draft.geo.countries) ? draft.geo.countries.join(",") : draft.geo.countries),
-        states: splitValues(Array.isArray(draft.geo.states) ? draft.geo.states.join(",") : draft.geo.states),
-        cities: splitValues(Array.isArray(draft.geo.cities) ? draft.geo.cities.join(",") : draft.geo.cities),
+        countries: splitValues(
+          Array.isArray(draft.geo.countries)
+            ? draft.geo.countries.join(",")
+            : draft.geo.countries
+        ),
+        states: splitValues(
+          Array.isArray(draft.geo.states)
+            ? draft.geo.states.join(",")
+            : draft.geo.states
+        ),
+        cities: splitValues(
+          Array.isArray(draft.geo.cities)
+            ? draft.geo.cities.join(",")
+            : draft.geo.cities
+        ),
       },
     };
     try {
@@ -202,6 +229,32 @@ export default function SponsorshipManagement() {
     }
   };
 
+  const deactivatePackage = async (item) => {
+    if (!item) return;
+    setSaving(true);
+    try {
+      await updateSponsoredPackage(item.id, {
+        ...item,
+        status: "inactive",
+        communityAllowList: (item.communityAllowList || []).map((community) =>
+          typeof community === "string" ? community : community.id
+        ),
+        geo: {
+          countries: item.geo?.countries || [],
+          states: item.geo?.states || [],
+          cities: item.geo?.cities || [],
+        },
+      });
+      showToast(`“${item.name}” deactivated. Sellers can no longer buy it.`);
+      setPackageToDelete(null);
+      await refresh();
+    } catch (error) {
+      showToast(getErrorMessage(error, "Failed to deactivate package."));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const confirmDeletePackage = async () => {
     if (!packageToDelete) return;
     setSaving(true);
@@ -211,7 +264,29 @@ export default function SponsorshipManagement() {
       setPackageToDelete(null);
       await refresh();
     } catch (error) {
-      showToast(getErrorMessage(error, "Failed to delete package."));
+      const code = error?.response?.data?.code;
+      const counts = error?.response?.data?.counts;
+      if (code === "PACKAGE_HAS_PURCHASE_HISTORY") {
+        showToast(
+          error?.response?.data?.message ||
+            "Paid purchase history still exists (listings may be deleted). Deactivate instead."
+        );
+        // Keep modal open so admin can deactivate from the same dialog.
+        if (counts) {
+          setPackageToDelete((current) =>
+            current
+              ? { ...current, _historyCounts: counts, _blockedDelete: true }
+              : current
+          );
+        } else {
+          setPackageToDelete((current) =>
+            current ? { ...current, _blockedDelete: true } : current
+          );
+        }
+      } else {
+        showToast(getErrorMessage(error, "Failed to delete package."));
+        setPackageToDelete(null);
+      }
     } finally {
       setSaving(false);
     }
@@ -245,21 +320,89 @@ export default function SponsorshipManagement() {
         </button>
       </header>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
-          { label: "Packages", value: data?.packages?.length || 0, icon: PackageIcon },
-          { label: "Active sponsorships", value: data?.activePlacements?.length || 0, icon: Sparkles },
-          { label: "Community earnings", value: data?.earnings?.length || 0, icon: WalletIcon },
+          {
+            label: "Active packages",
+            value: `${data?.stats?.packagesActive ?? 0}/${data?.stats?.packagesTotal ?? data?.packages?.length ?? 0}`,
+            icon: PackageIcon,
+          },
+          {
+            label: "Live placements",
+            value: data?.stats?.activePlacements ?? data?.activePlacements?.length ?? 0,
+            icon: Sparkles,
+          },
+          {
+            label: "Paid purchases",
+            value: data?.stats?.purchases?.paid ?? 0,
+            hint: `${data?.stats?.purchases?.pending ?? 0} pending · ${data?.stats?.purchases?.total ?? 0} total`,
+            icon: CreditCard,
+          },
+          {
+            label: "Commission earned",
+            value: moneyListLabel(data?.stats?.commissionEarnedByCurrency, "0"),
+            hint: data?.stats?.commissionReversedByCurrency?.length
+              ? `Reversed ${moneyListLabel(data.stats.commissionReversedByCurrency)}`
+              : `${data?.stats?.earningEntryCount ?? 0} ledger rows`,
+            icon: WalletIcon,
+          },
         ].map((metric) => {
           const Icon = metric.icon;
           return (
-            <div key={metric.label} className="flex items-center gap-3 rounded-2xl border border-fo-border bg-fo-surface p-4">
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-fo-accent/10 text-fo-accent"><Icon size={18} /></span>
-              <span><span className="block text-xl font-semibold text-fo-text">{metric.value}</span><span className="block text-xs text-fo-subtle">{metric.label}</span></span>
+            <div key={metric.label} className="flex items-start gap-3 rounded-2xl border border-fo-border bg-fo-surface p-4">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-fo-accent/10 text-fo-accent">
+                <Icon size={18} />
+              </span>
+              <span className="min-w-0">
+                <span className="block truncate text-lg font-semibold text-fo-text tabular-nums">
+                  {metric.value}
+                </span>
+                <span className="block text-xs text-fo-subtle">{metric.label}</span>
+                {metric.hint ? (
+                  <span className="mt-0.5 block text-[10px] text-fo-subtle">{metric.hint}</span>
+                ) : null}
+              </span>
             </div>
           );
         })}
       </div>
+
+      <section className="grid grid-cols-1 gap-3 rounded-2xl border border-fo-border bg-fo-surface p-4 sm:p-5 lg:grid-cols-3">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-fo-accent">Paid GMV</p>
+          <p className="mt-1 text-base font-semibold tabular-nums text-fo-text">
+            {moneyListLabel(data?.stats?.paidGmvByCurrency, "No paid volume yet")}
+          </p>
+          <p className="mt-1 text-[11px] text-fo-subtle">
+            Boost fees confirmed paid (all time in DB).
+          </p>
+        </div>
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-fo-accent">
+            Attributed promotion gross
+          </p>
+          <p className="mt-1 text-base font-semibold tabular-nums text-fo-text">
+            {moneyListLabel(data?.stats?.grossPromotedByCurrency, "—")}
+          </p>
+          <p className="mt-1 text-[11px] text-fo-subtle">
+            Fees that generated community commission rows.
+          </p>
+        </div>
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-fo-accent">
+            Purchase mix
+          </p>
+          <p className="mt-1 text-xs text-fo-muted">
+            Paid {data?.stats?.purchases?.paid ?? 0} · Pending{" "}
+            {data?.stats?.purchases?.pending ?? 0} · Failed{" "}
+            {data?.stats?.purchases?.failed ?? 0} · Refunded{" "}
+            {data?.stats?.purchases?.refunded ?? 0}
+          </p>
+          <p className="mt-1 text-[11px] text-fo-subtle">
+            Commission rate: {data?.communitySponsoredCommissionPercent ?? 20}%
+          </p>
+        </div>
+      </section>
 
       <nav className="grid grid-cols-1 gap-2 rounded-2xl border border-fo-border bg-fo-surface p-2 sm:grid-cols-3" aria-label="Sponsorship management sections">
         {[
@@ -298,7 +441,10 @@ export default function SponsorshipManagement() {
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-fo-accent">Promotion catalog</p>
           <h2 className="mt-1 text-base font-semibold text-fo-text">Packages</h2>
-          <p className="mt-1 text-xs text-fo-subtle">Set the fee, duration, visibility and audience for each offer.</p>
+          <p className="mt-1 text-xs text-fo-subtle">
+            Recommended: 3–4 global tiers (Starter / Medium / Full) with blank geo.
+            Optional regional packages can limit which promote locations may buy them (5.6).
+          </p>
         </div>
         <button
           type="button"
@@ -326,53 +472,108 @@ export default function SponsorshipManagement() {
           </div>
           <button type="button" onClick={() => { setShowPackageForm(false); setEditingId(""); setDraft(emptyPackage); }} className="rounded-lg border border-fo-border px-3 py-1.5 text-xs text-fo-muted hover:text-fo-text">Cancel</button>
         </div>
-        <form onSubmit={savePackage} className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-            <label className="space-y-1 text-xs text-fo-subtle sm:col-span-2">Package name
-              <input required maxLength="100" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} className="block w-full rounded-lg border border-fo-border bg-fo-bg px-3 py-2 text-sm text-fo-text" />
-            </label>
-            <label className="space-y-1 text-xs text-fo-subtle">Price
-              <input required type="number" min="0.01" step="0.01" value={draft.price} onChange={(event) => setDraft({ ...draft, price: event.target.value })} className="block w-full rounded-lg border border-fo-border bg-fo-bg px-3 py-2 text-sm text-fo-text" />
-            </label>
-            <label className="space-y-1 text-xs text-fo-subtle">Currency
-              <input required minLength="3" maxLength="3" value={draft.currency} onChange={(event) => setDraft({ ...draft, currency: event.target.value.toUpperCase() })} className="block w-full rounded-lg border border-fo-border bg-fo-bg px-3 py-2 text-sm uppercase text-fo-text" />
-            </label>
-            <label className="space-y-1 text-xs text-fo-subtle">Duration (days)
-              <input required type="number" min="1" max="365" step="1" value={draft.durationDays} onChange={(event) => setDraft({ ...draft, durationDays: event.target.value })} className="block w-full rounded-lg border border-fo-border bg-fo-bg px-3 py-2 text-sm text-fo-text" />
-            </label>
-            <label className="space-y-1 text-xs text-fo-subtle">Status
-              <select value={draft.status} onChange={(event) => setDraft({ ...draft, status: event.target.value })} className="block w-full rounded-lg border border-fo-border bg-fo-bg px-3 py-2 text-sm text-fo-text">
-                <option value="active">Active</option><option value="inactive">Inactive</option>
-              </select>
-            </label>
-            <label className="space-y-1 text-xs text-fo-subtle">Placement priority
+        <form onSubmit={savePackage} className="space-y-5">
+          <div className="space-y-3 rounded-xl border border-fo-border bg-fo-bg/40 p-4">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-fo-accent">1 · Basics</p>
+              <p className="mt-1 text-xs text-fo-subtle">Name, fee, duration and whether sellers can buy this offer.</p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+              <label className="space-y-1 text-xs text-fo-subtle sm:col-span-2">Package name
+                <input required maxLength="100" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} className="block w-full rounded-lg border border-fo-border bg-fo-bg px-3 py-2 text-sm text-fo-text" placeholder="e.g. Starter / Medium / Full" />
+              </label>
+              <label className="space-y-1 text-xs text-fo-subtle">Price
+                <input required type="number" min="0.01" step="0.01" value={draft.price} onChange={(event) => setDraft({ ...draft, price: event.target.value })} className="block w-full rounded-lg border border-fo-border bg-fo-bg px-3 py-2 text-sm text-fo-text" />
+              </label>
+              <label className="space-y-1 text-xs text-fo-subtle">Currency
+                <input required minLength="3" maxLength="3" value={draft.currency} onChange={(event) => setDraft({ ...draft, currency: event.target.value.toUpperCase() })} className="block w-full rounded-lg border border-fo-border bg-fo-bg px-3 py-2 text-sm uppercase text-fo-text" />
+              </label>
+              <label className="space-y-1 text-xs text-fo-subtle">Duration (days)
+                <input required type="number" min="1" max="365" step="1" value={draft.durationDays} onChange={(event) => setDraft({ ...draft, durationDays: event.target.value })} className="block w-full rounded-lg border border-fo-border bg-fo-bg px-3 py-2 text-sm text-fo-text" />
+              </label>
+              <label className="space-y-1 text-xs text-fo-subtle">Status
+                <select value={draft.status} onChange={(event) => setDraft({ ...draft, status: event.target.value })} className="block w-full rounded-lg border border-fo-border bg-fo-bg px-3 py-2 text-sm text-fo-text">
+                  <option value="active">Active (buyable)</option><option value="inactive">Inactive (hidden)</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div className="space-y-3 rounded-xl border border-fo-border bg-fo-bg/40 p-4">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-fo-accent">2 · Where it shows</p>
+              <p className="mt-1 text-xs text-fo-subtle">Enable at least one. These control marketplace top strip, Sponsored section, and card badge.</p>
+            </div>
+            <div className="flex flex-wrap gap-4">
+              <CheckField checked={draft.placement.top} label="Top placement (above browse results)" onChange={(event) => updatePlacement("top", event.target.checked)} />
+              <CheckField checked={draft.placement.section} label="Sponsored section block" onChange={(event) => updatePlacement("section", event.target.checked)} />
+              <CheckField checked={draft.placement.badge} label="Sponsored badge on card" onChange={(event) => updatePlacement("badge", event.target.checked)} />
+            </div>
+            <label className="block max-w-xs space-y-1 text-xs text-fo-subtle">Sort priority (higher = earlier among sponsored)
               <input type="number" min="0" max="1000" step="1" value={draft.placement.priority} onChange={(event) => updatePlacement("priority", event.target.value)} className="block w-full rounded-lg border border-fo-border bg-fo-bg px-3 py-2 text-sm text-fo-text" />
             </label>
+            {!draft.placement.top && !draft.placement.section && !draft.placement.badge ? (
+              <p className="text-xs text-red-500">Pick at least one visibility option or the package cannot be saved.</p>
+            ) : null}
           </div>
-          <div className="flex flex-wrap gap-4">
-            <CheckField checked={draft.placement.top} label="Top placement" onChange={(event) => updatePlacement("top", event.target.checked)} />
-            <CheckField checked={draft.placement.section} label="Sponsored section" onChange={(event) => updatePlacement("section", event.target.checked)} />
-            <CheckField checked={draft.placement.badge} label="Sponsored badge" onChange={(event) => updatePlacement("badge", event.target.checked)} />
-            <CheckField checked={draft.placement.communityRequired} label="Require community selection" onChange={(event) => updatePlacement("communityRequired", event.target.checked)} />
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {["countries", "states", "cities"].map((field) => (
-              <label key={field} className="space-y-1 text-xs text-fo-subtle">
-                {field[0].toUpperCase() + field.slice(1)} (comma-separated; blank = all)
-                <input value={Array.isArray(draft.geo[field]) ? draft.geo[field].join(", ") : draft.geo[field]} onChange={(event) => setDraft({ ...draft, geo: { ...draft.geo, [field]: event.target.value } })} className="block w-full rounded-lg border border-fo-border bg-fo-bg px-3 py-2 text-sm text-fo-text" />
-              </label>
-            ))}
-          </div>
-          <fieldset className="space-y-2">
-            <legend className="text-xs text-fo-subtle">Community allow-list (empty = any community or platform-wide)</legend>
-            <div className="flex flex-wrap gap-x-4 gap-y-2">
-              {(data?.communities || []).map((community) => (
-                <CheckField key={community.id} checked={draft.communityAllowList.includes(community.id)} label={community.name} onChange={() => toggleCommunity(community.id)} />
+
+          <div className="space-y-3 rounded-xl border border-fo-border bg-fo-bg/40 p-4">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-fo-accent">3 · Geolocation (optional)</p>
+              <p className="mt-1 text-xs text-fo-subtle">
+                Blank = global package (buyable for any promote location). Fill only for regional offers.
+                Sellers still choose the audience location at checkout; that snapshot drives feed targeting and reports.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {["countries", "states", "cities"].map((field) => (
+                <label key={field} className="space-y-1 text-xs text-fo-subtle">
+                  {field[0].toUpperCase() + field.slice(1)} (comma-separated; blank = all)
+                  <input
+                    value={
+                      Array.isArray(draft.geo[field])
+                        ? draft.geo[field].join(", ")
+                        : draft.geo[field]
+                    }
+                    onChange={(event) =>
+                      setDraft({
+                        ...draft,
+                        geo: { ...draft.geo, [field]: event.target.value },
+                      })
+                    }
+                    className="block w-full rounded-lg border border-fo-border bg-fo-bg px-3 py-2 text-sm text-fo-text"
+                    placeholder="Leave blank for global"
+                  />
+                </label>
               ))}
             </div>
-          </fieldset>
+          </div>
+
+          <div className="space-y-3 rounded-xl border border-fo-border bg-fo-bg/40 p-4">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-fo-accent">4 · Community placement (optional)</p>
+              <p className="mt-1 text-xs text-fo-subtle">
+                Community attribution at checkout powers owner commission (5.7).
+                Empty allow-list = any community. Commission only when a community is selected.
+              </p>
+            </div>
+            <CheckField checked={draft.placement.communityRequired} label="Require seller to pick a community (for owner commission)" onChange={(event) => updatePlacement("communityRequired", event.target.checked)} />
+            <fieldset className="space-y-2">
+              <legend className="text-xs text-fo-subtle">Limit to these communities (optional — empty = any)</legend>
+              {(data?.communities || []).length ? (
+                <div className="flex flex-wrap gap-x-4 gap-y-2 max-h-40 overflow-y-auto">
+                  {(data?.communities || []).map((community) => (
+                    <CheckField key={community.id} checked={draft.communityAllowList.includes(community.id)} label={community.name} onChange={() => toggleCommunity(community.id)} />
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-fo-subtle">No communities found yet.</p>
+              )}
+            </fieldset>
+          </div>
+
           <div className="flex justify-end border-t border-fo-border pt-4">
-            <button disabled={saving} className="rounded-xl bg-fo-accent px-5 py-2.5 text-sm font-semibold text-black disabled:opacity-50">
+            <button disabled={saving || (!draft.placement.top && !draft.placement.section && !draft.placement.badge)} className="rounded-xl bg-fo-accent px-5 py-2.5 text-sm font-semibold text-black disabled:opacity-50">
               {saving ? "Saving…" : editingId ? "Save package" : "Create package"}
             </button>
           </div>
@@ -400,11 +601,6 @@ export default function SponsorshipManagement() {
                 item.placement.section && "Sponsored section",
                 item.placement.badge && "Sponsored badge",
               ].filter(Boolean);
-              const geoLabels = [
-                ...(item.geo?.countries || []),
-                ...(item.geo?.states || []),
-                ...(item.geo?.cities || []),
-              ];
               const communities = item.communityAllowList || [];
               return (
                 <article
@@ -446,7 +642,11 @@ export default function SponsorshipManagement() {
                       </span>
                       <span className="inline-flex items-center gap-1.5 rounded-lg border border-fo-border bg-fo-bg/70 px-2.5 py-1.5 text-[11px] text-fo-muted">
                         <MapPin size={13} className="text-fo-accent" />
-                        {geoLabels.length ? `${geoLabels.length} geo target${geoLabels.length === 1 ? "" : "s"}` : "All locations"}
+                        {(item.geo?.countries || []).length ||
+                        (item.geo?.states || []).length ||
+                        (item.geo?.cities || []).length
+                          ? "Regional availability"
+                          : "Global tier"}
                       </span>
                     </div>
 
@@ -474,7 +674,7 @@ export default function SponsorshipManagement() {
                       </p>
                     </div>
 
-                    <div className="mt-auto flex gap-2">
+                    <div className="mt-auto flex flex-wrap gap-2">
                       <button
                         type="button"
                         onClick={() => editPackage(item)}
@@ -482,11 +682,21 @@ export default function SponsorshipManagement() {
                       >
                         <Pencil size={13} /> Edit package
                       </button>
+                      {item.status === "active" ? (
+                        <button
+                          type="button"
+                          disabled={saving}
+                          onClick={() => deactivatePackage(item)}
+                          className="inline-flex min-h-10 items-center justify-center rounded-xl border border-fo-border px-3 py-2.5 text-xs font-semibold text-fo-muted hover:text-fo-accent disabled:opacity-50"
+                        >
+                          Deactivate
+                        </button>
+                      ) : null}
                       <button
                         type="button"
                         onClick={() => setPackageToDelete(item)}
                         aria-label={`Delete ${item.name}`}
-                        title="Delete package"
+                        title="Delete only if no paid history"
                         className="inline-flex min-h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-red-500/20 bg-red-500/5 text-red-400 transition hover:border-red-500/50 hover:bg-red-500/10"
                       >
                         <Trash2 size={15} />
@@ -611,6 +821,10 @@ export default function SponsorshipManagement() {
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-fo-accent">Commission settings</p>
           <h2 className="mt-1 font-semibold text-fo-text">Community commission</h2>
+          <p className="mt-1 text-xs text-fo-subtle">
+            Default is <strong className="text-fo-text">20%</strong> of the boost fee.
+            Platform-wide promotions (no community selected) = <strong className="text-fo-text">no owner cut</strong>.
+          </p>
         </div>
         <form onSubmit={saveCommission} className="flex flex-wrap items-end gap-3">
           <label className="space-y-1 text-xs text-fo-subtle">
@@ -618,21 +832,118 @@ export default function SponsorshipManagement() {
             <input type="number" min="0" max="100" step="0.01" value={commissionPercent} onChange={(event) => setCommissionPercent(event.target.value)} className="block w-40 rounded-lg border border-fo-border bg-fo-bg px-3 py-2 text-sm text-fo-text" />
           </label>
           <button disabled={saving} className="rounded-lg bg-fo-accent px-4 py-2 text-sm font-semibold text-black disabled:opacity-50">Save commission</button>
-          <p className="max-w-lg text-xs text-fo-subtle">Applied when Flutterwave confirms payment. Earnings are recorded for reporting only; payouts are not automated.</p>
+          <p className="max-w-lg text-xs text-fo-subtle">Applied when Flutterwave confirms payment. Ledger only — payouts are not automated.</p>
         </form>
       </section>
 
+      <section className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <div className="rounded-xl border border-fo-border bg-fo-surface p-4 sm:p-5 space-y-3">
+          <div className="flex items-center gap-2">
+            <TrophyIcon size={16} className="text-fo-accent" />
+            <h2 className="font-semibold text-fo-text">Top earners</h2>
+          </div>
+          <p className="text-[11px] text-fo-subtle">
+            Community owners ranked by earned commission (all-time ledger).
+          </p>
+          {(data?.topEarners || []).length ? (
+            <ol className="space-y-2">
+              {data.topEarners.map((row) => (
+                <li
+                  key={row.owner?.id || row.rank}
+                  className="flex items-start justify-between gap-3 rounded-xl border border-fo-border bg-fo-bg/40 px-3 py-2.5"
+                >
+                  <div className="min-w-0 flex items-start gap-2.5">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-fo-accent/15 text-[11px] font-bold text-fo-accent">
+                      {row.rank}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-semibold text-fo-text">
+                        {row.owner?.name || row.owner?.username || "Owner"}
+                      </span>
+                      <span className="block truncate text-[11px] text-fo-subtle">
+                        {row.owner?.email || row.owner?.username || "—"}
+                        {row.communityCount
+                          ? ` · ${row.communityCount} communities`
+                          : ""}
+                      </span>
+                    </span>
+                  </div>
+                  <span className="shrink-0 text-right">
+                    <span className="block text-sm font-semibold tabular-nums text-fo-accent">
+                      {leaderPrimaryMoney(row.byCurrency)}
+                    </span>
+                    {row.byCurrency?.length > 1 ? (
+                      <span className="block text-[10px] text-fo-subtle">
+                        {row.byCurrency
+                          .slice(1)
+                          .map((c) => amountLabel(c.net, c.currency))
+                          .join(" · ")}
+                      </span>
+                    ) : null}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p className="py-6 text-center text-xs text-fo-subtle">No owner earnings yet.</p>
+          )}
+        </div>
+
+        <div className="rounded-xl border border-fo-border bg-fo-surface p-4 sm:p-5 space-y-3">
+          <div className="flex items-center gap-2">
+            <UsersIcon size={16} className="text-fo-accent" />
+            <h2 className="font-semibold text-fo-text">Top communities</h2>
+          </div>
+          <p className="text-[11px] text-fo-subtle">
+            Communities that generated the most owner commission.
+          </p>
+          {(data?.topCommunities || []).length ? (
+            <ol className="space-y-2">
+              {data.topCommunities.map((row) => (
+                <li
+                  key={row.community?.id || row.rank}
+                  className="flex items-start justify-between gap-3 rounded-xl border border-fo-border bg-fo-bg/40 px-3 py-2.5"
+                >
+                  <div className="min-w-0 flex items-start gap-2.5">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-fo-accent/15 text-[11px] font-bold text-fo-accent">
+                      {row.rank}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-semibold text-fo-text">
+                        {row.community?.name || "Community"}
+                      </span>
+                      <span className="block truncate text-[11px] text-fo-subtle">
+                        {row.community?.shortCode
+                          ? `#${row.community.shortCode}`
+                          : "Attributed promotions"}
+                      </span>
+                    </span>
+                  </div>
+                  <span className="shrink-0 text-sm font-semibold tabular-nums text-fo-accent">
+                    {leaderPrimaryMoney(row.byCurrency)}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p className="py-6 text-center text-xs text-fo-subtle">No community earnings yet.</p>
+          )}
+        </div>
+      </section>
+
       <section className="rounded-xl border border-fo-border bg-fo-surface p-4 sm:p-5 space-y-3">
-        <h2 className="font-semibold">Community owner earnings</h2>
+        <h2 className="font-semibold">Community owner earnings ledger</h2>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[720px] text-left text-xs">
             <thead className="text-fo-subtle"><tr><th className="p-2">Community</th><th className="p-2">Owner snapshot</th><th className="p-2">Gross</th><th className="p-2">Rate</th><th className="p-2">Commission</th><th className="p-2">Status</th></tr></thead>
-            <tbody>{(data?.earnings || []).map((item) => (
+            <tbody>{(data?.earnings || []).length ? (data.earnings || []).map((item) => (
               <tr key={`${item.community?._id || item.community}-${item.owner?._id || item.owner}-${item.currency}-${item.percentUsed}-${item.status}`} className="border-t border-fo-border">
                 <td className="p-2">{item.community?.name || "Community unavailable"}</td><td className="p-2">{item.owner?.name || item.owner?.username || item.owner?.email || "Owner unavailable"}</td>
                 <td className="p-2">{amountLabel(item.gross, item.currency)}</td><td className="p-2">{item.percentUsed}%</td><td className="p-2">{amountLabel(item.commissionAmount, item.currency)}</td><td className="p-2">{item.status} ({item.purchaseCount})</td>
               </tr>
-            ))}</tbody>
+            )) : (
+              <tr><td colSpan="6" className="p-8 text-center text-xs text-fo-subtle">No community commission rows yet.</td></tr>
+            )}</tbody>
           </table>
         </div>
         <p className="text-xs text-fo-subtle">Refunded payments reverse the ledger row; payouts are not automated.</p>
@@ -642,14 +953,40 @@ export default function SponsorshipManagement() {
 
       <ConfirmDeleteModal
         open={Boolean(packageToDelete)}
-        title="Delete sponsorship package?"
+        title={
+          packageToDelete?._blockedDelete
+            ? "Cannot delete — deactivate instead"
+            : "Delete sponsorship package?"
+        }
         loading={saving}
-        onConfirm={confirmDeletePackage}
+        confirmLabel={packageToDelete?._blockedDelete ? "Deactivate" : "Delete"}
+        onConfirm={
+          packageToDelete?._blockedDelete
+            ? () => deactivatePackage(packageToDelete)
+            : confirmDeletePackage
+        }
         onClose={() => setPackageToDelete(null)}
       >
-        {packageToDelete
-          ? `“${packageToDelete.name}” will be permanently removed. Packages with purchase history cannot be deleted; deactivate those packages to preserve reporting records.`
-          : null}
+        {packageToDelete?._blockedDelete ? (
+          <div className="space-y-2 text-sm text-fo-subtle">
+            <p>
+              “{packageToDelete.name}” still has purchase records
+              {packageToDelete._historyCounts
+                ? ` (${packageToDelete._historyCounts.paid || 0} paid, ${
+                    packageToDelete._historyCounts.pending || 0
+                  } pending)`
+                : ""}
+              . Deleting a listing does not remove those purchases — they stay for
+              reports and commission history.
+            </p>
+            <p className="text-fo-text">
+              Use <strong>Deactivate</strong> so sellers cannot buy it anymore, while
+              history remains.
+            </p>
+          </div>
+        ) : packageToDelete ? (
+          `“${packageToDelete.name}” will be permanently removed. If it has paid purchases (even for deleted listings), delete is blocked — deactivate instead.`
+        ) : null}
       </ConfirmDeleteModal>
     </div>
   );

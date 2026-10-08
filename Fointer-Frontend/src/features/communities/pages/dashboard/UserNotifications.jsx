@@ -33,7 +33,7 @@ import {
 import { useNotifications } from "../../../../context/NotificationContext";
 import { timeAgo } from "../../../../shared/utils/date";
 import { useToast } from "../../../../shared/components/feedback/ToastContext";
-import { DEFAULT_AVATAR } from "../../../../shared/constants/avatars";
+import ProfileAvatar from "../../../../shared/components/ProfileAvatar";
 import { getLiveSocket } from "../../../../shared/services/liveSocket";
 import { getDashboardPathForRole } from "../../../../shared/lib/roles";
 
@@ -296,22 +296,22 @@ export default function UserNotifications({ onBack }) {
                   className="flex items-start gap-4 flex-1 pl-2 text-left min-w-0"
                 >
                   <div className="relative shrink-0">
-                    {n.actor?.avatar ? (
-                      <img
-                        src={n.actor.avatar || DEFAULT_AVATAR}
-                        alt=""
-                        className="w-10 h-10 rounded-full object-cover border border-fo-border"
-                      />
+                    {n.actor ? (
+                      <>
+                        <ProfileAvatar
+                          src={n.actor.avatar}
+                          name={n.actor.name || n.actor.username}
+                          className="w-10 h-10 rounded-full object-cover border border-fo-border"
+                        />
+                        <div className="absolute -bottom-1 -right-1 bg-fo-surface p-1 rounded-full border border-fo-border">
+                          <Icon size={11} className={iconColor} />
+                        </div>
+                      </>
                     ) : (
                       <div className="w-10 h-10 rounded-full bg-fo-surface-hover border border-fo-border flex items-center justify-center">
                         <Icon size={18} className={iconColor} />
                       </div>
                     )}
-                    {n.actor?.avatar ? (
-                      <div className="absolute -bottom-1 -right-1 bg-fo-surface p-1 rounded-full border border-fo-border">
-                        <Icon size={11} className={iconColor} />
-                      </div>
-                    ) : null}
                   </div>
 
                   <div className="space-y-1 pr-2 min-w-0">

@@ -3,13 +3,16 @@ import User from "../models/user.js";
 import Listing from "../models/listing.js";
 import CommunityMember from "../models/communityMember.js";
 import Community from "../models/community.js";
+import Report from "../models/report.js";
+import SupportTicket from "../models/supportTicket.js";
+import UserSupportRequest from "../models/userSupportRequest.js";
 import { sendServerError } from "../utils/safeError.js";
 import {
   parsePagination,
   buildPaginationMeta,
 } from "../utils/pagination.js";
 import { escapeRegex } from "../utils/validate.js";
-import { resolveIsSuperAdmin } from "../utils/adminAccess.js";
+import { canAccessAdminTab, resolveIsSuperAdmin } from "../utils/adminAccess.js";
 
 const formatAdminUser = (u) => ({
   id: String(u._id),
@@ -393,5 +396,36 @@ export const getAdminCommunityDetail = async (req, res) => {
     });
   } catch (error) {
     return sendServerError(res, error);
+  }
+};
+
+/** Pending counts for admin sidebar badges (tab-scoped). */
+export const getAdminNavBadges = async (req, res) => {
+  try {
+    const tasks = [];
+    const keys = [];
+
+    if (canAccessAdminTab(req.user, "support")) {
+      keys.push("support");
+      tasks.push(SupportTicket.countDocuments({ status: "pending" }));
+    }
+    if (canAccessAdminTab(req.user, "usersupport")) {
+      keys.push("usersupport");
+      tasks.push(UserSupportRequest.countDocuments({ status: "pending" }));
+    }
+    if (canAccessAdminTab(req.user, "analytics")) {
+      keys.push("analytics");
+      tasks.push(Report.countDocuments({ status: "pending" }));
+    }
+
+    const counts = await Promise.all(tasks);
+    const badges = {};
+    keys.forEach((key, index) => {
+      badges[key] = Number(counts[index]) || 0;
+    });
+
+    return res.status(200).json({ success: true, badges });
+  } catch (error) {
+    return sendServerError(res, error, "Failed to load admin nav badges.");
   }
 };

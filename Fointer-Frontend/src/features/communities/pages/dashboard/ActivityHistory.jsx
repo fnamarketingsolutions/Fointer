@@ -27,6 +27,7 @@ import { fetchMyBookmarks, toggleBookmark } from "../../../../api/bookmarks";
 import ListingCard from "../../../marketplace/components/ListingCard";
 import PostDetail from "../../../posts/pages/PostDetail";
 import UserProfileLink from "../../../../shared/components/UserProfileLink";
+import LinkifiedText from "../../../../shared/components/LinkifiedText";
 import ConfirmDeleteModal from "../../../../shared/components/modals/ConfirmDeleteModal";
 import EditWindowExpiredModal from "../../../../shared/components/modals/EditWindowExpiredModal";
 import { timeAgo } from "../../../../shared/utils/date";
@@ -451,7 +452,7 @@ export default function ActivityHistory() {
 
                     {post.text ? (
                       <p className="text-xs sm:text-sm text-fo-muted line-clamp-2 leading-relaxed">
-                        {post.text}
+                        <LinkifiedText text={post.text} />
                       </p>
                     ) : null}
 
@@ -584,7 +585,7 @@ export default function ActivityHistory() {
                   ) : null}
 
                   <p className="text-sm text-fo-text whitespace-pre-wrap break-words leading-relaxed">
-                    {comment.text}
+                    <LinkifiedText text={comment.text} />
                   </p>
 
                   <div className="flex items-center justify-between gap-3 pt-1">
@@ -669,7 +670,7 @@ export default function ActivityHistory() {
 
                     {post.text ? (
                       <p className="text-xs sm:text-sm text-fo-muted line-clamp-2 leading-relaxed">
-                        {post.text}
+                        <LinkifiedText text={post.text} />
                       </p>
                     ) : null}
 
@@ -770,7 +771,7 @@ export default function ActivityHistory() {
 
                     {post.text ? (
                       <p className="text-xs sm:text-sm text-fo-muted line-clamp-2 leading-relaxed">
-                        {post.text}
+                        <LinkifiedText text={post.text} />
                       </p>
                     ) : null}
 

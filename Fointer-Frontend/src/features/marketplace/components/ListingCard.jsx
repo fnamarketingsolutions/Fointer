@@ -3,16 +3,12 @@ import { LuBookmark as Bookmark, LuMapPin as MapPin } from "react-icons/lu";
 import { categoryLabel, formatLocation, formatPrice } from "../constants";
 import { listingSegment } from "../../../shared/services/entityLinks";
 
-export default function ListingCard({ listing, onClick, onSave }) {
+export default function ListingCard({ listing, onSave }) {
   const navigate = useNavigate();
   const cover = listing.media?.[0];
   const location = formatLocation(listing);
 
   const handleClick = () => {
-    if (onClick) {
-      onClick(listing);
-      return;
-    }
     const segment = listingSegment(listing) || listing.shortCode || listing.id;
     navigate(`/marketplace/${segment}`);
   };
@@ -43,8 +39,8 @@ export default function ListingCard({ listing, onClick, onSave }) {
               No image
             </div>
           )}
-          {listing.isSponsored && listing.sponsorship?.badge ? (
-            <span className="absolute bottom-2 left-2 px-2 py-0.5 rounded-md bg-fo-accent text-black text-[10px] font-bold uppercase tracking-wide">
+          {listing.isSponsored ? (
+            <span className="absolute bottom-2 left-2 px-2 py-0.5 rounded-md bg-fo-accent text-black text-[10px] font-bold uppercase tracking-wide shadow-sm">
               Sponsored
             </span>
           ) : null}

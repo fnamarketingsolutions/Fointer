@@ -128,7 +128,7 @@ export default function FollowUserList({ username, mode, forceHidden = false }) 
             >
               <ProfileAvatar
                 src={item.avatar}
-                name={item.name}
+                name={item.name || item.username}
                 className="w-10 h-10 rounded-full object-cover border border-fo-border shrink-0"
               />
               <div className="min-w-0 text-left flex-1">

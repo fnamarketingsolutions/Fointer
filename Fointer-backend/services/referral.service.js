@@ -188,6 +188,107 @@ export const countQualifiedReferrals = async (userId) => {
   });
 };
 
+/**
+ * Admin list: all referrals with optional status / q filters + cursor pagination.
+ */
+export const getAdminReferrals = async ({
+  status,
+  q,
+  limit = LIST_DEFAULT_LIMIT,
+  cursor,
+} = {}) => {
+  const take = Math.min(
+    Math.max(Number(limit) || LIST_DEFAULT_LIMIT, 1),
+    LIST_MAX_LIMIT
+  );
+  const filter = {};
+  const statusNorm = String(status || "")
+    .trim()
+    .toLowerCase();
+  if (statusNorm === "pending" || statusNorm === "qualified") {
+    filter.status = statusNorm;
+  }
+  if (cursor) {
+    const cursorDate = new Date(cursor);
+    if (!Number.isNaN(cursorDate.getTime())) {
+      filter.createdAt = { $lt: cursorDate };
+    }
+  }
+
+  const queryText = String(q || "").trim();
+  if (queryText) {
+    const code = normalizeReferralCode(queryText);
+    const userFilter = {
+      $or: [
+        { username: new RegExp(queryText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i") },
+        { name: new RegExp(queryText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i") },
+        { email: new RegExp(queryText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i") },
+      ],
+    };
+    if (code) userFilter.$or.push({ referralCode: code });
+    const matchedUsers = await User.find(userFilter).select("_id").limit(50).lean();
+    const ids = matchedUsers.map((u) => u._id);
+    if (!ids.length && code) {
+      filter.codeUsed = code;
+    } else if (!ids.length) {
+      return {
+        stats: { total: 0, pending: 0, qualified: 0 },
+        referrals: [],
+        nextCursor: null,
+      };
+    } else {
+      filter.$or = [{ referrer: { $in: ids } }, { referee: { $in: ids } }];
+      if (code) filter.$or.push({ codeUsed: code });
+    }
+  }
+
+  const [total, pending, qualified, rows] = await Promise.all([
+    Referral.countDocuments({}),
+    Referral.countDocuments({ status: "pending" }),
+    Referral.countDocuments({ status: "qualified" }),
+    Referral.find(filter)
+      .sort({ createdAt: -1 })
+      .limit(take + 1)
+      .populate("referrer", "username name email avatar status referralCode")
+      .populate("referee", "username name email avatar status")
+      .lean(),
+  ]);
+
+  const hasMore = rows.length > take;
+  const page = hasMore ? rows.slice(0, take) : rows;
+  const nextCursor = hasMore
+    ? page[page.length - 1]?.createdAt?.toISOString?.() || null
+    : null;
+
+  const mapPerson = (user) =>
+    user
+      ? {
+          id: String(user._id),
+          username: user.username || "",
+          name: user.name || "",
+          email: user.email || "",
+          avatar: user.avatar || "",
+          status: user.status || "",
+          referralCode: user.referralCode || "",
+        }
+      : null;
+
+  return {
+    stats: { total, pending, qualified },
+    referrals: page.map((row) => ({
+      id: String(row._id),
+      status: row.status,
+      codeUsed: row.codeUsed,
+      createdAt: row.createdAt,
+      qualifiedAt: row.qualifiedAt,
+      notifiedAt: row.notifiedAt,
+      referrer: mapPerson(row.referrer),
+      referee: mapPerson(row.referee),
+    })),
+    nextCursor,
+  };
+};
+
 export const getReferralDashboard = async (
   userId,
   { limit = LIST_DEFAULT_LIMIT, cursor } = {}

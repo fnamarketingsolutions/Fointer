@@ -105,6 +105,7 @@ export default function PublicSiteLayout({ children }) {
                 <ProfileAvatar
                   src={user?.avatar}
                   alt={user?.name || 'Avatar'}
+                  name={user?.name || user?.username}
                   className="w-9 h-9 rounded-full object-cover border border-fo-accent/50 shrink-0"
                 />
               </Link>
@@ -150,6 +151,7 @@ export default function PublicSiteLayout({ children }) {
                   <ProfileAvatar
                     src={user?.avatar}
                     alt={user?.name || 'Avatar'}
+                    name={user?.name || user?.username}
                     className="w-9 h-9 rounded-full object-cover border border-fo-accent/50 shrink-0"
                   />
                   <div className="min-w-0">

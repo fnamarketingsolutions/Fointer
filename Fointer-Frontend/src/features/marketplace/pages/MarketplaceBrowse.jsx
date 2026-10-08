@@ -16,10 +16,6 @@ import ListingFormModal from "../components/ListingFormModal";
 import MarketplaceRail from "../components/MarketplaceRail";
 import { LISTING_CATEGORIES } from "../constants";
 import { listingSegment } from "../../../shared/services/entityLinks";
-import {
-  fetchBrowsableCommunities,
-  fetchJoinedCommunities,
-} from "../../communities/services/communityService";
 
 const SORT_OPTIONS = [
   { id: "newest", label: "Newest first" },
@@ -44,50 +40,20 @@ export default function MarketplaceBrowse() {
   const filterRef = useRef(null);
 
   const category = searchParams.get("category") || "";
-  const communityId = searchParams.get("communityId") || "";
-
-  const [communities, setCommunities] = useState([]);
-  const [communityLoadError, setCommunityLoadError] = useState("");
 
   useEffect(() => {
-    let active = true;
-    Promise.all([
-      fetchBrowsableCommunities({ limit: 100, includeJoined: true }),
-      fetchJoinedCommunities(),
-    ])
-      .then(([browseResult, joinedResult]) => {
-        if (!active) return;
-        const merged = new Map();
-        for (const community of [
-          ...(browseResult?.communities || []),
-          ...(joinedResult?.communities || []),
-        ]) {
-          merged.set(String(community.id), community);
-        }
-        setCommunities([...merged.values()]);
-        setCommunityLoadError("");
-      })
-      .catch((error) => {
-        const message = error?.response?.data?.message || "Failed to load communities.";
-        setCommunityLoadError(message);
-        showToast(message);
-      });
-    return () => {
-      active = false;
-    };
-  }, [showToast]);
+    if (!searchParams.get("communityId")) return;
+    const next = new URLSearchParams(searchParams);
+    next.delete("communityId");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   const setCategory = (value) => {
     const next = new URLSearchParams(searchParams);
     if (value) next.set("category", value);
     else next.delete("category");
-    setSearchParams(next, { replace: true });
-  };
-
-  const setCommunity = (value) => {
-    const next = new URLSearchParams(searchParams);
-    if (value) next.set("communityId", value);
-    else next.delete("communityId");
+    // Drop legacy community placement query if present.
+    next.delete("communityId");
     setSearchParams(next, { replace: true });
   };
 
@@ -97,7 +63,6 @@ export default function MarketplaceBrowse() {
       const res = await fetchListings({
         q: search.trim() || undefined,
         category: category || undefined,
-        communityId: communityId || undefined,
         sort,
         page: 1,
         limit: 48,
@@ -108,7 +73,7 @@ export default function MarketplaceBrowse() {
     } finally {
       setLoading(false);
     }
-  }, [search, category, communityId, sort, showToast]);
+  }, [search, category, sort, showToast]);
 
   useEffect(() => {
     const timer = setTimeout(load, 250);
@@ -185,7 +150,10 @@ export default function MarketplaceBrowse() {
   const categoryName = LISTING_CATEGORIES.find((c) => c.value === category)?.label;
   const topSponsored = listings.filter((listing) => listing.sponsorship?.top);
   const sectionSponsored = listings.filter(
-    (listing) => listing.sponsorship?.section && !listing.sponsorship?.top
+    (listing) =>
+      listing.isSponsored &&
+      !listing.sponsorship?.top &&
+      (listing.sponsorship?.section || listing.sponsorship?.badge)
   );
   const featuredIds = new Set(
     [...topSponsored, ...sectionSponsored].map((listing) => listing.id)
@@ -220,21 +188,6 @@ export default function MarketplaceBrowse() {
                 >
                   My listings
                 </button>
-              ) : null}
-              {communities.length ? (
-                <label className="inline-flex items-center gap-2 text-xs text-fo-subtle">
-                  Community placement
-                  <select
-                    value={communityId}
-                    onChange={(event) => setCommunity(event.target.value)}
-                    className="max-w-[220px] rounded-lg border border-fo-border bg-fo-surface px-2.5 py-1.5 text-xs text-fo-text"
-                  >
-                    <option value="">All marketplace listings</option>
-                    {communities.map((community) => (
-                      <option key={community.id} value={community.id}>{community.name}</option>
-                    ))}
-                  </select>
-                </label>
               ) : null}
               <button
                 type="button"
@@ -311,11 +264,6 @@ export default function MarketplaceBrowse() {
               {categoryName}
               <span aria-hidden>×</span>
             </button>
-          ) : null}
-          {communityLoadError ? (
-            <p role="alert" className="text-xs text-red-400">
-              {communityLoadError} Community-targeted placements may not be visible.
-            </p>
           ) : null}
 
           {loading ? (

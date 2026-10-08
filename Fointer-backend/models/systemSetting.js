@@ -44,7 +44,7 @@ const systemSettingSchema = new mongoose.Schema(
     },
     communitySponsoredCommissionPercent: {
       type: Number,
-      default: 0,
+      default: 20,
       min: 0,
       max: 100,
     },

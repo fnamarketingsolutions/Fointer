@@ -10,6 +10,7 @@ import {
 } from "react-icons/lu";
 import PostActions from "./PostActions";
 import UserProfileLink from "./UserProfileLink";
+import LinkifiedText from "./LinkifiedText";
 import PostMediaGallery from "./media/PostMediaGallery";
 import ReportContentModal from "./modals/ReportContentModal";
 import PostAuthorAvatar from "../../features/posts/components/PostAuthorAvatar";
@@ -332,13 +333,13 @@ export default function FeedPostRow({
 
           {title ? (
             <h3 className="text-sm font-semibold text-fo-text leading-snug group-hover:text-fo-accent transition-colors line-clamp-2">
-              {title}
+              <LinkifiedText text={title} />
             </h3>
           ) : null}
 
           {post?.text ? (
             <p className="text-[13px] text-fo-muted line-clamp-2 leading-snug">
-              {post.text}
+              <LinkifiedText text={post.text} />
             </p>
           ) : null}
         </div>
@@ -406,13 +407,13 @@ export default function FeedPostRow({
 
           {title ? (
             <h2 className="text-sm sm:text-base font-semibold text-fo-text leading-snug group-hover:text-fo-accent transition-colors line-clamp-2">
-              {title}
+              <LinkifiedText text={title} />
             </h2>
           ) : null}
 
           {post?.text ? (
             <p className="text-xs sm:text-sm text-fo-muted line-clamp-2 leading-relaxed">
-              {post.text}
+              <LinkifiedText text={post.text} />
             </p>
           ) : null}
 

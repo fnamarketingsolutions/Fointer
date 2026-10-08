@@ -4,8 +4,9 @@ import Listing, {
   LISTING_STATUSES,
 } from "../models/listing.js";
 import Community from "../models/community.js";
+import CommunityMember from "../models/communityMember.js";
 import SponsoredPlacement from "../models/sponsoredPlacement.js";
-import { matchesSponsoredGeo } from "../utils/sponsoredTargeting.js";
+import { matchesSponsoredAudience } from "../utils/sponsoredTargeting.js";
 import User from "../models/user.js";
 import {
   parsePagination,
@@ -233,26 +234,51 @@ const buildBrowseFilter = (query = {}, { mine = false, userId = null } = {}) => 
   return filter;
 };
 
+const getViewerMemberCommunityIds = async (viewerId) => {
+  if (!viewerId) return [];
+  const rows = await CommunityMember.find({
+    user: viewerId,
+    status: "active",
+  })
+    .select("community")
+    .lean();
+  return rows.map((row) => row.community).filter(Boolean);
+};
+
+/**
+ * Platform-wide boosts (community null) show to everyone.
+ * Community-attributed boosts show only to members of that community
+ * (or unrestricted when memberCommunityIds is null, e.g. seller's My listings).
+ */
 const getActiveSponsorships = async (
   listings,
   communityId = "",
-  { includeCommunity = false } = {}
+  {
+    includeCommunity = false,
+    viewer = null,
+    memberCommunityIds = null,
+  } = {}
 ) => {
   if (!listings.length) return new Map();
   const now = new Date();
-  const communityFilter = communityId
-    ? { $in: [null, communityId] }
-    : null;
+
+  let communityClause;
+  if (communityId) {
+    communityClause = { $in: [null, communityId] };
+  } else if (!includeCommunity) {
+    communityClause = null;
+  } else if (Array.isArray(memberCommunityIds)) {
+    communityClause = { $in: [null, ...memberCommunityIds] };
+  } else {
+    communityClause = undefined;
+  }
+
   const placements = await SponsoredPlacement.find({
     listing: { $in: listings.map((listing) => listing._id) },
     status: "active",
     startsAt: { $lte: now },
     expiresAt: { $gt: now },
-    ...(communityFilter
-      ? { community: communityFilter }
-      : includeCommunity
-        ? {}
-        : { community: null }),
+    ...(communityClause === undefined ? {} : { community: communityClause }),
   })
     .sort({ "placement.top": -1, "placement.priority": -1, expiresAt: 1 })
     .lean();
@@ -261,7 +287,9 @@ const getActiveSponsorships = async (
     const listing = listings.find(
       (row) => String(row._id) === String(placement.listing)
     );
-    if (!listing || !matchesSponsoredGeo(placement.geo, listing)) continue;
+    if (!listing) continue;
+    // Audience geo is seller-chosen at checkout; match viewer profile when available.
+    if (!matchesSponsoredAudience(placement.geo, viewer)) continue;
     const key = String(placement.listing);
     if (byId.has(key)) continue;
     byId.set(key, {
@@ -338,7 +366,7 @@ export const listListings = async (req, res) => {
         .filter(
           (placement) =>
             placement.listing?.status === "active" &&
-            matchesSponsoredGeo(placement.geo, placement.listing)
+            matchesSponsoredAudience(placement.geo, req.user)
         )
         .map((placement) => placement.listing._id);
       delete filter.community;
@@ -364,9 +392,19 @@ export const listListings = async (req, res) => {
       ? takePage(rows, limit)
       : { rows, hasMore: false };
 
+    const scopedCommunityId = String(req.query.communityId || "").trim();
+    const memberCommunityIds = scopedCommunityId
+      ? null
+      : await getViewerMemberCommunityIds(req.user?._id);
     const sponsorships = await getActiveSponsorships(
       pageRows,
-      String(req.query.communityId || "").trim()
+      scopedCommunityId,
+      {
+        // Main marketplace: platform boosts + community boosts for communities the viewer belongs to.
+        includeCommunity: !scopedCommunityId,
+        viewer: req.user,
+        memberCommunityIds: scopedCommunityId ? null : memberCommunityIds,
+      }
     );
     pageRows.sort((left, right) => {
       const a = sponsorships.get(String(left._id));
@@ -425,8 +463,11 @@ export const listMyListings = async (req, res) => {
       .populate("community", "name")
       .lean();
 
+    // Sellers see all of their own boosts (platform + any community attribution).
     const sponsorships = await getActiveSponsorships(listings, "", {
       includeCommunity: true,
+      viewer: req.user,
+      memberCommunityIds: null,
     });
     const { saved } = await getBookmarkMeta(
       "listing",
@@ -477,10 +518,19 @@ export const getListing = async (req, res) => {
       await hydrateSellerContact(listing);
     }
     await listing.populate("community", "name");
+    const scopedCommunityId = String(req.query.communityId || "").trim();
+    const memberCommunityIds =
+      flags.isOwner || scopedCommunityId
+        ? null
+        : await getViewerMemberCommunityIds(req.user?._id);
     const sponsorships = await getActiveSponsorships(
       [listing.toObject()],
-      String(req.query.communityId || "").trim(),
-      { includeCommunity: flags.isOwner }
+      scopedCommunityId,
+      {
+        includeCommunity: flags.isOwner || !scopedCommunityId,
+        viewer: req.user,
+        memberCommunityIds,
+      }
     );
 
     const { saved } = await getBookmarkMeta(

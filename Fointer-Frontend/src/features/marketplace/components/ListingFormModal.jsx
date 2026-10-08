@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { LuLoaderCircle as Loader2, LuX as X } from "react-icons/lu";
+import LocationFields from "../../../shared/components/LocationFields";
 import MediaPicker from "../../../shared/components/media/MediaPicker";
 import {
   LISTING_CATEGORIES,
@@ -20,6 +21,11 @@ const emptyForm = () => ({
   media: [],
   status: "active",
 });
+
+const fieldClass =
+  "w-full rounded-lg border border-fo-border bg-fo-bg px-3 py-2 text-sm text-fo-text";
+const labelClass =
+  "block text-[10px] uppercase tracking-wider text-fo-subtle mb-1";
 
 export default function ListingFormModal({
   open,
@@ -194,39 +200,32 @@ export default function ListingFormModal({
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="block text-[10px] uppercase tracking-wider text-fo-subtle mb-1">
-                City
-              </label>
-              <input
-                value={form.city}
-                onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))}
-                className="w-full rounded-lg border border-fo-border bg-fo-bg px-3 py-2 text-sm text-fo-text"
-              />
-            </div>
-            <div>
-              <label className="block text-[10px] uppercase tracking-wider text-fo-subtle mb-1">
-                State
-              </label>
-              <input
-                value={form.state}
-                onChange={(e) => setForm((f) => ({ ...f, state: e.target.value }))}
-                className="w-full rounded-lg border border-fo-border bg-fo-bg px-3 py-2 text-sm text-fo-text"
-              />
-            </div>
-            <div>
-              <label className="block text-[10px] uppercase tracking-wider text-fo-subtle mb-1">
-                Country
-              </label>
-              <input
-                value={form.country}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, country: e.target.value }))
-                }
-                className="w-full rounded-lg border border-fo-border bg-fo-bg px-3 py-2 text-sm text-fo-text"
-              />
-            </div>
+          <div className="space-y-2">
+            <p className="text-[10px] uppercase tracking-wider text-fo-subtle">
+              Location
+            </p>
+            <p className="text-[11px] text-fo-subtle -mt-1">
+              Same location picker as Promote — keeps sponsored targeting in sync.
+            </p>
+            <LocationFields
+              value={{
+                country: form.country,
+                state: form.state,
+                city: form.city,
+              }}
+              onChange={(next) =>
+                setForm((current) => ({
+                  ...current,
+                  country: next.country || "",
+                  state: next.state || "",
+                  city: next.city || "",
+                }))
+              }
+              inputClass={fieldClass}
+              labelClass={labelClass}
+              showAddress={false}
+              showPostal={false}
+            />
           </div>
 
           <MediaPicker

@@ -1,11 +1,10 @@
 import {
-  uploadToCloudinary,
   signMedia,
   createDirectUploadSignature,
   confirmDirectUpload,
 } from "../utils/cloudinary.js";
-import { sniffMediaBuffer } from "../utils/fileSignature.js";
 import { sendServerError } from "../utils/safeError.js";
+import { canAccessAdminTab } from "../utils/adminAccess.js";
 
 const ALLOWED_FOLDERS = new Set([
   "fointer/posts",
@@ -14,10 +13,22 @@ const ALLOWED_FOLDERS = new Set([
   "fointer/banners",
 ]);
 
+/** Banner media is admin-only (banners tab / super admin). */
+const ADMIN_ONLY_FOLDERS = new Set(["fointer/banners"]);
+
 const resolveUploadFolder = (value) => {
   const folder = String(value || "").trim().replace(/\\/g, "/");
   if (ALLOWED_FOLDERS.has(folder)) return folder;
   return "fointer/posts";
+};
+
+const assertFolderAccess = (user, folder) => {
+  if (!ADMIN_ONLY_FOLDERS.has(folder)) return null;
+  if (canAccessAdminTab(user, "banners")) return null;
+  return {
+    status: 403,
+    message: "Only admins with banner access can upload to this folder.",
+  };
 };
 
 const ASSET_ID = /^[a-f0-9]{32}$/;
@@ -48,9 +59,18 @@ export const signDirectUpload = async (req, res) => {
       });
     }
 
+    const folder = resolveUploadFolder(req.body?.folder);
+    const denied = assertFolderAccess(req.user, folder);
+    if (denied) {
+      return res.status(denied.status).json({
+        success: false,
+        message: denied.message,
+      });
+    }
+
     const upload = createDirectUploadSignature({
       userId: req.user._id,
-      folder: resolveUploadFolder(req.body?.folder),
+      folder,
       resourceType,
     });
 
@@ -72,6 +92,14 @@ export const completeDirectUpload = async (req, res) => {
       });
     }
 
+    const denied = assertFolderAccess(req.user, folder);
+    if (denied) {
+      return res.status(denied.status).json({
+        success: false,
+        message: denied.message,
+      });
+    }
+
     const media = await confirmDirectUpload({
       userId: req.user._id,
       folder,
@@ -88,46 +116,5 @@ export const completeDirectUpload = async (req, res) => {
     });
   } catch (error) {
     return sendUploadError(res, error, "Upload failed.");
-  }
-};
-
-export const uploadMedia = async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        message: "No file uploaded.",
-      });
-    }
-
-    const sniffed = sniffMediaBuffer(req.file.buffer);
-    if (!sniffed) {
-      return res.status(400).json({
-        success: false,
-        message: "Only images and videos are allowed.",
-      });
-    }
-
-    const isHeic =
-      sniffed.mime === "image/heic" || sniffed.mime === "image/heif";
-    const result = await uploadToCloudinary(req.file.buffer, {
-      folder: resolveUploadFolder(req.body?.folder),
-      resourceType: sniffed.kind === "video" ? "video" : "image",
-      extra: isHeic ? { format: "jpg" } : undefined,
-    });
-
-    const media = {
-      url: result.secure_url,
-      publicId: result.public_id,
-      type: sniffed.kind === "video" ? "video" : "image",
-    };
-    media.signature = signMedia(req.user._id, media);
-
-    return res.status(200).json({
-      success: true,
-      media,
-    });
-  } catch (error) {
-    return sendServerError(res, error, "Upload failed.");
   }
 };

@@ -213,7 +213,7 @@ export default function HeaderSearch({ className = "" }) {
                   >
                     <ProfileAvatar
                       src={profile.avatar}
-                      name={profile.name}
+                      name={profile.name || profile.username}
                       className="w-8 h-8 rounded-full object-cover border border-fo-border shrink-0"
                     />
                     <div className="min-w-0">

@@ -9,7 +9,10 @@ import SponsoredPlacement from "../models/sponsoredPlacement.js";
 import SponsoredPurchase from "../models/sponsoredPurchase.js";
 import SystemSetting from "../models/systemSetting.js";
 import { resolveDocumentId } from "../utils/shortCode.js";
-import { matchesSponsoredGeo } from "../utils/sponsoredTargeting.js";
+import {
+  normalizePromoteLocation,
+  packageAvailableForLocation,
+} from "../utils/sponsoredTargeting.js";
 import { sendServerError } from "../utils/safeError.js";
 
 const normalizeList = (value, label) => {
@@ -30,9 +33,88 @@ const packageFlag = (value, fallback, label) => {
 
 const flutterwaveSecret = () => String(process.env.FLW_SECRET_KEY || "").trim();
 
-const getGlobalSettings = async () =>
-  (await SystemSetting.findOne({ key: "global" })) ||
-  (await SystemSetting.create({ key: "global" }));
+const clampPercent = (value, fallback = 0) =>
+  Math.max(0, Math.min(100, Number(value ?? fallback) || 0));
+
+const roundMoney = (value) => Math.round((Number(value) || 0) * 100) / 100;
+
+const moneyByCurrencyFromGroups = (groups) =>
+  groups
+    .map((row) => ({
+      currency: String(row._id || "USD").toUpperCase(),
+      amount: roundMoney(row.amount),
+      count: Number(row.count) || 0,
+    }))
+    .sort((a, b) => b.amount - a.amount);
+
+const currencyAmountsFromMap = (map) =>
+  [...map.entries()]
+    .map(([currency, amount]) => ({ currency, amount: roundMoney(amount) }))
+    .sort((a, b) => b.amount - a.amount);
+
+const paymentSuccessfulForPurchase = (payment, purchase) =>
+  String(payment?.status || "").toLowerCase() === "successful" &&
+  String(payment?.currency || "").toUpperCase() === purchase.currency &&
+  Math.abs(Number(payment?.amount) - purchase.amount) < 0.005;
+
+const ensureCommunitiesExist = async (communityIds) => {
+  if (!communityIds.length) return true;
+  const found = await Community.countDocuments({ _id: { $in: communityIds } });
+  return found === communityIds.length;
+};
+
+/** Roll up leaderboard currency rows (earned / reversed / net). */
+const formatLeaderCurrency = (rows = []) => {
+  const map = new Map();
+  for (const row of rows) {
+    const currency = String(row.currency || "USD").toUpperCase();
+    const current = map.get(currency) || {
+      currency,
+      earned: 0,
+      reversed: 0,
+      net: 0,
+      gross: 0,
+      purchaseCount: 0,
+    };
+    const commission = roundMoney(row.commission);
+    const gross = roundMoney(row.gross);
+    const count = Number(row.count) || 0;
+    if (row.status === "earned") {
+      current.earned += commission;
+      current.gross += gross;
+      current.purchaseCount += count;
+    } else if (row.status === "reversed") {
+      current.reversed += commission;
+    }
+    current.net = roundMoney(current.earned - current.reversed);
+    map.set(currency, current);
+  }
+  return [...map.values()]
+    .map((row) => ({
+      ...row,
+      earned: roundMoney(row.earned),
+      reversed: roundMoney(row.reversed),
+      gross: roundMoney(row.gross),
+    }))
+    .sort((a, b) => b.net - a.net);
+};
+
+const getGlobalSettings = async () => {
+  let settings = await SystemSetting.findOne({ key: "global" });
+  if (!settings) {
+    settings = await SystemSetting.create({
+      key: "global",
+      communitySponsoredCommissionPercent: 20,
+    });
+  } else if (
+    settings.communitySponsoredCommissionPercent == null ||
+    Number.isNaN(Number(settings.communitySponsoredCommissionPercent))
+  ) {
+    settings.communitySponsoredCommissionPercent = 20;
+    await settings.save();
+  }
+  return settings;
+};
 
 const cleanPackage = (body = {}) => {
   const name = String(body.name || "").trim();
@@ -68,6 +150,15 @@ const cleanPackage = (body = {}) => {
     throw new Error("One or more community selections are invalid.");
   }
 
+  const top = packageFlag(placement.top, false, "Top placement");
+  const section = packageFlag(placement.section, true, "Sponsored section");
+  const badge = packageFlag(placement.badge, true, "Sponsored badge");
+  if (!top && !section && !badge) {
+    throw new Error(
+      "Enable at least one visibility option: top placement, sponsored section, or sponsored badge."
+    );
+  }
+
   return {
     name,
     price,
@@ -75,9 +166,9 @@ const cleanPackage = (body = {}) => {
     currency,
     status,
     placement: {
-      top: packageFlag(placement.top, false, "Top placement"),
-      section: packageFlag(placement.section, true, "Sponsored section"),
-      badge: packageFlag(placement.badge, true, "Sponsored badge"),
+      top,
+      section,
+      badge,
       priority,
       communityRequired: packageFlag(
         placement.communityRequired,
@@ -94,29 +185,85 @@ const cleanPackage = (body = {}) => {
   };
 };
 
-const packagePayload = (row) => ({
-  id: String(row._id),
-  name: row.name,
-  price: row.price,
-  currency: row.currency,
-  durationDays: row.durationDays,
-  status: row.status,
-  placement: row.placement,
-  geo: row.geo,
-  communityAllowList: (row.communityAllowList || []).map((id) =>
-    String(id?._id || id)
-  ),
-});
+const packagePayload = (row, promoteLocation = null) => {
+  const geo = row.geo || { countries: [], states: [], cities: [] };
+  const isGlobal =
+    !geo.countries?.length && !geo.states?.length && !geo.cities?.length;
+  const availableForLocation = promoteLocation
+    ? packageAvailableForLocation(geo, promoteLocation)
+    : true;
+  return {
+    id: String(row._id),
+    name: row.name,
+    price: row.price,
+    currency: row.currency,
+    durationDays: row.durationDays,
+    status: row.status,
+    placement: row.placement,
+    geo,
+    isGlobal,
+    availableForLocation,
+    communityAllowList: (row.communityAllowList || []).map((id) =>
+      String(id?._id || id)
+    ),
+  };
+};
 
-export const listSponsoredPackages = async (_req, res) => {
-  try {
-    const packages = await SponsoredPackage.find({ status: "active" })
-      .sort({ price: 1, name: 1 })
-      .lean();
-    return res.json({ success: true, packages: packages.map(packagePayload) });
-  } catch (error) {
-    return sendServerError(res, error, "Failed to load sponsorship packages.");
-  }
+const PENDING_CHECKOUT_TTL_MS = 2 * 60 * 60 * 1000;
+
+const getListingSponsorshipState = async (listingId) => {
+  const now = new Date();
+  const pendingCutoff = new Date(now.getTime() - PENDING_CHECKOUT_TTL_MS);
+
+  await SponsoredPurchase.updateMany(
+    {
+      listing: listingId,
+      paymentStatus: "pending",
+      createdAt: { $lt: pendingCutoff },
+    },
+    { $set: { paymentStatus: "failed" } }
+  );
+
+  const [activePlacement, queuedPlacement, pendingPurchase] = await Promise.all([
+    SponsoredPlacement.findOne({
+      listing: listingId,
+      status: "active",
+      startsAt: { $lte: now },
+      expiresAt: { $gt: now },
+    })
+      .sort({ expiresAt: -1 })
+      .lean(),
+    SponsoredPlacement.findOne({
+      listing: listingId,
+      status: "active",
+      startsAt: { $gt: now },
+      expiresAt: { $gt: now },
+    })
+      .sort({ expiresAt: -1 })
+      .lean(),
+    SponsoredPurchase.findOne({
+      listing: listingId,
+      paymentStatus: "pending",
+      createdAt: { $gte: pendingCutoff },
+    })
+      .sort({ createdAt: -1 })
+      .lean(),
+  ]);
+
+  const scheduleAnchor = [activePlacement, queuedPlacement]
+    .filter(Boolean)
+    .sort((a, b) => new Date(b.expiresAt) - new Date(a.expiresAt))[0];
+
+  return {
+    now,
+    activePlacement,
+    queuedPlacement,
+    pendingPurchase,
+    scheduleAnchor,
+    nextStartsAt: scheduleAnchor?.expiresAt
+      ? new Date(scheduleAnchor.expiresAt)
+      : now,
+  };
 };
 
 export const getSponsorOptions = async (req, res) => {
@@ -146,20 +293,44 @@ export const getSponsorOptions = async (req, res) => {
       .select("_id name shortCode type owner")
       .sort({ name: 1 })
       .lean();
-    const matchingPackages = packages.filter((sponsoredPackage) =>
-      matchesSponsoredGeo(sponsoredPackage.geo, listing)
-    );
+    const state = await getListingSponsorshipState(listing._id);
+    const active = state.activePlacement;
+    const queued = state.queuedPlacement;
+    const defaultLocation = {
+      city: listing.city || "",
+      state: listing.state || "",
+      country: listing.country || "",
+    };
     return res.json({
       success: true,
-      listing: { id: String(listing._id), title: listing.title, city: listing.city, state: listing.state, country: listing.country },
-      packages: matchingPackages.map(packagePayload),
-      hasActivePackages: packages.length > 0,
+      listing: {
+        id: String(listing._id),
+        title: listing.title,
+        city: listing.city || "",
+        state: listing.state || "",
+        country: listing.country || "",
+      },
+      packages: packages.map((row) => packagePayload(row, defaultLocation)),
       communities: communities.map((community) => ({
         id: String(community._id),
         name: community.name,
         shortCode: community.shortCode || "",
         type: community.type,
       })),
+      sponsorshipState: {
+        hasActive: Boolean(active),
+        hasQueued: Boolean(queued),
+        hasPendingCheckout: Boolean(state.pendingPurchase),
+        canCheckout: !state.pendingPurchase,
+        mode: active || queued ? "extend" : "start",
+        activeExpiresAt: active?.expiresAt || null,
+        queuedStartsAt: queued?.startsAt || null,
+        queuedExpiresAt: queued?.expiresAt || null,
+        nextStartsAt: state.nextStartsAt,
+        pendingPurchaseId: state.pendingPurchase
+          ? String(state.pendingPurchase._id)
+          : null,
+      },
     });
   } catch (error) {
     return sendServerError(res, error, "Failed to load sponsorship options.");
@@ -197,10 +368,35 @@ export const createSponsoredCheckout = async (req, res) => {
     if (!sponsoredPackage) {
       return res.status(400).json({ success: false, message: "Choose an active sponsorship package." });
     }
-    if (!matchesSponsoredGeo(sponsoredPackage.geo, listing)) {
+
+    let promoteGeo;
+    try {
+      promoteGeo = normalizePromoteLocation({
+        country: req.body?.country ?? listing.country,
+        state: req.body?.state ?? listing.state,
+        city: req.body?.city ?? listing.city,
+      });
+    } catch (locationError) {
       return res.status(400).json({
         success: false,
-        message: "This listing does not match the package's geographic targeting.",
+        message: locationError.message || "Choose a promotion location.",
+      });
+    }
+    if (!packageAvailableForLocation(sponsoredPackage.geo, promoteGeo)) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "This package is not available for the selected promotion location. Pick another package or change the location.",
+      });
+    }
+
+    const state = await getListingSponsorshipState(listing._id);
+    if (state.pendingPurchase) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "A checkout is already pending for this listing. Finish that payment or wait up to 2 hours before starting another boost.",
+        pendingPurchaseId: String(state.pendingPurchase._id),
       });
     }
 
@@ -241,8 +437,9 @@ export const createSponsoredCheckout = async (req, res) => {
         badge: sponsoredPackage.placement.badge,
         priority: sponsoredPackage.placement.priority,
       },
-      geoSnapshot: sponsoredPackage.geo.toObject(),
-      commissionPercentSnapshot: settings.communitySponsoredCommissionPercent || 0,
+      geoSnapshot: promoteGeo,
+      commissionPercentSnapshot:
+        settings.communitySponsoredCommissionPercent ?? 20,
       packageSnapshot: {
         name: sponsoredPackage.name,
         durationDays: sponsoredPackage.durationDays,
@@ -259,7 +456,7 @@ export const createSponsoredCheckout = async (req, res) => {
         tx_ref: reference,
         amount: sponsoredPackage.price,
         currency: sponsoredPackage.currency,
-        redirect_url: `${frontendUrl}/marketplace/my-listings?payment=pending`,
+        redirect_url: `${frontendUrl}/marketplace/promote/success`,
         customer: {
           email: req.user.email,
           name: req.user.name || req.user.username,
@@ -310,16 +507,29 @@ const signatureMatches = (provided, expected) => {
   return left.length === right.length && crypto.timingSafeEqual(left, right);
 };
 
+const resolveBoostWindow = async (listingId, durationDays) => {
+  const duration = Math.max(1, Number(durationDays) || 1);
+  const state = await getListingSponsorshipState(listingId);
+  const startsAt = new Date(
+    Math.max(state.now.getTime(), new Date(state.nextStartsAt).getTime())
+  );
+  const expiresAt = new Date(startsAt.getTime() + duration * 24 * 60 * 60 * 1000);
+  return { startsAt, expiresAt };
+};
+
 const activatePaidPurchase = async (purchase, transactionId) => {
   if (purchase.paymentStatus === "refunded") return;
+  const duration = Math.max(1, Number(purchase.packageSnapshot?.durationDays) || 1);
+
   if (purchase.paymentStatus !== "paid") {
-    const now = new Date();
-    const duration = Math.max(1, Number(purchase.packageSnapshot?.durationDays) || 1);
-    const expiresAt = new Date(now.getTime() + duration * 24 * 60 * 60 * 1000);
+    const { startsAt, expiresAt } = await resolveBoostWindow(
+      purchase.listing,
+      duration
+    );
     const settings = await getGlobalSettings();
-    const percent = Math.max(
-      0,
-      Math.min(100, Number(settings.communitySponsoredCommissionPercent) || 0)
+    const percent = clampPercent(
+      settings.communitySponsoredCommissionPercent,
+      20
     );
     const activated = await SponsoredPurchase.findOneAndUpdate(
       { _id: purchase._id, paymentStatus: "pending" },
@@ -327,12 +537,12 @@ const activatePaidPurchase = async (purchase, transactionId) => {
         $set: {
           paymentStatus: "paid",
           providerTransactionId: String(transactionId || ""),
-          startsAt: now,
+          startsAt,
           expiresAt,
           commissionPercentSnapshot: percent,
         },
       },
-      { new: true }
+      { returnDocument: "after" }
     );
     if (activated) purchase = activated;
     else purchase = await SponsoredPurchase.findById(purchase._id);
@@ -341,15 +551,19 @@ const activatePaidPurchase = async (purchase, transactionId) => {
       throw new Error("Sponsorship payment was not pending when activation was attempted.");
     }
   }
-  const now = purchase.startsAt || new Date();
-  const duration = Math.max(1, Number(purchase.packageSnapshot?.durationDays) || 1);
-  const expiresAt =
-    purchase.expiresAt ||
-    new Date(now.getTime() + duration * 24 * 60 * 60 * 1000);
-  const percent = Math.max(
-    0,
-    Math.min(100, Number(purchase.commissionPercentSnapshot) || 0)
-  );
+
+  let startsAt = purchase.startsAt ? new Date(purchase.startsAt) : null;
+  let expiresAt = purchase.expiresAt ? new Date(purchase.expiresAt) : null;
+  if (!startsAt || !expiresAt) {
+    const window = await resolveBoostWindow(purchase.listing, duration);
+    startsAt = window.startsAt;
+    expiresAt = window.expiresAt;
+    await SponsoredPurchase.updateOne(
+      { _id: purchase._id },
+      { $set: { startsAt, expiresAt } }
+    );
+  }
+  const percent = clampPercent(purchase.commissionPercentSnapshot, 0);
 
   await SponsoredPlacement.findOneAndUpdate(
     { purchase: purchase._id },
@@ -358,18 +572,17 @@ const activatePaidPurchase = async (purchase, transactionId) => {
         listing: purchase.listing,
         community: purchase.community,
         status: "active",
-        startsAt: now,
+        startsAt,
         expiresAt,
         placement: purchase.placementSnapshot,
         geo: purchase.geoSnapshot,
       },
     },
-    { upsert: true, new: true, setDefaultsOnInsert: true }
+    { upsert: true, setDefaultsOnInsert: true }
   );
 
   if (purchase.community && purchase.communityOwner) {
-    const commissionAmount =
-      Math.round(purchase.amount * (percent / 100) * 100) / 100;
+    const commissionAmount = roundMoney(purchase.amount * (percent / 100));
     await CommunitySponsoredEarning.findOneAndUpdate(
       { purchase: purchase._id },
       {
@@ -383,7 +596,7 @@ const activatePaidPurchase = async (purchase, transactionId) => {
           status: "earned",
         },
       },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
+      { upsert: true, setDefaultsOnInsert: true }
     );
     await Listing.updateOne(
       { _id: purchase.listing },
@@ -420,6 +633,134 @@ const reverseRefundedPurchase = async (reference) => {
     { purchase: purchase._id },
     { $set: { status: "reversed" } }
   );
+};
+
+const verifyAndActivateByTransactionId = async (transactionId, buyerId) => {
+  const id = String(transactionId || "").trim();
+  if (!id || !flutterwaveSecret()) {
+    return { ok: false, status: 503, message: "Payment verification is unavailable." };
+  }
+  const verificationResponse = await fetch(
+    `https://api.flutterwave.com/v3/transactions/${encodeURIComponent(id)}/verify`,
+    { headers: { Authorization: `Bearer ${flutterwaveSecret()}` } }
+  );
+  const verification = await verificationResponse.json();
+  const payment = verification?.data;
+  if (
+    !verificationResponse.ok ||
+    verification?.status !== "success" ||
+    !payment?.tx_ref
+  ) {
+    return { ok: false, status: 400, message: "Unable to verify this payment." };
+  }
+
+  const purchase = await SponsoredPurchase.findOne({
+    providerReference: String(payment.tx_ref),
+  });
+  if (!purchase) {
+    return { ok: false, status: 404, message: "Sponsorship purchase not found." };
+  }
+  // Member confirm endpoint must not disclose or re-activate another buyer's purchase.
+  if (
+    buyerId != null &&
+    String(purchase.buyer) !== String(buyerId)
+  ) {
+    return {
+      ok: false,
+      status: 403,
+      message: "This payment does not belong to you.",
+    };
+  }
+  if (purchase.paymentStatus === "refunded") {
+    return { ok: true, purchase, already: true };
+  }
+  if (purchase.paymentStatus === "paid") {
+    await activatePaidPurchase(purchase, id);
+    return { ok: true, purchase, already: true };
+  }
+
+  if (!paymentSuccessfulForPurchase(payment, purchase)) {
+    if (String(payment.status || "").toLowerCase() !== "successful") {
+      await SponsoredPurchase.updateOne(
+        { _id: purchase._id, paymentStatus: "pending" },
+        { $set: { paymentStatus: "failed" } }
+      );
+    }
+    return { ok: false, status: 400, message: "Payment was not successful." };
+  }
+
+  await activatePaidPurchase(purchase, id);
+  const fresh = await SponsoredPurchase.findById(purchase._id).lean();
+  return { ok: true, purchase: fresh, already: false };
+};
+
+const formatVerifiedPurchase = async (purchaseDoc) => {
+  const purchase = await SponsoredPurchase.findById(purchaseDoc._id)
+    .populate("listing", "title shortCode")
+    .populate("package", "name durationDays")
+    .populate("community", "name")
+    .lean();
+  if (!purchase) return null;
+  const now = Date.now();
+  const startsAt = purchase.startsAt ? new Date(purchase.startsAt) : null;
+  const expiresAt = purchase.expiresAt ? new Date(purchase.expiresAt) : null;
+  const isLive =
+    purchase.paymentStatus === "paid" &&
+    startsAt &&
+    expiresAt &&
+    startsAt.getTime() <= now &&
+    expiresAt.getTime() > now;
+  const isQueued =
+    purchase.paymentStatus === "paid" &&
+    startsAt &&
+    expiresAt &&
+    startsAt.getTime() > now;
+  return {
+    id: String(purchase._id),
+    paymentStatus: purchase.paymentStatus,
+    startsAt: purchase.startsAt,
+    expiresAt: purchase.expiresAt,
+    listingId: String(purchase.listing?._id || purchase.listing || ""),
+    listingTitle: purchase.listing?.title || "Your listing",
+    listingShortCode: purchase.listing?.shortCode || "",
+    packageName: purchase.package?.name || purchase.packageSnapshot?.name || "Promotion",
+    durationDays:
+      purchase.package?.durationDays ||
+      purchase.packageSnapshot?.durationDays ||
+      null,
+    communityName: purchase.community?.name || null,
+    isLive,
+    isQueued,
+    mode: isQueued ? "queued" : isLive ? "active" : purchase.paymentStatus,
+  };
+};
+
+/** Member return-URL confirmation (webhook backup). */
+export const verifySponsoredPayment = async (req, res) => {
+  try {
+    const transactionId =
+      req.body?.transactionId ||
+      req.query?.transaction_id ||
+      req.query?.transactionId;
+    const result = await verifyAndActivateByTransactionId(
+      transactionId,
+      req.user._id
+    );
+    if (!result.ok) {
+      return res.status(result.status || 400).json({
+        success: false,
+        message: result.message,
+      });
+    }
+    const purchase = await formatVerifiedPurchase(result.purchase);
+    return res.json({
+      success: true,
+      already: Boolean(result.already),
+      purchase,
+    });
+  } catch (error) {
+    return sendServerError(res, error, "Failed to verify sponsorship payment.");
+  }
 };
 
 export const handleFlutterwaveWebhook = async (req, res) => {
@@ -471,12 +812,7 @@ export const handleFlutterwaveWebhook = async (req, res) => {
       );
       return res.status(200).json({ success: true });
     }
-    const matchesPurchase =
-      hasMatchingReference &&
-      String(payment?.status || "").toLowerCase() === "successful" &&
-      String(payment?.currency || "").toUpperCase() === purchase.currency &&
-      Math.abs(Number(payment?.amount) - purchase.amount) < 0.005;
-    if (!matchesPurchase) {
+    if (!hasMatchingReference || !paymentSuccessfulForPurchase(payment, purchase)) {
       console.error("Flutterwave transaction verification did not match sponsorship purchase", {
         purchaseId: String(purchase._id),
         transactionId,
@@ -494,36 +830,250 @@ export const handleFlutterwaveWebhook = async (req, res) => {
 
 export const getAdminSponsorshipData = async (_req, res) => {
   try {
-    const [packages, communities, purchases, placements, earnings, settings] =
-      await Promise.all([
-        SponsoredPackage.find().populate("communityAllowList", "name").sort({ createdAt: -1 }).lean(),
-        Community.find().select("_id name").sort({ name: 1 }).lean(),
-        SponsoredPurchase.find()
-          .populate("listing", "title shortCode")
-          .populate("buyer", "name username email")
-          .populate("community", "name")
-          .populate("package", "name")
-          .sort({ createdAt: -1 })
-          .limit(200)
-          .lean(),
-        SponsoredPlacement.find({
-          status: "active",
-          startsAt: { $lte: new Date() },
-          expiresAt: { $gt: new Date() },
-        })
-          .populate("listing", "title shortCode")
-          .populate("community", "name")
-          .sort({ expiresAt: 1 })
-          .lean(),
-        CommunitySponsoredEarning.find()
-          .populate("community", "name")
-          .populate("owner", "name username email")
-          .populate("purchase", "providerReference paymentStatus")
-          .sort({ createdAt: -1 })
-          .limit(200)
-          .lean(),
-        getGlobalSettings(),
-      ]);
+    const [
+      packages,
+      communities,
+      purchases,
+      placements,
+      earnings,
+      settings,
+      purchaseStatusCounts,
+      paidGmvByCurrency,
+      commissionByCurrencyStatus,
+      topEarnerRows,
+      topCommunityRows,
+      earningEntryCount,
+    ] = await Promise.all([
+      SponsoredPackage.find().populate("communityAllowList", "name").sort({ createdAt: -1 }).lean(),
+      Community.find().select("_id name").sort({ name: 1 }).lean(),
+      SponsoredPurchase.find()
+        .populate("listing", "title shortCode")
+        .populate("buyer", "name username email")
+        .populate("community", "name")
+        .populate("package", "name")
+        .sort({ createdAt: -1 })
+        .limit(200)
+        .lean(),
+      SponsoredPlacement.find({
+        status: "active",
+        expiresAt: { $gt: new Date() },
+      })
+        .populate("listing", "title shortCode")
+        .populate("community", "name")
+        .sort({ startsAt: 1, expiresAt: 1 })
+        .lean(),
+      CommunitySponsoredEarning.find()
+        .populate("community", "name")
+        .populate("owner", "name username email")
+        .populate("purchase", "providerReference paymentStatus")
+        .sort({ createdAt: -1 })
+        .limit(200)
+        .lean(),
+      getGlobalSettings(),
+      SponsoredPurchase.aggregate([
+        { $group: { _id: "$paymentStatus", count: { $sum: 1 } } },
+      ]),
+      SponsoredPurchase.aggregate([
+        { $match: { paymentStatus: "paid" } },
+        {
+          $group: {
+            _id: "$currency",
+            amount: { $sum: "$amount" },
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+      CommunitySponsoredEarning.aggregate([
+        {
+          $group: {
+            _id: { currency: "$currency", status: "$status" },
+            amount: { $sum: "$commissionAmount" },
+            gross: { $sum: "$gross" },
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+      CommunitySponsoredEarning.aggregate([
+        {
+          $group: {
+            _id: {
+              owner: "$owner",
+              currency: "$currency",
+              status: "$status",
+            },
+            commission: { $sum: "$commissionAmount" },
+            gross: { $sum: "$gross" },
+            count: { $sum: 1 },
+            communities: { $addToSet: "$community" },
+          },
+        },
+        {
+          $group: {
+            _id: "$_id.owner",
+            byCurrency: {
+              $push: {
+                currency: "$_id.currency",
+                status: "$_id.status",
+                commission: "$commission",
+                gross: "$gross",
+                count: "$count",
+              },
+            },
+            communities: { $push: "$communities" },
+            sortEarned: {
+              $sum: {
+                $cond: [
+                  { $eq: ["$_id.status", "earned"] },
+                  "$commission",
+                  0,
+                ],
+              },
+            },
+          },
+        },
+        { $sort: { sortEarned: -1 } },
+        { $limit: 10 },
+        {
+          $lookup: {
+            from: "users",
+            localField: "_id",
+            foreignField: "_id",
+            as: "ownerDoc",
+          },
+        },
+        { $unwind: { path: "$ownerDoc", preserveNullAndEmptyArrays: true } },
+      ]),
+      CommunitySponsoredEarning.aggregate([
+        {
+          $group: {
+            _id: {
+              community: "$community",
+              currency: "$currency",
+              status: "$status",
+            },
+            commission: { $sum: "$commissionAmount" },
+            gross: { $sum: "$gross" },
+            count: { $sum: 1 },
+          },
+        },
+        {
+          $group: {
+            _id: "$_id.community",
+            byCurrency: {
+              $push: {
+                currency: "$_id.currency",
+                status: "$_id.status",
+                commission: "$commission",
+                gross: "$gross",
+                count: "$count",
+              },
+            },
+            sortEarned: {
+              $sum: {
+                $cond: [
+                  { $eq: ["$_id.status", "earned"] },
+                  "$commission",
+                  0,
+                ],
+              },
+            },
+          },
+        },
+        { $sort: { sortEarned: -1 } },
+        { $limit: 10 },
+        {
+          $lookup: {
+            from: "communities",
+            localField: "_id",
+            foreignField: "_id",
+            as: "communityDoc",
+          },
+        },
+        {
+          $unwind: {
+            path: "$communityDoc",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+      ]),
+      CommunitySponsoredEarning.countDocuments(),
+    ]);
+
+    const purchaseCounts = {
+      paid: 0,
+      pending: 0,
+      failed: 0,
+      refunded: 0,
+      total: 0,
+    };
+    for (const row of purchaseStatusCounts) {
+      const key = String(row._id || "");
+      const count = Number(row.count) || 0;
+      purchaseCounts.total += count;
+      if (Object.prototype.hasOwnProperty.call(purchaseCounts, key)) {
+        purchaseCounts[key] = count;
+      }
+    }
+
+    const earnedMap = new Map();
+    const reversedMap = new Map();
+    const grossMap = new Map();
+    for (const row of commissionByCurrencyStatus) {
+      const currency = String(row._id?.currency || "USD").toUpperCase();
+      const status = String(row._id?.status || "");
+      const amount = roundMoney(row.amount);
+      const gross = roundMoney(row.gross);
+      if (status === "earned") {
+        earnedMap.set(currency, (earnedMap.get(currency) || 0) + amount);
+        grossMap.set(currency, (grossMap.get(currency) || 0) + gross);
+      } else if (status === "reversed") {
+        reversedMap.set(currency, (reversedMap.get(currency) || 0) + amount);
+      }
+    }
+    const commissionEarnedByCurrency = currencyAmountsFromMap(earnedMap);
+    const commissionReversedByCurrency = currencyAmountsFromMap(reversedMap);
+    const grossPromotedByCurrency = currencyAmountsFromMap(grossMap);
+
+    const topEarners = topEarnerRows.map((row, index) => {
+      const communityIds = new Set();
+      for (const group of row.communities || []) {
+        for (const id of group || []) {
+          if (id) communityIds.add(String(id));
+        }
+      }
+      return {
+        rank: index + 1,
+        owner: row.ownerDoc
+          ? {
+              id: String(row.ownerDoc._id),
+              name: row.ownerDoc.name || "",
+              username: row.ownerDoc.username || "",
+              email: row.ownerDoc.email || "",
+            }
+          : { id: String(row._id), name: "", username: "", email: "" },
+        communityCount: communityIds.size,
+        byCurrency: formatLeaderCurrency(row.byCurrency),
+        sortEarned: roundMoney(row.sortEarned),
+      };
+    });
+
+    const topCommunities = topCommunityRows.map((row, index) => ({
+      rank: index + 1,
+      community: row.communityDoc
+        ? {
+            id: String(row.communityDoc._id),
+            name: row.communityDoc.name || "Community",
+            shortCode: row.communityDoc.shortCode || "",
+          }
+        : {
+            id: String(row._id),
+            name: "Community",
+            shortCode: "",
+          },
+      byCurrency: formatLeaderCurrency(row.byCurrency),
+      sortEarned: roundMoney(row.sortEarned),
+    }));
+
     const earningsSummary = new Map();
     for (const earning of earnings) {
       const communityId = String(earning.community?._id || earning.community);
@@ -564,8 +1114,22 @@ export const getAdminSponsorshipData = async (_req, res) => {
       purchases,
       activePlacements: placements,
       earnings: [...earningsSummary.values()],
-      earningEntries: earnings,
-      communitySponsoredCommissionPercent: settings.communitySponsoredCommissionPercent || 0,
+      communitySponsoredCommissionPercent:
+        settings.communitySponsoredCommissionPercent ?? 20,
+      stats: {
+        packagesTotal: packages.length,
+        packagesActive: packages.filter((row) => row.status === "active").length,
+        activePlacements: placements.length,
+        purchases: purchaseCounts,
+        paidGmvByCurrency: moneyByCurrencyFromGroups(paidGmvByCurrency),
+        grossPromotedByCurrency,
+        commissionEarnedByCurrency,
+        commissionReversedByCurrency,
+        earningEntryCount,
+        communitiesTracked: communities.length,
+      },
+      topEarners,
+      topCommunities,
     });
   } catch (error) {
     return sendServerError(res, error, "Failed to load sponsorship reports.");
@@ -575,12 +1139,11 @@ export const getAdminSponsorshipData = async (_req, res) => {
 export const createSponsoredPackage = async (req, res) => {
   try {
     const payload = cleanPackage(req.body);
-    const communityIds = payload.communityAllowList;
-    const found = communityIds.length
-      ? await Community.countDocuments({ _id: { $in: communityIds } })
-      : communityIds.length;
-    if (found !== communityIds.length) {
-      return res.status(400).json({ success: false, message: "One or more selected communities do not exist." });
+    if (!(await ensureCommunitiesExist(payload.communityAllowList))) {
+      return res.status(400).json({
+        success: false,
+        message: "One or more selected communities do not exist.",
+      });
     }
     const sponsoredPackage = await SponsoredPackage.create(payload);
     return res.status(201).json({ success: true, package: packagePayload(sponsoredPackage) });
@@ -598,17 +1161,16 @@ export const updateSponsoredPackage = async (req, res) => {
       return res.status(404).json({ success: false, message: "Sponsorship package not found." });
     }
     const payload = cleanPackage(req.body);
-    const communityIds = payload.communityAllowList;
-    const found = communityIds.length
-      ? await Community.countDocuments({ _id: { $in: communityIds } })
-      : communityIds.length;
-    if (found !== communityIds.length) {
-      return res.status(400).json({ success: false, message: "One or more selected communities do not exist." });
+    if (!(await ensureCommunitiesExist(payload.communityAllowList))) {
+      return res.status(400).json({
+        success: false,
+        message: "One or more selected communities do not exist.",
+      });
     }
     const sponsoredPackage = await SponsoredPackage.findByIdAndUpdate(
       req.params.id,
       payload,
-      { new: true, runValidators: true }
+      { returnDocument: "after", runValidators: true }
     );
     if (!sponsoredPackage) {
       return res.status(404).json({ success: false, message: "Sponsorship package not found." });
@@ -627,14 +1189,39 @@ export const deleteSponsoredPackage = async (req, res) => {
     if (!mongoose.isValidObjectId(req.params.id)) {
       return res.status(404).json({ success: false, message: "Sponsorship package not found." });
     }
-    const purchaseCount = await SponsoredPurchase.countDocuments({ package: req.params.id });
-    if (purchaseCount > 0) {
+    const packageId = req.params.id;
+
+    const [paidCount, refundedCount, pendingCount, failedCount] = await Promise.all([
+      SponsoredPurchase.countDocuments({ package: packageId, paymentStatus: "paid" }),
+      SponsoredPurchase.countDocuments({ package: packageId, paymentStatus: "refunded" }),
+      SponsoredPurchase.countDocuments({ package: packageId, paymentStatus: "pending" }),
+      SponsoredPurchase.countDocuments({ package: packageId, paymentStatus: "failed" }),
+    ]);
+    const historyCount = paidCount + refundedCount;
+
+    if (historyCount > 0) {
       return res.status(409).json({
         success: false,
-        message: "This package has purchase history and cannot be deleted. Deactivate it instead.",
+        code: "PACKAGE_HAS_PURCHASE_HISTORY",
+        message:
+          "This package still has paid (or refunded) purchase history, even if those listings were deleted. Deactivate the package instead of deleting it so reports stay accurate.",
+        counts: {
+          paid: paidCount,
+          refunded: refundedCount,
+          pending: pendingCount,
+          failed: failedCount,
+        },
       });
     }
-    const sponsoredPackage = await SponsoredPackage.findByIdAndDelete(req.params.id);
+
+    if (pendingCount + failedCount > 0) {
+      await SponsoredPurchase.deleteMany({
+        package: packageId,
+        paymentStatus: { $in: ["pending", "failed"] },
+      });
+    }
+
+    const sponsoredPackage = await SponsoredPackage.findByIdAndDelete(packageId);
     if (!sponsoredPackage) {
       return res.status(404).json({ success: false, message: "Sponsorship package not found." });
     }
@@ -665,13 +1252,77 @@ export const updateSponsoredCommission = async (req, res) => {
 export const listMySponsoredPurchases = async (req, res) => {
   try {
     const purchases = await SponsoredPurchase.find({ buyer: req.user._id })
-      .populate("listing", "title shortCode")
-      .populate("community", "name")
+      .populate("listing", "title shortCode status")
+      .populate("community", "name shortCode")
       .populate("package", "name durationDays")
       .sort({ createdAt: -1 })
       .limit(100)
       .lean();
-    return res.json({ success: true, purchases });
+    const now = Date.now();
+    return res.json({
+      success: true,
+      purchases: purchases.map((row) => {
+        const startsAt = row.startsAt ? new Date(row.startsAt).getTime() : null;
+        const expiresAt = row.expiresAt ? new Date(row.expiresAt).getTime() : null;
+        const isLive =
+          row.paymentStatus === "paid" &&
+          startsAt != null &&
+          expiresAt != null &&
+          startsAt <= now &&
+          expiresAt > now;
+        const isQueued =
+          row.paymentStatus === "paid" &&
+          startsAt != null &&
+          startsAt > now;
+        return {
+          id: String(row._id),
+          paymentStatus: row.paymentStatus,
+          amount: row.amount,
+          currency: row.currency,
+          providerReference: row.providerReference,
+          paymentLink: row.paymentLink || "",
+          canCompletePayment:
+            row.paymentStatus === "pending" && Boolean(row.paymentLink),
+          startsAt: row.startsAt,
+          expiresAt: row.expiresAt,
+          createdAt: row.createdAt,
+          isLive,
+          isQueued,
+          placement: row.placementSnapshot || null,
+          geo: row.geoSnapshot || null,
+          packageSnapshot: row.packageSnapshot || null,
+          listing: row.listing
+            ? {
+                id: String(row.listing._id),
+                title: row.listing.title || "Listing",
+                shortCode: row.listing.shortCode || "",
+                status: row.listing.status || "",
+              }
+            : null,
+          community: row.community
+            ? {
+                id: String(row.community._id),
+                name: row.community.name || "Community",
+                shortCode: row.community.shortCode || "",
+              }
+            : null,
+          package: row.package
+            ? {
+                id: String(row.package._id),
+                name: row.package.name || row.packageSnapshot?.name || "Promotion",
+                durationDays:
+                  row.package.durationDays ||
+                  row.packageSnapshot?.durationDays ||
+                  null,
+              }
+            : {
+                id: null,
+                name: row.packageSnapshot?.name || "Promotion",
+                durationDays: row.packageSnapshot?.durationDays || null,
+              },
+        };
+      }),
+    });
   } catch (error) {
     return sendServerError(res, error, "Failed to load sponsorship history.");
   }
@@ -679,13 +1330,158 @@ export const listMySponsoredPurchases = async (req, res) => {
 
 export const listMyCommunitySponsoredEarnings = async (req, res) => {
   try {
-    const earnings = await CommunitySponsoredEarning.find({ owner: req.user._id })
-      .populate("community", "name")
-      .populate("purchase", "paymentStatus startsAt expiresAt")
-      .sort({ createdAt: -1 })
-      .limit(200)
-      .lean();
-    return res.json({ success: true, earnings });
+    const ownerId = new mongoose.Types.ObjectId(String(req.user._id));
+    const [earnings, totalRows, byCommunityRows] = await Promise.all([
+      CommunitySponsoredEarning.find({ owner: ownerId })
+        .populate("community", "name shortCode")
+        .populate({
+          path: "purchase",
+          select:
+            "paymentStatus startsAt expiresAt amount currency providerReference listing packageSnapshot geoSnapshot",
+          populate: { path: "listing", select: "title shortCode status" },
+        })
+        .sort({ createdAt: -1 })
+        .limit(200)
+        .lean(),
+      CommunitySponsoredEarning.aggregate([
+        { $match: { owner: ownerId } },
+        {
+          $group: {
+            _id: { currency: "$currency", status: "$status" },
+            commission: { $sum: "$commissionAmount" },
+            gross: { $sum: "$gross" },
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+      CommunitySponsoredEarning.aggregate([
+        { $match: { owner: ownerId, status: "earned" } },
+        {
+          $group: {
+            _id: { community: "$community", currency: "$currency" },
+            commission: { $sum: "$commissionAmount" },
+            gross: { $sum: "$gross" },
+            count: { $sum: 1 },
+          },
+        },
+        { $sort: { commission: -1 } },
+        { $limit: 20 },
+        {
+          $lookup: {
+            from: "communities",
+            localField: "_id.community",
+            foreignField: "_id",
+            as: "communityDoc",
+          },
+        },
+        {
+          $unwind: {
+            path: "$communityDoc",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+      ]),
+    ]);
+
+    const totalsMap = new Map();
+    let entryCount = 0;
+    for (const row of totalRows) {
+      const currency = String(row._id?.currency || "USD").toUpperCase();
+      const status = String(row._id?.status || "");
+      const current = totalsMap.get(currency) || {
+        currency,
+        earned: 0,
+        reversed: 0,
+        net: 0,
+        gross: 0,
+        earnedCount: 0,
+        reversedCount: 0,
+      };
+      const commission = roundMoney(row.commission);
+      const gross = roundMoney(row.gross);
+      const count = Number(row.count) || 0;
+      entryCount += count;
+      if (status === "earned") {
+        current.earned += commission;
+        current.gross += gross;
+        current.earnedCount += count;
+      } else if (status === "reversed") {
+        current.reversed += commission;
+        current.reversedCount += count;
+      }
+      current.net = roundMoney(current.earned - current.reversed);
+      totalsMap.set(currency, current);
+    }
+    const totalsByCurrency = [...totalsMap.values()]
+      .map((row) => ({
+        ...row,
+        earned: roundMoney(row.earned),
+        reversed: roundMoney(row.reversed),
+        gross: roundMoney(row.gross),
+      }))
+      .sort((a, b) => b.net - a.net);
+
+    return res.json({
+      success: true,
+      summary: {
+        entryCount,
+        totalsByCurrency,
+        byCommunity: byCommunityRows.map((row) => ({
+          community: row.communityDoc
+            ? {
+                id: String(row.communityDoc._id),
+                name: row.communityDoc.name || "Community",
+                shortCode: row.communityDoc.shortCode || "",
+              }
+            : {
+                id: String(row._id?.community || ""),
+                name: "Community",
+                shortCode: "",
+              },
+          currency: String(row._id?.currency || "USD").toUpperCase(),
+          commission: roundMoney(row.commission),
+          gross: roundMoney(row.gross),
+          count: Number(row.count) || 0,
+        })),
+      },
+      earnings: earnings.map((row) => ({
+        id: String(row._id),
+        status: row.status,
+        gross: row.gross,
+        percentUsed: row.percentUsed,
+        commissionAmount: row.commissionAmount,
+        currency: row.currency,
+        createdAt: row.createdAt,
+        community: row.community
+          ? {
+              id: String(row.community._id),
+              name: row.community.name || "Community",
+              shortCode: row.community.shortCode || "",
+            }
+          : null,
+        purchase: row.purchase
+          ? {
+              id: String(row.purchase._id),
+              paymentStatus: row.purchase.paymentStatus,
+              startsAt: row.purchase.startsAt,
+              expiresAt: row.purchase.expiresAt,
+              amount: row.purchase.amount,
+              currency: row.purchase.currency,
+              providerReference: row.purchase.providerReference,
+              packageName: row.purchase.packageSnapshot?.name || "Promotion",
+              geo: row.purchase.geoSnapshot || null,
+              listing: row.purchase.listing
+                ? {
+                    id: String(row.purchase.listing._id),
+                    title: row.purchase.listing.title || "Listing",
+                    shortCode: row.purchase.listing.shortCode || "",
+                    status: row.purchase.listing.status || "",
+                  }
+                : null,
+            }
+          : null,
+      })),
+    });
   } catch (error) {
     return sendServerError(res, error, "Failed to load community promotion earnings.");
   }

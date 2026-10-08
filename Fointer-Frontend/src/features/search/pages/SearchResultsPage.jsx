@@ -228,7 +228,7 @@ export default function SearchResultsPage() {
                     >
                       <ProfileAvatar
                         src={profile.avatar}
-                        name={profile.name}
+                        name={profile.name || profile.username}
                         className="w-10 h-10 rounded-full object-cover border border-fo-border shrink-0"
                       />
                       <div className="min-w-0">

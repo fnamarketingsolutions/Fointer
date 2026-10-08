@@ -240,6 +240,7 @@ export default function PanelShell({
                 <ProfileAvatar
                   src={user?.avatar}
                   alt={user?.name}
+                  name={user?.name || user?.username}
                   className="w-9 h-9 rounded-full object-cover border border-fo-accent/50 shrink-0"
                 />
               </button>
@@ -291,6 +292,7 @@ export default function PanelShell({
                     <ProfileAvatar
                       src={user?.avatar}
                       alt="Avatar"
+                      name={user?.name || user?.username}
                       className="w-9 h-9 rounded-full object-cover border border-fo-accent/50 shrink-0"
                     />
                     <div className="truncate">

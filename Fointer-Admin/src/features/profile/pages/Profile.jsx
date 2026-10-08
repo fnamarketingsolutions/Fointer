@@ -20,17 +20,52 @@ import { useAuth } from "../../../context/AuthContext";
 import { MAX_FILE_SIZE } from "../../../shared/constants/uploads";
 import { useToast } from "../../../shared/components/feedback/ToastContext";
 import ThemeToggle from "../../../shared/components/ThemeToggle";
+import LocationFields from "../../../shared/components/LocationFields";
+import { AGE_RANGES, ageRangeError } from "../../../shared/lib/ageRange";
+import { postalCodeError } from "../../../shared/lib/postalCode";
 
 const TABS = [
   { id: "profile", label: "Profile" },
   { id: "security", label: "Security" },
 ];
 
+const EMPTY_FORM = {
+  name: "",
+  username: "",
+  bio: "",
+  interests: "",
+  city: "",
+  state: "",
+  country: "",
+  zipCode: "",
+  address: "",
+  phone: "",
+  gender: "",
+  ageRange: "",
+};
+
 const fieldClass =
   "w-full bg-fo-bg border border-fo-border rounded-lg px-3 py-2.5 text-sm text-fo-text focus:outline-none focus:border-fo-accent/50 placeholder:text-fo-subtle";
 
 const labelClass =
   "block text-[11px] uppercase tracking-wide text-fo-subtle mb-1.5";
+
+function formFromProfile(p) {
+  return {
+    name: p?.name || "",
+    username: p?.username || "",
+    bio: p?.bio || "",
+    interests: (p?.interests || []).join(", "),
+    city: p?.city || "",
+    state: p?.state || "",
+    country: p?.country || "",
+    zipCode: p?.zipCode || "",
+    address: p?.address || "",
+    phone: p?.phone || "",
+    gender: p?.gender || "",
+    ageRange: p?.ageRange || "",
+  };
+}
 
 export default function Profile() {
   const { refreshUser } = useAuth();
@@ -41,18 +76,7 @@ export default function Profile() {
   const [saving, setSaving] = useState(false);
   const [avatarSaving, setAvatarSaving] = useState(false);
   const [passwordSaving, setPasswordSaving] = useState(false);
-  const [form, setForm] = useState({
-    name: "",
-    username: "",
-    bio: "",
-    interests: "",
-    city: "",
-    state: "",
-    country: "",
-    zipCode: "",
-    phone: "",
-    yearOfBirth: "",
-  });
+  const [form, setForm] = useState(EMPTY_FORM);
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: "",
     newPassword: "",
@@ -72,21 +96,7 @@ export default function Profile() {
       const data = await fetchMyProfile();
       const p = data?.profile;
       setProfile(p || null);
-      setForm({
-        name: p?.name || "",
-        username: p?.username || "",
-        bio: p?.bio || "",
-        interests: (p?.interests || []).join(", "),
-        city: p?.city || "",
-        state: p?.state || "",
-        country: p?.country || "",
-        zipCode: p?.zipCode || "",
-        phone: p?.phone || "",
-        yearOfBirth:
-          p?.yearOfBirth !== null && p?.yearOfBirth !== undefined
-            ? String(p.yearOfBirth)
-            : "",
-      });
+      setForm(formFromProfile(p));
     } catch (err) {
       showToast(err?.response?.data?.message || "Failed to load profile.");
     } finally {
@@ -108,9 +118,9 @@ export default function Profile() {
   );
 
   const addInterest = () => {
-    const value = interestInput.trim();
+    const value = interestInput.trim().replace(/^#/, "");
     if (!value) return;
-    if (interestList.includes(value)) {
+    if (interestList.some((tag) => tag.toLowerCase() === value.toLowerCase())) {
       setInterestInput("");
       return;
     }
@@ -120,12 +130,29 @@ export default function Profile() {
   };
 
   const removeInterest = (tag) => {
-    const next = interestList.filter((t) => t !== tag);
+    const next = interestList.filter(
+      (t) => t.toLowerCase() !== String(tag || "").toLowerCase()
+    );
     setForm((p) => ({ ...p, interests: next.join(", ") }));
   };
 
   const handleSaveProfile = async (e) => {
     e.preventDefault();
+
+    if (!form.gender) {
+      showToast("Gender is required.");
+      return;
+    }
+    const ageError = ageRangeError(form.ageRange);
+    if (ageError) {
+      showToast(ageError);
+      return;
+    }
+    const postalError = postalCodeError(form.zipCode);
+    if (postalError) {
+      showToast(postalError);
+      return;
+    }
 
     const next = {
       name: form.name.trim(),
@@ -136,8 +163,10 @@ export default function Profile() {
       state: form.state.trim(),
       country: form.country.trim(),
       zipCode: form.zipCode.trim(),
+      address: form.address.trim(),
       phone: form.phone.trim(),
-      yearOfBirth: form.yearOfBirth.trim(),
+      gender: form.gender,
+      ageRange: form.ageRange,
     };
     const prevInterests = profile?.interests || [];
     const unchanged =
@@ -148,11 +177,10 @@ export default function Profile() {
       next.state === (profile?.state || "") &&
       next.country === (profile?.country || "") &&
       next.zipCode === (profile?.zipCode || "") &&
+      next.address === (profile?.address || "") &&
       next.phone === (profile?.phone || "") &&
-      next.yearOfBirth ===
-        (profile?.yearOfBirth !== null && profile?.yearOfBirth !== undefined
-          ? String(profile.yearOfBirth)
-          : "") &&
+      next.gender === (profile?.gender || "") &&
+      next.ageRange === (profile?.ageRange || "") &&
       next.interests.length === prevInterests.length &&
       next.interests.every((t, i) => t === prevInterests[i]);
 
@@ -175,23 +203,7 @@ export default function Profile() {
         setProfile((prev) =>
           prev ? { ...prev, ...updated, username: cleanedUsername } : updated
         );
-        setForm({
-          name: updated.name ?? form.name,
-          username: cleanedUsername,
-          bio: updated.bio ?? form.bio,
-          interests: Array.isArray(updated.interests)
-            ? updated.interests.join(", ")
-            : form.interests,
-          city: updated.city ?? form.city,
-          state: updated.state ?? form.state,
-          country: updated.country ?? form.country,
-          zipCode: updated.zipCode ?? form.zipCode,
-          phone: updated.phone ?? form.phone,
-          yearOfBirth:
-            updated.yearOfBirth !== null && updated.yearOfBirth !== undefined
-              ? String(updated.yearOfBirth)
-              : "",
-        });
+        setForm(formFromProfile({ ...updated, username: cleanedUsername }));
       }
 
       if (refreshUser) await refreshUser();
@@ -427,8 +439,11 @@ export default function Profile() {
               </h3>
 
               <div>
-                <label className={labelClass}>Phone number</label>
+                <label htmlFor="admin-profile-phone" className={labelClass}>
+                  Phone number
+                </label>
                 <input
+                  id="admin-profile-phone"
                   type="tel"
                   value={form.phone}
                   onChange={(e) =>
@@ -441,64 +456,64 @@ export default function Profile() {
 
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>
-                  <label className={labelClass}>City</label>
-                  <input
-                    value={form.city}
+                  <label htmlFor="admin-profile-gender" className={labelClass}>
+                    Gender
+                  </label>
+                  <select
+                    id="admin-profile-gender"
+                    value={form.gender}
                     onChange={(e) =>
-                      setForm((p) => ({ ...p, city: e.target.value }))
+                      setForm((p) => ({ ...p, gender: e.target.value }))
                     }
+                    required
                     className={fieldClass}
-                  />
+                  >
+                    <option value="">Select gender</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                  </select>
                 </div>
                 <div>
-                  <label className={labelClass}>State</label>
-                  <input
-                    value={form.state}
+                  <label
+                    htmlFor="admin-profile-age-range"
+                    className={labelClass}
+                  >
+                    Age range
+                  </label>
+                  <select
+                    id="admin-profile-age-range"
+                    value={form.ageRange}
                     onChange={(e) =>
-                      setForm((p) => ({ ...p, state: e.target.value }))
+                      setForm((p) => ({ ...p, ageRange: e.target.value }))
                     }
+                    required
                     className={fieldClass}
-                  />
+                  >
+                    <option value="">Select age range</option>
+                    {AGE_RANGES.map((range) => (
+                      <option key={range} value={range}>
+                        {range}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div>
-                  <label className={labelClass}>Country</label>
-                  <input
-                    value={form.country}
-                    onChange={(e) =>
-                      setForm((p) => ({ ...p, country: e.target.value }))
-                    }
-                    className={fieldClass}
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Zip code</label>
-                  <input
-                    value={form.zipCode}
-                    onChange={(e) =>
-                      setForm((p) => ({ ...p, zipCode: e.target.value }))
-                    }
-                    className={fieldClass}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className={labelClass}>Year of birth</label>
-                <input
-                  type="number"
-                  min={1900}
-                  max={new Date().getFullYear()}
-                  value={form.yearOfBirth}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, yearOfBirth: e.target.value }))
-                  }
-                  placeholder="e.g. 1990"
-                  className={fieldClass}
-                />
-              </div>
+              <LocationFields
+                value={{
+                  zipCode: form.zipCode,
+                  state: form.state,
+                  city: form.city,
+                  country: form.country,
+                  address: form.address,
+                }}
+                onChange={(location) =>
+                  setForm((current) => ({ ...current, ...location }))
+                }
+                inputClass={fieldClass}
+                labelClass={labelClass}
+              />
             </div>
 
             <div>

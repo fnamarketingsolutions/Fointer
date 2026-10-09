@@ -113,7 +113,7 @@ export default function DashboardFeed() {
   const { postSlug } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const { showToast } = useToast();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading: authLoading } = useAuth();
   const { id: openPostId, resolving: resolvingPost, notFound: postNotFound } =
     useEntityId("post", postSlug);
   const isGuest = !isAuthenticated;
@@ -326,6 +326,7 @@ export default function DashboardFeed() {
       setOtherCommunitiesLoading(false);
       return undefined;
     }
+    if (authLoading) return undefined;
     let cancelled = false;
     (async () => {
       setOtherCommunitiesLoading(true);
@@ -346,7 +347,7 @@ export default function DashboardFeed() {
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated, viewingPost]);
+  }, [authLoading, isAuthenticated, viewingPost]);
 
   useEffect(() => {
     if (viewingPost) {

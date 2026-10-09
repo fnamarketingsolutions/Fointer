@@ -189,7 +189,28 @@ export const purgeUserAccount = async (userId) => {
   await Listing.updateMany({ removedBy: uid }, { $set: { removedBy: null } });
 
   // --- Communities (membership only; ownership blocked earlier) ---
+  const activeMemberships = await CommunityMember.find({
+    user: uid,
+    status: "active",
+  })
+    .select("community")
+    .lean();
   await CommunityMember.deleteMany({ user: uid });
+  if (activeMemberships.length) {
+    await Community.bulkWrite(
+      activeMemberships.map((row) => ({
+        updateOne: {
+          filter: { _id: row.community },
+          update: { $inc: { memberCount: -1 } },
+        },
+      })),
+      { ordered: false }
+    );
+    await Community.updateMany(
+      { _id: { $in: activeMemberships.map((row) => row.community) }, memberCount: { $lt: 0 } },
+      { $set: { memberCount: 0 } }
+    );
+  }
   await CommunityMember.updateMany(
     { bannedBy: uid },
     { $set: { bannedBy: null } }

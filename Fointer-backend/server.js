@@ -149,8 +149,8 @@ app.use((err, _req, res, _next) => {
   });
 });
 
-connectDB();
-
-server.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+connectDB().then(() => {
+  server.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+  });
 });

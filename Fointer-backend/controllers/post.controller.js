@@ -2,8 +2,10 @@ import Post from "../models/post.js";
 import Comment from "../models/comment.js";
 import Reaction from "../models/reaction.js";
 import Reshare from "../models/reshare.js";
+import Bookmark from "../models/bookmark.js";
 import Community from "../models/community.js";
 import CommunityMember from "../models/communityMember.js";
+import User from "../models/user.js";
 import {
   canEngageInCommunity,
   canManagePostsInCommunity,
@@ -629,10 +631,9 @@ export const listTrendingTopics = async (req, res) => {
       .toLowerCase()
       .replace(/[^a-z0-9_]/g, "")
       .slice(0, 50);
-    const openFeedIds = await getOpenFeedCommunityIds();
     const posts = await Post.find({
-      community: { $in: [null, ...openFeedIds] },
-      isArchived: { $ne: true },
+      openFeed: true,
+      isArchived: false,
     })
       .select("title text")
       .sort({ createdAt: -1 })
@@ -678,27 +679,13 @@ export const listPublicPosts = async (req, res) => {
       maxLimit: 100,
     });
 
-    const [channelCommunityIds, openFeedIds, access] = await Promise.all([
-      channel
-        ? getCommunityIdsByChannel(channel, { openFeedOnly: true })
-        : Promise.resolve(null),
-      channel ? Promise.resolve(null) : getOpenFeedCommunityIds(),
-      req.user
-        ? getViewerCommunityAccess(req.user)
-        : Promise.resolve({
-            joinedIdSet: new Set(),
-            manageableIdSet: new Set(),
-          }),
-    ]);
+    const channelCommunityIds = channel
+      ? await getCommunityIdsByChannel(channel, { openFeedOnly: true })
+      : null;
 
-    const visibility = {
-      $and: [
-        channel
-          ? { community: { $in: channelCommunityIds } }
-          : { community: { $in: [null, ...openFeedIds] } },
-        { isArchived: { $ne: true } },
-      ],
-    };
+    const visibility = channel
+      ? { community: { $in: channelCommunityIds }, isArchived: false }
+      : { openFeed: true, isArchived: false };
 
     let filter = visibility;
     if (q && String(q).trim()) {
@@ -717,27 +704,150 @@ export const listPublicPosts = async (req, res) => {
     }
 
     const sort = postListSort(sortBy);
+    const viewerId = req.user?._id || null;
+    const pageLimit = enabled ? limit + 1 : limit;
 
-    let query = Post.find(filter)
-      .populate("author", "username name avatar role")
-      .populate("community", "name coverImage shortCode type channel")
-      .sort(sort)
-      .lean();
+    // One round trip. The API server and database are in different regions,
+    // so separate populate/engagement queries were stacking into multi-second responses.
+    const pipeline = [
+      { $match: filter },
+      { $sort: sort },
+    ];
+    if (enabled && skip) pipeline.push({ $skip: skip });
+    pipeline.push({ $limit: pageLimit });
+    pipeline.push(
+      {
+        $lookup: {
+          from: User.collection.name,
+          localField: "author",
+          foreignField: "_id",
+          pipeline: [
+            { $project: { username: 1, name: 1, avatar: 1, role: 1 } },
+          ],
+          as: "author",
+        },
+      },
+      {
+        $lookup: {
+          from: Community.collection.name,
+          localField: "community",
+          foreignField: "_id",
+          pipeline: [
+            {
+              $project: {
+                name: 1,
+                coverImage: 1,
+                shortCode: 1,
+                type: 1,
+                channel: 1,
+              },
+            },
+          ],
+          as: "community",
+        },
+      },
+      {
+        $set: {
+          author: { $ifNull: [{ $arrayElemAt: ["$author", 0] }, null] },
+          community: { $ifNull: [{ $arrayElemAt: ["$community", 0] }, null] },
+        },
+      }
+    );
 
-    if (enabled) {
-      query = query.skip(skip).limit(limit + 1);
+    if (viewerId) {
+      pipeline.push(
+        {
+          $lookup: {
+            from: Reaction.collection.name,
+            let: { postId: "$_id" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ["$targetId", "$$postId"] },
+                      { $eq: ["$targetType", "post"] },
+                      { $eq: ["$user", viewerId] },
+                    ],
+                  },
+                },
+              },
+              { $limit: 1 },
+              { $project: { _id: 1 } },
+            ],
+            as: "myLike",
+          },
+        },
+        {
+          $lookup: {
+            from: Reshare.collection.name,
+            let: { postId: "$_id" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ["$post", "$$postId"] },
+                      { $eq: ["$user", viewerId] },
+                    ],
+                  },
+                },
+              },
+              { $limit: 1 },
+              { $project: { _id: 1 } },
+            ],
+            as: "myReshare",
+          },
+        },
+        {
+          $lookup: {
+            from: Bookmark.collection.name,
+            let: { postId: "$_id" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ["$targetId", "$$postId"] },
+                      { $eq: ["$targetType", "post"] },
+                      { $eq: ["$user", viewerId] },
+                    ],
+                  },
+                },
+              },
+              { $limit: 1 },
+              { $project: { _id: 1 } },
+            ],
+            as: "mySave",
+          },
+        }
+      );
     }
 
-    const found = await query;
+    const [found, access, editWindowMinutes] = await Promise.all([
+      Post.aggregate(pipeline),
+      req.user
+        ? getViewerCommunityAccess(req.user)
+        : Promise.resolve({
+            joinedIdSet: new Set(),
+            manageableIdSet: new Set(),
+          }),
+      req.user ? getEditWindowMinutes() : Promise.resolve(null),
+    ]);
+
     const { rows: posts, hasMore } = enabled
       ? takePage(found, limit)
       : { rows: found, hasMore: false };
 
-    const postIds = posts.map((p) => p._id);
-    const [{ liked, reshared, saved }, editWindowMinutes] = await Promise.all([
-      getViewerEngagement(postIds, req.user?._id),
-      req.user ? getEditWindowMinutes() : Promise.resolve(null),
-    ]);
+    const liked = {};
+    const reshared = {};
+    const saved = {};
+    for (const post of posts) {
+      const id = String(post._id);
+      liked[id] = Boolean(post.myLike?.length);
+      reshared[id] = Boolean(post.myReshare?.length);
+      saved[id] = Boolean(post.mySave?.length);
+    }
 
     const payload = {
       success: true,
@@ -836,6 +946,7 @@ export const createPost = async (req, res) => {
     }
 
     const hasCommunity = Boolean(parsedCommunityId);
+    let openFeed = true;
 
     if (hasCommunity) {
       const community = await Community.findById(parsedCommunityId);
@@ -852,6 +963,7 @@ export const createPost = async (req, res) => {
           message: "You must be an active member to create posts.",
         });
       }
+      openFeed = OPEN_FEED_COMMUNITY_TYPES.includes(community.type);
     }
 
     const cleanTitle = String(title || "").trim();
@@ -883,6 +995,7 @@ export const createPost = async (req, res) => {
       commentCount: 0,
       reshareCount: 0,
       media: acceptedMedia.items,
+      openFeed,
     };
     if (hasCommunity) {
       postData.community = parsedCommunityId;

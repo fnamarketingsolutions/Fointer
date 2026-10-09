@@ -23,7 +23,9 @@ import {
   canModerateCommunity,
   canViewCommunity,
   getActorCommunityRole,
+  OPEN_FEED_COMMUNITY_TYPES,
 } from "../utils/communityPermissions.js";
+import { adjustMemberCount } from "../utils/communityCounters.js";
 import { escapeRegex } from "../utils/validate.js";
 import {
   parsePagination,
@@ -284,61 +286,15 @@ const getMemberCounts = async (communityIds) => {
   }, {});
 };
 
-/** Rank matching communities by member count without hydrating every member. */
+/** Rank matching communities by the stored member count. */
 const findCommunitiesByMemberCount = async (filter, { skip = 0, limit }) => {
-  const pipeline = [
-    { $match: filter },
-    {
-      $lookup: {
-        from: CommunityMember.collection.name,
-        localField: "_id",
-        foreignField: "community",
-        pipeline: [
-          { $match: { status: "active" } },
-          { $count: "n" },
-        ],
-        as: "_memberCounts",
-      },
-    },
-    {
-      $addFields: {
-        memberCount: {
-          $ifNull: [{ $arrayElemAt: ["$_memberCounts.n", 0] }, 0],
-        },
-      },
-    },
-    { $project: { _memberCounts: 0 } },
-    { $sort: { memberCount: -1, createdAt: -1 } },
-    { $skip: skip },
-    { $limit: limit },
-    {
-      $lookup: {
-        from: User.collection.name,
-        localField: "owner",
-        foreignField: "_id",
-        pipeline: [
-          {
-            $project: {
-              _id: 1,
-              username: 1,
-              name: 1,
-              email: 1,
-              avatar: 1,
-            },
-          },
-        ],
-        as: "_owner",
-      },
-    },
-    {
-      $addFields: {
-        owner: { $arrayElemAt: ["$_owner", 0] },
-      },
-    },
-    { $project: { _owner: 0 } },
-  ];
+  const communities = await Community.find(filter)
+    .sort({ memberCount: -1, createdAt: -1 })
+    .skip(skip)
+    .limit(limit)
+    .populate(COMMUNITY_POPULATE_STDLIB)
+    .lean();
 
-  const communities = await Community.aggregate(pipeline);
   const countMap = Object.fromEntries(
     communities.map((community) => [
       String(community._id),
@@ -453,6 +409,7 @@ export const createCommunity = async (req, res) => {
       channel: resolved.channelName,
       subchannels: resolved.subchannelNames,
       owner: req.user._id,
+      memberCount: 1,
     });
 
     await CommunityMember.create({
@@ -716,6 +673,7 @@ export const updateCommunity = async (req, res) => {
         await destroyManyFromS3(removed);
       }
     }
+    const previousType = community.type;
     if (type !== undefined) {
       if (!COMMUNITY_TYPES.includes(type)) {
         return res.status(400).json({
@@ -760,6 +718,17 @@ export const updateCommunity = async (req, res) => {
     }
 
     await community.save();
+
+    if (type !== undefined && type !== previousType) {
+      await Post.updateMany(
+        { community: community._id },
+        {
+          $set: {
+            openFeed: OPEN_FEED_COMMUNITY_TYPES.includes(community.type),
+          },
+        }
+      );
+    }
 
     // Populate channel, subchannels, and owner after saving updates
     const updatedCommunity = await getPopulatedCommunity(community._id);
@@ -1150,15 +1119,17 @@ export const listBrowsableCommunities = async (req, res) => {
     let countMap = {};
 
     if (sortBy === "members") {
-      const ranked = await findCommunitiesByMemberCount(filter, {
+      const rankedQuery = findCommunitiesByMemberCount(filter, {
         skip: enabled ? skip : 0,
         limit,
       });
+      const [ranked, counted] = await Promise.all([
+        rankedQuery,
+        enabled ? Community.countDocuments(filter) : Promise.resolve(null),
+      ]);
       communities = ranked.communities;
       countMap = ranked.countMap;
-      if (enabled) {
-        total = await Community.countDocuments(filter);
-      }
+      total = counted;
     } else {
       const sort = resolveSort(sortBy, COMMUNITY_SORT_MAP, { createdAt: -1 });
 
@@ -1501,14 +1472,13 @@ export const joinPublicCommunity = async (req, res) => {
       role: "member",
       status: "active",
     });
-
-    const countMap = await getMemberCounts([community._id]);
+    await adjustMemberCount(community._id, 1);
 
     return res.status(200).json({
       success: true,
       message: "Joined community successfully.",
       community: formatCommunity(community, {
-        memberCount: countMap[String(community._id)] || 0,
+        memberCount: (community.memberCount || 0) + 1,
       }),
     });
   } catch (error) {
@@ -1551,6 +1521,7 @@ export const leaveCommunity = async (req, res) => {
     }
 
     await CommunityMember.deleteOne({ _id: membership._id });
+    await adjustMemberCount(community._id, -1);
 
     // Drop any leftover pending invites / join requests for a clean rejoin path
     await CommunityInvite.deleteMany({
@@ -1564,13 +1535,11 @@ export const leaveCommunity = async (req, res) => {
       status: "pending",
     });
 
-    const countMap = await getMemberCounts([community._id]);
-
     return res.status(200).json({
       success: true,
       message: "Left community.",
       community: formatCommunity(community, {
-        memberCount: countMap[String(community._id)] || 0,
+        memberCount: Math.max(0, (community.memberCount || 1) - 1),
       }),
     });
   } catch (error) {
@@ -1783,6 +1752,7 @@ export const acceptCommunityInvite = async (req, res) => {
       community: communityId,
       user: req.user._id,
     }).lean();
+    const becameActive = priorMembership?.status !== "active";
 
     invite.status = "accepted";
     await invite.save();
@@ -1803,6 +1773,7 @@ export const acceptCommunityInvite = async (req, res) => {
       },
       { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
     );
+    if (becameActive) await adjustMemberCount(communityId, 1);
 
     const inviter = invite.inviter;
     const owner =
@@ -1858,6 +1829,7 @@ export const acceptCommunityInvite = async (req, res) => {
           }
         );
       }
+      if (becameActive) await adjustMemberCount(communityId, -1);
 
       return res.status(500).json({
         success: false,

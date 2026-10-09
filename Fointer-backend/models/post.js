@@ -49,6 +49,12 @@ const postSchema = new mongoose.Schema(
       default: false,
       index: true,
     },
+    // True for posts with no community and posts in public communities.
+    // Lets the public feed read an index instead of an $in of every community.
+    openFeed: {
+      type: Boolean,
+      default: false,
+    },
     archivedAt: {
       type: Date,
       default: null,
@@ -84,6 +90,9 @@ postSchema.index({ commentCount: -1, createdAt: -1 });
 postSchema.index({ community: 1, createdAt: -1 });
 postSchema.index({ community: 1, likeCount: -1, createdAt: -1 });
 postSchema.index({ community: 1, commentCount: -1, createdAt: -1 });
+postSchema.index({ openFeed: 1, isArchived: 1, createdAt: -1 });
+postSchema.index({ openFeed: 1, isArchived: 1, likeCount: -1, createdAt: -1 });
+postSchema.index({ openFeed: 1, isArchived: 1, commentCount: -1, createdAt: -1 });
 
 withShortCode(postSchema);
 

@@ -6,6 +6,10 @@ import CommunityJoinRequest from "../models/communityJoinRequest.js";
 import Reaction from "../models/reaction.js";
 import Reshare from "../models/reshare.js";
 import Bookmark from "../models/bookmark.js";
+import Listing from "../models/listing.js";
+import SponsoredPlacement from "../models/sponsoredPlacement.js";
+import LiveEvent from "../models/liveEvent.js";
+import CommunityInvite from "../models/communityInvite.js";
 import {
   getEditWindowMinutes,
   getEffectiveMemberRole,
@@ -14,6 +18,7 @@ import {
 const REFRESH_MS = 8_000;
 const POST_LIMIT = 40;
 const COMMUNITY_LIMIT = 24;
+const LISTING_LIMIT = 48;
 
 let snapshot = null;
 let refreshing = null;
@@ -36,7 +41,7 @@ const loadPosts = async () => {
   const found = await Post.aggregate([
     { $match: { openFeed: true, isArchived: false } },
     { $sort: { createdAt: -1 } },
-    { $limit: POST_LIMIT + 1 },
+    { $limit: POST_LIMIT },
     {
       $lookup: {
         from: User.collection.name,
@@ -73,20 +78,16 @@ const loadPosts = async () => {
     },
   ]);
 
-  const hasMore = found.length > POST_LIMIT;
-  return { posts: hasMore ? found.slice(0, POST_LIMIT) : found, hasMore };
+  return { posts: found };
 };
 
 const loadCommunities = async () => {
-  const [communities, communityTotal] = await Promise.all([
-    Community.find({ type: { $in: ["public", "private_request"] } })
-      .sort({ memberCount: -1, createdAt: -1 })
-      .limit(COMMUNITY_LIMIT)
-      .populate({ path: "owner", select: "username name email avatar" })
-      .lean(),
-    Community.countDocuments({ type: { $in: ["public", "private_request"] } }),
-  ]);
-  return { communities, communityTotal };
+  const communities = await Community.find({ type: { $in: ["public", "private_request"] } })
+    .sort({ memberCount: -1, createdAt: -1 })
+    .limit(COMMUNITY_LIMIT)
+    .populate({ path: "owner", select: "username name email avatar" })
+    .lean();
+  return { communities };
 };
 
 const loadViewerMaps = async (postIds) => {
@@ -119,12 +120,17 @@ const loadViewerMaps = async (postIds) => {
     if (!userId) continue;
     let access = accessByUser.get(userId);
     if (!access) {
-      access = { joinedIdSet: new Set(), manageableIdSet: new Set() };
+      access = {
+        joinedIdSet: new Set(),
+        manageableIdSet: new Set(),
+        roleByCommunity: new Map(),
+      };
       accessByUser.set(userId, access);
     }
     const communityId = toId(row.community);
     access.joinedIdSet.add(communityId);
-    const role = getEffectiveMemberRole(row);
+    const role = getEffectiveMemberRole(row) || "member";
+    access.roleByCommunity.set(communityId, role);
     if (role === "owner" || role === "moderator") {
       access.manageableIdSet.add(communityId);
     }
@@ -136,17 +142,162 @@ const loadViewerMaps = async (postIds) => {
   return { likedBy, resharedBy, savedBy, accessByUser, pendingByUser };
 };
 
+const loadListings = async () => {
+  const inactiveSellers = await User.find({ status: { $ne: "active" } })
+    .select("_id")
+    .lean();
+  const inactiveIds = inactiveSellers.map((user) => user._id);
+  const filter = { status: "active" };
+  if (inactiveIds.length) filter.seller = { $nin: inactiveIds };
+
+  const [found, listingTotal] = await Promise.all([
+    Listing.find(filter)
+      .sort({ createdAt: -1 })
+      .limit(LISTING_LIMIT + 1)
+      .populate("seller", "username name avatar city state country status")
+      .populate("community", "name")
+      .lean(),
+    Listing.countDocuments(filter),
+  ]);
+  const listingHasMore = found.length > LISTING_LIMIT;
+  const listings = listingHasMore ? found.slice(0, LISTING_LIMIT) : found;
+  const ids = listings.map((row) => row._id);
+  const now = new Date();
+  const [placements, saves] = ids.length
+    ? await Promise.all([
+        SponsoredPlacement.find({
+          listing: { $in: ids },
+          status: "active",
+          startsAt: { $lte: now },
+          expiresAt: { $gt: now },
+        })
+          .sort({ "placement.top": -1, "placement.priority": -1, expiresAt: 1 })
+          .lean(),
+        Bookmark.find({ targetType: "listing", targetId: { $in: ids } })
+          .select("targetId user")
+          .lean(),
+      ])
+    : [[], []];
+
+  const listingSavedBy = new Map();
+  for (const row of saves) addToSetMap(listingSavedBy, row.targetId, row.user);
+
+  const listingPlacements = placements.map((placement) => ({
+    listingId: toId(placement.listing),
+    communityId: placement.community ? toId(placement.community) : null,
+    geo: placement.geo || null,
+    sponsorship: {
+      top: Boolean(placement.placement?.top),
+      section: Boolean(placement.placement?.section),
+      badge: Boolean(placement.placement?.badge),
+      priority: Number(placement.placement?.priority) || 0,
+      communityId: placement.community ? toId(placement.community) : null,
+      expiresAt: placement.expiresAt,
+    },
+  }));
+
+  return {
+    listings,
+    listingHasMore,
+    listingTotal,
+    listingSavedBy,
+    listingPlacements,
+  };
+};
+
+const loadAllCommunities = async () => {
+  const allCommunities = await Community.find({})
+    .populate({ path: "owner", select: "username name email avatar" })
+    .lean();
+  return { allCommunities };
+};
+
+const loadLiveEvents = async () => {
+  const liveEvents = await LiveEvent.find({ status: "live" })
+    .sort({ createdAt: -1 })
+    .limit(100)
+    .populate("community", "name shortCode coverImage owner type")
+    .populate("host", "username name avatar")
+    .lean();
+  return { liveEvents };
+};
+
+const loadInvites = async () => {
+  const invites = await CommunityInvite.find({})
+    .populate("inviter", "username name email avatar")
+    .populate("invitee", "username name email avatar")
+    .populate({
+      path: "community",
+      populate: { path: "owner", select: "username name email avatar" },
+    })
+    .sort({ createdAt: -1 })
+    .limit(200)
+    .lean();
+  return { invites };
+};
+
+const loadSponsoredPlacements = async () => {
+  const now = new Date();
+  const placements = await SponsoredPlacement.find({
+    status: "active",
+    startsAt: { $lte: now },
+    expiresAt: { $gt: now },
+  })
+    .populate({
+      path: "listing",
+      populate: [
+        { path: "seller", select: "username name avatar city state country status" },
+        { path: "community", select: "name" },
+      ],
+    })
+    .sort({ "placement.top": -1, "placement.priority": -1, expiresAt: 1 })
+    .lean();
+  const sponsoredPlacements = placements.filter(
+    (placement) =>
+      placement.listing &&
+      placement.listing.status === "active" &&
+      placement.listing.seller?.status === "active"
+  );
+  const ids = sponsoredPlacements.map((placement) => placement.listing._id);
+  const saves = ids.length
+    ? await Bookmark.find({ targetType: "listing", targetId: { $in: ids } })
+        .select("targetId user")
+        .lean()
+    : [];
+  return { sponsoredPlacements, sponsoredSaves: saves };
+};
+
 const refreshOnce = async () => {
-  const [{ posts, hasMore }, communitySnap] = await Promise.all([
+  const [
+    { posts },
+    communitySnap,
+    listingSnap,
+    allCommunitySnap,
+    liveSnap,
+    inviteSnap,
+    sponsoredSnap,
+  ] = await Promise.all([
     loadPosts(),
     loadCommunities(),
+    loadListings(),
+    loadAllCommunities(),
+    loadLiveEvents(),
+    loadInvites(),
+    loadSponsoredPlacements(),
     getEditWindowMinutes(),
   ]);
   const viewerMaps = await loadViewerMaps(posts.map((post) => post._id));
+  for (const row of sponsoredSnap.sponsoredSaves) {
+    addToSetMap(listingSnap.listingSavedBy, row.targetId, row.user);
+  }
   snapshot = {
     posts,
-    hasMore,
     ...communitySnap,
+    ...listingSnap,
+    allCommunities: allCommunitySnap.allCommunities,
+    liveEvents: liveSnap.liveEvents,
+    invites: inviteSnap.invites,
+    sponsoredPlacements: sponsoredSnap.sponsoredPlacements,
     ...viewerMaps,
     at: Date.now(),
   };

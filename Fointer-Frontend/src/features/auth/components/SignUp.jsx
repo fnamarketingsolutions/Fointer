@@ -122,7 +122,6 @@ export default function SignUp() {
       if (prev.includes(value) || prev.length >= 20) return prev;
       return [...prev, value];
     });
-    setInterestInput('');
   };
 
   const removeInterest = (tag) => {

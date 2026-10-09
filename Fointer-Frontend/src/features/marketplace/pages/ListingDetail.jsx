@@ -162,15 +162,16 @@ export default function ListingDetail() {
 
   const openEdit = () => {
     if (!listing) return;
-    if (!listing.canEdit) {
-      if (listing.isOwner || listing.isLocked) {
-        setLockModal({
-          editWindowMinutes: listing.editWindowMinutes ?? 60,
-        });
-      }
+    // Owners can still open edit after the window to change status.
+    if (listing.canEdit || listing.canChangeStatus) {
+      setEditOpen(true);
       return;
     }
-    setEditOpen(true);
+    if (listing.isOwner || listing.isLocked) {
+      setLockModal({
+        editWindowMinutes: listing.editWindowMinutes ?? 60,
+      });
+    }
   };
 
   const handleEdit = async (payload) => {
@@ -448,7 +449,7 @@ export default function ListingDetail() {
                   </>
                 ) : null}
 
-                {listing.canEdit || (listing.isOwner && listing.isLocked) ? (
+                {listing.canEdit || listing.canChangeStatus ? (
                   <button
                     type="button"
                     onClick={openEdit}

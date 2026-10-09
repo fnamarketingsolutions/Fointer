@@ -1,11 +1,10 @@
-import "dotenv/config";
+import "./config/loadEnv.js";
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import dns from "dns";
 import http from "http";
 import { Server } from "socket.io";
-dns.setServers(["8.8.8.8", "8.8.4.4"]);
 import cookieParser from "cookie-parser";
 import connectDB from "./config/db.js";
 import authRoute from "./routes/authRoute.js";
@@ -38,6 +37,8 @@ import { initDirectMessageSocket } from "./sockets/directMessageSocket.js";
 import { safeErrorMessage } from "./utils/safeError.js";
 import { getAllowedOrigins } from "./utils/allowedOrigins.js";
 import { csrfProtect } from "./middleware/csrf.middleware.js";
+
+dns.setServers(["8.8.8.8", "8.8.4.4"]);
 
 const app = express();
 const server = http.createServer(app);
@@ -148,8 +149,8 @@ app.use((err, _req, res, _next) => {
   });
 });
 
-connectDB();
-
-server.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+connectDB().then(() => {
+  server.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+  });
 });

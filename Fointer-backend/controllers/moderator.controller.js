@@ -18,6 +18,7 @@ import {
 import { sendServerError } from "../utils/safeError.js";
 import { notify } from "../utils/notify.js";
 import { parseObjectIdInput } from "../utils/shortCode.js";
+import { adjustMemberCount } from "../utils/communityCounters.js";
 
 const formatJoinRequest = (request) => {
   const user = request.user;
@@ -343,6 +344,7 @@ export const removeMemberRole = async (req, res) => {
     const previousRole = membership.role;
     if (removeEntirely) {
       await membership.deleteOne();
+      await adjustMemberCount(community._id, -1);
       await notify({
         io: req.app.get("io"),
         recipientId: targetUserId,
@@ -449,6 +451,7 @@ export const banMember = async (req, res) => {
     membership.bannedAt = new Date();
     membership.bannedBy = req.user._id;
     await membership.save();
+    await adjustMemberCount(community._id, -1);
 
     await notify({
       io: req.app.get("io"),
@@ -510,6 +513,7 @@ export const unbanMember = async (req, res) => {
     membership.bannedAt = null;
     membership.bannedBy = null;
     await membership.save();
+    await adjustMemberCount(community._id, 1);
 
     await notify({
       io: req.app.get("io"),
@@ -585,6 +589,7 @@ export const approveJoinRequest = async (req, res) => {
       community: community._id,
       user: userId,
     }).lean();
+    const becameActive = priorMembership?.status !== "active";
 
     joinRequest.status = "approved";
     await joinRequest.save();
@@ -602,6 +607,7 @@ export const approveJoinRequest = async (req, res) => {
       },
       { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
     );
+    if (becameActive) await adjustMemberCount(community._id, 1);
 
     const requester = joinRequest.user;
     const requesterEmail =
@@ -640,6 +646,7 @@ export const approveJoinRequest = async (req, res) => {
           }
         );
       }
+      if (becameActive) await adjustMemberCount(community._id, -1);
 
       return res.status(500).json({
         success: false,

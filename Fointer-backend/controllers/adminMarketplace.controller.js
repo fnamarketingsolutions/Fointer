@@ -18,8 +18,8 @@ import { sendServerError } from "../utils/safeError.js";
 import { respondIfBanned } from "../utils/bannedKeywords.js";
 import {
   acceptSignedMediaList,
-  destroyManyFromCloudinary,
-} from "../utils/cloudinary.js";
+  destroyManyFromS3,
+} from "../utils/s3.js";
 
 /**
  * Soft-hide seller's public listings on account ban.
@@ -266,7 +266,7 @@ export const updateAdminListing = async (req, res) => {
         .filter((url) => url && !nextUrls.has(url));
       listing.media = acceptedMedia.items;
       if (removed.length) {
-        await destroyManyFromCloudinary(removed);
+        await destroyManyFromS3(removed);
       }
     }
 

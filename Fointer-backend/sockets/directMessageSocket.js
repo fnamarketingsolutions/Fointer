@@ -6,7 +6,7 @@ import {
 import { isMessagingBlocked } from "../controllers/block.controller.js";
 import { authenticateSocket } from "./socketAuth.js";
 import { assertNoBannedKeywords } from "../utils/bannedKeywords.js";
-import { acceptSignedMediaList } from "../utils/cloudinary.js";
+import { acceptSignedMediaList } from "../utils/s3.js";
 import { notify, personName, userNotificationRoom } from "../utils/notify.js";
 import {
   MAX_DM_CALLERS,

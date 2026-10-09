@@ -37,6 +37,9 @@ export default function ListingFormModal({
 }) {
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState("");
+  const contentLocked = Boolean(
+    initial && initial.isLocked && !initial.canEdit
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -74,6 +77,10 @@ export default function ListingFormModal({
       return;
     }
     setError("");
+    if (contentLocked) {
+      await onSubmit({ status: form.status });
+      return;
+    }
     await onSubmit({
       ...form,
       title: form.title.trim(),
@@ -103,6 +110,13 @@ export default function ListingFormModal({
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          {contentLocked ? (
+            <p className="text-xs text-amber-600 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+              Edit window expired — listing details are locked. You can still
+              change the status.
+            </p>
+          ) : null}
+
           <div>
             <label className="block text-[10px] uppercase tracking-wider text-fo-subtle mb-1">
               Title *
@@ -110,9 +124,10 @@ export default function ListingFormModal({
             <input
               value={form.title}
               onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-              className="w-full rounded-lg border border-fo-border bg-fo-bg px-3 py-2 text-sm text-fo-text"
+              className="w-full rounded-lg border border-fo-border bg-fo-bg px-3 py-2 text-sm text-fo-text disabled:opacity-60"
               placeholder="What are you selling?"
               maxLength={200}
+              disabled={contentLocked}
             />
           </div>
 
@@ -126,8 +141,9 @@ export default function ListingFormModal({
                 setForm((f) => ({ ...f, description: e.target.value }))
               }
               rows={4}
-              className="w-full rounded-lg border border-fo-border bg-fo-bg px-3 py-2 text-sm text-fo-text resize-y"
+              className="w-full rounded-lg border border-fo-border bg-fo-bg px-3 py-2 text-sm text-fo-text resize-y disabled:opacity-60"
               placeholder="Describe your item, pickup options, etc."
+              disabled={contentLocked}
             />
           </div>
 
@@ -142,8 +158,9 @@ export default function ListingFormModal({
                 step="0.01"
                 value={form.price}
                 onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))}
-                className="w-full rounded-lg border border-fo-border bg-fo-bg px-3 py-2 text-sm text-fo-text"
+                className="w-full rounded-lg border border-fo-border bg-fo-bg px-3 py-2 text-sm text-fo-text disabled:opacity-60"
                 placeholder="0.00"
+                disabled={contentLocked}
               />
             </div>
             <div>
@@ -155,8 +172,9 @@ export default function ListingFormModal({
                 onChange={(e) =>
                   setForm((f) => ({ ...f, currency: e.target.value.toUpperCase() }))
                 }
-                className="w-full rounded-lg border border-fo-border bg-fo-bg px-3 py-2 text-sm text-fo-text"
+                className="w-full rounded-lg border border-fo-border bg-fo-bg px-3 py-2 text-sm text-fo-text disabled:opacity-60"
                 maxLength={3}
+                disabled={contentLocked}
               />
             </div>
           </div>
@@ -171,7 +189,8 @@ export default function ListingFormModal({
                 onChange={(e) =>
                   setForm((f) => ({ ...f, category: e.target.value }))
                 }
-                className="w-full rounded-lg border border-fo-border bg-fo-bg px-3 py-2 text-sm text-fo-text"
+                className="w-full rounded-lg border border-fo-border bg-fo-bg px-3 py-2 text-sm text-fo-text disabled:opacity-60"
+                disabled={contentLocked}
               >
                 {LISTING_CATEGORIES.map((c) => (
                   <option key={c.value} value={c.value}>
@@ -189,7 +208,8 @@ export default function ListingFormModal({
                 onChange={(e) =>
                   setForm((f) => ({ ...f, condition: e.target.value }))
                 }
-                className="w-full rounded-lg border border-fo-border bg-fo-bg px-3 py-2 text-sm text-fo-text"
+                className="w-full rounded-lg border border-fo-border bg-fo-bg px-3 py-2 text-sm text-fo-text disabled:opacity-60"
+                disabled={contentLocked}
               >
                 {LISTING_CONDITIONS.map((c) => (
                   <option key={c.value} value={c.value}>
@@ -200,42 +220,47 @@ export default function ListingFormModal({
             </div>
           </div>
 
-          <div className="space-y-2">
-            <p className="text-[10px] uppercase tracking-wider text-fo-subtle">
-              Location
-            </p>
-            <p className="text-[11px] text-fo-subtle -mt-1">
-              Same location picker as Promote — keeps sponsored targeting in sync.
-            </p>
-            <LocationFields
-              value={{
-                country: form.country,
-                state: form.state,
-                city: form.city,
-              }}
-              onChange={(next) =>
-                setForm((current) => ({
-                  ...current,
-                  country: next.country || "",
-                  state: next.state || "",
-                  city: next.city || "",
-                }))
-              }
-              inputClass={fieldClass}
-              labelClass={labelClass}
-              showAddress={false}
-              showPostal={false}
-            />
-          </div>
+          {!contentLocked ? (
+            <div className="space-y-2">
+              <p className="text-[10px] uppercase tracking-wider text-fo-subtle">
+                Location
+              </p>
+              <p className="text-[11px] text-fo-subtle -mt-1">
+                Same location picker as Promote — keeps sponsored targeting in
+                sync.
+              </p>
+              <LocationFields
+                value={{
+                  country: form.country,
+                  state: form.state,
+                  city: form.city,
+                }}
+                onChange={(next) =>
+                  setForm((current) => ({
+                    ...current,
+                    country: next.country || "",
+                    state: next.state || "",
+                    city: next.city || "",
+                  }))
+                }
+                inputClass={fieldClass}
+                labelClass={labelClass}
+                showAddress={false}
+                showPostal={false}
+              />
+            </div>
+          ) : null}
 
-          <MediaPicker
-            media={form.media}
-            onChange={(media) => setForm((f) => ({ ...f, media }))}
-            onError={setError}
-            accept="image/*"
-            label="Photos"
-            max={8}
-          />
+          {!contentLocked ? (
+            <MediaPicker
+              media={form.media}
+              onChange={(media) => setForm((f) => ({ ...f, media }))}
+              onError={setError}
+              accept="image/*"
+              label="Photos"
+              max={8}
+            />
+          ) : null}
 
           {initial ? (
             <div>

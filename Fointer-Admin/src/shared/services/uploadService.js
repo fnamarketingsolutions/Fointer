@@ -1,10 +1,7 @@
 import api from './http/client';
 
 const MAX_BYTES = 25 * 1024 * 1024;
-const CHUNK_BYTES = 6_000_000;
 const VIDEO_NAME = /\.(mp4|webm|mov|m4v|mkv)$/i;
-
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const uploadError = (message) => {
   const error = new Error(message);
@@ -19,70 +16,30 @@ const resourceTypeFor = (file) => {
   return 'image';
 };
 
-const buildForm = (filePart, fileName, signed) => {
-  const form = new FormData();
-  form.append('file', filePart, fileName);
-  form.append('api_key', signed.apiKey);
-  form.append('timestamp', String(signed.timestamp));
-  form.append('signature', signed.signature);
-  form.append('folder', signed.folder);
-  form.append('public_id', signed.assetId);
-  return form;
+const contentTypeFor = (file, resourceType) => {
+  const mime = String(file?.type || '').trim().toLowerCase();
+  if (mime) return mime;
+  if (resourceType === 'video') return 'video/mp4';
+  return 'image/jpeg';
 };
 
-const postForm = async (url, form, headers) => {
-  const response = await fetch(url, { method: 'POST', body: form, headers });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok || body?.error) {
-    throw uploadError('Upload failed. Please try again.');
-  }
-  return body;
-};
-
-const uploadToCloudinary = async (file, signed) => {
-  const cloudName = String(signed?.cloudName || '');
-  if (!/^[a-zA-Z0-9_-]+$/.test(cloudName)) {
+const uploadToS3 = async (file, signed) => {
+  const uploadUrl = String(signed?.uploadUrl || '');
+  if (!/^https:\/\//i.test(uploadUrl)) {
     throw uploadError('Upload failed. Please try again.');
   }
 
-  const resourceType = signed.resourceType === 'video' ? 'video' : 'image';
-  const url = `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`;
-  const fileName = file.name || (resourceType === 'video' ? 'video' : 'image');
+  const response = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': signed.contentType || file.type || 'application/octet-stream',
+    },
+    body: file,
+  });
 
-  if (file.size <= CHUNK_BYTES) {
-    return postForm(url, buildForm(file, fileName, signed));
+  if (!response.ok) {
+    throw uploadError('Upload failed. Please try again.');
   }
-
-  const uploadId =
-    typeof crypto.randomUUID === 'function'
-      ? crypto.randomUUID()
-      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-
-  let start = 0;
-  let result = null;
-  while (start < file.size) {
-    const end = Math.min(start + CHUNK_BYTES, file.size);
-    const headers = {
-      'X-Unique-Upload-Id': uploadId,
-      'Content-Range': `bytes ${start}-${end - 1}/${file.size}`,
-    };
-    const chunk = file.slice(start, end);
-    let delivered = false;
-    let lastError = null;
-    for (let attempt = 0; attempt < 3 && !delivered; attempt += 1) {
-      try {
-        result = await postForm(url, buildForm(chunk, fileName, signed), headers);
-        delivered = true;
-      } catch (error) {
-        lastError = error;
-        await sleep(400 * (attempt + 1));
-      }
-    }
-    if (!delivered) throw lastError || uploadError('Upload failed. Please try again.');
-    start = end;
-  }
-
-  return result;
 };
 
 export const uploadMedia = async (file, folder = 'fointer/posts') => {
@@ -92,18 +49,24 @@ export const uploadMedia = async (file, folder = 'fointer/posts') => {
   }
 
   const resourceType = resourceTypeFor(file);
-  const signedRes = await api.post('/uploads/signature', { folder, resourceType });
+  const contentType = contentTypeFor(file, resourceType);
+  const signedRes = await api.post('/uploads/signature', {
+    folder,
+    resourceType,
+    contentType,
+  });
   const signed = signedRes.data?.upload;
-  if (!signed?.signature || !signed?.assetId || !signed?.proof) {
+  if (!signed?.uploadUrl || !signed?.assetId || !signed?.proof) {
     throw uploadError('Could not start upload.');
   }
 
-  await uploadToCloudinary(file, signed);
+  await uploadToS3(file, signed);
 
   const done = await api.post('/uploads/complete', {
     folder: signed.folder,
     assetId: signed.assetId,
     resourceType: signed.resourceType,
+    contentType: signed.contentType,
     timestamp: signed.timestamp,
     proof: signed.proof,
   });

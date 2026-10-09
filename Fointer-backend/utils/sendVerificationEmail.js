@@ -1,33 +1,44 @@
-import nodemailer from "nodemailer";
+import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
 import {
   getPublicAdminUrl,
   getPublicFrontendUrl,
 } from "./publicAppUrls.js";
 
-const createTransporter = () => {
-  const host = process.env.SMTP_HOST;
-  const port = Number(process.env.SMTP_PORT || 587);
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
+let sesClient = null;
 
-  if (!host || !user || !pass) {
+const getSesRegion = () =>
+  String(process.env.SES_REGION || process.env.AWS_REGION || "").trim();
+
+const getSesClient = () => {
+  if (sesClient) return sesClient;
+  const region = getSesRegion();
+  const accessKeyId = String(process.env.AWS_ACCESS_KEY_ID || "").trim();
+  const secretAccessKey = String(process.env.AWS_SECRET_ACCESS_KEY || "").trim();
+  if (!region || !accessKeyId || !secretAccessKey) {
     throw new Error(
-      "SMTP is not configured. Set SMTP_HOST, SMTP_PORT, SMTP_USER, and SMTP_PASS."
+      "SES is not configured. Set AWS_REGION (or SES_REGION), AWS_ACCESS_KEY_ID, and AWS_SECRET_ACCESS_KEY."
     );
   }
-
-  return nodemailer.createTransport({
-    host,
-    port,
-    secure: port === 465,
-    auth: {
-      user,
-      pass,
-    },
+  sesClient = new SESClient({
+    region,
+    credentials: { accessKeyId, secretAccessKey },
   });
+  return sesClient;
 };
 
-const getFromAddress = () => process.env.EMAIL_FROM || process.env.SMTP_USER;
+const getFromAddress = () => {
+  const from = String(process.env.EMAIL_FROM || "").trim();
+  if (!from) {
+    throw new Error(
+      "EMAIL_FROM is missing. Set a verified SES sender address (e.g. noreply@fointer.net)."
+    );
+  }
+  return from;
+};
+
+/** Admin inbox for support tickets (falls back to EMAIL_FROM). */
+const getSupportInbox = () =>
+  String(process.env.EMAIL_SUPPORT_TO || process.env.EMAIL_FROM || "").trim();
 
 const escapeHtml = (value) =>
   String(value || "")
@@ -35,6 +46,43 @@ const escapeHtml = (value) =>
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+
+const stripHtml = (html) =>
+  String(html || "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+const sendRawEmail = async ({ to, subject, html }) => {
+  if (!to) {
+    throw new Error("Recipient email is missing.");
+  }
+  const from = getFromAddress();
+  const text = stripHtml(html);
+
+  await getSesClient().send(
+    new SendEmailCommand({
+      Source: from,
+      Destination: {
+        ToAddresses: [String(to).trim()],
+      },
+      Message: {
+        Subject: { Data: subject, Charset: "UTF-8" },
+        Body: {
+          Html: { Data: html, Charset: "UTF-8" },
+          Text: { Data: text || subject, Charset: "UTF-8" },
+        },
+      },
+    })
+  );
+};
 
 const frontendBase = () => getPublicFrontendUrl();
 
@@ -97,18 +145,14 @@ const sendDashboardNotificationEmail = async ({
     throw new Error("Recipient email is missing.");
   }
 
-  const from = getFromAddress();
-  const transporter = createTransporter();
   const safeGreeting = escapeHtml(greetingName) || "there";
   const safeTitle = escapeHtml(title);
-  const safeSubject = subject;
   const safeUrl = escapeHtml(actionUrl || getManageCommunityIncomingUrl());
   const safeCta = escapeHtml(ctaLabel);
 
-  await transporter.sendMail({
-    from,
+  await sendRawEmail({
     to,
-    subject: safeSubject,
+    subject,
     html: `
       <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1f2937;">
         <h2 style="margin-bottom: 16px;">${safeTitle}</h2>
@@ -131,11 +175,7 @@ const sendDashboardNotificationEmail = async ({
 };
 
 const sendVerificationEmail = async ({ to, name, otp }) => {
-  const from = getFromAddress();
-  const transporter = createTransporter();
-
-  await transporter.sendMail({
-    from,
+  await sendRawEmail({
     to,
     subject: "Verify your Fointer account",
     html: `
@@ -311,19 +351,18 @@ const SUPPORT_REQUEST_INTRO =
   "A member is requesting a channel and subchannel. If they need additional channels or subchannels, their details are in the message below. Please review and respond from the admin dashboard.";
 
 export const sendSupportRequestEmail = async ({ userName, description }) => {
-  const to = process.env.EMAIL_FROM || process.env.SMTP_USER;
+  const to = getSupportInbox();
   if (!to) {
-    throw new Error("Support recipient email is missing (EMAIL_FROM / SMTP_USER).");
+    throw new Error(
+      "Support recipient email is missing (EMAIL_SUPPORT_TO / EMAIL_FROM)."
+    );
   }
 
-  const from = getFromAddress();
-  const transporter = createTransporter();
   const safeName = escapeHtml(userName) || "A user";
   const safeDescription = escapeHtml(description).replace(/\n/g, "<br/>");
   const adminUrl = escapeHtml(getSupportAdminUrl());
 
-  await transporter.sendMail({
-    from,
+  await sendRawEmail({
     to,
     subject: "New support request",
     html: `
@@ -357,23 +396,20 @@ export const sendUserSupportRequestEmail = async ({
   categoryName,
   message,
 }) => {
-  const to = process.env.EMAIL_FROM || process.env.SMTP_USER;
+  const to = getSupportInbox();
   if (!to) {
     throw new Error(
-      "Support recipient email is missing (EMAIL_FROM / SMTP_USER)."
+      "Support recipient email is missing (EMAIL_SUPPORT_TO / EMAIL_FROM)."
     );
   }
 
-  const from = getFromAddress();
-  const transporter = createTransporter();
   const adminUrl = escapeHtml(getUserSupportAdminUrl());
   const safeEmail = escapeHtml(email);
   const safePhone = escapeHtml(phone);
   const safeCategory = escapeHtml(categoryName);
   const safeMessage = escapeHtml(message).replace(/\n/g, "<br/>");
 
-  await transporter.sendMail({
-    from,
+  await sendRawEmail({
     to,
     subject: "New user support request",
     html: `

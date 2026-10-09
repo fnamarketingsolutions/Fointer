@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import Banner from "../models/banner.js";
 import { sendServerError } from "../utils/safeError.js";
-import { destroyManyFromCloudinary } from "../utils/cloudinary.js";
+import { destroyManyFromS3 } from "../utils/s3.js";
 
 const sanitizeCtaUrl = (raw) => {
   const value = String(raw || "").trim();
@@ -212,7 +212,7 @@ export const updateAdminBanner = async (req, res) => {
     await banner.save();
 
     if (previousUrl && previousUrl !== banner.imageUrl) {
-      await destroyManyFromCloudinary([previousUrl]);
+      await destroyManyFromS3([previousUrl]);
     }
 
     return res.status(200).json({
@@ -244,7 +244,7 @@ export const deleteAdminBanner = async (req, res) => {
     }
 
     if (banner.imageUrl) {
-      await destroyManyFromCloudinary([banner.imageUrl]);
+      await destroyManyFromS3([banner.imageUrl]);
     }
     await banner.deleteOne();
 

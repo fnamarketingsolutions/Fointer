@@ -26,8 +26,8 @@ import {
 import { isMessagingBlocked } from "./block.controller.js";
 import {
   acceptSignedMediaList,
-  destroyManyFromCloudinary,
-} from "../utils/cloudinary.js";
+  destroyManyFromS3,
+} from "../utils/s3.js";
 import { hasMarketplaceAdminPower } from "../utils/adminAccess.js";
 import { getBookmarkMeta } from "../utils/bookmarkHelpers.js";
 import {
@@ -107,6 +107,7 @@ export const formatListing = (listing, extras = {}) => ({
   }),
   isOwner: extras.isOwner ?? false,
   canEdit: extras.canEdit ?? false,
+  canChangeStatus: extras.canChangeStatus ?? false,
   canDelete: extras.canDelete ?? false,
   isLocked: extras.isLocked ?? false,
   editWindowMinutes: extras.editWindowMinutes ?? null,
@@ -150,16 +151,102 @@ const buildListingFlags = (listing, user, editWindowMinutes = 60) => {
     String(listing.seller?._id || listing.seller) === String(user._id);
   const isAdmin = hasMarketplaceAdminPower(user);
   const within = isWithinWindow(listing.createdAt, editWindowMinutes);
+  const canEdit = isAdmin || (isOwner && within);
   return {
     isOwner,
     isAdmin,
-    canEdit: isAdmin || (isOwner && within),
+    canEdit,
+    // Status (active/sold/draft) stays editable for owners after the content lock.
+    canChangeStatus:
+      isAdmin ||
+      (isOwner &&
+        !listing.removedBy &&
+        listing.status !== "removed" &&
+        listing.status !== "hidden"),
     canDelete: isOwner || isAdmin,
     isLocked: Boolean(isOwner && !isAdmin && !within),
     editWindowMinutes,
     canMarkSold: isOwner && listing.status === "active" && !listing.removedBy,
     includeSellerContact: isOwner || isAdmin,
   };
+};
+
+const mediaFingerprint = (media) =>
+  (Array.isArray(media) ? media : [])
+    .map((item) => {
+      if (typeof item === "string") return item.trim();
+      return String(item?.url || "").trim();
+    })
+    .filter(Boolean)
+    .join("\0");
+
+/** True when the request tries to change listing content (not just status). */
+const listingContentChanged = (listing, body = {}) => {
+  if (
+    body.title !== undefined &&
+    String(body.title || "").trim() !== String(listing.title || "").trim()
+  ) {
+    return true;
+  }
+  if (
+    body.description !== undefined &&
+    String(body.description || "").trim() !==
+      String(listing.description || "").trim()
+  ) {
+    return true;
+  }
+  if (
+    body.price !== undefined &&
+    Number(body.price) !== Number(listing.price)
+  ) {
+    return true;
+  }
+  if (
+    body.currency !== undefined &&
+    String(body.currency || "USD").trim().toUpperCase().slice(0, 3) !==
+      String(listing.currency || "USD").trim().toUpperCase().slice(0, 3)
+  ) {
+    return true;
+  }
+  if (
+    body.category !== undefined &&
+    String(body.category || "").toLowerCase() !==
+      String(listing.category || "").toLowerCase()
+  ) {
+    return true;
+  }
+  if (
+    body.condition !== undefined &&
+    String(body.condition || "").toLowerCase() !==
+      String(listing.condition || "").toLowerCase()
+  ) {
+    return true;
+  }
+  if (
+    body.city !== undefined &&
+    String(body.city || "").trim() !== String(listing.city || "").trim()
+  ) {
+    return true;
+  }
+  if (
+    body.state !== undefined &&
+    String(body.state || "").trim() !== String(listing.state || "").trim()
+  ) {
+    return true;
+  }
+  if (
+    body.country !== undefined &&
+    String(body.country || "").trim() !== String(listing.country || "").trim()
+  ) {
+    return true;
+  }
+  if (
+    body.media !== undefined &&
+    mediaFingerprint(body.media) !== mediaFingerprint(listing.media)
+  ) {
+    return true;
+  }
+  return false;
 };
 
 const SELLER_EDITABLE_STATUSES = new Set(["active", "sold", "draft"]);
@@ -677,7 +764,15 @@ export const updateListing = async (req, res) => {
 
     const editWindowMinutes = await getEditWindowMinutes();
     const flags = buildListingFlags(listing, req.user, editWindowMinutes);
-    if (!flags.canEdit) {
+    if (!flags.canEdit && !flags.canChangeStatus) {
+      return res.status(403).json({
+        success: false,
+        message: "You cannot edit this listing.",
+      });
+    }
+
+    const wantsContentEdit = listingContentChanged(listing, req.body);
+    if (!flags.canEdit && wantsContentEdit) {
       return res.status(403).json({
         success: false,
         message: flags.isOwner
@@ -688,56 +783,59 @@ export const updateListing = async (req, res) => {
       });
     }
 
-    if (req.body.title !== undefined) {
-      listing.title = String(req.body.title || "").trim();
-    }
-    if (req.body.description !== undefined) {
-      listing.description = String(req.body.description || "").trim();
-    }
-    if (req.body.price !== undefined) {
-      const numericPrice = Number(req.body.price);
-      if (!Number.isFinite(numericPrice) || numericPrice < 0) {
-        return res.status(400).json({
-          success: false,
-          message: "A valid price is required.",
-        });
+    if (flags.canEdit) {
+      if (req.body.title !== undefined) {
+        listing.title = String(req.body.title || "").trim();
       }
-      listing.price = numericPrice;
-    }
-    if (req.body.currency !== undefined) {
-      listing.currency =
-        String(req.body.currency || "USD").trim().toUpperCase().slice(0, 3) ||
-        "USD";
-    }
-    if (req.body.category !== undefined) {
-      const cleanCategory = String(req.body.category || "").toLowerCase();
-      if (!LISTING_CATEGORIES.includes(cleanCategory)) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid category.",
-        });
+      if (req.body.description !== undefined) {
+        listing.description = String(req.body.description || "").trim();
       }
-      listing.category = cleanCategory;
-    }
-    if (req.body.condition !== undefined) {
-      const cleanCondition = String(req.body.condition || "").toLowerCase();
-      if (!LISTING_CONDITIONS.includes(cleanCondition)) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid condition.",
-        });
+      if (req.body.price !== undefined) {
+        const numericPrice = Number(req.body.price);
+        if (!Number.isFinite(numericPrice) || numericPrice < 0) {
+          return res.status(400).json({
+            success: false,
+            message: "A valid price is required.",
+          });
+        }
+        listing.price = numericPrice;
       }
-      listing.condition = cleanCondition;
+      if (req.body.currency !== undefined) {
+        listing.currency =
+          String(req.body.currency || "USD").trim().toUpperCase().slice(0, 3) ||
+          "USD";
+      }
+      if (req.body.category !== undefined) {
+        const cleanCategory = String(req.body.category || "").toLowerCase();
+        if (!LISTING_CATEGORIES.includes(cleanCategory)) {
+          return res.status(400).json({
+            success: false,
+            message: "Invalid category.",
+          });
+        }
+        listing.category = cleanCategory;
+      }
+      if (req.body.condition !== undefined) {
+        const cleanCondition = String(req.body.condition || "").toLowerCase();
+        if (!LISTING_CONDITIONS.includes(cleanCondition)) {
+          return res.status(400).json({
+            success: false,
+            message: "Invalid condition.",
+          });
+        }
+        listing.condition = cleanCondition;
+      }
+      if (req.body.city !== undefined) {
+        listing.city = String(req.body.city || "").trim();
+      }
+      if (req.body.state !== undefined) {
+        listing.state = String(req.body.state || "").trim();
+      }
+      if (req.body.country !== undefined) {
+        listing.country = String(req.body.country || "").trim();
+      }
     }
-    if (req.body.city !== undefined) {
-      listing.city = String(req.body.city || "").trim();
-    }
-    if (req.body.state !== undefined) {
-      listing.state = String(req.body.state || "").trim();
-    }
-    if (req.body.country !== undefined) {
-      listing.country = String(req.body.country || "").trim();
-    }
+
     if (req.body.status !== undefined) {
       const cleanStatus = String(req.body.status || "").toLowerCase();
       if (!LISTING_STATUSES.includes(cleanStatus)) {
@@ -767,7 +865,7 @@ export const updateListing = async (req, res) => {
         listing.soldAt = null;
       }
     }
-    if (req.body.media !== undefined) {
+    if (flags.canEdit && req.body.media !== undefined) {
       const acceptedMedia = acceptSignedMediaList(
         req.user._id,
         Array.isArray(req.body.media) ? req.body.media : [],
@@ -785,7 +883,7 @@ export const updateListing = async (req, res) => {
         .filter((url) => url && !nextUrls.has(url));
       listing.media = acceptedMedia.items;
       if (removed.length) {
-        await destroyManyFromCloudinary(removed);
+        await destroyManyFromS3(removed);
       }
     }
 
@@ -884,7 +982,7 @@ export const deleteListing = async (req, res) => {
       .filter(Boolean);
     await listing.deleteOne();
     if (mediaUrls.length) {
-      await destroyManyFromCloudinary(mediaUrls);
+      await destroyManyFromS3(mediaUrls);
     }
 
     return res.json({

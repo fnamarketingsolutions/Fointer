@@ -6,7 +6,7 @@ import Post from "../models/post.js";
 import { getEffectiveMemberRole } from "../utils/communityPermissions.js";
 import {
   acceptSignedImageValue,
-} from "../utils/cloudinary.js";
+} from "../utils/s3.js";
 import { sendServerError } from "../utils/safeError.js";
 import { respondIfBanned } from "../utils/bannedKeywords.js";
 import { PHONE_RE, validatePasswordStrength } from "../utils/validate.js";

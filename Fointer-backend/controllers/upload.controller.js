@@ -2,7 +2,8 @@ import {
   signMedia,
   createDirectUploadSignature,
   confirmDirectUpload,
-} from "../utils/cloudinary.js";
+  resolveContentType,
+} from "../utils/s3.js";
 import { sendServerError } from "../utils/safeError.js";
 import { canAccessAdminTab } from "../utils/adminAccess.js";
 
@@ -59,6 +60,14 @@ export const signDirectUpload = async (req, res) => {
       });
     }
 
+    const resolved = resolveContentType(req.body?.contentType, resourceType);
+    if (!resolved) {
+      return res.status(400).json({
+        success: false,
+        message: "Unsupported file type.",
+      });
+    }
+
     const folder = resolveUploadFolder(req.body?.folder);
     const denied = assertFolderAccess(req.user, folder);
     if (denied) {
@@ -68,10 +77,11 @@ export const signDirectUpload = async (req, res) => {
       });
     }
 
-    const upload = createDirectUploadSignature({
+    const upload = await createDirectUploadSignature({
       userId: req.user._id,
       folder,
       resourceType,
+      contentType: resolved.contentType,
     });
 
     return res.status(200).json({ success: true, upload });
@@ -85,7 +95,14 @@ export const completeDirectUpload = async (req, res) => {
     const folder = String(req.body?.folder || "").trim().replace(/\\/g, "/");
     const assetId = String(req.body?.assetId || "").trim();
     const resourceType = mediaKind(req.body?.resourceType);
-    if (!ALLOWED_FOLDERS.has(folder) || !ASSET_ID.test(assetId) || !resourceType) {
+    const resolved = resolveContentType(req.body?.contentType, resourceType);
+
+    if (
+      !ALLOWED_FOLDERS.has(folder) ||
+      !ASSET_ID.test(assetId) ||
+      !resourceType ||
+      !resolved
+    ) {
       return res.status(400).json({
         success: false,
         message: "Invalid upload.",
@@ -105,6 +122,7 @@ export const completeDirectUpload = async (req, res) => {
       folder,
       assetId,
       resourceType,
+      contentType: resolved.contentType,
       timestamp: req.body?.timestamp,
       proof: req.body?.proof,
     });

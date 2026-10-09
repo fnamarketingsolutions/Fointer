@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
 import {
   LuArrowRight as ArrowRight,
   LuCalendar as Calendar,
@@ -244,12 +243,7 @@ export default function HomePage() {
     <div className="bg-fo-bg text-fo-text overflow-x-hidden">
       <section className="pt-8 sm:pt-16 lg:pt-20 pb-12 sm:pb-16 lg:pb-24">
         <div className={`${SHELL} grid lg:grid-cols-2 gap-8 lg:gap-16 items-center`}>
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="min-w-0"
-          >
+          <div className="min-w-0">
             <h1 className="text-[1.75rem] sm:text-5xl lg:text-[64px] font-semibold tracking-tight leading-[1.15] sm:leading-[1.08] text-fo-text">
               Find Your Interests.{' '}
               <span className="sm:block">Find Your Community.</span>
@@ -297,19 +291,14 @@ export default function HomePage() {
                 </p>
               </>
             )}
-          </motion.div>
+          </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.1 }}
-            className="min-w-0"
-          >
+          <div className="min-w-0">
             <HeroPreview
               communities={communities}
               loading={communitiesLoading}
             />
-          </motion.div>
+          </div>
         </div>
       </section>
 

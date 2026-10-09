@@ -23,6 +23,7 @@ import { sendServerError } from "../utils/safeError.js";
 import { clearEventCall } from "../sockets/liveCallState.js";
 import { respondIfBanned } from "../utils/bannedKeywords.js";
 import { formatUserRef } from "../utils/deletedUser.js";
+import { getHotSnapshot } from "../utils/hotReadCache.js";
 
 const formatUser = (user) => formatUserRef(user);
 
@@ -177,6 +178,36 @@ export const listLiveEvents = async (req, res) => {
         });
       }
       filter.community = communityId;
+    }
+
+    const hot = getHotSnapshot();
+    const communityKey = filter.community ? String(filter.community) : "";
+    if (Array.isArray(hot?.liveEvents) && filter.status === "live") {
+      const access = hot.accessByUser.get(String(req.user._id));
+      const roles = access?.roleByCommunity || new Map();
+      const isLiveAdmin = hasLiveEventsAdminPower(req.user);
+      const isContentAdmin = hasContentAdminPower(req.user);
+      const events = hot.liveEvents.filter((event) => {
+        const cid = String(event.community?._id || event.community || "");
+        if (communityKey && cid !== communityKey) return false;
+        const role = roles.get(cid);
+        const membership = role ? { status: "active", role } : null;
+        return (
+          isLiveAdmin ||
+          event.access === "public" ||
+          isContentAdmin ||
+          Boolean(getEffectiveMemberRole(membership))
+        );
+      });
+      return res.json({
+        success: true,
+        events: events.map((event) => {
+          const cid = String(event.community?._id || event.community || "");
+          const role = roles.get(cid);
+          const membership = role ? { status: "active", role } : null;
+          return attachPermissionsCached(event, req.user, membership);
+        }),
+      });
     }
 
     const events = await LiveEvent.find(filter)

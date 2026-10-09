@@ -278,9 +278,13 @@ export default function ActivityHistory() {
     if (!deletePostId) return;
     setDeleting(true);
     try {
-      await deletePost(deletePostId);
+      const removedId = deletePostId;
+      await deletePost(removedId);
       setDeletePostId(null);
-      await loadPosts();
+      setPosts((prev) => prev.filter((p) => String(p.id) !== String(removedId)));
+      setArchivedPosts((prev) =>
+        prev.filter((p) => String(p.id) !== String(removedId))
+      );
       showToast("Post deleted.");
     } catch (err) {
       showToast(err?.response?.data?.message || "Failed to delete post.");

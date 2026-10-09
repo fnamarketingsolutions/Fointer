@@ -435,6 +435,27 @@ export const createCommunity = async (req, res) => {
 export const listMyCommunities = async (req, res) => {
   try {
     const { manage } = req.query;
+    const hot = getHotSnapshot();
+    if (manage !== "true" && Array.isArray(hot?.allCommunities)) {
+      const viewerKey = String(req.user._id);
+      const rows = hot.allCommunities
+        .filter(
+          (community) =>
+            String(community.owner?._id || community.owner) === viewerKey
+        )
+        .sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+      return res.status(200).json({
+        success: true,
+        communities: rows.map((community) =>
+          formatCommunity(community, {
+            memberCount: community.memberCount || 0,
+            membershipRole: "owner",
+          })
+        ),
+      });
+    }
     let communities;
 
     if (manage === "true") {
@@ -522,6 +543,28 @@ export const listAllCommunities = async (req, res) => {
 
 export const getCommunity = async (req, res) => {
   try {
+    const hot = getHotSnapshot();
+    const cached = cachedCommunity(hot, req.params.id);
+    if (cached && String(req.user?.role || "").toLowerCase() !== "admin") {
+      const membership = membershipFromCache(hot, req.user._id, cached._id);
+      const isMember = Boolean(getEffectiveMemberRole(membership));
+      if (!canViewCommunity(cached, req.user, membership)) {
+        return res.status(403).json({
+          success: false,
+          message: "You do not have access to this community.",
+        });
+      }
+      const formatted = formatCommunity(cached, {
+        memberCount: cached.memberCount || 0,
+        isMember,
+        membershipRole: membership ? getEffectiveMemberRole(membership) : null,
+      });
+      if (formatted.owner && typeof formatted.owner === "object" && !canManageCommunity(cached, req.user)) {
+        delete formatted.owner.email;
+      }
+      return res.status(200).json({ success: true, community: formatted });
+    }
+
     const community = await getPopulatedCommunity(req.params.id);
 
     if (!community) {
@@ -1031,6 +1074,27 @@ export const listJoinRequests = async (req, res) => {
 
 export const listJoinedCommunities = async (req, res) => {
   try {
+    const hot = getHotSnapshot();
+    if (Array.isArray(hot?.allCommunities)) {
+      const access = hot.accessByUser.get(String(req.user._id));
+      const joined = access?.joinedIdSet || new Set();
+      const roles = access?.roleByCommunity || new Map();
+      const rows = hot.allCommunities
+        .filter((community) => joined.has(String(community._id)))
+        .sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+      return res.status(200).json({
+        success: true,
+        communities: rows.map((community) =>
+          formatCommunity(community, {
+            memberCount: community.memberCount || 0,
+            membershipRole: roles.get(String(community._id)) || "member",
+          })
+        ),
+      });
+    }
+
     const memberships = await CommunityMember.find({
       user: req.user._id,
       status: "active",
@@ -1218,6 +1282,36 @@ export const listBrowsableCommunities = async (req, res) => {
 
 export const getBrowsableCommunity = async (req, res) => {
   try {
+    const hot = getHotSnapshot();
+    const cached = cachedCommunity(hot, req.params.id);
+    if (cached) {
+      const membership = req.user
+        ? membershipFromCache(hot, req.user._id, cached._id)
+        : null;
+      if (
+        !["public", "private_request"].includes(cached.type) &&
+        !(cached.type === "private_invite" && membership)
+      ) {
+        return res.status(403).json({
+          success: false,
+          message: "This community is not publicly browsable.",
+        });
+      }
+      const pending = req.user
+        ? hot.pendingByUser.get(String(req.user._id)) || new Set()
+        : new Set();
+      const extras = { memberCount: cached.memberCount || 0 };
+      if (req.user) {
+        extras.isMember = Boolean(membership);
+        extras.membershipRole = membership?.role || null;
+        extras.joinRequestPending = pending.has(String(cached._id));
+      }
+      return res.status(200).json({
+        success: true,
+        community: formatCommunity(cached, extras),
+      });
+    }
+
     const community = await getPopulatedCommunity(req.params.id);
 
     if (!community) {
@@ -1271,6 +1365,24 @@ export const getBrowsableCommunity = async (req, res) => {
   }
 };
 
+const cachedCommunity = (hot, param) => {
+  const raw = String(param || "").trim();
+  if (!raw || !Array.isArray(hot?.allCommunities)) return null;
+  const code = raw.toLowerCase();
+  return (
+    hot.allCommunities.find(
+      (row) => String(row._id) === raw || String(row.shortCode || "") === code
+    ) || null
+  );
+};
+
+const membershipFromCache = (hot, userId, communityId) => {
+  const role = hot?.accessByUser
+    ?.get(String(userId || ""))
+    ?.roleByCommunity?.get(String(communityId));
+  return role ? { status: "active", role } : null;
+};
+
 export const listDiscoverCommunities = async (req, res) => {
   try {
     const { enabled, page, limit, skip } = parsePagination(req.query, {
@@ -1280,6 +1392,37 @@ export const listDiscoverCommunities = async (req, res) => {
     const pageNum = enabled ? page : 1;
     const pageLimit = enabled ? limit : 20;
     const pageSkip = enabled ? skip : 0;
+    const hot = getHotSnapshot();
+
+    if (Array.isArray(hot?.allCommunities) && pageNum === 1 && pageLimit <= 40) {
+      const viewerKey = String(req.user._id);
+      const joined = hot.accessByUser.get(viewerKey)?.joinedIdSet || new Set();
+      const pending = hot.pendingByUser.get(viewerKey) || new Set();
+      const open = hot.allCommunities
+        .filter(
+          (community) =>
+            ["public", "private_request"].includes(community.type) &&
+            !joined.has(String(community._id))
+        )
+        .sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+      const rows = open.slice(0, pageLimit);
+      return res.status(200).json({
+        success: true,
+        communities: rows.map((community) =>
+          formatCommunity(community, {
+            memberCount: community.memberCount || 0,
+            joinRequestPending: pending.has(String(community._id)),
+          })
+        ),
+        pagination: buildPaginationMeta({
+          page: pageNum,
+          limit: pageLimit,
+          total: open.length,
+        }),
+      });
+    }
 
     const memberships = await CommunityMember.find({
       user: req.user._id,
@@ -1732,6 +1875,18 @@ export const createCommunityInvite = async (req, res) => {
 
 export const listMyInvites = async (req, res) => {
   try {
+    const hot = getHotSnapshot();
+    if (Array.isArray(hot?.invites)) {
+      const viewerKey = String(req.user._id);
+      const invites = hot.invites.filter(
+        (invite) => String(invite.invitee?._id || invite.invitee) === viewerKey
+      );
+      return res.status(200).json({
+        success: true,
+        invites: invites.map(formatCommunityInvite),
+      });
+    }
+
     const invites = await CommunityInvite.find({ invitee: req.user._id })
       .populate("inviter", "username name email avatar")
       .populate("invitee", "username name email avatar")

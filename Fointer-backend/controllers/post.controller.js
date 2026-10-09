@@ -196,6 +196,7 @@ const formatFeedPost = (
     isLocked: !isAdmin && isAuthor && !within && !post.isArchived,
     canDelete:
       isAdmin ||
+      (isAuthor && Boolean(post.isArchived)) ||
       (communityKey ? manageableIdSet.has(communityKey) : false),
     canEngage:
       !post.isArchived &&
@@ -385,6 +386,7 @@ const buildOwnContentFlags = async (doc, user) => {
 
 const userCanDeletePost = async (post, user) => {
   if (hasContentAdminPower(user)) return true;
+  if (isDocAuthor(post, user) && post.isArchived) return true;
   const communityId = post.community?._id || post.community;
   if (!communityId) return false;
   return canManagePostsInCommunity(communityId, user);
@@ -1180,6 +1182,10 @@ export const deletePost = async (req, res) => {
     const comments = await Comment.find({ post: post._id }).select("_id");
     const commentIds = comments.map((c) => c._id);
 
+    const mediaUrls = (post.media || [])
+      .map((item) => item?.url)
+      .filter(Boolean);
+
     await Reaction.deleteMany({
       $or: [
         { targetType: "post", targetId: post._id },
@@ -1187,8 +1193,11 @@ export const deletePost = async (req, res) => {
       ],
     });
     await Reshare.deleteMany({ post: post._id });
+    await Bookmark.deleteMany({ targetType: "post", targetId: post._id });
     await Comment.deleteMany({ post: post._id });
     await Post.findByIdAndDelete(post._id);
+    if (mediaUrls.length) await destroyManyFromS3(mediaUrls);
+    refreshHotReads();
 
     return res.status(200).json({
       success: true,

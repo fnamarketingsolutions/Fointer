@@ -36,6 +36,7 @@ import {
   getMembership,
 } from "../utils/communityPermissions.js";
 import { formatUserRef } from "../utils/deletedUser.js";
+import { getHotSnapshot, refreshHotReads } from "../utils/hotReadCache.js";
 
 const LISTING_SORT_MAP = {
   newest: { createdAt: -1 },
@@ -412,6 +413,155 @@ export const listListings = async (req, res) => {
       defaultLimit: 20,
       maxLimit: 50,
     });
+    const sortKey = String(req.query.sort || "newest").trim().toLowerCase();
+    const hot = getHotSnapshot();
+    const serveFromMemory =
+      hot?.listings &&
+      enabled &&
+      page === 1 &&
+      limit <= 48 &&
+      (sortKey === "newest" || sortKey === "") &&
+      !req.query.mine &&
+      !String(req.query.category || "").trim() &&
+      !String(req.query.q || "").trim() &&
+      req.query.minPrice == null &&
+      req.query.maxPrice == null &&
+      !String(req.query.city || "").trim() &&
+      !String(req.query.communityId || "").trim() &&
+      String(req.query.sponsoredOnly || "").toLowerCase() !== "true" &&
+      !hasMarketplaceAdminPower(req.user);
+
+    const communityId = String(req.query.communityId || "").trim();
+    const sponsoredFromMemory =
+      Array.isArray(hot?.sponsoredPlacements) &&
+      Array.isArray(hot?.allCommunities) &&
+      String(req.query.sponsoredOnly || "").toLowerCase() === "true" &&
+      /^[a-f\d]{24}$/i.test(communityId) &&
+      enabled &&
+      page === 1 &&
+      limit <= 48 &&
+      !req.query.mine &&
+      !String(req.query.category || "").trim() &&
+      !String(req.query.q || "").trim() &&
+      req.query.minPrice == null &&
+      req.query.maxPrice == null &&
+      !String(req.query.city || "").trim() &&
+      !hasMarketplaceAdminPower(req.user);
+
+    if (sponsoredFromMemory) {
+      const community = hot.allCommunities.find(
+        (row) => String(row._id) === communityId
+      );
+      const viewerKey = req.user?._id ? String(req.user._id) : "";
+      const membership = community
+        ? {
+            status: "active",
+            role: hot.accessByUser
+              .get(viewerKey)
+              ?.roleByCommunity?.get(communityId),
+          }
+        : null;
+      const memberRole = membership?.role ? membership : null;
+      if (
+        community &&
+        canViewCommunity(community, req.user, memberRole)
+      ) {
+        const seen = new Set();
+        const rows = [];
+        for (const placement of hot.sponsoredPlacements) {
+          if (String(placement.community) !== communityId) continue;
+          if (!matchesSponsoredAudience(placement.geo, req.user)) continue;
+          const listing = placement.listing;
+          const listingId = String(listing?._id || "");
+          if (!listingId || seen.has(listingId)) continue;
+          seen.add(listingId);
+          rows.push({ listing, placement });
+        }
+        const pageRows = rows.slice(0, limit);
+        const editWindowMinutes = req.user ? await getEditWindowMinutes() : null;
+        return res.json({
+          success: true,
+          listings: pageRows.map(({ listing, placement }) => {
+            const flags = buildListingFlags(listing, req.user, editWindowMinutes);
+            return formatListing(listing, {
+              ...flags,
+              savedByMe: Boolean(
+                viewerKey && hot.listingSavedBy.get(String(listing._id))?.has(viewerKey)
+              ),
+              sponsorship: {
+                top: Boolean(placement.placement?.top),
+                section: Boolean(placement.placement?.section),
+                badge: Boolean(placement.placement?.badge),
+                priority: Number(placement.placement?.priority) || 0,
+                communityId,
+                expiresAt: placement.expiresAt,
+              },
+            });
+          }),
+          categories: LISTING_CATEGORIES,
+          conditions: LISTING_CONDITIONS,
+          pagination: buildPaginationMeta({
+            page,
+            limit,
+            total: rows.length,
+            hasMore: rows.length > limit,
+          }),
+        });
+      }
+    }
+
+    if (serveFromMemory) {
+      const viewerKey = req.user?._id ? String(req.user._id) : "";
+      const joined = viewerKey
+        ? hot.accessByUser.get(viewerKey)?.joinedIdSet || new Set()
+        : new Set();
+      const pageRows = hot.listings.slice(0, limit);
+      const sponsorships = new Map();
+      for (const placement of hot.listingPlacements || []) {
+        if (!pageRows.some((row) => String(row._id) === placement.listingId)) {
+          continue;
+        }
+        if (placement.communityId && !joined.has(placement.communityId)) continue;
+        if (!matchesSponsoredAudience(placement.geo, req.user)) continue;
+        if (sponsorships.has(placement.listingId)) continue;
+        sponsorships.set(placement.listingId, placement.sponsorship);
+      }
+      const ordered = pageRows.slice().sort((left, right) => {
+        const a = sponsorships.get(String(left._id));
+        const b = sponsorships.get(String(right._id));
+        if (!a && !b) return 0;
+        if (!a) return 1;
+        if (!b) return -1;
+        if (a.top !== b.top) return a.top ? -1 : 1;
+        return b.priority - a.priority;
+      });
+      const saved = {};
+      for (const listing of ordered) {
+        const id = String(listing._id);
+        saved[id] = Boolean(viewerKey && hot.listingSavedBy.get(id)?.has(viewerKey));
+      }
+      const editWindowMinutes = req.user ? await getEditWindowMinutes() : null;
+      return res.json({
+        success: true,
+        listings: ordered.map((listing) => {
+          const flags = buildListingFlags(listing, req.user, editWindowMinutes);
+          return formatListing(listing, {
+            ...flags,
+            savedByMe: saved[String(listing._id)] || false,
+            sponsorship: sponsorships.get(String(listing._id)) || null,
+          });
+        }),
+        categories: LISTING_CATEGORIES,
+        conditions: LISTING_CONDITIONS,
+        pagination: buildPaginationMeta({
+          page,
+          limit,
+          total: hot.listingTotal,
+          hasMore: hot.listings.length > limit || hot.listingHasMore,
+        }),
+      });
+    }
+
     const sort = resolveSort(req.query.sort, LISTING_SORT_MAP, {
       createdAt: -1,
     });
@@ -579,9 +729,160 @@ export const listMyListings = async (req, res) => {
   }
 };
 
+const sponsorshipForViewer = (
+  placements,
+  { viewer, isOwner, scopedCommunityId, joined }
+) => {
+  for (const placement of placements) {
+    const communityId = placement.communityId ?? (
+      placement.community ? String(placement.community) : null
+    );
+    const sponsorship = placement.sponsorship || {
+      top: Boolean(placement.placement?.top),
+      section: Boolean(placement.placement?.section),
+      badge: Boolean(placement.placement?.badge),
+      priority: Number(placement.placement?.priority) || 0,
+      communityId,
+      expiresAt: placement.expiresAt,
+    };
+    if (scopedCommunityId) {
+      if (communityId && communityId !== scopedCommunityId) continue;
+    } else if (!isOwner && communityId && !joined.has(communityId)) {
+      continue;
+    }
+    if (!matchesSponsoredAudience(placement.geo, viewer)) continue;
+    return sponsorship;
+  }
+  return null;
+};
+
+const cachedListing = (hot, param) => {
+  const raw = String(param || "").trim();
+  if (!raw || !hot?.listings?.length) return null;
+  const code = raw.toLowerCase();
+  return (
+    hot.listings.find(
+      (row) => String(row._id) === raw || String(row.shortCode || "") === code
+    ) || null
+  );
+};
+
 export const getListing = async (req, res) => {
   try {
-    const listing = await findListingByParam(req.params.id);
+    const param = String(req.params.id || "").trim();
+    const hot = getHotSnapshot();
+    const cached = cachedListing(hot, param);
+    const sellerId = String(cached?.seller?._id || cached?.seller || "");
+    const viewerIsOwner = Boolean(req.user?._id) && sellerId === String(req.user._id);
+
+    if (cached && !viewerIsOwner && !hasMarketplaceAdminPower(req.user)) {
+      const viewerKey = req.user?._id ? String(req.user._id) : "";
+      const joined = viewerKey
+        ? hot.accessByUser.get(viewerKey)?.joinedIdSet || new Set()
+        : new Set();
+      const scopedCommunityId = String(req.query.communityId || "").trim();
+      const editWindowMinutes = req.user ? await getEditWindowMinutes() : null;
+      const flags = buildListingFlags(cached, req.user, editWindowMinutes);
+      const listingId = String(cached._id);
+      return res.json({
+        success: true,
+        listing: formatListing(cached, {
+          ...flags,
+          savedByMe: Boolean(
+            viewerKey && hot.listingSavedBy.get(listingId)?.has(viewerKey)
+          ),
+          sponsorship: sponsorshipForViewer(
+            (hot.listingPlacements || []).filter(
+              (placement) => placement.listingId === listingId
+            ),
+            {
+              viewer: req.user,
+              isOwner: flags.isOwner,
+              scopedCommunityId,
+              joined,
+            }
+          ),
+        }),
+      });
+    }
+
+    const id = await resolveDocumentId(Listing, param);
+    if (!id) {
+      return res.status(404).json({
+        success: false,
+        message: "Listing not found.",
+      });
+    }
+
+    const viewerId = req.user?._id || null;
+    const now = new Date();
+    const scopedCommunityId = String(req.query.communityId || "").trim();
+    const [found, editWindowMinutes, memberRows, placements, savedMeta] =
+      await Promise.all([
+        Listing.aggregate([
+          { $match: { _id: id } },
+          {
+            $lookup: {
+              from: User.collection.name,
+              localField: "seller",
+              foreignField: "_id",
+              pipeline: [
+                {
+                  $project: {
+                    username: 1,
+                    name: 1,
+                    avatar: 1,
+                    city: 1,
+                    state: 1,
+                    country: 1,
+                    status: 1,
+                    phone: 1,
+                    email: 1,
+                    role: 1,
+                  },
+                },
+              ],
+              as: "seller",
+            },
+          },
+          {
+            $lookup: {
+              from: Community.collection.name,
+              localField: "community",
+              foreignField: "_id",
+              pipeline: [{ $project: { name: 1 } }],
+              as: "community",
+            },
+          },
+          {
+            $set: {
+              seller: { $ifNull: [{ $arrayElemAt: ["$seller", 0] }, null] },
+              community: {
+                $ifNull: [{ $arrayElemAt: ["$community", 0] }, null],
+              },
+            },
+          },
+        ]),
+        getEditWindowMinutes(),
+        viewerId && !hot
+          ? CommunityMember.find({ user: viewerId, status: "active" })
+              .select("community")
+              .lean()
+          : Promise.resolve(null),
+        SponsoredPlacement.find({
+          listing: id,
+          status: "active",
+          startsAt: { $lte: now },
+          expiresAt: { $gt: now },
+        })
+          .sort({ "placement.top": -1, "placement.priority": -1, expiresAt: 1 })
+          .lean(),
+        viewerId
+          ? getBookmarkMeta("listing", [id], viewerId)
+          : Promise.resolve({ saved: {} }),
+      ]);
+
+    const listing = found[0];
     if (!listing) {
       return res.status(404).json({
         success: false,
@@ -589,49 +890,30 @@ export const getListing = async (req, res) => {
       });
     }
 
-    const editWindowMinutes = await getEditWindowMinutes();
     const flags = buildListingFlags(listing, req.user, editWindowMinutes);
-    const isOwner = flags.isOwner;
-    const isAdmin = flags.isAdmin;
-
-    if (listing.status !== "active" && !isOwner && !isAdmin) {
+    if (listing.status !== "active" && !flags.isOwner && !flags.isAdmin) {
       return res.status(404).json({
         success: false,
         message: "Listing not found.",
       });
     }
 
-    if (flags.includeSellerContact) {
-      await hydrateSellerContact(listing);
-    }
-    await listing.populate("community", "name");
-    const scopedCommunityId = String(req.query.communityId || "").trim();
-    const memberCommunityIds =
-      flags.isOwner || scopedCommunityId
-        ? null
-        : await getViewerMemberCommunityIds(req.user?._id);
-    const sponsorships = await getActiveSponsorships(
-      [listing.toObject()],
-      scopedCommunityId,
-      {
-        includeCommunity: flags.isOwner || !scopedCommunityId,
-        viewer: req.user,
-        memberCommunityIds,
-      }
-    );
-
-    const { saved } = await getBookmarkMeta(
-      "listing",
-      [listing._id],
-      req.user?._id
-    );
+    const joined =
+      hot && viewerId
+        ? hot.accessByUser.get(String(viewerId))?.joinedIdSet || new Set()
+        : new Set((memberRows || []).map((row) => String(row.community)));
 
     return res.json({
       success: true,
       listing: formatListing(listing, {
         ...flags,
-        savedByMe: saved[String(listing._id)] || false,
-        sponsorship: sponsorships.get(String(listing._id)) || null,
+        savedByMe: savedMeta.saved[String(listing._id)] || false,
+        sponsorship: sponsorshipForViewer(placements, {
+          viewer: req.user,
+          isOwner: flags.isOwner,
+          scopedCommunityId,
+          joined,
+        }),
       }),
     });
   } catch (error) {
@@ -736,6 +1018,7 @@ export const createListing = async (req, res) => {
     });
 
     await hydrateSellerContact(listing);
+    refreshHotReads();
 
     const flags = buildListingFlags(
       listing,
@@ -905,6 +1188,7 @@ export const updateListing = async (req, res) => {
     if (responseFlags.includeSellerContact) {
       await hydrateSellerContact(listing);
     }
+    refreshHotReads();
 
     return res.json({
       success: true,
@@ -941,6 +1225,7 @@ export const markListingSold = async (req, res) => {
     listing.status = "sold";
     listing.soldAt = new Date();
     await listing.save();
+    refreshHotReads();
     if (flags.includeSellerContact) {
       await hydrateSellerContact(listing);
     }
@@ -981,6 +1266,7 @@ export const deleteListing = async (req, res) => {
       .map((item) => item.url)
       .filter(Boolean);
     await listing.deleteOne();
+    refreshHotReads();
     if (mediaUrls.length) {
       await destroyManyFromS3(mediaUrls);
     }

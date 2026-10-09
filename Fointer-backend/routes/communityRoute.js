@@ -48,7 +48,7 @@ const router = express.Router();
 router.get("/resolve/:code", optionalAuthenticate, resolveCommunityCode);
 
 router.get("/browse", optionalAuthenticateFast, listBrowsableCommunities);
-router.get("/browse/:id", optionalAuthenticate, getBrowsableCommunity);
+router.get("/browse/:id", optionalAuthenticateFast, getBrowsableCommunity);
 
 router.post("/", isAuthenticated, createCommunity);
 router.get("/mine", isAuthenticated, listMyCommunities);

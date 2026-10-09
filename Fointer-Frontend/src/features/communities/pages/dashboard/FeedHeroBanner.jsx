@@ -7,6 +7,19 @@ function isInternalPath(url) {
   return typeof url === "string" && url.startsWith("/") && !url.startsWith("//");
 }
 
+function BannerSkeleton({ className = "" }) {
+  return (
+    <div
+      className={`relative w-full overflow-hidden rounded-xl border border-fo-border bg-fo-surface animate-pulse pt-[56.25%] ${className}`}
+    >
+      <div className="absolute inset-x-0 bottom-0 space-y-2 px-3 py-3">
+        <div className="h-3 w-2/5 rounded bg-fo-surface-hover" />
+        <div className="h-2.5 w-3/5 rounded bg-fo-surface-hover" />
+      </div>
+    </div>
+  );
+}
+
 function BannerCard({ banner, priority = false }) {
   const hasText = Boolean(banner?.title || banner?.subtitle);
   const hasCta = Boolean(banner?.ctaLabel && banner?.ctaUrl);
@@ -86,7 +99,12 @@ export default function FeedHeroBanner({ banners = [], loading = false }) {
   if (loading) {
     return (
       <div className="w-full min-w-0" aria-hidden="true">
-        <div className="relative w-full overflow-hidden rounded-xl border border-fo-border bg-fo-surface-2 pt-[56.25%]" />
+        <BannerSkeleton className="md:hidden" />
+        <div className="hidden md:grid grid-cols-3 gap-2.5">
+          <BannerSkeleton />
+          <BannerSkeleton />
+          <BannerSkeleton />
+        </div>
       </div>
     );
   }

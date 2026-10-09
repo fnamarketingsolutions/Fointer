@@ -17,6 +17,7 @@ import { communitySegment } from "../../../../shared/services/entityLinks";
 import { formatCount } from "../../../../shared/utils/format";
 import { ChannelIconGlyph } from "../../../../shared/constants/channelIcons.jsx";
 import { EXPLORE_PATH, FEED_PATH } from "../../../../shared/constants/paths";
+import { displayImageUrl } from "../../../../shared/utils/imageUrl";
 
 const FEATURES = [
   {
@@ -84,8 +85,11 @@ function CommunityThumb({ community, name }) {
   if (community?.coverImage) {
     return (
       <img
-        src={community.coverImage}
+        src={displayImageUrl(community.coverImage, 96)}
         alt=""
+        width={40}
+        height={40}
+        decoding="async"
         className="w-10 h-10 rounded-xl object-cover"
       />
     );
@@ -430,8 +434,11 @@ export default function HomePage() {
                   >
                     {community.coverImage ? (
                       <img
-                        src={community.coverImage}
+                        src={displayImageUrl(community.coverImage, 96)}
                         alt=""
+                        width={44}
+                        height={44}
+                        decoding="async"
                         className="w-11 h-11 rounded-xl object-cover shrink-0"
                       />
                     ) : (

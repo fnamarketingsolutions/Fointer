@@ -8,7 +8,6 @@ import {
 } from 'react';
 import { useAuth } from './AuthContext';
 import { fetchUnreadCount } from '../api/notifications';
-import { getLiveSocket } from '../shared/services/liveSocket';
 import {
   storedPushToken,
   syncPushRegistration,
@@ -85,7 +84,8 @@ export function NotificationProvider({ children }) {
   useEffect(() => {
     if (!user) return undefined;
 
-    const socket = getLiveSocket();
+    let socket;
+    let cancelled = false;
     const onNew = () => {
       refreshUnread();
     };
@@ -95,11 +95,16 @@ export function NotificationProvider({ children }) {
       }
     };
 
-    socket.on('notification:new', onNew);
+    import('../shared/services/liveSocket').then((mod) => {
+      if (cancelled) return;
+      socket = mod.getLiveSocket();
+      socket.on('notification:new', onNew);
+    });
     document.addEventListener('visibilitychange', onVisible);
 
     return () => {
-      socket.off('notification:new', onNew);
+      cancelled = true;
+      socket?.off('notification:new', onNew);
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, [user, refreshUnread]);

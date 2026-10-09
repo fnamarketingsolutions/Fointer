@@ -11,6 +11,44 @@ const normalizeRole = (role) =>
     .toLowerCase()
     .trim();
 
+const USER_CACHE_MS = 45_000;
+const userCache = new Map();
+const userLoads = new Map();
+
+const isBlockedStatus = (user) =>
+  user?.status === "suspended" || user?.status === "banned";
+
+const loadUser = (id) => {
+  const key = String(id || "");
+  if (!key) return Promise.resolve(null);
+  const hit = userCache.get(key);
+  if (hit && Date.now() - hit.at < USER_CACHE_MS) return Promise.resolve(hit.user);
+
+  const pending = userLoads.get(key);
+  if (pending) return pending;
+
+  const request = User.findById(key)
+    .select("-password")
+    .then((user) => {
+      if (user) {
+        user.role = normalizeRole(user.role) || "user";
+        userCache.set(key, { user, at: Date.now() });
+      }
+      return user;
+    })
+    .finally(() => {
+      userLoads.delete(key);
+    });
+  userLoads.set(key, request);
+  return request;
+};
+
+const attachUser = (req, user) => {
+  if (!user || isBlockedStatus(user)) return;
+  user.role = normalizeRole(user.role) || "user";
+  req.user = user;
+};
+
 export const isAuthenticated = async (req, res, next) => {
   try {
     const token = getRequestToken(req);
@@ -24,7 +62,7 @@ export const isAuthenticated = async (req, res, next) => {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    const user = await User.findById(decoded.id).select("-password");
+    const user = await loadUser(decoded.id);
 
     if (!user) {
       return res.status(401).json({
@@ -33,10 +71,7 @@ export const isAuthenticated = async (req, res, next) => {
       });
     }
 
-    // Normalize role so authorize("admin") matches Mongo values like "Admin"
-    user.role = normalizeRole(user.role) || "user";
-
-    if (user.status === "suspended" || user.status === "banned") {
+    if (isBlockedStatus(user)) {
       return res.status(403).json({
         success: false,
         message: `Your account is ${user.status}. Contact support.`,
@@ -63,18 +98,48 @@ export const optionalAuthenticate = async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(decoded.id).select("-password");
-
-    if (user) {
-      user.role = normalizeRole(user.role) || "user";
-      if (user.status !== "suspended" && user.status !== "banned") {
-        req.user = user;
-      }
-    }
+    attachUser(req, await loadUser(decoded.id));
   } catch {
     // Ignore invalid tokens for optional auth.
   }
   next();
+};
+
+/**
+ * Optional auth that does not wait on the database for a normal member.
+ * The API and MongoDB are in different regions, so a user lookup before the
+ * handler was adding a full extra round trip to every feed request.
+ * Admins still load the full account so tab permissions stay accurate.
+ */
+export const optionalAuthenticateFast = (req, res, next) => {
+  try {
+    const token = getRequestToken(req);
+    if (!token) return next();
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const key = String(decoded.id || "");
+    const hit = userCache.get(key);
+    if (hit && Date.now() - hit.at < USER_CACHE_MS) {
+      attachUser(req, hit.user);
+      return next();
+    }
+
+    const role = normalizeRole(decoded.role) || "user";
+    if (role === "admin") {
+      return loadUser(decoded.id)
+        .then((user) => {
+          attachUser(req, user);
+          next();
+        })
+        .catch(() => next());
+    }
+
+    attachUser(req, { _id: decoded.id, role });
+    loadUser(decoded.id).catch(() => {});
+    return next();
+  } catch {
+    return next();
+  }
 };
 
 export const authorize = (...roles) => (req, res, next) => {

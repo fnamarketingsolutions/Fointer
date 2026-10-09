@@ -38,6 +38,7 @@ import {
   isAuthenticated,
   authorize,
   optionalAuthenticate,
+  optionalAuthenticateFast,
   requireAdminTab,
 } from "../middleware/auth.middleware.js";
 
@@ -46,7 +47,7 @@ const router = express.Router();
 // Short-code lookup — must stay ahead of the /:id routes
 router.get("/resolve/:code", optionalAuthenticate, resolveCommunityCode);
 
-router.get("/browse", optionalAuthenticate, listBrowsableCommunities);
+router.get("/browse", optionalAuthenticateFast, listBrowsableCommunities);
 router.get("/browse/:id", optionalAuthenticate, getBrowsableCommunity);
 
 router.post("/", isAuthenticated, createCommunity);

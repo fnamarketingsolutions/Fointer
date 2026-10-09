@@ -2,7 +2,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { getMe, logoutUser } from '../api/auth';
 import { setUnauthorizedHandler } from '../shared/services/http/client';
-import { resetLiveSocket } from '../shared/services/liveSocket';
+
+const resetLiveSocket = () => {
+  import('../shared/services/liveSocket').then((mod) => mod.resetLiveSocket());
+};
 
 const AuthContext = createContext(null);
 

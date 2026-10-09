@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { LuBookmark as Bookmark, LuMapPin as MapPin } from "react-icons/lu";
 import { categoryLabel, formatLocation, formatPrice } from "../constants";
 import { listingSegment } from "../../../shared/services/entityLinks";
+import { displayImageUrl } from "../../../shared/utils/imageUrl";
 
 export default function ListingCard({ listing, onSave }) {
   const navigate = useNavigate();
@@ -29,8 +30,12 @@ export default function ListingCard({ listing, onSave }) {
               />
             ) : (
               <img
-                src={cover.url}
+                src={displayImageUrl(cover.url, 640)}
                 alt=""
+                width={640}
+                height={360}
+                decoding="async"
+                loading="lazy"
                 className="absolute inset-0 w-full h-full object-cover group-hover:scale-[1.02] transition-transform"
               />
             )

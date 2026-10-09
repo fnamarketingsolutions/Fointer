@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { displayImageUrl } from "../../../../shared/utils/imageUrl";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   LuArrowLeft as ArrowLeft,
@@ -569,8 +570,11 @@ export default function CommunityDetail({
         {heroImage ? (
           <div className="relative w-full pt-[56.25%] bg-fo-surface-2">
             <img
-              src={heroImage}
+              src={displayImageUrl(heroImage, 960)}
               alt=""
+              width={960}
+              height={540}
+              decoding="async"
               className="absolute inset-0 w-full h-full object-cover"
             />
           </div>
@@ -618,7 +622,7 @@ export default function CommunityDetail({
                     : "border-fo-border hover:border-fo-accent/40"
                 }`}
               >
-                <img src={src} alt="" className="w-full h-full object-cover" />
+                <img src={displayImageUrl(src, 160)} alt="" width={80} height={80} decoding="async" loading="lazy" className="w-full h-full object-cover" />
               </button>
             ))}
           </div>

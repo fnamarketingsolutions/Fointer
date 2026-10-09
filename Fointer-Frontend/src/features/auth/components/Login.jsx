@@ -11,6 +11,7 @@ import ThemeToggle from '../../../shared/components/ThemeToggle';
 import { getDashboardPathForRole } from '../../../shared/lib/roles';
 import { getSafeReturnPath } from '../../../shared/lib/safeRedirect';
 import { captureReferralFromLocation } from '../../../shared/lib/referralCapture';
+import { displayImageUrl } from '../../../shared/utils/imageUrl';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -165,7 +166,7 @@ export default function Login() {
       <div
         className="auth-hero relative md:w-1/2 w-full min-h-[450px] md:min-h-screen flex flex-col justify-between p-8 md:p-14 bg-cover bg-center overflow-hidden"
         style={{
-          backgroundImage: `linear-gradient(to bottom, rgba(19, 13, 8, 0.65), rgba(19, 13, 8, 0.85)), url('https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?q=80&w=1200&auto=format&fit=crop')`,
+          backgroundImage: `linear-gradient(to bottom, rgba(19, 13, 8, 0.65), rgba(19, 13, 8, 0.85)), url('${displayImageUrl("https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?q=60&w=640&auto=format&fit=crop", 640)}')`,
         }}
       >
         <div>

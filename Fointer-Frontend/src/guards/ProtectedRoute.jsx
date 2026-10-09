@@ -1,4 +1,5 @@
 import { Navigate, useLocation } from 'react-router-dom';
+import { useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 
 const DEFAULT_LOADING_CLASS =
@@ -7,6 +8,12 @@ const DEFAULT_LOADING_CLASS =
 export default function ProtectedRoute({ children, loadingClassName = DEFAULT_LOADING_CLASS }) {
   const { user, loading } = useAuth();
   const location = useLocation();
+
+  useEffect(() => {
+    if (!loading && user) return undefined;
+    import('../features/auth/components/Login');
+    return undefined;
+  }, [loading, user]);
 
   if (loading) {
     return <div className={loadingClassName}>Loading...</div>;

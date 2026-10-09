@@ -3,6 +3,7 @@ import {
   getNameInitials,
   initialsTextClass,
 } from "../utils/nameInitials";
+import { displayImageUrl } from "../utils/imageUrl";
 
 export default function ProfileAvatar({
   src,
@@ -36,8 +37,11 @@ export default function ProfileAvatar({
 
   return (
     <img
-      src={src}
+      src={displayImageUrl(src, 96)}
       alt={label}
+      width={64}
+      height={64}
+      decoding="async"
       referrerPolicy="no-referrer"
       onError={() => setFailed(true)}
       className={className}

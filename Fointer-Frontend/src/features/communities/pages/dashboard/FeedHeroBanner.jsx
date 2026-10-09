@@ -1,12 +1,13 @@
 import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { LuArrowRight as ArrowRight } from "react-icons/lu";
+import { displayImageUrl } from "../../../../shared/utils/imageUrl";
 
 function isInternalPath(url) {
   return typeof url === "string" && url.startsWith("/") && !url.startsWith("//");
 }
 
-function BannerCard({ banner }) {
+function BannerCard({ banner, priority = false }) {
   const hasText = Boolean(banner?.title || banner?.subtitle);
   const hasCta = Boolean(banner?.ctaLabel && banner?.ctaUrl);
   const ctaClass =
@@ -37,8 +38,13 @@ function BannerCard({ banner }) {
         <div className="absolute inset-0">
           {banner?.imageUrl ? (
             <img
-              src={banner.imageUrl}
+              src={displayImageUrl(banner.imageUrl, 800)}
               alt=""
+              width={800}
+              height={450}
+              decoding="async"
+              loading={priority ? "eager" : "lazy"}
+              fetchPriority={priority ? "high" : "low"}
               className="absolute inset-0 h-full w-full object-cover"
             />
           ) : (
@@ -77,7 +83,15 @@ export default function FeedHeroBanner({ banners = [], loading = false }) {
   const scrollRef = useRef(null);
   const [activeIndex, setActiveIndex] = useState(0);
 
-  if (loading || items.length === 0) return null;
+  if (loading) {
+    return (
+      <div className="w-full min-w-0" aria-hidden="true">
+        <div className="relative w-full overflow-hidden rounded-xl border border-fo-border bg-fo-surface-2 pt-[56.25%]" />
+      </div>
+    );
+  }
+
+  if (items.length === 0) return null;
 
   const handleScroll = () => {
     const el = scrollRef.current;
@@ -107,7 +121,7 @@ export default function FeedHeroBanner({ banners = [], loading = false }) {
             key={banner.id || i}
             className="min-w-full shrink-0 snap-center"
           >
-            <BannerCard banner={banner} />
+            <BannerCard banner={banner} priority={i === 0} />
           </div>
         ))}
       </div>

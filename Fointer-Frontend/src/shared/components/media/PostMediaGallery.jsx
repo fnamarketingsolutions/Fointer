@@ -6,6 +6,7 @@ import {
   LuX as Close,
 } from "react-icons/lu";
 import { APP_SCROLL_ID } from "../../utils/scroll";
+import { displayImageUrl } from "../../utils/imageUrl";
 import {
   registerFeedVideo,
   updateFeedVideoRatio,
@@ -110,6 +111,7 @@ function MediaFrame({
   autoPlayOnView = false,
   active = true,
   onImageClick,
+  priority = false,
 }) {
   const isVideo = item.type === "video";
   const frameClass = `relative w-full ${heightClass} bg-fo-surface-2 overflow-hidden`;
@@ -149,7 +151,16 @@ function MediaFrame({
         className="absolute inset-0 block h-full w-full cursor-zoom-in"
         aria-label="View image full screen"
       >
-        <img src={item.url} alt="" className={mediaClass} />
+        <img
+          src={displayImageUrl(item.url, 960)}
+          alt=""
+          width={960}
+          height={540}
+          decoding="async"
+          loading={priority ? "eager" : "lazy"}
+          fetchPriority={priority ? "high" : "auto"}
+          className={mediaClass}
+        />
       </button>
     </div>
   );
@@ -197,6 +208,7 @@ export default function PostMediaGallery({
           item={media[0]}
           heightClass={heightClass}
           autoPlayOnView={autoPlayOnView}
+          priority
           onImageClick={
             media[0].type === "video" ? undefined : () => setFullScreenIndex(0)
           }
@@ -247,6 +259,7 @@ export default function PostMediaGallery({
               heightClass={heightClass}
               autoPlayOnView={autoPlayOnView}
               active={idx === activeIndex}
+              priority={idx === 0}
               onImageClick={
                 m.type === "video"
                   ? undefined
@@ -344,7 +357,7 @@ function FullScreenImageViewer({ photos, index, onClose, onChange }) {
         </>
       ) : null}
       <img
-        src={photo.url}
+        src={displayImageUrl(photo.url, 1600)}
         alt=""
         className="max-h-full max-w-full select-none object-contain"
       />

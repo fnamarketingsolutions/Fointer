@@ -1,5 +1,6 @@
 import { LuUsers as Users } from "react-icons/lu";
 import { COMMUNITY_TYPE_LABELS } from "../../../shared/constants/community";
+import { displayImageUrl } from "../../../shared/utils/imageUrl";
 
 export default function CommunityCard({
   community,
@@ -7,6 +8,7 @@ export default function CommunityCard({
   badge = "",
   meta = null,
   action = null,
+  priority = false,
 }) {
   const name = community?.name || "Community";
   const cover = community?.coverImage;
@@ -33,8 +35,13 @@ export default function CommunityCard({
       >
         {cover ? (
           <img
-            src={cover}
+            src={displayImageUrl(cover, 640)}
             alt=""
+            width={640}
+            height={360}
+            decoding="async"
+            loading={priority ? "eager" : "lazy"}
+            fetchPriority={priority ? "high" : "auto"}
             className="absolute inset-0 w-full h-full object-cover group-hover:scale-[1.02] transition-transform"
           />
         ) : (

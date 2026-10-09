@@ -26,6 +26,7 @@ import {
   OPEN_FEED_COMMUNITY_TYPES,
 } from "../utils/communityPermissions.js";
 import { adjustMemberCount } from "../utils/communityCounters.js";
+import { getHotSnapshot } from "../utils/hotReadCache.js";
 import { escapeRegex } from "../utils/validate.js";
 import {
   parsePagination,
@@ -1084,6 +1085,47 @@ export const listBrowsableCommunities = async (req, res) => {
 
     if (tag) {
       filter.tags = tag;
+    }
+
+    const hot = getHotSnapshot();
+    const serveFromMemory =
+      hot &&
+      !q &&
+      !tag &&
+      sortBy === "members" &&
+      !pageProvided &&
+      limit <= 24;
+
+    if (serveFromMemory) {
+      const viewerKey = req.user?._id ? String(req.user._id) : "";
+      const access = viewerKey ? hot.accessByUser.get(viewerKey) : null;
+      const joined = access?.joinedIdSet || new Set();
+      const pending = viewerKey
+        ? hot.pendingByUser.get(viewerKey) || new Set()
+        : new Set();
+      const includeJoined =
+        req.query.includeJoined === "1" || req.query.includeJoined === "true";
+      let rows = hot.communities;
+      if (viewerKey && !includeJoined) {
+        rows = rows.filter((community) => !joined.has(String(community._id)));
+      }
+      const filteredShort =
+        viewerKey &&
+        !includeJoined &&
+        rows.length < limit &&
+        hot.communities.length >= 24;
+      if (!filteredShort) {
+        return res.status(200).json({
+          success: true,
+          communities: rows.slice(0, limit).map((community) =>
+            formatCommunity(community, {
+              memberCount: community.memberCount || 0,
+              joinRequestPending: pending.has(String(community._id)),
+              isMember: joined.has(String(community._id)),
+            })
+          ),
+        });
+      }
     }
 
     let memberIds = [];

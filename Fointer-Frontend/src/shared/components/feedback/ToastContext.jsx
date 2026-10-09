@@ -1,5 +1,7 @@
 import {
   createContext,
+  lazy,
+  Suspense,
   useCallback,
   useContext,
   useEffect,
@@ -7,7 +9,8 @@ import {
   useRef,
   useState,
 } from 'react';
-import Toast from './Toast';
+
+const Toast = lazy(() => import('./Toast'));
 
 const ToastContext = createContext(null);
 
@@ -46,7 +49,11 @@ export function ToastProvider({ children }) {
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <Toast message={message} />
+      {message ? (
+        <Suspense fallback={null}>
+          <Toast message={message} />
+        </Suspense>
+      ) : null}
     </ToastContext.Provider>
   );
 }

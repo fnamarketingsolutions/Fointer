@@ -17,6 +17,7 @@ import PostAuthorAvatar from "../../features/posts/components/PostAuthorAvatar";
 import { createComment } from "../../api/posts";
 import { communitySegment } from "../services/entityLinks";
 import { timeAgo } from "../utils/date";
+import { displayImageUrl } from "../utils/imageUrl";
 import {
   DELETED_USER_LABEL,
   personDisplayName,
@@ -434,8 +435,12 @@ export default function FeedPostRow({
         {coverImage ? (
           <div className="hidden sm:block w-24 h-20 shrink-0 rounded-xl overflow-hidden bg-fo-surface-2 border border-fo-border">
             <img
-              src={coverImage.url}
+              src={displayImageUrl(coverImage.url, 256)}
               alt=""
+              width={256}
+              height={192}
+              decoding="async"
+              loading="lazy"
               className="w-full h-full object-cover"
             />
           </div>

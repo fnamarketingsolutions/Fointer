@@ -24,6 +24,7 @@ import {
 import {
   isAuthenticated,
   optionalAuthenticate,
+  optionalAuthenticateFast,
 } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
@@ -37,7 +38,7 @@ router.get("/resolve/:code", optionalAuthenticate, resolvePostCode);
 // Public browse (intentional — guests can read open feed content).
 // Mutations and private community posts still require auth + canViewPost.
 router.get("/trending", optionalAuthenticate, listTrendingTopics);
-router.get("/public", optionalAuthenticate, listPublicPosts);
+router.get("/public", optionalAuthenticateFast, listPublicPosts);
 router.get("/public/:id", optionalAuthenticate, getPublicPost);
 
 // Activity history — before /:id

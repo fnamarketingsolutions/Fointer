@@ -33,6 +33,7 @@ import {
   destroyManyFromS3,
 } from "../utils/s3.js";
 import { formatUserRef } from "../utils/deletedUser.js";
+import { getHotSnapshot, refreshHotReads } from "../utils/hotReadCache.js";
 
 const POST_SORT_MAP = {
   newest: { createdAt: -1 },
@@ -706,6 +707,57 @@ export const listPublicPosts = async (req, res) => {
     const sort = postListSort(sortBy);
     const viewerId = req.user?._id || null;
     const pageLimit = enabled ? limit + 1 : limit;
+    const hot = getHotSnapshot();
+    const serveFromMemory =
+      hot &&
+      !channel &&
+      !(q && String(q).trim()) &&
+      (sortBy === "newest" || sortBy === "") &&
+      enabled &&
+      page === 1 &&
+      limit <= 30 &&
+      !hasContentAdminPower(req.user);
+
+    if (serveFromMemory) {
+      const posts = hot.posts.slice(0, limit);
+      const viewerKey = viewerId ? String(viewerId) : "";
+      const access = viewerKey
+        ? hot.accessByUser.get(viewerKey) || {
+            joinedIdSet: new Set(),
+            manageableIdSet: new Set(),
+          }
+        : { joinedIdSet: new Set(), manageableIdSet: new Set() };
+      const liked = {};
+      const reshared = {};
+      const saved = {};
+      for (const post of posts) {
+        const id = String(post._id);
+        liked[id] = Boolean(viewerKey && hot.likedBy.get(id)?.has(viewerKey));
+        reshared[id] = Boolean(
+          viewerKey && hot.resharedBy.get(id)?.has(viewerKey)
+        );
+        saved[id] = Boolean(viewerKey && hot.savedBy.get(id)?.has(viewerKey));
+      }
+      const editWindowMinutes = req.user ? await getEditWindowMinutes() : null;
+      return res.status(200).json({
+        success: true,
+        posts: posts.map((post) =>
+          formatFeedPost(post, req.user, {
+            liked,
+            reshared,
+            saved,
+            joinedIdSet: access.joinedIdSet,
+            manageableIdSet: access.manageableIdSet,
+            editWindowMinutes,
+          })
+        ),
+        pagination: buildPaginationMeta({
+          page,
+          limit,
+          hasMore: hot.posts.length > limit,
+        }),
+      });
+    }
 
     // One round trip. The API server and database are in different regions,
     // so separate populate/engagement queries were stacking into multi-second responses.
@@ -1007,6 +1059,8 @@ export const createPost = async (req, res) => {
     if (hasCommunity) {
       await post.populate("community", "name coverImage shortCode");
     }
+
+    refreshHotReads();
 
     return res.status(201).json({
       success: true,

@@ -34,6 +34,7 @@ import { initLiveSocket } from "./sockets/liveSocket.js";
 import { initWatchGroupSocket } from "./sockets/watchGroupSocket.js";
 import { initNotificationSocket } from "./sockets/notificationSocket.js";
 import { initDirectMessageSocket } from "./sockets/directMessageSocket.js";
+import { startHotReadCache } from "./utils/hotReadCache.js";
 import { safeErrorMessage } from "./utils/safeError.js";
 import { getAllowedOrigins } from "./utils/allowedOrigins.js";
 import { csrfProtect } from "./middleware/csrf.middleware.js";
@@ -149,8 +150,10 @@ app.use((err, _req, res, _next) => {
   });
 });
 
-connectDB().then(() => {
-  server.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
+connectDB()
+  .then(() => startHotReadCache())
+  .then(() => {
+    server.listen(PORT, () => {
+      console.log(`Server is running on port ${PORT}`);
+    });
   });
-});

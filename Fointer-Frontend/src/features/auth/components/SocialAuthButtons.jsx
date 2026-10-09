@@ -23,6 +23,14 @@ export default function SocialAuthButtons({
     let cancelled = false;
     let tries = 0;
 
+    if (!window.google?.accounts?.id && !document.querySelector('script[data-fointer-gsi]')) {
+      const script = document.createElement('script');
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.async = true;
+      script.dataset.fointerGsi = '1';
+      document.head.appendChild(script);
+    }
+
     const renderGoogleButton = () => {
       if (cancelled || !googleHostRef.current) return;
       const google = window.google;

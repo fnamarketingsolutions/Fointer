@@ -11,6 +11,7 @@ import {
   LuUsers as Users,
   LuCircleX as XCircle,
 } from "react-icons/lu";
+import { displayImageUrl } from "../../../../shared/utils/imageUrl";
 import CommunityCard from "../../components/CommunityCard";
 import CommunitiesRail, {
   CommunitiesCategoryFilters,
@@ -72,8 +73,11 @@ function CommunityThumb({ community }) {
   if (community?.coverImage) {
     return (
       <img
-        src={community.coverImage}
+        src={displayImageUrl(community.coverImage, 96)}
         alt={name}
+        width={40}
+        height={40}
+        decoding="async"
         className="w-10 h-10 rounded-lg object-cover border border-fo-border shrink-0"
       />
     );
@@ -512,9 +516,24 @@ export default function JoinedCommunities() {
           </div>
 
       {loading ? (
-        <div className="flex items-center justify-center gap-2 py-14 text-sm text-fo-muted">
-          <Loader2 size={16} className="animate-spin text-fo-accent" />
-          Loading…
+        <div
+          className="grid grid-cols-2 md:grid-cols-3 gap-3"
+          aria-busy="true"
+          aria-live="polite"
+        >
+          <span className="sr-only">Loading communities…</span>
+          {Array.from({ length: 6 }, (_, index) => (
+            <div
+              key={index}
+              className="rounded-xl border border-fo-border bg-fo-surface overflow-hidden"
+            >
+              <div className="pt-[56.25%] bg-fo-surface-2" />
+              <div className="p-3 space-y-2">
+                <div className="h-4 w-3/4 rounded bg-fo-surface-2" />
+                <div className="h-3 w-1/2 rounded bg-fo-surface-2" />
+              </div>
+            </div>
+          ))}
         </div>
       ) : (
         <>
@@ -543,7 +562,7 @@ export default function JoinedCommunities() {
               </div>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                {filteredDiscover.map((c) => {
+                {filteredDiscover.map((c, index) => {
                   const busy = joiningId === c.id;
                   const pending = Boolean(c.joinRequestPending);
                   let actionLabel = "View";
@@ -555,6 +574,7 @@ export default function JoinedCommunities() {
                     <CommunityCard
                       key={c.id}
                       community={c}
+                      priority={index === 0}
                       onClick={openCommunity}
                       action={
                         <ActionBtn

@@ -15,6 +15,7 @@ import { communitySegment } from "../../../../shared/services/entityLinks";
 import { formatCount } from "../../../../shared/utils/format";
 import { EXPLORE_PATH, FEED_PATH } from "../../../../shared/constants/paths";
 import { APP_SCROLL_ID } from "../../../../shared/utils/scroll";
+import { displayImageUrl } from "../../../../shared/utils/imageUrl";
 
 const SIDE_CARD =
   "bg-fo-surface border border-fo-border rounded-xl p-3 space-y-2 shadow-[0_1px_2px_rgba(26,22,18,0.04)]";
@@ -245,8 +246,12 @@ function CommunityThumb({ community }) {
   if (community?.coverImage) {
     return (
       <img
-        src={community.coverImage}
+        src={displayImageUrl(community.coverImage, 96)}
         alt=""
+        width={36}
+        height={36}
+        decoding="async"
+        loading="lazy"
         className="w-9 h-9 rounded-lg object-cover border border-fo-border shrink-0"
       />
     );

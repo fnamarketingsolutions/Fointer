@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { displayImageUrl } from "../../../../shared/utils/imageUrl";
 import {
   Link,
   useNavigate,
@@ -86,8 +87,11 @@ function CommunitySidebar({
         {community?.coverImage ? (
           <div className="h-24 bg-fo-surface-2">
             <img
-              src={community.coverImage}
+              src={displayImageUrl(community.coverImage, 640)}
               alt=""
+              width={640}
+              height={160}
+              decoding="async"
               className="w-full h-full object-cover opacity-80"
             />
           </div>

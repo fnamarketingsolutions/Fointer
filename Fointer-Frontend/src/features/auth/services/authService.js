@@ -20,6 +20,21 @@ export const resendVerificationEmail = async (email) => {
   return response.data;
 };
 
+export const requestPasswordReset = async (email) => {
+  const response = await api.post(`/auth/forgot-password`, { email });
+  return response.data;
+};
+
+export const resetPassword = async ({ email, otp, password, confirmPassword }) => {
+  const response = await api.post(`/auth/reset-password`, {
+    email,
+    otp,
+    password,
+    confirmPassword,
+  });
+  return response.data;
+};
+
 export const googleAuth = async (token, referralCode) => {
   const body = { token };
   if (referralCode) body.referralCode = referralCode;

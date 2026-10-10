@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react';
 import { FiEye, FiEyeOff, FiHome } from 'react-icons/fi';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { loginUser, resendVerificationEmail, verifyEmailOtp } from '../../../api/auth';
+import {
+  loginUser,
+  requestPasswordReset,
+  resendVerificationEmail,
+  resetPassword,
+  verifyEmailOtp,
+} from '../../../api/auth';
 import { useAuth } from '../../../context/AuthContext';
 import { useSocialAuth } from '../hooks/useSocialAuth';
 import { useToast } from '../../../shared/components/feedback/ToastContext';
@@ -35,6 +41,13 @@ export default function Login() {
   const [otp, setOtp] = useState('');
   const [verifyLoading, setVerifyLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
+  const [authView, setAuthView] = useState('login');
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetOtp, setResetOtp] = useState('');
+  const [resetPasswordValue, setResetPasswordValue] = useState('');
+  const [resetConfirm, setResetConfirm] = useState('');
+  const [showResetPassword, setShowResetPassword] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
 
   useEffect(() => {
     captureReferralFromLocation(location.search);
@@ -100,6 +113,52 @@ export default function Login() {
     }
   };
 
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+    const email = resetEmail.trim();
+    if (!email) return;
+
+    setResetLoading(true);
+    try {
+      const response = await requestPasswordReset(email);
+      setResetEmail(email);
+      setResetOtp('');
+      setResetPasswordValue('');
+      setResetConfirm('');
+      setAuthView('reset');
+      showToast(response?.message || 'If an account exists for that email, we sent a 6-digit code.');
+    } catch (error) {
+      showToast(error?.response?.data?.message || 'Could not send a reset code.');
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+    if (resetOtp.length !== 6) return;
+
+    setResetLoading(true);
+    try {
+      const response = await resetPassword({
+        email: resetEmail,
+        otp: resetOtp,
+        password: resetPasswordValue,
+        confirmPassword: resetConfirm,
+      });
+      setAuthView('login');
+      setFormData((prev) => ({ ...prev, email: resetEmail, password: '' }));
+      setResetOtp('');
+      setResetPasswordValue('');
+      setResetConfirm('');
+      showToast(response?.message || 'Password updated. You can log in now.');
+    } catch (error) {
+      showToast(error?.response?.data?.message || 'Could not reset the password.');
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
   const handleVerifyOtp = async (e) => {
     e.preventDefault();
     if (!activeVerificationEmail || otp.length !== 6) return;
@@ -130,9 +189,16 @@ export default function Login() {
           {label}
         </label>
         {isPassword && (
-          <a href="#" className="text-xs text-fo-brand hover:underline">
+          <button
+            type="button"
+            onClick={() => {
+              setResetEmail(formData.email);
+              setAuthView('forgot');
+            }}
+            className="text-xs text-fo-brand hover:underline"
+          >
             Forgot?
-          </a>
+          </button>
         )}
       </div>
       <div className="relative">
@@ -207,13 +273,124 @@ export default function Login() {
           <Link to="/">
           <FiHome size={24} className="text-fo-brand mb-2 hover:cursor-pointer" />
           </Link>
-            <h2 className="text-3xl font-serif text-fo-text">Welcome Back</h2>
+            <h2 className="text-3xl font-serif text-fo-text">
+              {authView === 'forgot'
+                ? 'Reset password'
+                : authView === 'reset'
+                  ? 'Choose a new password'
+                  : 'Welcome Back'}
+            </h2>
             <p className="text-xs text-fo-subtle mt-2">
-              Please enter your credentials to access your account.
+              {authView === 'forgot'
+                ? 'We will email a 6-digit code if an account exists for that address.'
+                : authView === 'reset'
+                  ? 'Enter the code from your email and set a new password.'
+                  : 'Please enter your credentials to access your account.'}
             </p>
           </div>
 
-          {!activeVerificationEmail ? (
+          {authView === 'forgot' && !activeVerificationEmail ? (
+            <form onSubmit={handleForgotPassword} className="space-y-5">
+              <div>
+                <label className="block text-xs font-medium text-fo-muted uppercase tracking-wider mb-1.5">
+                  Email Address
+                </label>
+                <input
+                  type="email"
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
+                  placeholder="john@example.com"
+                  required
+                  className="w-full px-4 py-3 rounded-lg bg-fo-surface-hover border border-fo-border/60 text-fo-text placeholder:text-fo-subtle focus:outline-none focus:border-fo-brand transition-all text-sm"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={resetLoading}
+                className="w-full py-3 px-4 bg-fo-brand text-fo-brand-fg font-bold text-sm rounded-lg hover:bg-fo-brand-hover transition-colors shadow-md shadow-fo-brand/10 active:scale-[0.98] disabled:opacity-50"
+              >
+                {resetLoading ? 'Sending...' : 'Send reset code'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setAuthView('login')}
+                className="w-full text-sm text-fo-brand hover:underline"
+              >
+                Back to login
+              </button>
+            </form>
+          ) : authView === 'reset' && !activeVerificationEmail ? (
+            <form onSubmit={handleResetPassword} className="space-y-5">
+              <p className="text-xs text-fo-subtle">
+                Enter the code sent to {resetEmail} and choose a new password.
+              </p>
+              <div>
+                <label className="block text-xs font-medium text-fo-muted uppercase tracking-wider mb-1.5">
+                  6-Digit Code
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="\d{6}"
+                  maxLength={6}
+                  value={resetOtp}
+                  onChange={(e) => setResetOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="123456"
+                  required
+                  className="w-full px-4 py-3 rounded-lg bg-fo-surface-hover border border-fo-border/60 text-fo-text placeholder:text-fo-subtle focus:outline-none focus:border-fo-brand transition-all text-sm text-center tracking-[0.35em]"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-fo-muted uppercase tracking-wider mb-1.5">
+                  New Password
+                </label>
+                <div className="relative">
+                  <input
+                    type={showResetPassword ? 'text' : 'password'}
+                    value={resetPasswordValue}
+                    onChange={(e) => setResetPasswordValue(e.target.value)}
+                    placeholder="••••••••"
+                    required
+                    className="w-full px-4 py-3 rounded-lg bg-fo-surface-hover border border-fo-border/60 text-fo-text placeholder:text-fo-subtle focus:outline-none focus:border-fo-brand transition-all text-sm pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowResetPassword((prev) => !prev)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-fo-subtle hover:text-fo-brand transition-colors"
+                  >
+                    {showResetPassword ? <FiEyeOff size={18} /> : <FiEye size={18} />}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-fo-muted uppercase tracking-wider mb-1.5">
+                  Confirm Password
+                </label>
+                <input
+                  type={showResetPassword ? 'text' : 'password'}
+                  value={resetConfirm}
+                  onChange={(e) => setResetConfirm(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                  className="w-full px-4 py-3 rounded-lg bg-fo-surface-hover border border-fo-border/60 text-fo-text placeholder:text-fo-subtle focus:outline-none focus:border-fo-brand transition-all text-sm"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={resetLoading || resetOtp.length !== 6}
+                className="w-full py-3 px-4 bg-fo-brand text-fo-brand-fg font-bold text-sm rounded-lg hover:bg-fo-brand-hover transition-colors shadow-md shadow-fo-brand/10 active:scale-[0.98] disabled:opacity-50"
+              >
+                {resetLoading ? 'Updating...' : 'Update password'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setAuthView('login')}
+                className="w-full text-sm text-fo-brand hover:underline"
+              >
+                Back to login
+              </button>
+            </form>
+          ) : !activeVerificationEmail ? (
             <form onSubmit={handleSubmit} className="space-y-5">
               {renderInputField('Email Address', 'email', 'email', 'john@example.com')}
               {renderInputField('Password', 'password', 'password', '••••••••', true)}
@@ -280,6 +457,20 @@ export default function Login() {
                 className="text-fo-brand hover:underline font-medium disabled:opacity-50"
               >
                 {resendLoading ? 'Sending...' : 'Resend OTP'}
+              </button>
+            </div>
+          )}
+
+          {authView === 'reset' && !activeVerificationEmail && (
+            <div className="mt-4 text-center text-xs text-fo-subtle">
+              Need a new code?{' '}
+              <button
+                type="button"
+                onClick={handleForgotPassword}
+                disabled={resetLoading}
+                className="text-fo-brand hover:underline font-medium disabled:opacity-50"
+              >
+                {resetLoading ? 'Sending...' : 'Resend code'}
               </button>
             </div>
           )}

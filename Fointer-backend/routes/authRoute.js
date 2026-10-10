@@ -11,6 +11,8 @@ import {
   facebookLogin,
   verifyEmailOtp,
   resendVerificationEmail,
+  forgotPassword,
+  resetPassword,
 } from "../controllers/auth.controller.js";
 import {
   isAuthenticated,
@@ -30,6 +32,8 @@ router.post("/admin/google", authRateLimit, adminGoogleLogin);
 router.post("/admin/facebook", authRateLimit, adminFacebookLogin);
 router.post("/verify-email-otp", otpRateLimit, verifyEmailOtp);
 router.post("/resend-verification", otpRateLimit, resendVerificationEmail);
+router.post("/forgot-password", otpRateLimit, forgotPassword);
+router.post("/reset-password", otpRateLimit, resetPassword);
 router.post("/google", authRateLimit, googleLogin);
 router.post("/facebook", authRateLimit, facebookLogin);
 

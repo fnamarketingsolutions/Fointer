@@ -174,6 +174,29 @@ const sendDashboardNotificationEmail = async ({
   });
 };
 
+export const sendPasswordResetEmail = async ({ to, name, otp }) => {
+  await sendRawEmail({
+    to,
+    subject: "Reset your Fointer password",
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1f2937;">
+        <h2 style="margin-bottom: 16px;">Reset your password</h2>
+        <p>Hi ${escapeHtml(name) || "there"},</p>
+        <p>Use this 6-digit code to choose a new Fointer password. If you did not ask for this, you can ignore the email.</p>
+        <div style="margin:24px 0; padding:16px; background:#fff7e6; border:1px solid #f8a201; border-radius:12px; text-align:center;">
+          <div style="font-size:12px; letter-spacing:0.24em; text-transform:uppercase; color:#8a5a00; margin-bottom:8px;">
+            Your Reset Code
+          </div>
+          <div style="font-size:32px; font-weight:700; letter-spacing:0.35em; color:#130d08;">
+            ${escapeHtml(otp)}
+          </div>
+        </div>
+        <p>This code expires in 10 minutes.</p>
+      </div>
+    `,
+  });
+};
+
 const sendVerificationEmail = async ({ to, name, otp }) => {
   await sendRawEmail({
     to,

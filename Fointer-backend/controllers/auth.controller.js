@@ -3,7 +3,9 @@ import crypto from "crypto";
 import { OAuth2Client } from "google-auth-library";
 import User from "../models/user.js";
 import sendToken from "../utils/sendToken.js";
-import sendVerificationEmail from "../utils/sendVerificationEmail.js";
+import sendVerificationEmail, {
+  sendPasswordResetEmail,
+} from "../utils/sendVerificationEmail.js";
 import { sendServerError } from "../utils/safeError.js";
 import { getAuthCookieOptions } from "../utils/cookieOptions.js";
 import { respondIfBanned } from "../utils/bannedKeywords.js";
@@ -198,6 +200,23 @@ const clearEmailVerification = (user) => {
   user.emailVerificationOtp = undefined;
   user.emailVerificationOtpExpires = undefined;
   user.emailVerificationOtpAttempts = 0;
+};
+
+const clearPasswordReset = (user) => {
+  user.passwordResetOtp = undefined;
+  user.passwordResetOtpExpires = undefined;
+  user.passwordResetOtpAttempts = 0;
+};
+
+const otpMatchesHash = (otp, expectedHash) => {
+  const hashedOtp = crypto
+    .createHash("sha256")
+    .update(String(otp).trim())
+    .digest("hex");
+  const expected = String(expectedHash || "");
+  const left = Buffer.from(hashedOtp, "utf8");
+  const right = Buffer.from(expected, "utf8");
+  return left.length === right.length && crypto.timingSafeEqual(left, right);
 };
 
 export const signup = async (req, res) => {
@@ -1034,6 +1053,142 @@ export const resendVerificationEmail = async (req, res) => {
       res,
       error,
       "Could not resend verification email. Please try again."
+    );
+  }
+};
+
+export const forgotPassword = async (req, res) => {
+  try {
+    const email = String(req.body?.email || "").trim().toLowerCase();
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: "Email is required.",
+      });
+    }
+
+    const generic = {
+      success: true,
+      message: "If an account exists for that email, we sent a 6-digit code.",
+    };
+
+    const user = await User.findOne({ email });
+    if (!user || user.status === "suspended" || user.status === "banned") {
+      return res.status(200).json(generic);
+    }
+
+    const { otp, hashedOtp, expiresAt } = createEmailVerificationFields();
+    user.passwordResetOtp = hashedOtp;
+    user.passwordResetOtpExpires = expiresAt;
+    user.passwordResetOtpAttempts = 0;
+    await user.save();
+
+    try {
+      await sendPasswordResetEmail({
+        to: user.email,
+        name: user.name,
+        otp,
+      });
+    } catch (error) {
+      console.error("Password reset email failed:", error?.message || error);
+    }
+
+    return res.status(200).json(generic);
+  } catch (error) {
+    return sendServerError(
+      res,
+      error,
+      "Could not send a reset code. Please try again."
+    );
+  }
+};
+
+export const resetPassword = async (req, res) => {
+  try {
+    const email = String(req.body?.email || "").trim().toLowerCase();
+    const otp = String(req.body?.otp || "").trim();
+    const password = String(req.body?.password || "");
+    const confirmPassword = String(req.body?.confirmPassword || "");
+
+    if (!email || !otp || !password || !confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "Email, code, and a new password are required.",
+      });
+    }
+
+    const passwordCheck = validatePasswordStrength(password);
+    if (!passwordCheck.ok) {
+      return res.status(400).json({
+        success: false,
+        message: passwordCheck.message,
+      });
+    }
+
+    if (password !== confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "Passwords do not match.",
+      });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user || !user.passwordResetOtp || !user.passwordResetOtpExpires) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid or expired code.",
+      });
+    }
+
+    if (user.passwordResetOtpExpires <= new Date()) {
+      clearPasswordReset(user);
+      await user.save();
+      return res.status(400).json({
+        success: false,
+        message: "Invalid or expired code.",
+      });
+    }
+
+    if ((user.passwordResetOtpAttempts || 0) >= MAX_OTP_ATTEMPTS) {
+      clearPasswordReset(user);
+      await user.save();
+      return res.status(429).json({
+        success: false,
+        message: "Too many invalid attempts. Request a new code.",
+      });
+    }
+
+    if (!otpMatchesHash(otp, user.passwordResetOtp)) {
+      const attempts = (user.passwordResetOtpAttempts || 0) + 1;
+      user.passwordResetOtpAttempts = attempts;
+      if (attempts >= MAX_OTP_ATTEMPTS) {
+        clearPasswordReset(user);
+      }
+      await user.save();
+      return res.status(attempts >= MAX_OTP_ATTEMPTS ? 429 : 400).json({
+        success: false,
+        message:
+          attempts >= MAX_OTP_ATTEMPTS
+            ? "Too many invalid attempts. Request a new code."
+            : "Invalid or expired code.",
+      });
+    }
+
+    user.password = await bcrypt.hash(password, 10);
+    user.isEmailVerified = true;
+    clearPasswordReset(user);
+    clearEmailVerification(user);
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Password updated. You can log in now.",
+    });
+  } catch (error) {
+    return sendServerError(
+      res,
+      error,
+      "Could not reset the password. Please try again."
     );
   }
 };

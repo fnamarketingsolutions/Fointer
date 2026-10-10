@@ -168,4 +168,4 @@ export default function FeedHeroBanner({ banners = [], loading = false }) {
       </div>
     </div>
   );
-}
+} 

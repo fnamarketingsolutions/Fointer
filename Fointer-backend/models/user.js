@@ -147,6 +147,19 @@ const userSchema = new mongoose.Schema(
       default: 0,
     },
 
+    passwordResetOtp: {
+      type: String,
+    },
+
+    passwordResetOtpExpires: {
+      type: Date,
+    },
+
+    passwordResetOtpAttempts: {
+      type: Number,
+      default: 0,
+    },
+
     role: {
       type: String,
       enum: ["admin", "user"],

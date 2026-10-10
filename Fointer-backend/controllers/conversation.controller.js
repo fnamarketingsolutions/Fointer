@@ -244,6 +244,10 @@ const countUnread = async (conversation, userId) => {
     (p) => String(p.user?._id || p.user) === uid
   );
   const lastReadAt = row?.lastReadAt || new Date(0);
+  const lastMessageAt = conversation.lastMessageAt
+    ? new Date(conversation.lastMessageAt)
+    : null;
+  if (!lastMessageAt || lastMessageAt <= new Date(lastReadAt)) return 0;
   return DirectMessage.countDocuments({
     conversation: conversation._id,
     author: { $ne: userId },
@@ -256,7 +260,7 @@ export const formatConversation = async (
   conversation,
   viewerId,
   userMap,
-  { includeBlock = false } = {}
+  { includeBlock = false, unreadCount = null, blockState = null } = {}
 ) => {
   const uid = String(viewerId);
   const otherRow = (conversation.participants || []).find(
@@ -264,9 +268,13 @@ export const formatConversation = async (
   );
   const otherId = otherRow?.user?._id || otherRow?.user;
   const otherUser = userMap?.get(String(otherId)) || null;
-  const unreadCount = await countUnread(conversation, viewerId);
-  const blockState =
-    includeBlock && otherId
+  const resolvedUnread =
+    unreadCount != null
+      ? unreadCount
+      : await countUnread(conversation, viewerId);
+  const resolvedBlock = blockState
+    ? blockState
+    : includeBlock && otherId
       ? await getBlockState(viewerId, otherId)
       : { isBlocked: false, blockedByMe: false };
 
@@ -276,9 +284,9 @@ export const formatConversation = async (
     listing: conversation.listing || null,
     lastMessageText: conversation.lastMessageText || "",
     lastMessageAt: conversation.lastMessageAt || conversation.createdAt,
-    unreadCount,
-    isBlocked: blockState.isBlocked,
-    blockedByMe: blockState.blockedByMe,
+    unreadCount: resolvedUnread,
+    isBlocked: resolvedBlock.isBlocked,
+    blockedByMe: resolvedBlock.blockedByMe,
     createdAt: conversation.createdAt,
     updatedAt: conversation.updatedAt,
   };
@@ -707,15 +715,21 @@ export const getConversation = async (req, res) => {
     }
 
     const otherId = getOtherParticipantId(conversation, req.user._id);
-    const otherUser = await User.findById(otherId)
-      .select("username name avatar")
-      .lean();
+    const [otherUser, unreadCount, blockState] = await Promise.all([
+      otherId
+        ? User.findById(otherId).select("username name avatar").lean()
+        : Promise.resolve(null),
+      countUnread(conversation, req.user._id),
+      otherId
+        ? getBlockState(req.user._id, otherId)
+        : Promise.resolve({ isBlocked: false, blockedByMe: false }),
+    ]);
     const userMap = new Map([[String(otherId), otherUser]]);
     const formatted = await formatConversation(
       conversation.toObject(),
       req.user._id,
       userMap,
-      { includeBlock: true }
+      { includeBlock: true, unreadCount, blockState }
     );
 
     return res.json({
@@ -773,27 +787,30 @@ export const listMessages = async (req, res) => {
       query.limit(100);
     }
 
-    const rows = await query;
+    const [rows, editWindowMinutes, total] = await Promise.all([
+      query,
+      getEditWindowMinutes(),
+      enabled
+        ? DirectMessage.countDocuments(messageFilter)
+        : Promise.resolve(null),
+    ]);
     const { rows: pageRows, hasMore } = enabled
       ? takePage(rows, limit)
       : { rows, hasMore: false };
 
-    const editWindowMinutes = await getEditWindowMinutes();
     const messages = pageRows.reverse().map((message) =>
       formatMessage(message, {
         viewerId: req.user._id,
         editWindowMinutes,
       })
     );
-    const total = enabled
-      ? await DirectMessage.countDocuments(messageFilter)
-      : messages.length;
+    const resolvedTotal = enabled ? total : messages.length;
 
     return res.json({
       success: true,
       messages,
       pagination: enabled
-        ? buildPaginationMeta({ page, limit, total, hasMore })
+        ? buildPaginationMeta({ page, limit, total: resolvedTotal, hasMore })
         : null,
     });
   } catch (error) {

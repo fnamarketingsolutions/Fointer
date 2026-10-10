@@ -180,8 +180,8 @@ export default function ConversationThread() {
       ]);
       setConversation(convRes?.conversation || null);
       setMessages(msgRes?.messages || []);
-      await markConversationRead(conversationId);
       scrollToBottom();
+      markConversationRead(conversationId).catch(() => {});
     } catch (err) {
       showToast(err?.response?.data?.message || "Failed to load conversation.");
       navigate("/messages", { replace: true });

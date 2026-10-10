@@ -9,6 +9,7 @@ import {
 import {
   isAuthenticated,
   optionalAuthenticate,
+  optionalAuthenticateFast,
 } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
@@ -17,6 +18,6 @@ router.get("/:username/followers", optionalAuthenticate, listFollowers);
 router.get("/:username/following", optionalAuthenticate, listFollowing);
 router.post("/:username/follow", isAuthenticated, followUser);
 router.delete("/:username/follow", isAuthenticated, unfollowUser);
-router.get("/:username", optionalAuthenticate, getPublicProfile);
+router.get("/:username", optionalAuthenticateFast, getPublicProfile);
 
 export default router;

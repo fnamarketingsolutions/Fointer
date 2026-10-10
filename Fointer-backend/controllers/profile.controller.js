@@ -23,6 +23,8 @@ import {
   purgeUserAccount,
 } from "../services/accountDeletion.service.js";
 import { countQualifiedReferrals } from "../services/referral.service.js";
+import { getHotSnapshot } from "../utils/hotReadCache.js";
+import mongoose from "mongoose";
 
 const normalizeInterests = (interests) => {
   if (!interests) return [];
@@ -66,60 +68,164 @@ const formatProfileUser = (user) => ({
   createdAt: user.createdAt,
 });
 
+const asObjectId = (value) =>
+  value instanceof mongoose.Types.ObjectId
+    ? value
+    : new mongoose.Types.ObjectId(String(value));
+
+const membershipStats = (memberships) => {
+  const roleMap = {};
+  let isMod = false;
+  let ownedCount = 0;
+  for (const membership of memberships) {
+    const role = getEffectiveMemberRole(membership);
+    roleMap[String(membership.community)] = role;
+    if (role === "owner") ownedCount += 1;
+    if (role === "moderator") isMod = true;
+  }
+  return {
+    roleMap,
+    isMod,
+    ownedCount,
+    joinedCount: memberships.length,
+    memberCommunityIds: memberships.map((membership) => membership.community),
+  };
+};
+
+const membershipStatsFromCache = (access) => {
+  const roleMap = {};
+  let isMod = false;
+  let ownedCount = 0;
+  const memberCommunityIds = [];
+  if (access) {
+    for (const [communityId, role] of access.roleByCommunity) {
+      roleMap[communityId] = role;
+      memberCommunityIds.push(communityId);
+      if (role === "owner") ownedCount += 1;
+      if (role === "moderator") isMod = true;
+    }
+  }
+  return {
+    roleMap,
+    isMod,
+    ownedCount,
+    joinedCount: access?.joinedIdSet?.size || 0,
+    memberCommunityIds,
+  };
+};
+
+const loadMyPosts = (userId) =>
+  Post.aggregate([
+    { $match: { author: asObjectId(userId) } },
+    { $sort: { createdAt: -1 } },
+    { $limit: 12 },
+    {
+      $lookup: {
+        from: Community.collection.name,
+        localField: "community",
+        foreignField: "_id",
+        pipeline: [{ $project: { name: 1, shortCode: 1 } }],
+        as: "community",
+      },
+    },
+    {
+      $set: {
+        community: { $ifNull: [{ $arrayElemAt: ["$community", 0] }, null] },
+      },
+    },
+    {
+      $project: {
+        title: 1,
+        text: 1,
+        shortCode: 1,
+        createdAt: 1,
+        community: 1,
+      },
+    },
+  ]);
+
 export const getMyProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
-    if (!user) {
+    const user = req.user;
+    if (!user?._id) {
       return res.status(404).json({
         success: false,
         message: "User not found.",
       });
     }
 
-    const memberships = await CommunityMember.find({
-      user: user._id,
-      status: "active",
-    });
+    const hot = getHotSnapshot();
+    const cacheReady =
+      Array.isArray(hot?.allCommunities) && hot?.accessByUser instanceof Map;
+    const cachedStats = cacheReady
+      ? membershipStatsFromCache(hot.accessByUser.get(String(user._id)))
+      : null;
+    const communityById = cacheReady
+      ? new Map(hot.allCommunities.map((community) => [String(community._id), community]))
+      : null;
+    const missingCommunityIds = cachedStats
+      ? cachedStats.memberCommunityIds.filter((id) => !communityById.has(String(id)))
+      : [];
 
-    const communityIds = memberships.map((m) => m.community);
-    const communities = await Community.find({ _id: { $in: communityIds } })
-      .populate("owner", "username name")
-      .sort({ createdAt: -1 })
-      .lean();
+    const [
+      passwordRow,
+      memberships,
+      posts,
+      postCount,
+      qualifiedReferrals,
+      followCounts,
+      missingCommunities,
+    ] = await Promise.all([
+      User.findById(user._id).select("password").lean(),
+      cachedStats
+        ? Promise.resolve(null)
+        : CommunityMember.find({ user: user._id, status: "active" }).lean(),
+      loadMyPosts(user._id),
+      Post.countDocuments({ author: user._id }),
+      countQualifiedReferrals(user._id),
+      getFollowCounts(user._id),
+      missingCommunityIds.length
+        ? Community.find({ _id: { $in: missingCommunityIds } })
+            .select("name type shortCode coverImage createdAt")
+            .lean()
+        : Promise.resolve([]),
+    ]);
 
-    const roleMap = {};
-    let isMod = false;
-    let ownedCount = 0;
-    for (const m of memberships) {
-      const role = getEffectiveMemberRole(m);
-      roleMap[String(m.community)] = role;
-      if (role === "owner") ownedCount += 1;
-      if (role === "moderator") isMod = true;
+    const stats = cachedStats || membershipStats(memberships || []);
+    let communities = [];
+    if (cacheReady) {
+      const extras = new Map(
+        missingCommunities.map((community) => [String(community._id), community])
+      );
+      communities = stats.memberCommunityIds
+        .map((id) => communityById.get(String(id)) || extras.get(String(id)))
+        .filter(Boolean)
+        .sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+    } else if (stats.memberCommunityIds.length) {
+      communities = await Community.find({ _id: { $in: stats.memberCommunityIds } })
+        .select("name type shortCode coverImage createdAt")
+        .sort({ createdAt: -1 })
+        .lean();
     }
 
-    const posts = await Post.find({ author: user._id })
-      .populate("community", "name shortCode")
-      .sort({ createdAt: -1 })
-      .limit(12)
-      .lean();
-
-    const postCount = await Post.countDocuments({ author: user._id });
-    const qualifiedReferrals = await countQualifiedReferrals(user._id);
+    const { roleMap, isMod, ownedCount, joinedCount } = stats;
 
     const achievements = computeAchievements({
       ownedCount,
-      joinedCount: memberships.length,
+      joinedCount,
       postCount,
       isMod,
       qualifiedReferrals,
     });
 
-    const followCounts = await getFollowCounts(user._id);
-
     return res.status(200).json({
       success: true,
       profile: {
         ...formatProfileUser(user),
+        hasPassword: Boolean(passwordRow?.password),
         communities: communities.map((c) => ({
           id: c._id,
           name: c.name,
@@ -144,7 +250,7 @@ export const getMyProfile = async (req, res) => {
         })),
         achievements,
         stats: {
-          communitiesJoined: memberships.length,
+          communitiesJoined: joinedCount,
           communitiesOwned: ownedCount,
           posts: postCount,
           followers: followCounts.followers,

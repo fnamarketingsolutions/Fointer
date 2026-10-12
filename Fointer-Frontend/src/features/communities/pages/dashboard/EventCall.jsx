@@ -11,6 +11,9 @@ import {
 import { getLiveSocket } from "../../../../shared/services/liveSocket";
 import CallTile from "../../../../shared/components/CallTile";
 import { ICE_SERVERS } from "../../../../shared/webrtc/iceServers";
+import { applyPeerSignal } from "../../../../shared/webrtc/applyPeerSignal";
+import { createIceQueue, enqueueSerial } from "../../../../shared/webrtc/iceQueue";
+import { addRemoteTracks } from "../../../../shared/webrtc/remoteTracks";
 
 export default function EventCall({ eventId, isLive, callMode = "chat" }) {
   const [joining, setJoining] = useState(false);
@@ -28,6 +31,8 @@ export default function EventCall({ eventId, isLive, callMode = "chat" }) {
   const modeRef = useRef(mode);
   const makingOfferRef = useRef(new Set());
   const handlersRef = useRef({});
+  const earlySignalsRef = useRef([]);
+  const signalChainRef = useRef({ chain: Promise.resolve() });
 
   const syncTiles = useCallback(() => {
     const local = localStreamRef.current;
@@ -85,6 +90,7 @@ export default function EventCall({ eventId, isLive, callMode = "chat" }) {
       peersRef.current.clear();
       stopLocal();
       inCallRef.current = false;
+      earlySignalsRef.current = [];
       setInCall(false);
       setMuted(false);
       setCameraOff(false);
@@ -125,6 +131,7 @@ export default function EventCall({ eventId, isLive, callMode = "chat" }) {
         stream: new MediaStream(),
         polite: String(getLiveSocket().id || "") < String(socketId),
         ignoreOffer: false,
+        iceQueue: createIceQueue(),
       };
 
       localStreamRef.current?.getTracks().forEach((track) => {
@@ -137,11 +144,7 @@ export default function EventCall({ eventId, isLive, callMode = "chat" }) {
       };
 
       pc.ontrack = (event) => {
-        event.streams[0]?.getTracks().forEach((track) => {
-          if (!peer.stream.getTracks().some((item) => item.id === track.id)) {
-            peer.stream.addTrack(track);
-          }
-        });
+        addRemoteTracks(peer.stream, event);
         syncTiles();
       };
 
@@ -172,53 +175,48 @@ export default function EventCall({ eventId, isLive, callMode = "chat" }) {
     [ensurePeer, sendSignal]
   );
 
-  const handleSignal = useCallback(
+  const applySignal = useCallback(
     async ({ from, type, sdp, candidate }) => {
-      if (!inCallRef.current || !from) return;
+      if (!inCallRef.current || !from || !localStreamRef.current) return;
       const peer = ensurePeer({ socketId: from });
       if (!peer) return;
-
       try {
-        if (type === "offer" && sdp) {
-          const makingOffer = makingOfferRef.current.has(from);
-          const collision =
-            makingOffer || peer.pc.signalingState !== "stable";
-          peer.ignoreOffer = !peer.polite && collision;
-          if (peer.ignoreOffer) return;
-
-          if (collision) {
-            await Promise.all([
-              peer.pc.setLocalDescription({ type: "rollback" }),
-              peer.pc.setRemoteDescription(sdp),
-            ]);
-          } else {
-            await peer.pc.setRemoteDescription(sdp);
+        await applyPeerSignal(
+          peer,
+          { type, sdp, candidate },
+          {
+            makingOffer: makingOfferRef.current.has(from),
+            onAnswer: (description) => {
+              sendSignal(from, { type: "answer", sdp: description });
+            },
           }
-          const answer = await peer.pc.createAnswer();
-          await peer.pc.setLocalDescription(answer);
-          sendSignal(from, { type: "answer", sdp: peer.pc.localDescription });
-          return;
-        }
-
-        if (type === "answer" && sdp) {
-          if (peer.pc.signalingState === "have-local-offer") {
-            await peer.pc.setRemoteDescription(sdp);
-          }
-          return;
-        }
-
-        if (type === "ice" && candidate && !peer.ignoreOffer) {
-          try {
-            await peer.pc.addIceCandidate(candidate);
-          } catch {
-            if (!peer.ignoreOffer) throw new Error("ICE failed");
-          }
-        }
+        );
+        syncTiles();
       } catch {
         /* ignore stale signaling during leave/renegotiate */
       }
     },
-    [ensurePeer, sendSignal]
+    [ensurePeer, sendSignal, syncTiles]
+  );
+
+  const flushEarlySignals = useCallback(() => {
+    if (!inCallRef.current || !localStreamRef.current) return;
+    const queued = earlySignalsRef.current.splice(0);
+    for (const item of queued) {
+      enqueueSerial(signalChainRef.current, () => applySignal(item));
+    }
+  }, [applySignal]);
+
+  const handleSignal = useCallback(
+    (payload) => {
+      if (!payload?.from) return;
+      if (!inCallRef.current || !localStreamRef.current) {
+        earlySignalsRef.current.push(payload);
+        return;
+      }
+      enqueueSerial(signalChainRef.current, () => applySignal(payload));
+    },
+    [applySignal]
   );
 
   const joinCall = async (nextMode) => {
@@ -251,10 +249,12 @@ export default function EventCall({ eventId, isLive, callMode = "chat" }) {
         setInCall(true);
         setJoining(false);
         syncTiles();
+        flushEarlySignals();
+        await signalChainRef.current.chain;
         const myId = String(socket.id || "");
         for (const peer of ack.peers || []) {
           if (myId > String(peer.socketId)) {
-            await createOffer(peer);
+            await enqueueSerial(signalChainRef.current, () => createOffer(peer));
           }
         }
         syncTiles();
@@ -321,7 +321,9 @@ export default function EventCall({ eventId, isLive, callMode = "chat" }) {
       if (peersRef.current.has(peer.socketId)) return;
       const myId = String(socket.id || "");
       if (myId > String(peer.socketId)) {
-        handlersRef.current.createOffer(peer);
+        enqueueSerial(signalChainRef.current, () =>
+          handlersRef.current.createOffer(peer)
+        );
       }
     };
 

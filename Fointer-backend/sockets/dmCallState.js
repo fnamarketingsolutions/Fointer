@@ -129,4 +129,15 @@ export const findDmCallBySocket = (socketId) => {
   return null;
 };
 
+/** Prefer the call that already contains both sockets. */
+export const findDmCallForSignal = (fromSocketId, toSocketId) => {
+  let fallback = null;
+  for (const [conversationId, call] of dmCalls.entries()) {
+    if (!call.peers?.has(fromSocketId)) continue;
+    if (call.peers.has(toSocketId)) return { conversationId, call };
+    if (!fallback) fallback = { conversationId, call };
+  }
+  return fallback;
+};
+
 export { roomName as dmRoomName };

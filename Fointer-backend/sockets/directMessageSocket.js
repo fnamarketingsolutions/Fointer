@@ -7,6 +7,7 @@ import { isMessagingBlocked } from "../controllers/block.controller.js";
 import { authenticateSocket } from "./socketAuth.js";
 import { createRoomMembership } from "./roomMembership.js";
 import { logRealtime } from "../utils/realtimeLog.js";
+import { canRelayCallSignal } from "../utils/callRelay.js";
 import { assertNoBannedKeywords } from "../utils/bannedKeywords.js";
 import { acceptSignedMediaList } from "../utils/s3.js";
 import { notify, personName, userNotificationRoom } from "../utils/notify.js";
@@ -18,6 +19,7 @@ import {
   dmRoomName,
   ensureDmCall,
   findDmCallBySocket,
+  findDmCallForSignal,
   getDmCall,
   removeDmCaller,
 } from "./dmCallState.js";
@@ -107,6 +109,14 @@ export const initDirectMessageSocket = (io) => {
           return;
         }
         const conversationId = String(conversation._id);
+        const otherId = getOtherParticipantId(conversation, socket.user._id);
+        if (!socket.data.dmPeers) socket.data.dmPeers = new Map();
+        const peerRecord = {
+          id: conversationId,
+          otherId: otherId ? String(otherId) : "",
+        };
+        socket.data.dmPeers.set(conversationId, peerRecord);
+        socket.data.dmPeers.set(String(conversationIdParam), peerRecord);
         logRealtime("dm_joined", {
           userId: String(socket.user._id),
           conversationId,
@@ -136,6 +146,13 @@ export const initDirectMessageSocket = (io) => {
         payload.joinToken ?? null
       );
       if (!dropped) return;
+      if (socket.data.dmPeers) {
+        for (const [key, value] of socket.data.dmPeers) {
+          if (key === dropped || value?.id === dropped) {
+            socket.data.dmPeers.delete(key);
+          }
+        }
+      }
       logRealtime("dm_left", {
         userId: String(socket.user?._id || ""),
         conversationId: dropped,
@@ -143,6 +160,7 @@ export const initDirectMessageSocket = (io) => {
     });
 
     socket.on("send_dm", async (payload = {}, ack) => {
+      const started = Date.now();
       try {
         const conversationIdParam =
           payload.conversationId || membership.roomId();
@@ -162,7 +180,12 @@ export const initDirectMessageSocket = (io) => {
           );
         }
 
-        if (text) await assertNoBannedKeywords(text);
+        let bannedMs = 0;
+        if (text) {
+          const bannedStarted = Date.now();
+          await assertNoBannedKeywords(text);
+          bannedMs = Date.now() - bannedStarted;
+        }
 
         let media = [];
         if (mediaList.length) {
@@ -177,6 +200,11 @@ export const initDirectMessageSocket = (io) => {
           media = accepted.items || [];
         }
 
+        const authStarted = Date.now();
+        const hinted = socket.data.dmPeers?.get(String(conversationIdParam));
+        const blockPromise = hinted?.otherId
+          ? isMessagingBlocked(socket.user._id, hinted.otherId)
+          : null;
         const conversation = await findConversationByParam(conversationIdParam);
         if (!conversation) throw new Error("Conversation not found.");
 
@@ -185,17 +213,33 @@ export const initDirectMessageSocket = (io) => {
         }
 
         const otherId = getOtherParticipantId(conversation, socket.user._id);
-        if (otherId && (await isMessagingBlocked(socket.user._id, otherId))) {
+        const blocked =
+          blockPromise && String(otherId || "") === String(hinted.otherId)
+            ? await blockPromise
+            : otherId
+              ? await isMessagingBlocked(socket.user._id, otherId)
+              : false;
+        const authMs = Date.now() - authStarted;
+        if (blocked) {
           throw new Error("You cannot message this user.");
         }
 
-        const { message } = await sendDirectMessage({
+        const { message, persistMs } = await sendDirectMessage({
           conversation,
           author: socket.user,
           text,
           media,
           replyTo: payload.replyTo || null,
           io,
+        });
+
+        logRealtime("dm_send_timing", {
+          conversationId: String(conversation._id),
+          messageId: String(message?.id || ""),
+          bannedMs,
+          authMs,
+          persistMs,
+          totalMs: Date.now() - started,
         });
 
         if (typeof ack === "function") {
@@ -314,7 +358,10 @@ export const initDirectMessageSocket = (io) => {
           peers: existingPeers,
         };
 
-        socket.to(roomName(conversationId)).emit("dm_call_accepted", accepted);
+        for (const peer of existingPeers) {
+          if (!peer.socketId || peer.socketId === socket.id) continue;
+          io.to(peer.socketId).emit("dm_call_accepted", accepted);
+        }
 
         if (typeof ack === "function") {
           ack({
@@ -407,29 +454,19 @@ export const initDirectMessageSocket = (io) => {
       }
     });
 
-    socket.on("dm_call_signal", async (payload = {}) => {
-      const conversationIdParam =
-        payload.conversationId || membership.roomId();
+    socket.on("dm_call_signal", (payload = {}) => {
       const to = payload.to;
-      if (!conversationIdParam || !to) return;
+      if (!to) return;
+      const found = findDmCallForSignal(socket.id, to);
+      if (!found || !canRelayCallSignal(found.call.peers, socket.id, to)) return;
 
-      try {
-        const conversation = await findConversationByParam(conversationIdParam);
-        if (!conversation) return;
-        const conversationId = String(conversation._id);
-        const call = getDmCall(conversationId);
-        if (!call?.peers?.has(socket.id) || !call.peers.has(to)) return;
-
-        io.to(to).emit("dm_call_signal", {
-          conversationId,
-          from: socket.id,
-          type: payload.type,
-          sdp: payload.sdp,
-          candidate: payload.candidate,
-        });
-      } catch {
-        /* ignore */
-      }
+      io.to(to).emit("dm_call_signal", {
+        conversationId: found.conversationId,
+        from: socket.id,
+        type: payload.type,
+        sdp: payload.sdp,
+        candidate: payload.candidate,
+      });
     });
 
     socket.on("dm_call_presence", async (payload = {}) => {

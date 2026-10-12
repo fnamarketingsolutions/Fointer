@@ -12,6 +12,7 @@ export default function CallTile({
   size = "md",
 }) {
   const videoRef = useRef(null);
+  const audioRef = useRef(null);
   const showVideo =
     peer.mode === "video" &&
     peer.camera !== false &&
@@ -22,10 +23,25 @@ export default function CallTile({
     const el = videoRef.current;
     if (!el) return undefined;
     el.srcObject = peer.stream || null;
+    if (!isLocal && peer.stream) {
+      el.play?.().catch(() => {});
+    }
     return () => {
       if (el.srcObject) el.srcObject = null;
     };
-  }, [peer.stream]);
+  }, [isLocal, peer.stream]);
+
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el || isLocal) return undefined;
+    el.srcObject = peer.stream || null;
+    if (peer.stream) {
+      el.play?.().catch(() => {});
+    }
+    return () => {
+      if (el.srcObject) el.srcObject = null;
+    };
+  }, [isLocal, peer.stream]);
 
   const label = isLocal ? "You" : peer.name || peer.username || fallbackLabel;
   const minH = size === "sm" ? "min-h-[140px]" : "min-h-[160px]";
@@ -42,11 +58,12 @@ export default function CallTile({
         ref={videoRef}
         autoPlay
         playsInline
-        muted={isLocal}
+        muted
         className={`absolute inset-0 w-full h-full object-cover ${
           showVideo ? "opacity-100" : "opacity-0"
         }`}
       />
+      {!isLocal ? <audio ref={audioRef} autoPlay playsInline /> : null}
       {!showVideo ? (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
           <div

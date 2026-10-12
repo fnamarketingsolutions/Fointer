@@ -8,6 +8,7 @@ import {
 import { authenticateSocket } from "./socketAuth.js";
 import { createRoomMembership } from "./roomMembership.js";
 import { logRealtime } from "../utils/realtimeLog.js";
+import { canRelayCallSignal } from "../utils/callRelay.js";
 import { publishSavedMessage } from "../utils/realtimeDelivery.js";
 import { assertNoBannedKeywords } from "../utils/bannedKeywords.js";
 import {
@@ -236,20 +237,32 @@ export const initLiveSocket = (io) => {
       removeCaller(io, eventId, socket.id);
     });
 
-    socket.on("call_signal", async (payload = {}) => {
-      const eventId = await canonicalEventId(payload.eventId);
+    socket.on("call_signal", (payload = {}) => {
       const to = payload.to;
-      if (!eventId || !to) return;
-      const room = getCallMap(eventId);
-      if (!room?.has(socket.id) || !room.has(to)) return;
+      if (!to) return;
 
-      io.to(to).emit("call_signal", {
-        eventId,
-        from: socket.id,
-        type: payload.type,
-        sdp: payload.sdp,
-        candidate: payload.candidate,
-      });
+      const relay = (eventId) => {
+        if (!eventId) return;
+        const room = getCallMap(eventId);
+        if (!canRelayCallSignal(room, socket.id, to)) return;
+        io.to(to).emit("call_signal", {
+          eventId,
+          from: socket.id,
+          type: payload.type,
+          sdp: payload.sdp,
+          candidate: payload.candidate,
+        });
+      };
+
+      const known = membership.roomId();
+      if (known) {
+        relay(known);
+        return;
+      }
+
+      canonicalEventId(payload.eventId)
+        .then((eventId) => relay(eventId))
+        .catch(() => {});
     });
 
     socket.on("call_presence", async (payload = {}) => {

@@ -20,10 +20,18 @@ import { getLiveSocket } from "../../../shared/services/liveSocket";
 import ProfileAvatar from "../../../shared/components/ProfileAvatar";
 import CallTile from "../../../shared/components/CallTile";
 import { ICE_SERVERS } from "../../../shared/webrtc/iceServers";
+import { applyPeerSignal } from "../../../shared/webrtc/applyPeerSignal";
+import {
+  callPhaseCanSignal,
+  createIceQueue,
+  enqueueSerial,
+} from "../../../shared/webrtc/iceQueue";
+import { addRemoteTracks } from "../../../shared/webrtc/remoteTracks";
 import {
   closeCallPushNotification,
   createCallRingtone,
 } from "../utils/callRing";
+import { setDmCallBusy } from "../utils/dmCallActivity";
 import {
   DELETED_USER_LABEL,
   personDisplayName,
@@ -52,8 +60,10 @@ const DirectCall = forwardRef(function DirectCall(
   const handlersRef = useRef({});
   const stopRingRef = useRef(null);
   const callActionHandledRef = useRef("");
+  const earlySignalsRef = useRef([]);
+  const signalChainRef = useRef({ chain: Promise.resolve() });
+  const startRingtoneRef = useRef(null);
 
-  phaseRef.current = phase;
   modeRef.current = mode;
   conversationIdRef.current = conversationId;
 
@@ -68,6 +78,7 @@ const DirectCall = forwardRef(function DirectCall(
     stopRingtone();
     stopRingRef.current = createCallRingtone();
   }, [stopRingtone]);
+  startRingtoneRef.current = startRingtone;
 
   const stopLocal = useCallback(() => {
     localStreamRef.current?.getTracks().forEach((track) => track.stop());
@@ -127,6 +138,9 @@ const DirectCall = forwardRef(function DirectCall(
       closeCallPushNotification(conversationIdRef.current);
       closeAllPeers();
       stopLocal();
+      earlySignalsRef.current = [];
+      phaseRef.current = "idle";
+      setDmCallBusy(false);
       setPhase("idle");
       setIncomingFrom(null);
       setError(message);
@@ -176,6 +190,7 @@ const DirectCall = forwardRef(function DirectCall(
         stream,
         polite,
         ignoreOffer: false,
+        iceQueue: createIceQueue(),
       };
 
       const local = localStreamRef.current;
@@ -194,11 +209,7 @@ const DirectCall = forwardRef(function DirectCall(
       };
 
       pc.ontrack = (event) => {
-        event.streams[0]?.getTracks().forEach((track) => {
-          if (!peer.stream.getTracks().some((item) => item.id === track.id)) {
-            peer.stream.addTrack(track);
-          }
-        });
+        addRemoteTracks(peer.stream, event);
         syncTiles();
       };
 
@@ -229,60 +240,66 @@ const DirectCall = forwardRef(function DirectCall(
     [ensurePeer, sendSignal]
   );
 
-  const handleSignal = useCallback(
+  const applySignal = useCallback(
     async ({ from, type, sdp, candidate }) => {
-      if (
-        phaseRef.current !== "active" &&
-        phaseRef.current !== "connecting" &&
-        phaseRef.current !== "ringing_out"
-      ) {
+      if (!from) return;
+      if (!callPhaseCanSignal(phaseRef.current) || !localStreamRef.current) {
         return;
       }
-      if (!from) return;
       const peer = ensurePeer({ socketId: from });
       if (!peer) return;
-
       try {
-        if (type === "offer" && sdp) {
-          const makingOffer = makingOfferRef.current.has(from);
-          const collision =
-            makingOffer || peer.pc.signalingState !== "stable";
-          peer.ignoreOffer = !peer.polite && collision;
-          if (peer.ignoreOffer) return;
-
-          if (collision) {
-            await Promise.all([
-              peer.pc.setLocalDescription({ type: "rollback" }),
-              peer.pc.setRemoteDescription(sdp),
-            ]);
-          } else {
-            await peer.pc.setRemoteDescription(sdp);
+        await applyPeerSignal(
+          peer,
+          { type, sdp, candidate },
+          {
+            makingOffer: makingOfferRef.current.has(from),
+            onAnswer: (description) => {
+              sendSignal(from, { type: "answer", sdp: description });
+            },
           }
-          const answer = await peer.pc.createAnswer();
-          await peer.pc.setLocalDescription(answer);
-          sendSignal(from, { type: "answer", sdp: peer.pc.localDescription });
-          return;
-        }
-
-        if (type === "answer" && sdp) {
-          if (peer.pc.signalingState === "have-local-offer") {
-            await peer.pc.setRemoteDescription(sdp);
-          }
-          return;
-        }
-
-        if (type === "ice" && candidate && !peer.ignoreOffer) {
-          try {
-            await peer.pc.addIceCandidate(candidate);
-          } catch {
-            /* ignore stale ICE */
-          }
-        }
+        );
+        syncTiles();
       } catch {
         /* ignore stale signaling */
       }
     },
-    [ensurePeer, sendSignal]
+    [ensurePeer, sendSignal, syncTiles]
+  );
+
+  const flushEarlySignals = useCallback(() => {
+    if (!callPhaseCanSignal(phaseRef.current) || !localStreamRef.current) return;
+    const queued = earlySignalsRef.current.splice(0);
+    for (const item of queued) {
+      enqueueSerial(signalChainRef.current, () => applySignal(item));
+    }
+  }, [applySignal]);
+
+  const setCallPhase = useCallback(
+    (next) => {
+      phaseRef.current = next;
+      setPhase(next);
+      setDmCallBusy(next !== "idle");
+      if (next === "idle") {
+        earlySignalsRef.current = [];
+        return;
+      }
+      flushEarlySignals();
+    },
+    [flushEarlySignals]
+  );
+
+  const handleSignal = useCallback(
+    ({ from, type, sdp, candidate }) => {
+      if (!from) return;
+      const payload = { from, type, sdp, candidate };
+      if (!callPhaseCanSignal(phaseRef.current) || !localStreamRef.current) {
+        earlySignalsRef.current.push(payload);
+        return;
+      }
+      enqueueSerial(signalChainRef.current, () => applySignal(payload));
+    },
+    [applySignal]
   );
 
   const acquireMedia = useCallback(async (nextMode) => {
@@ -305,19 +322,21 @@ const DirectCall = forwardRef(function DirectCall(
     async (peers = []) => {
       stopRingtone();
       closeCallPushNotification(conversationIdRef.current);
-      setPhase("active");
+      setCallPhase("active");
       syncTiles();
+      flushEarlySignals();
+      await signalChainRef.current.chain;
       const myId = String(getLiveSocket().id || "");
       for (const peer of peers) {
         if (myId > String(peer.socketId)) {
-          await createOffer(peer);
+          await enqueueSerial(signalChainRef.current, () => createOffer(peer));
         } else {
           ensurePeer(peer);
         }
       }
       syncTiles();
     },
-    [createOffer, ensurePeer, stopRingtone, syncTiles]
+    [createOffer, ensurePeer, flushEarlySignals, setCallPhase, stopRingtone, syncTiles]
   );
 
   const endCall = useCallback(
@@ -350,9 +369,10 @@ const DirectCall = forwardRef(function DirectCall(
     async (nextMode = "audio") => {
       if (disabled || phaseRef.current !== "idle" || !conversationId) return;
       setError("");
-      setPhase("connecting");
+      setCallPhase("connecting");
       try {
         await acquireMedia(nextMode);
+        flushEarlySignals();
         const socket = getLiveSocket();
         socket.emit(
           "dm_call_invite",
@@ -362,7 +382,7 @@ const DirectCall = forwardRef(function DirectCall(
               resetCallUi(ack?.message || "Could not start the call.");
               return;
             }
-            setPhase("ringing_out");
+            setCallPhase("ringing_out");
             syncTiles();
           }
         );
@@ -375,15 +395,16 @@ const DirectCall = forwardRef(function DirectCall(
         );
       }
     },
-    [acquireMedia, conversationId, disabled, resetCallUi, syncTiles]
+    [acquireMedia, conversationId, disabled, flushEarlySignals, resetCallUi, setCallPhase, syncTiles]
   );
 
   const acceptIncoming = useCallback(async () => {
     if (phaseRef.current !== "ringing_in" || !conversationId) return;
     setError("");
-    setPhase("connecting");
+    setCallPhase("connecting");
     try {
       await acquireMedia(modeRef.current);
+      flushEarlySignals();
       const socket = getLiveSocket();
       socket.emit("dm_call_accept", { conversationId }, async (ack) => {
         if (!ack?.success) {
@@ -401,7 +422,7 @@ const DirectCall = forwardRef(function DirectCall(
           : "Could not start your microphone or camera."
       );
     }
-  }, [acquireMedia, connectToPeers, conversationId, endCall, resetCallUi]);
+  }, [acquireMedia, connectToPeers, conversationId, endCall, flushEarlySignals, resetCallUi, setCallPhase]);
 
   useImperativeHandle(
     ref,
@@ -418,11 +439,13 @@ const DirectCall = forwardRef(function DirectCall(
     createOffer,
     ensurePeer,
     handleSignal,
+    applySignal,
     connectToPeers,
     endCall,
     resetCallUi,
     syncTiles,
     acceptIncoming,
+    setCallPhase,
   };
 
   useEffect(() => {
@@ -437,16 +460,17 @@ const DirectCall = forwardRef(function DirectCall(
       modeRef.current = payload.mode === "video" ? "video" : "audio";
       setMode(modeRef.current);
       setIncomingFrom(payload.from || null);
-      setPhase("ringing_in");
+      handlersRef.current.setCallPhase("ringing_in");
       setError("");
-      startRingtone();
+      startRingtoneRef.current?.();
     };
 
     const onAccepted = async (payload) => {
       if (!matches(payload)) return;
       if (phaseRef.current !== "ringing_out") return;
       const peer = payload.peer;
-      setPhase("connecting");
+      phaseRef.current = "connecting";
+      handlersRef.current.setCallPhase("connecting");
       await handlersRef.current.connectToPeers(peer ? [peer] : []);
     };
 
@@ -494,8 +518,8 @@ const DirectCall = forwardRef(function DirectCall(
           modeRef.current = call.mode === "video" ? "video" : "audio";
           setMode(modeRef.current);
           setIncomingFrom(call.from || null);
-          setPhase("ringing_in");
-          startRingtone();
+          handlersRef.current.setCallPhase("ringing_in");
+          startRingtoneRef.current?.();
         }
       });
     });
@@ -518,7 +542,7 @@ const DirectCall = forwardRef(function DirectCall(
         handlersRef.current.endCall(true);
       }
     };
-  }, [conversationId, startRingtone]);
+  }, [conversationId]);
 
   // Handle Accept / Decline from the phone-style push notification.
   useEffect(() => {

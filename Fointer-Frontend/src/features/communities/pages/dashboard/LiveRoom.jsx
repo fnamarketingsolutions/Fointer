@@ -17,7 +17,7 @@ import {
   fetchLiveEvent,
   fetchLiveMessages,
 } from "../../../../api/liveEvents";
-import { getLiveSocket } from "../../../../shared/services/liveSocket";
+import { emitAck, getLiveSocket, nextJoinToken } from "../../../../shared/services/liveSocket";
 import UserProfileLink from "../../../../shared/components/UserProfileLink";
 import { useToast } from "../../../../shared/components/feedback/ToastContext";
 import { useAuth } from "../../../../context/AuthContext";
@@ -54,6 +54,10 @@ export default function LiveRoom() {
 
   const listRef = useRef(null);
   const canModerateRef = useRef(false);
+  const knownIdsRef = useRef([]);
+  knownIdsRef.current = [eventId, event?.id, event?.shortCode]
+    .filter(Boolean)
+    .map(String);
 
   const scrollToBottom = () => {
     requestAnimationFrame(() => {
@@ -90,10 +94,12 @@ export default function LiveRoom() {
     if (!eventId || loading) return undefined;
 
     const socket = getLiveSocket();
+    const joinToken = nextJoinToken();
 
     const onConnect = () => {
       setConnected(true);
-      socket.emit("join_event", { eventId }, (ack) => {
+      socket.emit("join_event", { eventId, joinToken }, (ack) => {
+        if (ack?.ignored) return;
         if (ack && !ack.success) {
           showToast(ack.message || "Could not join live room.");
         } else if (ack?.canModerate != null) {
@@ -107,8 +113,10 @@ export default function LiveRoom() {
 
     const onDisconnect = () => setConnected(false);
 
-    const onMessageNew = ({ message }) => {
+    const onMessageNew = ({ eventId: incoming, message }) => {
       if (!message) return;
+      const known = knownIdsRef.current;
+      if (incoming && known.length && !known.includes(String(incoming))) return;
       setMessages((prev) => {
         if (prev.some((m) => String(m.id) === String(message.id))) return prev;
         return [
@@ -158,7 +166,7 @@ export default function LiveRoom() {
     else socket.connect();
 
     return () => {
-      socket.emit("leave_event", { eventId });
+      socket.emit("leave_event", { eventId, joinToken });
       socket.off("connect", onConnect);
       socket.off("disconnect", onDisconnect);
       socket.off("message_new", onMessageNew);
@@ -169,15 +177,14 @@ export default function LiveRoom() {
     };
   }, [eventId, loading, navigate, showToast]);
 
-  const handleSend = (e) => {
+  const handleSend = async (e) => {
     e.preventDefault();
     const value = text.trim();
     if (!value || sending || event?.status !== "live") return;
 
     setSending(true);
-    const socket = getLiveSocket();
-    socket.emit("send_message", { eventId, text: value }, (ack) => {
-      setSending(false);
+    try {
+      const ack = await emitAck("send_message", { eventId, text: value });
       if (!ack?.success) {
         showToast(ack?.message || "Failed to send message.");
         return;
@@ -195,7 +202,11 @@ export default function LiveRoom() {
         });
         scrollToBottom();
       }
-    });
+    } catch (err) {
+      showToast(err?.message || "Failed to send message.");
+    } finally {
+      setSending(false);
+    }
   };
 
   const handleDeleteMessage = async (messageId) => {

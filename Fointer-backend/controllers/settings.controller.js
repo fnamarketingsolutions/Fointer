@@ -1,4 +1,11 @@
+import crypto from "crypto";
+import sharp from "sharp";
 import SystemSetting from "../models/systemSetting.js";
+import { uploadPublicObject } from "../utils/s3.js";
+import {
+  invalidateWatermarkCache,
+  WATERMARK_POSITIONS,
+} from "../utils/mediaWatermark.js";
 import {
   getEditWindowMinutes,
   invalidateEditWindowCache,
@@ -26,6 +33,15 @@ const formatAdminSettings = (settings, postEditWindowMinutes) => ({
   watchGroupMaxCapacity: Number(settings?.watchGroupMaxCapacity) || 50,
   maxWarningsBeforeBan: Number(settings?.maxWarningsBeforeBan) || 3,
   autoBanOnMaxWarnings: settings?.autoBanOnMaxWarnings !== false,
+  watermarkEnabled: settings?.watermarkEnabled !== false,
+  watermarkOpacity: Number(settings?.watermarkOpacity) || 60,
+  watermarkSizePercent: Number(settings?.watermarkSizePercent) || 26,
+  watermarkPosition: WATERMARK_POSITIONS.includes(settings?.watermarkPosition)
+    ? settings.watermarkPosition
+    : "bottom-right",
+  watermarkMarginPercent: Number(settings?.watermarkMarginPercent) || 4,
+  watermarkImageUrl: String(settings?.watermarkImageUrl || ""),
+  watermarkSkipForOwner: Boolean(settings?.watermarkSkipForOwner),
 });
 
 const getOrCreateGlobalSettings = async () => {
@@ -100,6 +116,16 @@ export const updateSystemSettings = async (req, res) => {
       body,
       "autoBanOnMaxWarnings"
     );
+    const hasWatermark =
+      Object.prototype.hasOwnProperty.call(body, "watermarkEnabled") ||
+      Object.prototype.hasOwnProperty.call(body, "watermarkOpacity") ||
+      Object.prototype.hasOwnProperty.call(body, "watermarkSizePercent") ||
+      Object.prototype.hasOwnProperty.call(body, "watermarkPosition") ||
+      Object.prototype.hasOwnProperty.call(body, "watermarkMarginPercent") ||
+      Object.prototype.hasOwnProperty.call(body, "watermarkImageUrl") ||
+      Object.prototype.hasOwnProperty.call(body, "watermarkImageData") ||
+      Object.prototype.hasOwnProperty.call(body, "watermarkClearImage") ||
+      Object.prototype.hasOwnProperty.call(body, "watermarkSkipForOwner");
 
     if (
       !hasMinutes &&
@@ -109,7 +135,8 @@ export const updateSystemSettings = async (req, res) => {
       !hasBanned &&
       !hasWatchMax &&
       !hasMaxWarnings &&
-      !hasAutoBan
+      !hasAutoBan &&
+      !hasWatermark
     ) {
       return res.status(400).json({
         success: false,
@@ -193,10 +220,89 @@ export const updateSystemSettings = async (req, res) => {
       settings.autoBanOnMaxWarnings = Boolean(body.autoBanOnMaxWarnings);
     }
 
+    if (Object.prototype.hasOwnProperty.call(body, "watermarkEnabled")) {
+      settings.watermarkEnabled = Boolean(body.watermarkEnabled);
+    }
+    if (Object.prototype.hasOwnProperty.call(body, "watermarkOpacity")) {
+      const opacity = Number(body.watermarkOpacity);
+      if (!Number.isFinite(opacity) || opacity < 40 || opacity > 80) {
+        return res.status(400).json({
+          success: false,
+          message: "Watermark opacity must be between 40 and 80.",
+        });
+      }
+      settings.watermarkOpacity = Math.round(opacity);
+    }
+    if (Object.prototype.hasOwnProperty.call(body, "watermarkSizePercent")) {
+      const size = Number(body.watermarkSizePercent);
+      if (!Number.isFinite(size) || size < 12 || size > 40) {
+        return res.status(400).json({
+          success: false,
+          message: "Watermark size must be between 12 and 40 percent.",
+        });
+      }
+      settings.watermarkSizePercent = Math.round(size);
+    }
+    if (Object.prototype.hasOwnProperty.call(body, "watermarkPosition")) {
+      if (!WATERMARK_POSITIONS.includes(body.watermarkPosition)) {
+        return res.status(400).json({
+          success: false,
+          message: "Choose a watermark position.",
+        });
+      }
+      settings.watermarkPosition = body.watermarkPosition;
+    }
+    if (Object.prototype.hasOwnProperty.call(body, "watermarkMarginPercent")) {
+      const margin = Number(body.watermarkMarginPercent);
+      if (!Number.isFinite(margin) || margin < 2 || margin > 12) {
+        return res.status(400).json({
+          success: false,
+          message: "Watermark margin must be between 2 and 12 percent.",
+        });
+      }
+      settings.watermarkMarginPercent = Math.round(margin);
+    }
+    if (Object.prototype.hasOwnProperty.call(body, "watermarkSkipForOwner")) {
+      settings.watermarkSkipForOwner = Boolean(body.watermarkSkipForOwner);
+    }
+    if (body.watermarkClearImage) {
+      settings.watermarkImageUrl = "";
+    }
+    if (body.watermarkImageData) {
+      const match = String(body.watermarkImageData).match(
+        /^data:image\/(?:png|webp|jpeg|jpg);base64,([A-Za-z0-9+/=\s]+)$/
+      );
+      if (!match) {
+        return res.status(400).json({
+          success: false,
+          message: "Upload a PNG, WebP, or JPEG logo.",
+        });
+      }
+      const incoming = Buffer.from(match[1], "base64");
+      if (!incoming.length || incoming.length > 700_000) {
+        return res.status(400).json({
+          success: false,
+          message: "Watermark logo must be under 500 KB.",
+        });
+      }
+      const png = await sharp(incoming)
+        .rotate()
+        .resize({ width: 900, withoutEnlargement: true })
+        .png()
+        .toBuffer();
+      const key = `fointer/branding/watermark-${crypto.randomBytes(8).toString("hex")}.png`;
+      settings.watermarkImageUrl = await uploadPublicObject({
+        key,
+        body: png,
+        contentType: "image/png",
+      });
+    }
+
     await settings.save();
     if (hasMinutes) invalidateEditWindowCache();
     if (hasBanned) invalidateBannedKeywordsCache();
     if (hasWatchMax) invalidateWatchGroupMaxCache();
+    if (hasWatermark) invalidateWatermarkCache();
 
     const postEditWindowMinutes = await getEditWindowMinutes();
     return res.status(200).json({

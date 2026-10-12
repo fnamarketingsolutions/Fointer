@@ -32,6 +32,7 @@ import { fetchLiveEvents } from "../../../../api/liveEvents";
 import { fetchWatchGroups } from "../../../../api/watchGroups";
 import PostDetail from "../../../posts/pages/PostDetail";
 import CreatePostForm from "../../../../shared/components/forms/CreatePostForm";
+import { useComposerDraft } from "../../../../shared/utils/composerDraft";
 import { useToast } from "../../../../shared/components/feedback/ToastContext";
 import { COMMUNITY_TYPE_LABELS } from "../../../../shared/constants/community";
 import useEntityId from "../../../../shared/hooks/useEntityId";
@@ -337,7 +338,10 @@ export default function CommunityFeed() {
   const [inviteBusy, setInviteBusy] = useState(false);
   const [joinMessage, setJoinMessage] = useState("");
   const [showCreatePost, setShowCreatePost] = useState(false);
-  const [postForm, setPostForm] = useState({ title: "", text: "", media: [] });
+  const [postForm, setPostForm, clearPostDraft] = useComposerDraft(
+    `post:community:${communityId || "pending"}`,
+    { title: "", text: "", media: [] }
+  );
   const [postSaving, setPostSaving] = useState(false);
 
   const viewingPost = Boolean(postSlug);
@@ -689,7 +693,7 @@ export default function CommunityFeed() {
         media: postForm.media,
       });
       setShowCreatePost(false);
-      setPostForm({ title: "", text: "", media: [] });
+      clearPostDraft();
       showToast("Post created.");
       const created = res?.post;
       if (created?.id) {
@@ -810,7 +814,7 @@ export default function CommunityFeed() {
           onCancel={() => {
             if (postSaving) return;
             setShowCreatePost(false);
-            setPostForm({ title: "", text: "", media: [] });
+            clearPostDraft();
           }}
           saving={postSaving}
           communityLabel={community.name}

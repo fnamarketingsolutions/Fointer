@@ -34,6 +34,7 @@ import {
 import { fetchPosts, createPost, togglePostLike, togglePostReshare } from "../../../../api/posts";
 import { toggleBookmark } from "../../../../api/bookmarks";
 import CreatePostForm from "../../../../shared/components/forms/CreatePostForm";
+import { useComposerDraft } from "../../../../shared/utils/composerDraft";
 import { COMMUNITY_TYPE_LABELS } from "../../../../shared/constants/community";
 import { formatLongDate, timeAgo } from "../../../../shared/utils/date";
 import { formatCount } from "../../../../shared/utils/format";
@@ -154,7 +155,10 @@ export default function CommunityDetail({
   const [inviteLookupLoading, setInviteLookupLoading] = useState(false);
   const [selectedInviteUser, setSelectedInviteUser] = useState(null);
   const [showCreatePost, setShowCreatePost] = useState(false);
-  const [postForm, setPostForm] = useState({ title: "", text: "", media: [] });
+  const [postForm, setPostForm, clearPostDraft] = useComposerDraft(
+    `post:community:${selectedId || "pending"}`,
+    { title: "", text: "", media: [] }
+  );
   const [postSaving, setPostSaving] = useState(false);
   const [members, setMembers] = useState([]);
   const [membersLoading, setMembersLoading] = useState(false);
@@ -479,7 +483,7 @@ export default function CommunityDetail({
         media: postForm.media,
       });
       setShowCreatePost(false);
-      setPostForm({ title: "", text: "", media: [] });
+      clearPostDraft();
       await loadPosts();
       setSection("posts");
     } catch (err) {
@@ -792,7 +796,7 @@ export default function CommunityDetail({
           onCancel={() => {
             if (postSaving) return;
             setShowCreatePost(false);
-            setPostForm({ title: "", text: "", media: [] });
+            clearPostDraft();
           }}
           saving={postSaving}
           communityLabel={community.name}

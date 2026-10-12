@@ -62,6 +62,44 @@ const systemSettingSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+
+    watermarkEnabled: {
+      type: Boolean,
+      default: true,
+    },
+    watermarkOpacity: {
+      type: Number,
+      default: 60,
+      min: 40,
+      max: 80,
+    },
+    watermarkSizePercent: {
+      type: Number,
+      default: 26,
+      min: 12,
+      max: 40,
+    },
+    watermarkPosition: {
+      type: String,
+      enum: ["bottom-right", "bottom-left", "top-right", "top-left", "center"],
+      default: "bottom-right",
+    },
+    watermarkMarginPercent: {
+      type: Number,
+      default: 4,
+      min: 2,
+      max: 12,
+    },
+    watermarkImageUrl: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: 500,
+    },
+    watermarkSkipForOwner: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,

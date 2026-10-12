@@ -502,7 +502,7 @@ export default function PublicProfile() {
                       key={tag}
                       className="px-2 py-0.5 rounded-md bg-fo-accent/10 text-fo-accent text-[11px]"
                     >
-                      #{tag}
+                      {String(tag || "").replace(/^#/, "")}
                     </span>
                   ))}
                 </div>

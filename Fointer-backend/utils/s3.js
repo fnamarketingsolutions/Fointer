@@ -137,6 +137,23 @@ const publicUrlForKey = (key) => {
   return `${base}/${key}`;
 };
 
+export const uploadPublicObject = async ({ key, body, contentType }) => {
+  const safeKey = String(key || "").replace(/^\/+/, "");
+  if (!safeKey.startsWith("fointer/")) {
+    throw operationalError(400, "Invalid upload path.");
+  }
+  await getS3().send(
+    new PutObjectCommand({
+      Bucket: s3Bucket(),
+      Key: safeKey,
+      Body: body,
+      ContentType: contentType,
+      CacheControl: "public, max-age=300",
+    })
+  );
+  return publicUrlForKey(safeKey);
+};
+
 /** Browser uploads straight to S3 via a short-lived presigned PUT URL. */
 export const createDirectUploadSignature = async ({
   userId,

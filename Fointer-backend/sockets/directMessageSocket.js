@@ -5,6 +5,8 @@ import {
 } from "../controllers/conversation.controller.js";
 import { isMessagingBlocked } from "../controllers/block.controller.js";
 import { authenticateSocket } from "./socketAuth.js";
+import { createRoomMembership } from "./roomMembership.js";
+import { logRealtime } from "../utils/realtimeLog.js";
 import { assertNoBannedKeywords } from "../utils/bannedKeywords.js";
 import { acceptSignedMediaList } from "../utils/s3.js";
 import { notify, personName, userNotificationRoom } from "../utils/notify.js";
@@ -67,19 +69,22 @@ export const initDirectMessageSocket = (io) => {
   });
 
   io.on("connection", (socket) => {
-    let joinedConversationId = null;
+    const membership = createRoomMembership();
 
     const joinDmRoom = async (conversationId) => {
       const id = String(conversationId);
-      if (joinedConversationId && joinedConversationId !== id) {
-        socket.leave(roomName(joinedConversationId));
+      const current = membership.roomId();
+      if (current && current !== id) {
+        await socket.leave(roomName(current));
       }
       await socket.join(roomName(id));
-      joinedConversationId = id;
+      membership.force(id);
       return id;
     };
 
     socket.on("join_conversation", async (payload = {}, ack) => {
+      const joinToken = payload.joinToken ?? null;
+      membership.note(joinToken);
       try {
         const conversationIdParam = payload.conversationId;
         if (!conversationIdParam) throw new Error("conversationId is required.");
@@ -91,12 +96,33 @@ export const initDirectMessageSocket = (io) => {
           throw new Error("You do not have access to this conversation.");
         }
 
-        const conversationId = await joinDmRoom(conversation._id);
+        const joined = await membership.claim(
+          socket,
+          roomName,
+          joinToken,
+          conversation._id
+        );
+        if (!joined) {
+          if (typeof ack === "function") ack({ success: true, ignored: true });
+          return;
+        }
+        const conversationId = String(conversation._id);
+        logRealtime("dm_joined", {
+          userId: String(socket.user._id),
+          conversationId,
+        });
 
         if (typeof ack === "function") {
           ack({ success: true, conversationId });
         }
       } catch (error) {
+        if (membership.isCurrent(joinToken)) {
+          await membership.drop(socket, roomName, joinToken);
+        }
+        logRealtime("dm_join_denied", {
+          userId: String(socket.user?._id || ""),
+          reason: String(error.message || "join_failed").slice(0, 180),
+        });
         if (typeof ack === "function") {
           ack({ success: false, message: error.message });
         }
@@ -104,18 +130,22 @@ export const initDirectMessageSocket = (io) => {
     });
 
     socket.on("leave_conversation", async (payload = {}) => {
-      const conversationId = payload.conversationId || joinedConversationId;
-      if (!conversationId) return;
-      await socket.leave(roomName(conversationId));
-      if (joinedConversationId === String(conversationId)) {
-        joinedConversationId = null;
-      }
+      const dropped = await membership.drop(
+        socket,
+        roomName,
+        payload.joinToken ?? null
+      );
+      if (!dropped) return;
+      logRealtime("dm_left", {
+        userId: String(socket.user?._id || ""),
+        conversationId: dropped,
+      });
     });
 
     socket.on("send_dm", async (payload = {}, ack) => {
       try {
         const conversationIdParam =
-          payload.conversationId || joinedConversationId;
+          payload.conversationId || membership.roomId();
         const text = String(payload.text || "").trim();
         const mediaList = Array.isArray(payload.media) ? payload.media : [];
 
@@ -172,6 +202,10 @@ export const initDirectMessageSocket = (io) => {
           ack({ success: true, message });
         }
       } catch (error) {
+        logRealtime("dm_message_failed", {
+          userId: String(socket.user?._id || ""),
+          reason: String(error.message || "send_failed").slice(0, 180),
+        });
         if (typeof ack === "function") {
           ack({ success: false, message: error.message });
         }
@@ -181,7 +215,7 @@ export const initDirectMessageSocket = (io) => {
     socket.on("dm_call_invite", async (payload = {}, ack) => {
       try {
         const conversationIdParam =
-          payload.conversationId || joinedConversationId;
+          payload.conversationId || membership.roomId();
         const mode = payload.mode === "video" ? "video" : "audio";
         if (!conversationIdParam) throw new Error("conversationId is required.");
 
@@ -247,7 +281,7 @@ export const initDirectMessageSocket = (io) => {
     socket.on("dm_call_accept", async (payload = {}, ack) => {
       try {
         const conversationIdParam =
-          payload.conversationId || joinedConversationId;
+          payload.conversationId || membership.roomId();
         if (!conversationIdParam) throw new Error("conversationId is required.");
 
         const conversation = await findConversationByParam(conversationIdParam);
@@ -301,7 +335,7 @@ export const initDirectMessageSocket = (io) => {
     socket.on("dm_call_reject", async (payload = {}, ack) => {
       try {
         const conversationIdParam =
-          payload.conversationId || joinedConversationId;
+          payload.conversationId || membership.roomId();
         if (!conversationIdParam) throw new Error("conversationId is required.");
 
         const conversation = await findConversationByParam(conversationIdParam);
@@ -332,7 +366,7 @@ export const initDirectMessageSocket = (io) => {
     socket.on("dm_call_cancel", async (payload = {}, ack) => {
       try {
         const conversationIdParam =
-          payload.conversationId || joinedConversationId;
+          payload.conversationId || membership.roomId();
         if (!conversationIdParam) throw new Error("conversationId is required.");
 
         const conversation = await findConversationByParam(conversationIdParam);
@@ -358,7 +392,7 @@ export const initDirectMessageSocket = (io) => {
 
     socket.on("dm_call_leave", async (payload = {}) => {
       const conversationIdParam =
-        payload.conversationId || joinedConversationId;
+        payload.conversationId || membership.roomId();
       if (!conversationIdParam) {
         const found = findDmCallBySocket(socket.id);
         if (found) removeDmCaller(io, found.conversationId, socket.id);
@@ -375,7 +409,7 @@ export const initDirectMessageSocket = (io) => {
 
     socket.on("dm_call_signal", async (payload = {}) => {
       const conversationIdParam =
-        payload.conversationId || joinedConversationId;
+        payload.conversationId || membership.roomId();
       const to = payload.to;
       if (!conversationIdParam || !to) return;
 
@@ -400,7 +434,7 @@ export const initDirectMessageSocket = (io) => {
 
     socket.on("dm_call_presence", async (payload = {}) => {
       const conversationIdParam =
-        payload.conversationId || joinedConversationId;
+        payload.conversationId || membership.roomId();
       if (!conversationIdParam) return;
 
       try {
@@ -432,7 +466,7 @@ export const initDirectMessageSocket = (io) => {
     socket.on("dm_call_sync", async (payload = {}, ack) => {
       try {
         const conversationIdParam =
-          payload.conversationId || joinedConversationId;
+          payload.conversationId || membership.roomId();
         if (!conversationIdParam) throw new Error("conversationId is required.");
 
         const conversation = await findConversationByParam(conversationIdParam);
@@ -481,8 +515,8 @@ export const initDirectMessageSocket = (io) => {
       if (found) {
         removeDmCaller(io, found.conversationId, socket.id);
       }
-      if (joinedConversationId) {
-        socket.leave(roomName(joinedConversationId));
+      if (membership.roomId()) {
+        socket.leave(roomName(membership.roomId()));
       }
     });
   });

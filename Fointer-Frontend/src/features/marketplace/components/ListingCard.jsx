@@ -26,11 +26,13 @@ export default function ListingCard({ listing, onSave }) {
             cover.type === "video" ? (
               <video
                 src={cover.url}
+                data-media-url={cover.url}
                 className="absolute inset-0 w-full h-full object-cover group-hover:scale-[1.02] transition-transform"
               />
             ) : (
               <img
                 src={displayImageUrl(cover.url, 640)}
+                data-media-url={cover.url}
                 alt=""
                 width={640}
                 height={360}

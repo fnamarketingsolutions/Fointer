@@ -171,12 +171,7 @@ const userSchema = new mongoose.Schema(
     isSuperAdmin: {
       type: Boolean,
       default: false,
-    },
-
-    /**
-     * Tab ids this limited admin may use (e.g. users, support).
-     * Ignored when isSuperAdmin is true.
-     */
+    }, 
     adminTabs: {
       type: [String],
       default: [],

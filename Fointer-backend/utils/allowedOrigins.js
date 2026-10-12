@@ -32,6 +32,8 @@ export const getAllowedOrigins = () => {
         ...extra,
         !isProd ? "http://localhost:5173" : "",
         !isProd ? "http://localhost:5174" : "",
+        !isProd ? "http://127.0.0.1:5173" : "",
+        !isProd ? "http://127.0.0.1:5174" : "",
       ].filter(Boolean)
     ),
   ];

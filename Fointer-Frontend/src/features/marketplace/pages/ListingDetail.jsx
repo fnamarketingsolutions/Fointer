@@ -278,26 +278,10 @@ export default function ListingDetail() {
           <article className="bg-fo-surface border border-fo-border rounded-xl overflow-hidden">
             <div className="relative w-full pt-[56.25%] bg-fo-surface-2">
               {current ? (
-                current.type === "video" ? (
-                  <video
-                    src={current.url}
-                    controls
-                    className="absolute inset-0 w-full h-full object-contain bg-black"
-                  />
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setViewerOpen(true)}
-                    className="absolute inset-0 z-0 cursor-zoom-in focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-fo-accent/40"
-                    aria-label="View image full screen"
-                  >
-                    <img
-                      src={current.url}
-                      alt=""
-                      className="absolute inset-0 w-full h-full object-contain pointer-events-none"
-                    />
-                  </button>
-                )
+                <ListingHeroMedia
+                  item={current}
+                  onOpen={() => setViewerOpen(true)}
+                />
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center text-fo-subtle text-sm">
                   No photos
@@ -349,12 +333,14 @@ export default function ListingDetail() {
                     {item.type === "video" ? (
                       <video
                         src={item.url}
+                        data-media-url={item.url}
                         className="h-full w-full object-cover"
                         muted
                       />
                     ) : (
                       <img
                         src={item.url}
+                        data-media-url={item.url}
                         alt=""
                         className="h-full w-full object-cover"
                       />
@@ -601,5 +587,38 @@ export default function ListingDetail() {
         listingId={listing.id}
       />
     </div>
+  );
+}
+
+function ListingHeroMedia({ item, onOpen }) {
+  const isVideo = item?.type === "video";
+  if (!item?.url) return null;
+
+  return (
+    <>
+      {isVideo ? (
+        <video
+          src={item.url}
+          data-media-url={item.url}
+          controls
+          controlsList="nodownload"
+          className="absolute inset-0 w-full h-full object-contain bg-black"
+        />
+      ) : (
+        <button
+          type="button"
+          onClick={onOpen}
+          className="absolute inset-0 z-0 cursor-zoom-in focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-fo-accent/40"
+          aria-label="View image full screen"
+        >
+          <img
+            src={item.url}
+            data-media-url={item.url}
+            alt=""
+            className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+          />
+        </button>
+      )}
+    </>
   );
 }

@@ -23,6 +23,7 @@ import { sendServerError } from "../utils/safeError.js";
 import { clearEventCall } from "../sockets/liveCallState.js";
 import { respondIfBanned } from "../utils/bannedKeywords.js";
 import { formatUserRef } from "../utils/deletedUser.js";
+import { liveJoinAllowed } from "../utils/realtimeDelivery.js";
 import { getHotSnapshot } from "../utils/hotReadCache.js";
 
 const formatUser = (user) => formatUserRef(user);
@@ -80,11 +81,23 @@ export const findLiveEventByParam = async (param) => {
 
 export const userCanAccessLiveEvent = async (event, user) => {
   if (!user) return false;
-  if (hasLiveEventsAdminPower(user)) return true;
-  if (event.access === "public") return true;
-
+  const isAdmin = hasLiveEventsAdminPower(user);
+  if (isAdmin || event.access === "public") {
+    return liveJoinAllowed({
+      user,
+      access: event.access,
+      isAdmin,
+      communityAllowed: true,
+    });
+  }
   const communityId = event.community?._id || event.community;
-  return canEngageInCommunity(communityId, user);
+  const communityAllowed = await canEngageInCommunity(communityId, user);
+  return liveJoinAllowed({
+    user,
+    access: event.access,
+    isAdmin: false,
+    communityAllowed,
+  });
 };
 
 export const userCanModerateLiveEvent = async (event, user) => {

@@ -49,6 +49,7 @@ import {
   FeedMobileFilters,
 } from "./FeedRail";
 import FeedHeroBanner from "./FeedHeroBanner";
+import { useComposerDraft } from "../../../../shared/utils/composerDraft";
 
 const FEED_POST_PATH = "/post";
 const PAGE_SIZE = 15;
@@ -157,7 +158,10 @@ export default function DashboardFeed() {
   const [bannersLoading, setBannersLoading] = useState(true);
   const [trendingTopics, setTrendingTopics] = useState([]);
   const [trendingLoading, setTrendingLoading] = useState(true);
-  const [postForm, setPostForm] = useState(EMPTY_POST_FORM);
+  const [postForm, setPostForm, clearPostDraft] = useComposerDraft(
+    "post:feed",
+    EMPTY_POST_FORM
+  );
   const [postSaving, setPostSaving] = useState(false);
   const [joinedCommunities, setJoinedCommunities] = useState([]);
 
@@ -217,7 +221,6 @@ export default function DashboardFeed() {
     }
     const next = new URLSearchParams(searchParams);
     next.set("compose", "1");
-    setPostForm(EMPTY_POST_FORM);
     setSearchParams(next);
   };
 
@@ -225,7 +228,7 @@ export default function DashboardFeed() {
     if (postSaving) return;
     const next = new URLSearchParams(searchParams);
     next.delete("compose");
-    setPostForm(EMPTY_POST_FORM);
+    clearPostDraft();
     setSearchParams(next, { replace: true });
   };
 
@@ -432,7 +435,7 @@ export default function DashboardFeed() {
       };
       if (postForm.communityId) payload.communityId = postForm.communityId;
       const res = await createPost(payload);
-      setPostForm(EMPTY_POST_FORM);
+      clearPostDraft();
       showToast("Post created.");
       const created = res?.post;
       if (created?.id) {

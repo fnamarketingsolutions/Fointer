@@ -86,13 +86,16 @@ export default function MarketplaceImageViewer({
         {current.type === "video" ? (
           <video
             src={current.url}
+            data-media-url={current.url}
             controls
+            controlsList="nodownload"
             autoPlay
             className="pointer-events-auto max-h-full max-w-full"
           />
         ) : (
           <img
             src={current.url}
+            data-media-url={current.url}
             alt=""
             className="pointer-events-auto max-h-full max-w-full object-contain"
           />

@@ -10,6 +10,7 @@ import {
   LuMapPin as MapPin,
   LuPhone as Phone,
   LuTriangleAlert as AlertTriangle,
+  LuImage as ImageIcon,
 } from "react-icons/lu";
 import {
   fetchSystemSettings,
@@ -25,6 +26,13 @@ const labelClass =
 const inputClass =
   "w-full bg-fo-surface-hover border border-fo-border rounded-lg p-2.5 text-xs text-fo-text placeholder:text-fo-subtle focus:outline-none focus:border-fo-accent disabled:opacity-60";
 const hintClass = "text-[11px] text-fo-subtle";
+const WATERMARK_POSITIONS = [
+  ["bottom-right", "Bottom right"],
+  ["bottom-left", "Bottom left"],
+  ["top-right", "Top right"],
+  ["top-left", "Top left"],
+  ["center", "Center"],
+];
 
 export default function SystemSettings() {
   const { showToast } = useToast();
@@ -38,6 +46,15 @@ export default function SystemSettings() {
   const [bannedKeywords, setBannedKeywords] = useState("");
   const [maxWarnings, setMaxWarnings] = useState(3);
   const [autoBanOnMaxWarnings, setAutoBanOnMaxWarnings] = useState(true);
+  const [watermarkEnabled, setWatermarkEnabled] = useState(true);
+  const [watermarkOpacity, setWatermarkOpacity] = useState(60);
+  const [watermarkSizePercent, setWatermarkSizePercent] = useState(26);
+  const [watermarkPosition, setWatermarkPosition] = useState("bottom-right");
+  const [watermarkMarginPercent, setWatermarkMarginPercent] = useState(4);
+  const [watermarkImageUrl, setWatermarkImageUrl] = useState("");
+  const [watermarkSkipForOwner, setWatermarkSkipForOwner] = useState(false);
+  const [watermarkImageData, setWatermarkImageData] = useState("");
+  const [watermarkClearImage, setWatermarkClearImage] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -68,6 +85,21 @@ export default function SystemSettings() {
           if (data.settings.autoBanOnMaxWarnings != null) {
             setAutoBanOnMaxWarnings(Boolean(data.settings.autoBanOnMaxWarnings));
           }
+          setWatermarkEnabled(data.settings.watermarkEnabled !== false);
+          if (data.settings.watermarkOpacity != null) {
+            setWatermarkOpacity(data.settings.watermarkOpacity);
+          }
+          if (data.settings.watermarkSizePercent != null) {
+            setWatermarkSizePercent(data.settings.watermarkSizePercent);
+          }
+          if (data.settings.watermarkPosition) {
+            setWatermarkPosition(data.settings.watermarkPosition);
+          }
+          if (data.settings.watermarkMarginPercent != null) {
+            setWatermarkMarginPercent(data.settings.watermarkMarginPercent);
+          }
+          setWatermarkImageUrl(data.settings.watermarkImageUrl || "");
+          setWatermarkSkipForOwner(Boolean(data.settings.watermarkSkipForOwner));
         }
       } catch (err) {
         if (!cancelled) {
@@ -101,6 +133,21 @@ export default function SystemSettings() {
       showToast("Max warnings before ban must be between 1 and 20.");
       return;
     }
+    const opacity = Number(watermarkOpacity);
+    const size = Number(watermarkSizePercent);
+    const margin = Number(watermarkMarginPercent);
+    if (!Number.isFinite(opacity) || opacity < 40 || opacity > 80) {
+      showToast("Watermark opacity must be between 40 and 80.");
+      return;
+    }
+    if (!Number.isFinite(size) || size < 12 || size > 40) {
+      showToast("Watermark size must be between 12 and 40 percent.");
+      return;
+    }
+    if (!Number.isFinite(margin) || margin < 2 || margin > 12) {
+      showToast("Watermark margin must be between 2 and 12 percent.");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -113,6 +160,14 @@ export default function SystemSettings() {
         watchGroupMaxCapacity: Math.floor(watchMax),
         maxWarningsBeforeBan: Math.floor(warnMax),
         autoBanOnMaxWarnings: Boolean(autoBanOnMaxWarnings),
+        watermarkEnabled: Boolean(watermarkEnabled),
+        watermarkOpacity: Math.round(opacity),
+        watermarkSizePercent: Math.round(size),
+        watermarkPosition,
+        watermarkMarginPercent: Math.round(margin),
+        watermarkSkipForOwner: Boolean(watermarkSkipForOwner),
+        ...(watermarkImageData ? { watermarkImageData } : {}),
+        ...(watermarkClearImage ? { watermarkClearImage: true } : {}),
       });
       const next = data?.settings || {};
       setEditLimit(next.postEditWindowMinutes ?? Math.floor(minutes));
@@ -131,6 +186,19 @@ export default function SystemSettings() {
       if (next.autoBanOnMaxWarnings != null) {
         setAutoBanOnMaxWarnings(Boolean(next.autoBanOnMaxWarnings));
       }
+      setWatermarkEnabled(next.watermarkEnabled !== false);
+      if (next.watermarkOpacity != null) setWatermarkOpacity(next.watermarkOpacity);
+      if (next.watermarkSizePercent != null) {
+        setWatermarkSizePercent(next.watermarkSizePercent);
+      }
+      if (next.watermarkPosition) setWatermarkPosition(next.watermarkPosition);
+      if (next.watermarkMarginPercent != null) {
+        setWatermarkMarginPercent(next.watermarkMarginPercent);
+      }
+      setWatermarkImageUrl(next.watermarkImageUrl || "");
+      setWatermarkSkipForOwner(Boolean(next.watermarkSkipForOwner));
+      setWatermarkImageData("");
+      setWatermarkClearImage(false);
       await refreshPublicContact();
       showToast("Settings saved.");
     } catch (err) {
@@ -297,6 +365,136 @@ export default function SystemSettings() {
               className="rounded border-fo-border text-fo-accent"
             />
             Auto-ban when the warning limit is reached
+          </label>
+        </div>
+
+        <div className={`${cardClass} md:col-span-2`}>
+          <label className={labelClass}>
+            <ImageIcon className="w-4 h-4 text-fo-accent" /> Downloaded media watermark
+          </label>
+          <p className={hintClass}>
+            Applied only to the file someone downloads. The original photo or video stored on Fointer stays unchanged. Web, iOS, and Android downloads that use the Fointer download API receive this mark.
+          </p>
+          <label className="flex items-center gap-2 text-xs text-fo-text cursor-pointer">
+            <input
+              type="checkbox"
+              checked={watermarkEnabled}
+              disabled={loading || saving}
+              onChange={(e) => setWatermarkEnabled(e.target.checked)}
+              className="rounded border-fo-border text-fo-accent"
+            />
+            Add the Fointer logo to downloaded images and videos
+          </label>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <label className="space-y-1">
+              <span className={hintClass}>Opacity (40–80)</span>
+              <input
+                type="number"
+                min={40}
+                max={80}
+                value={watermarkOpacity}
+                disabled={loading || saving}
+                onChange={(e) => setWatermarkOpacity(e.target.value)}
+                className={inputClass}
+              />
+            </label>
+            <label className="space-y-1">
+              <span className={hintClass}>Size (% of width)</span>
+              <input
+                type="number"
+                min={12}
+                max={40}
+                value={watermarkSizePercent}
+                disabled={loading || saving}
+                onChange={(e) => setWatermarkSizePercent(e.target.value)}
+                className={inputClass}
+              />
+            </label>
+            <label className="space-y-1">
+              <span className={hintClass}>Edge margin (%)</span>
+              <input
+                type="number"
+                min={2}
+                max={12}
+                value={watermarkMarginPercent}
+                disabled={loading || saving}
+                onChange={(e) => setWatermarkMarginPercent(e.target.value)}
+                className={inputClass}
+              />
+            </label>
+          </div>
+          <label className="space-y-1 block">
+            <span className={hintClass}>Position</span>
+            <select
+              value={watermarkPosition}
+              disabled={loading || saving}
+              onChange={(e) => setWatermarkPosition(e.target.value)}
+              className={inputClass}
+            >
+              {WATERMARK_POSITIONS.map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="flex flex-wrap items-center gap-3">
+            {watermarkImageData || watermarkImageUrl ? (
+              <img
+                src={watermarkImageData || watermarkImageUrl}
+                alt="Watermark logo"
+                className="h-16 w-auto rounded-md bg-[length:12px_12px] bg-[linear-gradient(45deg,#ddd_25%,transparent_25%),linear-gradient(-45deg,#ddd_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#ddd_75%),linear-gradient(-45deg,transparent_75%,#ddd_75%)] bg-[position:0_0,0_6px,6px_-6px,-6px_0]"
+              />
+            ) : (
+              <p className={hintClass}>Using the built-in fointer.net logo.</p>
+            )}
+            <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-fo-border text-xs text-fo-text cursor-pointer">
+              <UploadCloud className="w-3.5 h-3.5" />
+              Replace logo
+              <input
+                type="file"
+                accept="image/png,image/webp,image/jpeg"
+                className="hidden"
+                disabled={loading || saving}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = "";
+                  if (!file) return;
+                  if (file.size > 500_000) {
+                    showToast("Watermark logo must be under 500 KB.");
+                    return;
+                  }
+                  const reader = new FileReader();
+                  reader.onload = () => {
+                    setWatermarkImageData(String(reader.result || ""));
+                    setWatermarkClearImage(false);
+                  };
+                  reader.readAsDataURL(file);
+                }}
+              />
+            </label>
+            <button
+              type="button"
+              disabled={loading || saving}
+              onClick={() => {
+                setWatermarkImageData("");
+                setWatermarkImageUrl("");
+                setWatermarkClearImage(true);
+              }}
+              className="px-3 py-2 rounded-lg border border-fo-border text-xs text-fo-text"
+            >
+              Use built-in logo
+            </button>
+          </div>
+          <label className="flex items-center gap-2 text-xs text-fo-text cursor-pointer">
+            <input
+              type="checkbox"
+              checked={watermarkSkipForOwner}
+              disabled={loading || saving}
+              onChange={(e) => setWatermarkSkipForOwner(e.target.checked)}
+              className="rounded border-fo-border text-fo-accent"
+            />
+            Exception: skip the watermark when the downloader owns that file
           </label>
         </div>
 

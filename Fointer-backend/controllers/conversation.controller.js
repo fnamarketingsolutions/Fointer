@@ -23,6 +23,9 @@ import {
 import { canViewPost } from "./post.controller.js";
 import { hasMarketplaceAdminPower } from "../utils/adminAccess.js";
 import { formatUserRef } from "../utils/deletedUser.js";
+import { dmBroadcastRooms, emitToRooms } from "../utils/realtimeRooms.js";
+import { logRealtime } from "../utils/realtimeLog.js";
+import { publishSavedMessage } from "../utils/realtimeDelivery.js";
 
 const DM_MEDIA_MAX = 4;
 
@@ -201,9 +204,20 @@ const syncConversationPreview = async (conversation) => {
   await conversation.save();
 };
 
-const emitConversationEvent = (io, conversationId, event, payload) => {
-  if (!io) return;
-  io.to(`dm:${conversationId}`).emit(event, payload);
+const participantIdList = (conversation) =>
+  (conversation?.participants || [])
+    .map((row) => row.user?._id || row.user)
+    .filter(Boolean);
+
+const emitConversationEvent = (io, conversation, event, payload) => {
+  const conversationId = conversation?._id || conversation;
+  if (!conversationId) return;
+  emitToRooms(
+    io,
+    dmBroadcastRooms(conversationId, participantIdList(conversation)),
+    event,
+    payload
+  );
 };
 
 const buildParticipantKey = (userA, userB) => {
@@ -368,76 +382,98 @@ export const sendDirectMessage = async ({
     replyToId = parent._id;
   }
 
-  const message = await DirectMessage.create({
-    conversation: conversation._id,
-    author: author._id || author,
-    type: messageType,
-    text: messageType === "call" ? cleanText || previewFromCall(call) : cleanText,
-    media: mediaItems,
-    call: messageType === "call" ? call : null,
-    replyTo: replyToId,
-    listing: listingSnapshot || null,
-    post: postSnapshot || null,
-  });
-
-  conversation.lastMessageText = previewFromMessage(message);
-  conversation.lastMessageAt = new Date();
-  conversation.lastMessageAuthor = author._id || author;
-
-  const authorId = String(author._id || author);
-  for (const row of conversation.participants || []) {
-    const pid = String(row.user?._id || row.user);
-    if (pid === authorId) {
-      row.lastReadAt = new Date();
-    } else {
-      row.hiddenAt = null;
-    }
-  }
-  await conversation.save();
-
-  await message.populate([
-    { path: "author", select: "username name avatar" },
-    {
-      path: "replyTo",
-      select: "text type isDeleted author",
-      populate: { path: "author", select: "username name avatar" },
-    },
-  ]);
-  const editWindowMinutes = await getEditWindowMinutes();
-  const formatted = formatMessage(message, {
-    viewerId: author._id || author,
-    editWindowMinutes,
-  });
-
-  const recipientId = getOtherParticipantId(conversation, author._id || author);
-  if (notifyRecipient && recipientId && messageType !== "call") {
-    await notify({
-      io,
-      recipientId,
-      actor: author,
-      type: "direct_message",
-      title: `${personName(author)} sent you a message`,
-      body: previewFromMessage(message),
-      entity: {
-        kind: "conversation",
-        _id: conversation._id,
-        title: conversation.listing?.title || "",
-      },
-      collapse: true,
-    });
-  }
-
-  if (io) {
-    io.to(`dm:${conversation._id}`).emit("dm_new", {
-      conversationId: String(conversation._id),
-      message: formatted,
-    });
-    if (recipientId) {
-      io.to(`user:${recipientId}`).emit("dm_unread_changed", {
-        conversationId: String(conversation._id),
+  const editWindowPromise = getEditWindowMinutes();
+  const { saved: formatted, persistMs } = await publishSavedMessage({
+    save: async () => {
+      const message = await DirectMessage.create({
+        conversation: conversation._id,
+        author: author._id || author,
+        type: messageType,
+        text:
+          messageType === "call" ? cleanText || previewFromCall(call) : cleanText,
+        media: mediaItems,
+        call: messageType === "call" ? call : null,
+        replyTo: replyToId,
+        listing: listingSnapshot || null,
+        post: postSnapshot || null,
       });
-    }
-  }
+
+      conversation.lastMessageText = previewFromMessage(message);
+      conversation.lastMessageAt = new Date();
+      conversation.lastMessageAuthor = author._id || author;
+
+      const authorId = String(author._id || author);
+      for (const row of conversation.participants || []) {
+        const pid = String(row.user?._id || row.user);
+        if (pid === authorId) {
+          row.lastReadAt = new Date();
+        } else {
+          row.hiddenAt = null;
+        }
+      }
+
+      const [, , editWindowMinutes] = await Promise.all([
+        conversation.save(),
+        message.populate([
+          { path: "author", select: "username name avatar" },
+          {
+            path: "replyTo",
+            select: "text type isDeleted author",
+            populate: { path: "author", select: "username name avatar" },
+          },
+        ]),
+        editWindowPromise,
+      ]);
+
+      return formatMessage(message, {
+        viewerId: author._id || author,
+        editWindowMinutes,
+      });
+    },
+    publish: (next, persistMs) => {
+      if (!io) return;
+      const conversationId = String(conversation._id);
+      const recipientId = getOtherParticipantId(conversation, author._id || author);
+      emitConversationEvent(io, conversation, "dm_new", {
+        conversationId,
+        message: next,
+      });
+      if (recipientId) {
+        io.to(`user:${recipientId}`).emit("dm_unread_changed", {
+          conversationId,
+        });
+      }
+      logRealtime("dm_published", {
+        conversationId,
+        messageId: String(next.id || next._id),
+        recipientId: recipientId ? String(recipientId) : "",
+        persistMs,
+      });
+    },
+    notify:
+      notifyRecipient &&
+      messageType !== "call" &&
+      getOtherParticipantId(conversation, author._id || author)
+        ? (next) =>
+            notify({
+              io,
+              recipientId: getOtherParticipantId(
+                conversation,
+                author._id || author
+              ),
+              actor: author,
+              type: "direct_message",
+              title: `${personName(author)} sent you a message`,
+              body: previewFromMessage(next),
+              entity: {
+                kind: "conversation",
+                _id: conversation._id,
+                title: conversation.listing?.title || "",
+              },
+              collapse: true,
+            })
+        : null,
+  });
 
   return { message: formatted, conversation };
 };
@@ -1149,7 +1185,7 @@ export const updateMessage = async (req, res) => {
       viewerId: req.user._id,
       editWindowMinutes,
     });
-    emitConversationEvent(req.app.get("io"), conversation._id, "dm_updated", {
+    emitConversationEvent(req.app.get("io"), conversation, "dm_updated", {
       conversationId: String(conversation._id),
       message: formatted,
     });
@@ -1232,7 +1268,7 @@ export const deleteMessage = async (req, res) => {
       viewerId: req.user._id,
       editWindowMinutes,
     });
-    emitConversationEvent(req.app.get("io"), conversation._id, "dm_deleted", {
+    emitConversationEvent(req.app.get("io"), conversation, "dm_deleted", {
       conversationId: String(conversation._id),
       message: formatted,
     });

@@ -1,4 +1,5 @@
 import { userNotificationRoom } from "../utils/notify.js";
+import { logRealtime } from "../utils/realtimeLog.js";
 import { authenticateSocket } from "./socketAuth.js";
 
 export const initNotificationSocket = (io) => {
@@ -17,6 +18,13 @@ export const initNotificationSocket = (io) => {
     const userId = socket.user?._id;
     if (userId) {
       socket.join(userNotificationRoom(userId));
+      logRealtime("connected", { userId: String(userId) });
     }
+    socket.on("disconnect", (reason) => {
+      logRealtime("disconnected", {
+        userId: userId ? String(userId) : "",
+        reason: reason || "unknown",
+      });
+    });
   });
 };

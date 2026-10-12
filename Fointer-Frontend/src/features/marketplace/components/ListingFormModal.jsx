@@ -1,4 +1,10 @@
 import { useEffect, useState } from "react";
+import {
+  clearComposerDraft,
+  persistableMedia,
+  readComposerDraft,
+  writeComposerDraft,
+} from "../../../shared/utils/composerDraft";
 import { LuLoaderCircle as Loader2, LuX as X } from "react-icons/lu";
 import LocationFields from "../../../shared/components/LocationFields";
 import MediaPicker from "../../../shared/components/media/MediaPicker";
@@ -21,6 +27,8 @@ const emptyForm = () => ({
   media: [],
   status: "active",
 });
+
+const LISTING_DRAFT_KEY = "listing:create";
 
 const fieldClass =
   "w-full rounded-lg border border-fo-border bg-fo-bg px-3 py-2 text-sm text-fo-text";
@@ -58,10 +66,34 @@ export default function ListingFormModal({
         status: initial.status || "active",
       });
     } else {
-      setForm(emptyForm());
+      const saved = readComposerDraft(LISTING_DRAFT_KEY);
+      setForm(
+        saved
+          ? {
+              ...emptyForm(),
+              ...saved,
+              media: persistableMedia(saved.media),
+            }
+          : emptyForm()
+      );
     }
     setError("");
   }, [open, initial]);
+
+  useEffect(() => {
+    if (!open || initial) return;
+    const media = persistableMedia(form.media);
+    const blank =
+      !String(form.title || "").trim() &&
+      !String(form.description || "").trim() &&
+      !String(form.price || "").trim() &&
+      !String(form.city || "").trim() &&
+      !String(form.state || "").trim() &&
+      !String(form.country || "").trim() &&
+      media.length === 0;
+    if (blank) clearComposerDraft(LISTING_DRAFT_KEY);
+    else writeComposerDraft(LISTING_DRAFT_KEY, { ...form, media });
+  }, [open, initial, form]);
 
   if (!open) return null;
 
@@ -87,6 +119,7 @@ export default function ListingFormModal({
       description: form.description.trim(),
       price,
     });
+    if (!initial) clearComposerDraft(LISTING_DRAFT_KEY);
   };
 
   return (

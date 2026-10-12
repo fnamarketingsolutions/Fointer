@@ -27,7 +27,7 @@ import {
   transferWatchGroupOwnership,
 } from "../../../../api/watchGroups";
 import { globalSearch } from "../../../../api/search";
-import { getLiveSocket } from "../../../../shared/services/liveSocket";
+import { emitAck, getLiveSocket, nextJoinToken } from "../../../../shared/services/liveSocket";
 import { useToast } from "../../../../shared/components/feedback/ToastContext";
 import { useAuth } from "../../../../context/AuthContext";
 import UserProfileLink from "../../../../shared/components/UserProfileLink";
@@ -71,6 +71,10 @@ export default function WatchGroupRoom() {
 
   const listRef = useRef(null);
   const canModerateRef = useRef(false);
+  const knownIdsRef = useRef([]);
+  knownIdsRef.current = [groupId, group?.id, group?.shortCode]
+    .filter(Boolean)
+    .map(String);
 
   const scrollToBottom = () => {
     requestAnimationFrame(() => {
@@ -132,10 +136,12 @@ export default function WatchGroupRoom() {
     if (!groupId || loading) return undefined;
 
     const socket = getLiveSocket();
+    const joinToken = nextJoinToken();
 
     const onConnect = () => {
       setConnected(true);
-      socket.emit("join_watch_group", { groupId }, (ack) => {
+      socket.emit("join_watch_group", { groupId, joinToken }, (ack) => {
+        if (ack?.ignored) return;
         if (ack && !ack.success) {
           showToast(ack.message || "Could not join chat.");
         } else if (ack?.canModerate != null) {
@@ -149,8 +155,10 @@ export default function WatchGroupRoom() {
 
     const onDisconnect = () => setConnected(false);
 
-    const onMessageNew = ({ message }) => {
+    const onMessageNew = ({ groupId: incoming, message }) => {
       if (!message) return;
+      const known = knownIdsRef.current;
+      if (incoming && known.length && !known.includes(String(incoming))) return;
       setMessages((prev) => {
         if (prev.some((m) => String(m.id) === String(message.id))) return prev;
         return [
@@ -216,7 +224,7 @@ export default function WatchGroupRoom() {
     else socket.connect();
 
     return () => {
-      socket.emit("leave_watch_group", { groupId });
+      socket.emit("leave_watch_group", { groupId, joinToken });
       socket.off("connect", onConnect);
       socket.off("disconnect", onDisconnect);
       socket.off("watch_message_new", onMessageNew);
@@ -229,15 +237,14 @@ export default function WatchGroupRoom() {
     };
   }, [groupId, loading, loadParticipants, navigate, showToast, user]);
 
-  const handleSend = (e) => {
+  const handleSend = async (e) => {
     e.preventDefault();
     const value = text.trim();
     if (!value || sending) return;
 
     setSending(true);
-    const socket = getLiveSocket();
-    socket.emit("send_watch_message", { groupId, text: value }, (ack) => {
-      setSending(false);
+    try {
+      const ack = await emitAck("send_watch_message", { groupId, text: value });
       if (!ack?.success) {
         showToast(ack?.message || "Failed to send message.");
         return;
@@ -255,7 +262,11 @@ export default function WatchGroupRoom() {
         });
         scrollToBottom();
       }
-    });
+    } catch (err) {
+      showToast(err?.message || "Failed to send message.");
+    } finally {
+      setSending(false);
+    }
   };
 
   const handleDeleteMessage = async (messageId) => {

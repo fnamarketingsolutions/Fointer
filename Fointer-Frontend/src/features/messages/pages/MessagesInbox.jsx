@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   LuLoaderCircle as Loader2,
@@ -7,6 +7,8 @@ import {
   LuTrash2 as Trash2,
 } from "react-icons/lu";
 import { deleteConversation, fetchConversations } from "../../../api/messages";
+import { useAuth } from "../../../context/AuthContext";
+import { getLiveSocket } from "../../../shared/services/liveSocket";
 import { useToast } from "../../../shared/components/feedback/ToastContext";
 import ProfileAvatar from "../../../shared/components/ProfileAvatar";
 import { timeAgo } from "../../../shared/utils/date";
@@ -41,6 +43,7 @@ function InboxSkeleton() {
 
 export default function MessagesInbox() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { showToast } = useToast();
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -67,6 +70,32 @@ export default function MessagesInbox() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const refreshTimer = useRef(null);
+  useEffect(() => {
+    if (!user) return undefined;
+    const socket = getLiveSocket();
+    const refreshSoon = () => {
+      if (refreshTimer.current) clearTimeout(refreshTimer.current);
+      refreshTimer.current = setTimeout(() => {
+        refreshTimer.current = null;
+        fetchConversations()
+          .then((res) => setConversations(res?.conversations || []))
+          .catch(() => {});
+      }, 250);
+    };
+    socket.on("dm_new", refreshSoon);
+    socket.on("dm_updated", refreshSoon);
+    socket.on("dm_deleted", refreshSoon);
+    socket.on("dm_unread_changed", refreshSoon);
+    return () => {
+      if (refreshTimer.current) clearTimeout(refreshTimer.current);
+      socket.off("dm_new", refreshSoon);
+      socket.off("dm_updated", refreshSoon);
+      socket.off("dm_deleted", refreshSoon);
+      socket.off("dm_unread_changed", refreshSoon);
+    };
+  }, [user]);
 
   const handleDelete = async (event, conv) => {
     event.stopPropagation();

@@ -337,12 +337,6 @@ export default function FeedPostRow({
               <LinkifiedText text={title} />
             </h3>
           ) : null}
-
-          {post?.text ? (
-            <p className="text-[13px] text-fo-muted line-clamp-2 leading-snug">
-              <LinkifiedText text={post.text} />
-            </p>
-          ) : null}
         </div>
 
         {media.length > 0 ? (
@@ -360,6 +354,12 @@ export default function FeedPostRow({
               />
             </div>
           </div>
+        ) : null}
+
+        {post?.text ? (
+          <p className="px-3.5 pt-1 text-[13px] text-fo-muted whitespace-pre-wrap leading-relaxed line-clamp-3">
+            <LinkifiedText text={post.text} />
+          </p>
         ) : null}
 
         {showActions ? (

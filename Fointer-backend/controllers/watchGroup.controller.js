@@ -12,6 +12,7 @@ import { getWatchGroupCreateLimits } from "../utils/watchGroupLimits.js";
 import { hasWatchGroupsAdminPower } from "../utils/adminAccess.js";
 import { notify, personName } from "../utils/notify.js";
 import { formatUserRef } from "../utils/deletedUser.js";
+import { watchMembershipCanChat } from "../utils/realtimeDelivery.js";
 
 const isValidMemberId = (value) =>
   mongoose.Types.ObjectId.isValid(String(value || ""));
@@ -109,8 +110,11 @@ export const userCanDeleteWatchGroup = async (group, user) => {
 
 export const userIsMember = async (group, user) => {
   if (!user) return false;
-  if (hasWatchGroupsAdminPower(user)) return true;
-  return Boolean(await getMembership(group._id, user._id));
+  if (hasWatchGroupsAdminPower(user)) {
+    return watchMembershipCanChat(null, { isAdmin: true });
+  }
+  const membership = await getMembership(group._id, user._id);
+  return watchMembershipCanChat(membership ? membership.status : null);
 };
 
 export const userCanAccessWatchGroup = async (group, user) => {

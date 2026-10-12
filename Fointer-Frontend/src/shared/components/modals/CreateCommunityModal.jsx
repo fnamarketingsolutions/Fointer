@@ -12,11 +12,37 @@ import {
 } from 'react-icons/lu';
 import { createCommunity } from '../../../api/communities';
 import { uploadMedia } from '../../../api/uploads';
+import {
+  clearComposerDraft,
+  readComposerDraft,
+  writeComposerDraft,
+} from '../../utils/composerDraft';
 import { fetchChannels, fetchSubchannels } from '../../../api/channels';
-import { makeGalleryItem } from '../../utils/media';
 import { MAX_GALLERY_IMAGES, MAX_FILE_SIZE } from '../../constants/uploads';
 import { useToast } from '../feedback/ToastContext';
 import { getErrorMessage } from '../../utils/errors';
+
+const COMMUNITY_DRAFT_KEY = "community:create";
+
+const mediaUrl = (value) => {
+  if (!value) return "";
+  if (typeof value === "string") return value.startsWith("https://") ? value : "";
+  return /^https:\/\//.test(String(value.url || "")) ? value.url : "";
+};
+
+const mediaRecord = (value) => {
+  if (!value || typeof value === "string") {
+    const url = mediaUrl(value);
+    return url ? { url, publicId: "", type: "image" } : null;
+  }
+  const url = mediaUrl(value);
+  if (!url) return null;
+  return {
+    url,
+    publicId: value.publicId || "",
+    type: value.type === "video" ? "video" : "image",
+  };
+};
 
 const emptyForm = {
   name: '',
@@ -55,6 +81,8 @@ export default function CreateCommunityModal({ open, onClose, onSuccess }) {
   const [form, setForm] = useState(emptyForm);
   const [tagInput, setTagInput] = useState('');
   const [saving, setSaving] = useState(false);
+  const [uploadingCover, setUploadingCover] = useState(false);
+  const [uploadingGallery, setUploadingGallery] = useState(false);
   const [coverFile, setCoverFile] = useState(null);
   const [coverPreview, setCoverPreview] = useState('');
   const [galleryItems, setGalleryItems] = useState([]);
@@ -109,7 +137,34 @@ export default function CreateCommunityModal({ open, onClose, onSuccess }) {
 
   useEffect(() => {
     if (!open) return undefined;
-    resetForm();
+    const saved = readComposerDraft(COMMUNITY_DRAFT_KEY);
+    if (saved) {
+      const cover = mediaRecord(saved.coverImage);
+      setForm({
+        ...emptyForm,
+        name: saved.name || "",
+        description: saved.description || "",
+        rules: saved.rules || "",
+        tags: Array.isArray(saved.tags) ? saved.tags : [],
+        coverImage: cover || "",
+        type: saved.type || emptyForm.type,
+        channelId: saved.channelId || "",
+        subchannelIds: Array.isArray(saved.subchannelIds) ? saved.subchannelIds : [],
+      });
+      setTagInput(saved.tagInput || "");
+      setCoverFile(null);
+      setCoverPreview(cover?.url || "");
+      setGalleryItems(
+        (Array.isArray(saved.gallery) ? saved.gallery : [])
+          .map(mediaRecord)
+          .filter(Boolean)
+          .map((item) => ({
+            id: item.url,
+            preview: item.url,
+            uploaded: item,
+          }))
+      );
+    }
     let cancelled = false;
     (async () => {
       setLoadingChannels(true);
@@ -128,6 +183,39 @@ export default function CreateCommunityModal({ open, onClose, onSuccess }) {
       cancelled = true;
     };
   }, [open, showToast]);
+
+  useEffect(() => {
+    if (!open) return;
+    const cover = mediaRecord(form.coverImage);
+    const gallery = galleryItems.map((item) => item.uploaded).filter(Boolean);
+    const blank =
+      !form.name.trim() &&
+      !form.description.trim() &&
+      !form.rules.trim() &&
+      form.tags.length === 0 &&
+      !tagInput.trim() &&
+      !form.channelId &&
+      form.subchannelIds.length === 0 &&
+      !cover &&
+      gallery.length === 0 &&
+      form.type === emptyForm.type;
+    if (blank) {
+      clearComposerDraft(COMMUNITY_DRAFT_KEY);
+      return;
+    }
+    writeComposerDraft(COMMUNITY_DRAFT_KEY, {
+      name: form.name,
+      description: form.description,
+      rules: form.rules,
+      tags: form.tags,
+      tagInput,
+      type: form.type,
+      channelId: form.channelId,
+      subchannelIds: form.subchannelIds,
+      coverImage: cover,
+      gallery,
+    });
+  }, [open, form, tagInput, galleryItems]);
 
   useEffect(() => {
     if (!open || !form.channelId) {
@@ -186,15 +274,27 @@ export default function CreateCommunityModal({ open, onClose, onSuccess }) {
     });
   };
 
-  const handleCoverChange = (e) => {
+  const handleCoverChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > MAX_FILE_SIZE) {
       showToast('Cover image size should be under 5MB.');
       return;
     }
-    setCoverFile(file);
-    setCoverPreview(URL.createObjectURL(file));
+    setUploadingCover(true);
+    try {
+      const upload = await uploadMedia(file, 'fointer/communities');
+      const cover = mediaRecord(upload?.media);
+      if (!cover) throw new Error('Upload failed.');
+      setCoverFile(null);
+      setCoverPreview(cover.url);
+      handleInputChange('coverImage', cover);
+    } catch (err) {
+      showToast(getErrorMessage(err, 'Cover upload failed.'));
+    } finally {
+      setUploadingCover(false);
+      if (coverInputRef.current) coverInputRef.current.value = '';
+    }
   };
 
   const clearCover = () => {
@@ -204,7 +304,7 @@ export default function CreateCommunityModal({ open, onClose, onSuccess }) {
     if (coverInputRef.current) coverInputRef.current.value = '';
   };
 
-  const handleGalleryChange = (e) => {
+  const handleGalleryChange = async (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
     const remaining = MAX_GALLERY_IMAGES - galleryItems.length;
@@ -219,9 +319,27 @@ export default function CreateCommunityModal({ open, onClose, onSuccess }) {
       if (galleryInputRef.current) galleryInputRef.current.value = '';
       return;
     }
-    const accepted = files.slice(0, remaining).map(makeGalleryItem);
-    setGalleryItems((prev) => [...prev, ...accepted]);
-    if (galleryInputRef.current) galleryInputRef.current.value = '';
+    setUploadingGallery(true);
+    try {
+      const uploaded = [];
+      for (const file of files.slice(0, remaining)) {
+        const upload = await uploadMedia(file, 'fointer/communities');
+        const record = mediaRecord(upload?.media);
+        if (record) {
+          uploaded.push({
+            id: record.url,
+            preview: record.url,
+            uploaded: record,
+          });
+        }
+      }
+      setGalleryItems((prev) => [...prev, ...uploaded]);
+    } catch (err) {
+      showToast(getErrorMessage(err, 'Gallery upload failed.'));
+    } finally {
+      setUploadingGallery(false);
+      if (galleryInputRef.current) galleryInputRef.current.value = '';
+    }
   };
 
   const removeGalleryItem = (id) => {
@@ -280,16 +398,22 @@ export default function CreateCommunityModal({ open, onClose, onSuccess }) {
         ? [...new Set([...form.tags, pendingTag.toLowerCase()])]
         : form.tags;
 
-      let coverImage = form.coverImage || '';
+      let coverImage = mediaRecord(form.coverImage) || '';
       if (coverFile) {
         const upload = await uploadMedia(coverFile, 'fointer/communities');
-        coverImage = upload?.media || '';
+        coverImage = mediaRecord(upload?.media) || '';
       }
 
       const galleryImages = [];
       for (const item of galleryItems) {
+        if (item.uploaded) {
+          galleryImages.push(item.uploaded);
+          continue;
+        }
+        if (!item.file) continue;
         const upload = await uploadMedia(item.file, 'fointer/communities');
-        if (upload?.media) galleryImages.push(upload.media);
+        const record = mediaRecord(upload?.media);
+        if (record) galleryImages.push(record);
       }
 
       await createCommunity({
@@ -304,6 +428,7 @@ export default function CreateCommunityModal({ open, onClose, onSuccess }) {
         subchannels: form.subchannelIds,
       });
 
+      clearComposerDraft(COMMUNITY_DRAFT_KEY);
       resetForm();
       showToast('Community created.');
       if (onSuccess) onSuccess();
@@ -315,7 +440,7 @@ export default function CreateCommunityModal({ open, onClose, onSuccess }) {
     }
   };
 
-  const displayCover = coverPreview || form.coverImage;
+  const displayCover = coverPreview || mediaUrl(form.coverImage);
   const selectedChannel = channels.find((c) => c.id === form.channelId);
 
   return (
@@ -483,7 +608,12 @@ export default function CreateCommunityModal({ open, onClose, onSuccess }) {
               onClick={() => coverInputRef.current?.click()}
               className="relative w-full h-40 rounded-xl bg-fo-bg border border-dashed border-fo-border hover:border-fo-accent/50 overflow-hidden flex items-center justify-center cursor-pointer group"
             >
-              {displayCover ? (
+              {uploadingCover ? (
+                <div className="flex flex-col items-center gap-2 text-fo-subtle">
+                  <Loader2 size={20} className="animate-spin text-fo-accent" />
+                  <span className="text-xs">Uploading cover…</span>
+                </div>
+              ) : displayCover ? (
                 <>
                   <img
                     src={displayCover}
@@ -550,11 +680,16 @@ export default function CreateCommunityModal({ open, onClose, onSuccess }) {
               {galleryItems.length < MAX_GALLERY_IMAGES && (
                 <button
                   type="button"
+                  disabled={uploadingGallery}
                   onClick={() => galleryInputRef.current?.click()}
-                  className="aspect-[4/3] rounded-lg border border-dashed border-fo-border hover:border-fo-accent/50 flex flex-col items-center justify-center gap-1 text-fo-subtle"
+                  className="aspect-[4/3] rounded-lg border border-dashed border-fo-border hover:border-fo-accent/50 flex flex-col items-center justify-center gap-1 text-fo-subtle disabled:opacity-60"
                 >
-                  <ImagePlus size={18} className="text-fo-accent" />
-                  <span className="text-[10px]">Add</span>
+                  {uploadingGallery ? (
+                    <Loader2 size={18} className="animate-spin text-fo-accent" />
+                  ) : (
+                    <ImagePlus size={18} className="text-fo-accent" />
+                  )}
+                  <span className="text-[10px]">{uploadingGallery ? "Uploading" : "Add"}</span>
                 </button>
               )}
             </div>

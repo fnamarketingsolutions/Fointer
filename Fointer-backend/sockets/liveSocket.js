@@ -6,6 +6,9 @@ import {
   userCanModerateLiveEvent,
 } from "../controllers/liveEvent.controller.js";
 import { authenticateSocket } from "./socketAuth.js";
+import { createRoomMembership } from "./roomMembership.js";
+import { logRealtime } from "../utils/realtimeLog.js";
+import { publishSavedMessage } from "../utils/realtimeDelivery.js";
 import { assertNoBannedKeywords } from "../utils/bannedKeywords.js";
 import {
   MAX_CALLERS,
@@ -39,9 +42,11 @@ export const initLiveSocket = (io) => {
   });
 
   io.on("connection", (socket) => {
-    let joinedEventId = null;
+    const membership = createRoomMembership();
 
     socket.on("join_event", async (payload = {}, ack) => {
+      const joinToken = payload.joinToken ?? null;
+      membership.note(joinToken);
       try {
         const eventIdParam = payload.eventId;
         if (!eventIdParam) {
@@ -57,16 +62,25 @@ export const initLiveSocket = (io) => {
         }
 
         const eventId = String(event._id);
-        if (joinedEventId && joinedEventId !== eventId) {
-          socket.leave(roomName(joinedEventId));
-          emitViewerCount(io, joinedEventId);
+        const previous = membership.roomId();
+        const joined = await membership.claim(
+          socket,
+          roomName,
+          joinToken,
+          eventId
+        );
+        if (!joined) {
+          if (typeof ack === "function") ack({ success: true, ignored: true });
+          return;
         }
-
-        await socket.join(roomName(eventId));
-        joinedEventId = eventId;
+        if (previous && previous !== eventId) emitViewerCount(io, previous);
 
         const canModerate = await userCanModerateLiveEvent(event, socket.user);
         emitViewerCount(io, eventId);
+        logRealtime("live_joined", {
+          userId: String(socket.user._id),
+          eventId,
+        });
 
         if (typeof ack === "function") {
           ack({
@@ -78,6 +92,13 @@ export const initLiveSocket = (io) => {
           });
         }
       } catch (error) {
+        if (membership.isCurrent(joinToken)) {
+          await membership.drop(socket, roomName, joinToken);
+        }
+        logRealtime("live_join_denied", {
+          userId: String(socket.user?._id || ""),
+          reason: String(error.message || "join_failed").slice(0, 180),
+        });
         if (typeof ack === "function") {
           ack({ success: false, message: error.message });
         }
@@ -85,16 +106,22 @@ export const initLiveSocket = (io) => {
     });
 
     socket.on("leave_event", async (payload = {}) => {
-      const eventId = joinedEventId || payload.eventId;
-      if (!eventId) return;
-      removeCaller(io, String(eventId), socket.id);
-      await socket.leave(roomName(eventId));
-      joinedEventId = null;
-      emitViewerCount(io, eventId);
+      const dropped = await membership.drop(
+        socket,
+        roomName,
+        payload.joinToken ?? null
+      );
+      if (!dropped) return;
+      removeCaller(io, dropped, socket.id);
+      emitViewerCount(io, dropped);
+      logRealtime("live_left", {
+        userId: String(socket.user?._id || ""),
+        eventId: dropped,
+      });
     });
 
     const canonicalEventId = async (param) => {
-      if (joinedEventId) return joinedEventId;
+      if (membership.roomId()) return membership.roomId();
       const raw = param || "";
       if (!raw) return null;
       const event = await findLiveEventByParam(raw);
@@ -103,7 +130,7 @@ export const initLiveSocket = (io) => {
 
     socket.on("call_sync", async (payload = {}, ack) => {
       try {
-        const eventIdParam = payload.eventId || joinedEventId;
+        const eventIdParam = payload.eventId || membership.roomId();
         if (!eventIdParam) {
           if (typeof ack === "function") {
             ack({ success: true, peers: [] });
@@ -147,7 +174,7 @@ export const initLiveSocket = (io) => {
 
     socket.on("call_join", async (payload = {}, ack) => {
       try {
-        const eventIdParam = payload.eventId || joinedEventId;
+        const eventIdParam = payload.eventId || membership.roomId();
         const mode = payload.mode === "video" ? "video" : "audio";
         if (!eventIdParam) throw new Error("eventId is required.");
 
@@ -163,7 +190,7 @@ export const initLiveSocket = (io) => {
         const eventId = String(event._id);
         if (!socket.rooms.has(roomName(eventId))) {
           await socket.join(roomName(eventId));
-          joinedEventId = eventId;
+          membership.force(eventId);
         }
 
         const room = getCallRoom(eventId);
@@ -246,7 +273,7 @@ export const initLiveSocket = (io) => {
 
     socket.on("send_message", async (payload = {}, ack) => {
       try {
-        const eventIdParam = payload.eventId || joinedEventId;
+        const eventIdParam = payload.eventId || membership.roomId();
         const text = String(payload.text || "").trim();
 
         if (!eventIdParam) throw new Error("eventId is required.");
@@ -266,23 +293,34 @@ export const initLiveSocket = (io) => {
           throw new Error("You do not have access to this live event.");
         }
 
-        const message = await LiveMessage.create({
-          event: event._id,
-          author: socket.user._id,
-          text,
-        });
-
-        await message.populate("author", "username name avatar");
-        const canModerate = await userCanModerateLiveEvent(event, socket.user);
-        const formatted = formatLiveMessage(message, {
-          canDelete: canModerate,
-        });
-
-        io.to(roomName(event._id)).emit("message_new", {
-          eventId: String(event._id),
-          message: {
-            ...formatted,
-            canDelete: undefined,
+        const { saved: formatted } = await publishSavedMessage({
+          save: async () => {
+            const message = await LiveMessage.create({
+              event: event._id,
+              author: socket.user._id,
+              text,
+            });
+            const [, canModerate] = await Promise.all([
+              message.populate("author", "username name avatar"),
+              userCanModerateLiveEvent(event, socket.user),
+            ]);
+            return formatLiveMessage(message, { canDelete: canModerate });
+          },
+          publish: (next, savedMs) => {
+            const eventId = String(event._id);
+            io.to(roomName(eventId)).emit("message_new", {
+              eventId,
+              message: {
+                ...next,
+                canDelete: undefined,
+              },
+            });
+            logRealtime("live_message_published", {
+              userId: String(socket.user._id),
+              eventId,
+              messageId: String(next.id || next._id),
+              persistMs: savedMs,
+            });
           },
         });
 
@@ -290,6 +328,10 @@ export const initLiveSocket = (io) => {
           ack({ success: true, message: formatted });
         }
       } catch (error) {
+        logRealtime("live_message_failed", {
+          userId: String(socket.user?._id || ""),
+          reason: String(error.message || "send_failed").slice(0, 180),
+        });
         if (typeof ack === "function") {
           ack({ success: false, message: error.message });
         }
@@ -297,9 +339,10 @@ export const initLiveSocket = (io) => {
     });
 
     socket.on("disconnect", () => {
-      if (joinedEventId) {
-        removeCaller(io, joinedEventId, socket.id);
-        emitViewerCount(io, joinedEventId);
+      const eventId = membership.roomId();
+      if (eventId) {
+        removeCaller(io, eventId, socket.id);
+        emitViewerCount(io, eventId);
       }
     });
   });

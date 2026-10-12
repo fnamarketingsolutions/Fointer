@@ -84,12 +84,14 @@ function AutoplaysVideo({ item, heightClass, active = true }) {
       <video
         ref={videoRef}
         src={item.url}
+        data-media-url={item.url}
         className="absolute inset-0 w-full h-full object-contain"
         preload="metadata"
         playsInline
         loop
         muted
         controls
+        controlsList="nodownload"
         onPause={() => {
           if (observerPausedRef.current) {
             observerPausedRef.current = false;
@@ -134,7 +136,9 @@ function MediaFrame({
       <div className={frameClass}>
         <video
           src={item.url}
+          data-media-url={item.url}
           controls
+          controlsList="nodownload"
           className={mediaClass}
           preload="metadata"
           playsInline
@@ -153,6 +157,7 @@ function MediaFrame({
       >
         <img
           src={displayImageUrl(item.url, 960)}
+          data-media-url={item.url}
           alt=""
           width={960}
           height={540}
@@ -358,6 +363,7 @@ function FullScreenImageViewer({ photos, index, onClose, onChange }) {
       ) : null}
       <img
         src={displayImageUrl(photo.url, 1600)}
+        data-media-url={photo.url}
         alt=""
         className="max-h-full max-w-full select-none object-contain"
       />

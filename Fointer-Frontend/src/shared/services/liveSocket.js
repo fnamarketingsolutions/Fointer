@@ -1,6 +1,15 @@
 import { io } from 'socket.io-client';
 
 let socket = null;
+let joinSeq = 0;
+
+/** One token per room subscription so an older leave cannot cancel a newer join. */
+export const nextJoinToken = () => {
+  joinSeq += 1;
+  return joinSeq;
+};
+
+const ACK_TIMEOUT_MS = 15000;
 
 /**
  * Resolve the Socket.IO host.
@@ -39,12 +48,40 @@ export const getLiveSocket = () => {
 
   socket = io(url, {
     withCredentials: true,
-    transports: ['websocket', 'polling'],
+    // Polling first so the credentialed XHR sends the auth cookie on the
+    // cross-site api host, then upgrades to a websocket on that same session.
+    transports: ['polling', 'websocket'],
+    upgrade: true,
     autoConnect: true,
+    reconnection: true,
+    reconnectionAttempts: Infinity,
+  });
+
+  socket.on('connect_error', () => {
+    if (import.meta.env.DEV) {
+      console.warn('Realtime connection failed.');
+    }
   });
 
   return socket;
 };
+
+/** Wait for the server ack. Does not retry, so a slow save cannot be duplicated. */
+export const emitAck = (event, payload, timeoutMs = ACK_TIMEOUT_MS) =>
+  new Promise((resolve, reject) => {
+    const live = getLiveSocket();
+    if (!live.connected) {
+      reject(Object.assign(new Error('Realtime is offline.'), { offline: true }));
+      return;
+    }
+    live.timeout(timeoutMs).emit(event, payload, (err, body) => {
+      if (err) {
+        reject(new Error('The server took too long to confirm this message.'));
+        return;
+      }
+      resolve(body);
+    });
+  });
 
 export const resetLiveSocket = () => {
   if (!socket) return;

@@ -27,7 +27,7 @@ import {
   unblockUser,
   updateMessage,
 } from "../../../api/messages";
-import { getLiveSocket } from "../../../shared/services/liveSocket";
+import { emitAck, getLiveSocket, nextJoinToken } from "../../../shared/services/liveSocket";
 import { useToast } from "../../../shared/components/feedback/ToastContext";
 import { useAuth } from "../../../context/AuthContext";
 import ProfileAvatar from "../../../shared/components/ProfileAvatar";
@@ -100,6 +100,35 @@ const deletedHistoryLabel = (message, myId) => {
 const headerIconBtn =
   "min-h-9 min-w-9 sm:min-h-10 sm:min-w-10 items-center justify-center rounded-lg border border-fo-border text-fo-muted shrink-0 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40";
 
+function MessageMediaTile({ item, accent = false }) {
+  const isVideo = item.type === "video";
+
+  return (
+    <div
+      className={`relative overflow-hidden rounded-xl border ${
+        accent ? "border-black/10 bg-black/5" : "border-fo-border bg-fo-bg"
+      }`}
+    >
+      {isVideo ? (
+        <video
+          src={item.url}
+          data-media-url={item.url}
+          controls
+          controlsList="nodownload"
+          className="w-full max-h-64 object-contain bg-black"
+        />
+      ) : (
+        <img
+          src={item.url}
+          data-media-url={item.url}
+          alt=""
+          className="w-full max-h-64 object-contain"
+        />
+      )}
+    </div>
+  );
+}
+
 function MessageMedia({ media = [], accent = false }) {
   if (!media?.length) return null;
   return (
@@ -109,26 +138,11 @@ function MessageMedia({ media = [], accent = false }) {
       }`}
     >
       {media.map((item, index) => (
-        <div
+        <MessageMediaTile
           key={`${item.url}-${index}`}
-          className={`overflow-hidden rounded-xl border ${
-            accent ? "border-black/10 bg-black/5" : "border-fo-border bg-fo-bg"
-          }`}
-        >
-          {item.type === "video" ? (
-            <video
-              src={item.url}
-              controls
-              className="w-full max-h-64 object-contain bg-black"
-            />
-          ) : (
-            <img
-              src={item.url}
-              alt=""
-              className="w-full max-h-64 object-contain"
-            />
-          )}
-        </div>
+          item={item}
+          accent={accent}
+        />
       ))}
     </div>
   );
@@ -209,10 +223,11 @@ export default function ConversationThread() {
     if (!conversationId || loading) return undefined;
 
     const socket = getLiveSocket();
+    const joinToken = nextJoinToken();
 
     const join = () => {
-      socket.emit("join_conversation", { conversationId }, (ack) => {
-        if (ack && !ack.success) {
+      socket.emit("join_conversation", { conversationId, joinToken }, (ack) => {
+        if (ack && !ack.success && !ack.ignored) {
           showToast(ack.message || "Could not join conversation.");
         }
       });
@@ -255,7 +270,7 @@ export default function ConversationThread() {
     socket.on("dm_deleted", onMessageDeleted);
 
     return () => {
-      socket.emit("leave_conversation", { conversationId });
+      socket.emit("leave_conversation", { conversationId, joinToken });
       socket.off("connect", join);
       socket.off("dm_new", onMessageNew);
       socket.off("dm_updated", onMessageUpdated);
@@ -281,38 +296,29 @@ export default function ConversationThread() {
         media: payloadMedia,
         replyTo: replyTarget?.id || undefined,
       };
+      let delivered = null;
       if (socket.connected) {
-        await new Promise((resolve) => {
-          socket.emit("send_dm", outbound, (ack) => {
-            if (!ack?.success) {
-              showToast(ack?.message || "Failed to send message.");
-            } else if (ack?.message) {
-              setMessages((prev) => {
-                if (
-                  prev.some((m) => String(m.id) === String(ack.message.id))
-                ) {
-                  return prev;
-                }
-                return [...prev, ack.message];
-              });
-            }
-            resolve();
-          });
-        });
+        const ack = await emitAck("send_dm", outbound);
+        if (!ack?.success) {
+          showToast(ack?.message || "Failed to send message.");
+          return;
+        }
+        delivered = ack.message;
       } else {
         const res = await sendMessage(conversationId, {
           text: value,
           media: payloadMedia,
           replyTo: replyTarget?.id || undefined,
         });
-        if (res?.message) {
-          setMessages((prev) => {
-            if (prev.some((m) => String(m.id) === String(res.message.id))) {
-              return prev;
-            }
-            return [...prev, res.message];
-          });
-        }
+        delivered = res?.message;
+      }
+      if (delivered) {
+        setMessages((prev) => {
+          if (prev.some((m) => String(m.id) === String(delivered.id))) {
+            return prev;
+          }
+          return [...prev, delivered];
+        });
       }
       setText("");
       setMedia([]);
@@ -320,7 +326,11 @@ export default function ConversationThread() {
       setReplyingTo(null);
       scrollToBottom();
     } catch (err) {
-      showToast(err?.response?.data?.message || "Failed to send message.");
+      showToast(
+        err?.response?.data?.message ||
+          err?.message ||
+          "Failed to send message."
+      );
     } finally {
       setSending(false);
     }

@@ -23,6 +23,10 @@ import {
 import { userInConversation, formatListingSnapshot } from "./conversation.controller.js";
 import { resolveIsSuperAdmin, hasUsersAdminPower } from "../utils/adminAccess.js";
 import { formatUserRef } from "../utils/deletedUser.js";
+import {
+  disconnectRevokedSockets,
+  revokeAuthUser,
+} from "../utils/authRevocation.js";
 
 const assertCanBanTargetUser = async (actor, targetUserId) => {
   if (!hasUsersAdminPower(actor)) {
@@ -571,6 +575,8 @@ export const updateAdminReport = async (req, res) => {
         await User.findByIdAndUpdate(report.snapshot.authorId, {
           status: "banned",
         });
+        revokeAuthUser(report.snapshot.authorId);
+        disconnectRevokedSockets(req.app.get("io"), report.snapshot.authorId);
         await hideActiveListingsForSeller(report.snapshot.authorId);
         actionTaken += "; author banned";
       }
@@ -622,6 +628,8 @@ export const updateAdminReport = async (req, res) => {
       await User.findByIdAndUpdate(report.snapshot.authorId, {
         status: "banned",
       });
+      revokeAuthUser(report.snapshot.authorId);
+      disconnectRevokedSockets(req.app.get("io"), report.snapshot.authorId);
       await hideActiveListingsForSeller(report.snapshot.authorId);
       actionTaken = "Author banned; active listings hidden";
       report.status = "actioned";

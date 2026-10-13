@@ -9,10 +9,14 @@ export const addRemoteTracks = (stream, event) => {
   }
   let added = false;
   for (const track of tracks) {
-    if (!stream.getTracks().some((item) => item.id === track.id)) {
-      stream.addTrack(track);
-      added = true;
+    if (stream.getTracks().some((item) => item.id === track.id)) continue;
+    for (const existing of stream.getTracks()) {
+      if (existing.kind === track.kind && existing.readyState === "ended") {
+        stream.removeTrack(existing);
+      }
     }
+    stream.addTrack(track);
+    added = true;
   }
   return added;
 };

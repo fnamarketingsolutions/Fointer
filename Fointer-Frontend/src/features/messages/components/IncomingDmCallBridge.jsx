@@ -3,7 +3,8 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { getLiveSocket } from "../../../shared/services/liveSocket";
 import { useToast } from "../../../shared/components/feedback/ToastContext";
 import { useAuth } from "../../../context/AuthContext";
-import { isDmCallBusy } from "../utils/dmCallActivity";
+import { isDmCallBusy, isRetiredDmCall, retireDmCall } from "../utils/dmCallActivity";
+import { closeCallPushNotification } from "../utils/callRing";
 
 /**
  * Routes incoming 1:1 DM calls to the conversation thread so DirectCall can
@@ -27,7 +28,7 @@ export default function IncomingDmCallBridge() {
     const socket = getLiveSocket();
     const onIncoming = (payload) => {
       const id = payload?.conversationId;
-      if (!id) return;
+      if (!id || isRetiredDmCall(payload.callId)) return;
 
       const target = `/messages/${id}`;
       if (pathRef.current === target) return;
@@ -39,8 +40,17 @@ export default function IncomingDmCallBridge() {
       navigateRef.current(target);
     };
 
+    const onEnded = (payload) => {
+      if (payload?.callId) retireDmCall(payload.callId);
+      closeCallPushNotification(payload?.conversationId);
+    };
+
     socket.on("dm_call_incoming", onIncoming);
-    return () => socket.off("dm_call_incoming", onIncoming);
+    socket.on("dm_call_ended", onEnded);
+    return () => {
+      socket.off("dm_call_incoming", onIncoming);
+      socket.off("dm_call_ended", onEnded);
+    };
   }, [user]);
 
   return null;

@@ -19,6 +19,7 @@ import {
 import { getLiveSocket } from "../../../shared/services/liveSocket";
 import ProfileAvatar from "../../../shared/components/ProfileAvatar";
 import CallTile from "../../../shared/components/CallTile";
+import { useAuth } from "../../../context/AuthContext";
 import { ICE_SERVERS } from "../../../shared/webrtc/iceServers";
 import { applyPeerSignal } from "../../../shared/webrtc/applyPeerSignal";
 import {
@@ -31,7 +32,18 @@ import {
   closeCallPushNotification,
   createCallRingtone,
 } from "../utils/callRing";
-import { setDmCallBusy } from "../utils/dmCallActivity";
+import { setDmCallBusy, isRetiredDmCall, retireDmCall } from "../utils/dmCallActivity";
+import { shouldApplyEnd, shouldIgnoreSignal, shouldStartRing } from "../../../shared/webrtc/callSession";
+import {
+  applyRemoteCameraState,
+  attachVideoTrack,
+  cameraControlLabel,
+  cameraPresencePayload,
+  disableLocalCamera,
+  enableLocalCamera,
+  queuePeerRenegotiation,
+  watchRemoteTrack,
+} from "../../../shared/webrtc/mediaSwitch";
 import {
   DELETED_USER_LABEL,
   personDisplayName,
@@ -43,10 +55,12 @@ const DirectCall = forwardRef(function DirectCall(
 ) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { user } = useAuth();
   const [phase, setPhase] = useState("idle"); // idle | ringing_out | ringing_in | connecting | active
   const [mode, setMode] = useState("audio");
   const [muted, setMuted] = useState(false);
   const [cameraOff, setCameraOff] = useState(false);
+  const [cameraBusy, setCameraBusy] = useState(false);
   const [error, setError] = useState("");
   const [tiles, setTiles] = useState([]);
   const [incomingFrom, setIncomingFrom] = useState(null);
@@ -63,6 +77,9 @@ const DirectCall = forwardRef(function DirectCall(
   const earlySignalsRef = useRef([]);
   const signalChainRef = useRef({ chain: Promise.resolve() });
   const startRingtoneRef = useRef(null);
+  const callIdRef = useRef("");
+  const syncGenRef = useRef(0);
+  const cameraBusyRef = useRef(false);
 
   modeRef.current = mode;
   conversationIdRef.current = conversationId;
@@ -110,9 +127,12 @@ const DirectCall = forwardRef(function DirectCall(
       next.push({
         socketId: localSocketId || "local",
         name: "You",
+        avatar: user?.avatar || "",
         mode: modeRef.current,
         mic: !local.getAudioTracks().some((track) => !track.enabled),
-        camera: local.getVideoTracks().some((track) => track.enabled),
+        camera: local.getVideoTracks().some(
+          (track) => track.readyState === "live" && track.enabled !== false
+        ),
         stream: local,
         isLocal: true,
       });
@@ -122,15 +142,18 @@ const DirectCall = forwardRef(function DirectCall(
         socketId: peer.socketId,
         name: peer.name,
         username: peer.username,
+        avatar: peer.avatar || otherUser?.avatar || "",
         mode: peer.mode,
         mic: peer.mic,
         camera: peer.camera,
         stream: peer.stream,
+        streamVersion: peer.streamVersion || 0,
+        connectionState: peer.connectionState || "",
         isLocal: false,
       });
     }
     setTiles(next);
-  }, []);
+  }, [otherUser?.avatar, user?.avatar]);
 
   const resetCallUi = useCallback(
     (message = "") => {
@@ -140,6 +163,8 @@ const DirectCall = forwardRef(function DirectCall(
       stopLocal();
       earlySignalsRef.current = [];
       phaseRef.current = "idle";
+      if (callIdRef.current) retireDmCall(callIdRef.current);
+      callIdRef.current = "";
       setDmCallBusy(false);
       setPhase("idle");
       setIncomingFrom(null);
@@ -155,6 +180,7 @@ const DirectCall = forwardRef(function DirectCall(
   const sendSignal = useCallback((to, payload) => {
     getLiveSocket().emit("dm_call_signal", {
       conversationId: conversationIdRef.current,
+      callId: callIdRef.current,
       to,
       ...payload,
     });
@@ -167,6 +193,7 @@ const DirectCall = forwardRef(function DirectCall(
         const existing = peersRef.current.get(remote.socketId);
         if (remote.name) existing.name = remote.name;
         if (remote.username) existing.username = remote.username;
+        if (remote.avatar) existing.avatar = remote.avatar;
         if (remote.mode) existing.mode = remote.mode;
         if (typeof remote.mic === "boolean") existing.mic = remote.mic;
         if (typeof remote.camera === "boolean") existing.camera = remote.camera;
@@ -183,11 +210,14 @@ const DirectCall = forwardRef(function DirectCall(
         name: personDisplayName(remote, "") ||
           personDisplayName(otherUser, "Caller"),
         username: remote.username || otherUser?.username || "",
+        avatar: remote.avatar || otherUser?.avatar || "",
         mode: remote.mode || modeRef.current,
         mic: remote.mic !== false,
         camera: remote.camera !== false,
         pc,
         stream,
+        streamVersion: 0,
+        connectionState: "new",
         polite,
         ignoreOffer: false,
         iceQueue: createIceQueue(),
@@ -208,8 +238,29 @@ const DirectCall = forwardRef(function DirectCall(
         });
       };
 
+      pc.onconnectionstatechange = () => {
+        peer.connectionState = pc.connectionState;
+        syncTiles();
+      };
+
       pc.ontrack = (event) => {
         addRemoteTracks(peer.stream, event);
+        const tracks = event.track ? [event.track] : [];
+        for (const track of tracks) watchRemoteTrack(track, peer, syncTiles);
+        peer.streamVersion += 1;
+        if (
+          event.track?.kind === "video" &&
+          event.track.muted !== true &&
+          event.track.readyState === "live"
+        ) {
+          peer.camera = true;
+          peer.mode = "video";
+        }
+        syncTiles();
+      };
+
+      peer.stream.onremovetrack = () => {
+        peer.streamVersion += 1;
         syncTiles();
       };
 
@@ -241,7 +292,10 @@ const DirectCall = forwardRef(function DirectCall(
   );
 
   const applySignal = useCallback(
-    async ({ from, type, sdp, candidate }) => {
+    async ({ from, type, sdp, candidate, callId }) => {
+      if (shouldIgnoreSignal({ activeCallId: callIdRef.current, signalCallId: callId })) {
+        return;
+      }
       if (!from) return;
       if (!callPhaseCanSignal(phaseRef.current) || !localStreamRef.current) {
         return;
@@ -256,6 +310,15 @@ const DirectCall = forwardRef(function DirectCall(
             makingOffer: makingOfferRef.current.has(from),
             onAnswer: (description) => {
               sendSignal(from, { type: "answer", sdp: description });
+            },
+            beforeAnswer: async () => {
+              const stream = localStreamRef.current;
+              const track = stream
+                ?.getVideoTracks?.()
+                .find((item) => item.readyState === "live" && item.enabled !== false);
+              if (!track) return;
+              const plan = attachVideoTrack(peer.pc, track, stream);
+              if (plan.pending) await plan.pending;
             },
           }
         );
@@ -290,14 +353,21 @@ const DirectCall = forwardRef(function DirectCall(
   );
 
   const handleSignal = useCallback(
-    ({ from, type, sdp, candidate }) => {
-      if (!from) return;
-      const payload = { from, type, sdp, candidate };
+    (payload) => {
+      if (!payload?.from) return;
+      if (phaseRef.current === "idle") return;
+      const item = {
+        from: payload.from,
+        type: payload.type,
+        sdp: payload.sdp,
+        candidate: payload.candidate,
+        callId: payload.callId,
+      };
       if (!callPhaseCanSignal(phaseRef.current) || !localStreamRef.current) {
-        earlySignalsRef.current.push(payload);
+        earlySignalsRef.current.push(item);
         return;
       }
-      enqueueSerial(signalChainRef.current, () => applySignal(payload));
+      enqueueSerial(signalChainRef.current, () => applySignal(item));
     },
     [applySignal]
   );
@@ -346,6 +416,7 @@ const DirectCall = forwardRef(function DirectCall(
         if (phaseRef.current === "ringing_out") {
           socket.emit("dm_call_cancel", {
             conversationId: conversationIdRef.current,
+            callId: callIdRef.current,
           });
         } else if (
           phaseRef.current === "active" ||
@@ -357,6 +428,7 @@ const DirectCall = forwardRef(function DirectCall(
         } else if (phaseRef.current === "ringing_in") {
           socket.emit("dm_call_reject", {
             conversationId: conversationIdRef.current,
+            callId: callIdRef.current,
           });
         }
       }
@@ -382,6 +454,8 @@ const DirectCall = forwardRef(function DirectCall(
               resetCallUi(ack?.message || "Could not start the call.");
               return;
             }
+            if (phaseRef.current === "idle") return;
+            callIdRef.current = ack.callId || "";
             setCallPhase("ringing_out");
             syncTiles();
           }
@@ -406,7 +480,7 @@ const DirectCall = forwardRef(function DirectCall(
       await acquireMedia(modeRef.current);
       flushEarlySignals();
       const socket = getLiveSocket();
-      socket.emit("dm_call_accept", { conversationId }, async (ack) => {
+      socket.emit("dm_call_accept", { conversationId, callId: callIdRef.current }, async (ack) => {
         if (!ack?.success) {
           resetCallUi(ack?.message || "Could not join the call.");
           return;
@@ -455,8 +529,11 @@ const DirectCall = forwardRef(function DirectCall(
       String(payload?.conversationId || "") === String(conversationId);
 
     const onIncoming = (payload) => {
-      if (!matches(payload)) return;
-      if (phaseRef.current !== "idle") return;
+      if (!matches(payload) || !payload.callId || isRetiredDmCall(payload.callId)) return;
+      if (payload.callId === callIdRef.current && phaseRef.current !== "idle") return;
+      if (phaseRef.current !== "idle" && phaseRef.current !== "ringing_in") return;
+      syncGenRef.current += 1;
+      callIdRef.current = payload.callId;
       modeRef.current = payload.mode === "video" ? "video" : "audio";
       setMode(modeRef.current);
       setIncomingFrom(payload.from || null);
@@ -467,6 +544,7 @@ const DirectCall = forwardRef(function DirectCall(
 
     const onAccepted = async (payload) => {
       if (!matches(payload)) return;
+      if (shouldIgnoreSignal({ activeCallId: callIdRef.current, signalCallId: payload.callId })) return;
       if (phaseRef.current !== "ringing_out") return;
       const peer = payload.peer;
       phaseRef.current = "connecting";
@@ -476,16 +554,53 @@ const DirectCall = forwardRef(function DirectCall(
 
     const onEnded = (payload) => {
       if (!matches(payload)) return;
+      if (payload?.callId) retireDmCall(payload.callId);
+      syncGenRef.current += 1;
+      if (!shouldApplyEnd({
+        activeCallId: callIdRef.current,
+        endedCallId: payload?.callId,
+        phase: phaseRef.current,
+      })) {
+        return;
+      }
       const reason = payload?.reason;
       const message =
         reason === "rejected"
           ? "Call declined."
-          : reason === "cancelled"
+          : reason === "cancelled" || reason === "missed"
             ? "Call cancelled."
             : "Call ended.";
-      handlersRef.current.resetCallUi(
-        phaseRef.current === "idle" ? "" : message
-      );
+      handlersRef.current.resetCallUi(message);
+    };
+
+    const syncCall = () => {
+      const generation = ++syncGenRef.current;
+      socket.emit("dm_call_sync", { conversationId }, (ack) => {
+        if (generation !== syncGenRef.current) return;
+        if (!ack?.success) return;
+        const call = ack.call;
+        if (!call) closeCallPushNotification(conversationId);
+        if (
+          phaseRef.current === "ringing_in" &&
+          call?.callId &&
+          call.callId === callIdRef.current
+        ) {
+          return;
+        }
+        const phaseForStart = phaseRef.current === "ringing_in" ? "idle" : phaseRef.current;
+        if (!shouldStartRing({ phase: phaseForStart, call, retired: { has: isRetiredDmCall } })) {
+          if (phaseRef.current === "ringing_in") {
+            handlersRef.current.resetCallUi("");
+          }
+          return;
+        }
+        callIdRef.current = call.callId;
+        modeRef.current = call.mode === "video" ? "video" : "audio";
+        setMode(modeRef.current);
+        setIncomingFrom(call.from || null);
+        handlersRef.current.setCallPhase("ringing_in");
+        startRingtoneRef.current?.();
+      });
     };
 
     const onPeerLeft = (payload) => {
@@ -496,33 +611,25 @@ const DirectCall = forwardRef(function DirectCall(
 
     const onPresence = (payload) => {
       if (!matches(payload)) return;
+      if (shouldIgnoreSignal({ activeCallId: callIdRef.current, signalCallId: payload.callId })) return;
       const peer = peersRef.current.get(payload.socketId);
       if (!peer) return;
-      if (typeof payload.mic === "boolean") peer.mic = payload.mic;
-      if (typeof payload.camera === "boolean") peer.camera = payload.camera;
-      if (payload.mode) peer.mode = payload.mode;
+      if (typeof payload.mic === "boolean" || typeof payload.camera === "boolean" || payload.mode) {
+        applyRemoteCameraState(peer, payload);
+      }
       handlersRef.current.syncTiles();
     };
 
     const onSignal = (payload) => {
       if (!matches(payload)) return;
+      if (shouldIgnoreSignal({ activeCallId: callIdRef.current, signalCallId: payload.callId })) return;
       handlersRef.current.handleSignal(payload);
     };
 
     socket.emit("join_conversation", { conversationId }, () => {
-      socket.emit("dm_call_sync", { conversationId }, (ack) => {
-        if (!ack?.success || !ack.call) return;
-        if (phaseRef.current !== "idle") return;
-        const call = ack.call;
-        if (call.status === "ringing" && !call.selfInCall) {
-          modeRef.current = call.mode === "video" ? "video" : "audio";
-          setMode(modeRef.current);
-          setIncomingFrom(call.from || null);
-          handlersRef.current.setCallPhase("ringing_in");
-          startRingtoneRef.current?.();
-        }
-      });
+      syncCall();
     });
+    socket.on("connect", syncCall);
 
     socket.on("dm_call_incoming", onIncoming);
     socket.on("dm_call_accepted", onAccepted);
@@ -538,6 +645,7 @@ const DirectCall = forwardRef(function DirectCall(
       socket.off("dm_call_peer_left", onPeerLeft);
       socket.off("dm_call_presence", onPresence);
       socket.off("dm_call_signal", onSignal);
+      socket.off("connect", syncCall);
       if (phaseRef.current !== "idle") {
         handlersRef.current.endCall(true);
       }
@@ -603,20 +711,110 @@ const DirectCall = forwardRef(function DirectCall(
     syncTiles();
   };
 
-  const toggleCamera = () => {
-    if (modeRef.current !== "video") return;
-    const stream = localStreamRef.current;
-    if (!stream) return;
-    const nextOff = !cameraOff;
-    stream.getVideoTracks().forEach((track) => {
-      track.enabled = !nextOff;
-    });
-    setCameraOff(nextOff);
+  const publishCamera = (cameraOn) => {
+    const payload = cameraPresencePayload(cameraOn);
+    modeRef.current = payload.mode;
+    setMode(payload.mode);
+    setCameraOff(!cameraOn);
     getLiveSocket().emit("dm_call_presence", {
-      conversationId,
-      camera: !nextOff,
+      conversationId: conversationIdRef.current,
+      callId: callIdRef.current,
+      ...payload,
     });
     syncTiles();
+  };
+
+  const renegotiatePeers = () =>
+    queuePeerRenegotiation({
+      peers: peersRef.current,
+      chain: signalChainRef.current,
+      makingOffer: makingOfferRef.current,
+      isActive: () => phaseRef.current !== "idle",
+      sendOffer: (socketId, description) => {
+        sendSignal(socketId, { type: "offer", sdp: description });
+      },
+      onError: () => setError("Video update failed. Audio is still connected."),
+    });
+
+  const turnCameraOn = async () => {
+    if (cameraBusyRef.current || phaseRef.current !== "active") return;
+    const liveVideo = localStreamRef.current
+      ?.getVideoTracks()
+      .some((track) => track.readyState === "live" && track.enabled !== false);
+    if (liveVideo) return;
+    cameraBusyRef.current = true;
+    setCameraBusy(true);
+    setError("");
+    try {
+      const result = await enableLocalCamera({
+        localStream: localStreamRef.current,
+        peerConnections: [...peersRef.current.values()].map((peer) => peer.pc),
+        getUserMedia: (constraints) => {
+          if (!navigator.mediaDevices?.getUserMedia) {
+            const error = new Error("Camera unavailable");
+            error.name = "NotFoundError";
+            return Promise.reject(error);
+          }
+          return navigator.mediaDevices.getUserMedia(constraints);
+        },
+      });
+      if (phaseRef.current !== "active") {
+        result.track?.stop?.();
+        return;
+      }
+      if (!result.ok) {
+        setError(result.message);
+        return;
+      }
+      result.track.onended = () => {
+        if (cameraBusyRef.current) return;
+        const stillThere = localStreamRef.current
+          ?.getVideoTracks()
+          .some((track) => track.id === result.track.id);
+        if (stillThere) void turnCameraOff();
+      };
+      publishCamera(true);
+      await renegotiatePeers();
+    } finally {
+      cameraBusyRef.current = false;
+      setCameraBusy(false);
+      syncTiles();
+    }
+  };
+
+  const turnCameraOff = async () => {
+    if (cameraBusyRef.current || phaseRef.current === "idle") return;
+    if (!localStreamRef.current) return;
+    const hasLiveVideo = localStreamRef.current
+      .getVideoTracks()
+      .some((track) => track.readyState === "live");
+    if (!hasLiveVideo && modeRef.current !== "video") return;
+    cameraBusyRef.current = true;
+    setCameraBusy(true);
+    try {
+      await disableLocalCamera({
+        localStream: localStreamRef.current,
+        peerConnections: [...peersRef.current.values()].map((peer) => peer.pc),
+      });
+      if (phaseRef.current === "idle") return;
+      publishCamera(false);
+      await renegotiatePeers();
+    } catch {
+      setError("Video update failed. Audio is still connected.");
+    } finally {
+      cameraBusyRef.current = false;
+      setCameraBusy(false);
+      syncTiles();
+    }
+  };
+
+  const toggleCamera = () => {
+    if (cameraBusy) return;
+    const cameraOn = localStreamRef.current
+      ?.getVideoTracks()
+      .some((track) => track.readyState === "live" && track.enabled !== false);
+    if (cameraOn) void turnCameraOff();
+    else void turnCameraOn();
   };
 
   if (phase === "idle" && !error) return null;
@@ -676,7 +874,9 @@ const DirectCall = forwardRef(function DirectCall(
         )}
         {mode === "audio" ? "Audio call" : "Video call"}
         <span className="ml-auto text-fo-subtle capitalize">
-          {phase === "ringing_out"
+          {cameraBusy
+            ? "Updating camera…"
+            : phase === "ringing_out"
             ? "Calling…"
             : phase === "connecting"
               ? "Connecting…"
@@ -744,25 +944,33 @@ const DirectCall = forwardRef(function DirectCall(
               <button
                 type="button"
                 onClick={toggleMic}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs border border-fo-border text-fo-text hover:border-fo-accent/40"
+                className="inline-flex items-center gap-1.5 min-h-11 px-3 py-2 rounded-lg text-xs border border-fo-border text-fo-text hover:border-fo-accent/40"
               >
                 {muted ? <MicOff size={14} /> : <Mic size={14} />}
                 {muted ? "Unmute" : "Mute"}
               </button>
-              {mode === "video" ? (
-                <button
-                  type="button"
-                  onClick={toggleCamera}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs border border-fo-border text-fo-text hover:border-fo-accent/40"
-                >
-                  {cameraOff ? <VideoOff size={14} /> : <Video size={14} />}
-                  {cameraOff ? "Camera on" : "Camera off"}
-                </button>
-              ) : null}
+              <button
+                type="button"
+                onClick={toggleCamera}
+                disabled={cameraBusy}
+                className="inline-flex items-center gap-1.5 min-h-11 px-3 py-2 rounded-lg text-xs border border-fo-border text-fo-text hover:border-fo-accent/40 disabled:opacity-60"
+              >
+                {cameraBusy ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : cameraOff || mode === "audio" ? (
+                  <VideoOff size={14} />
+                ) : (
+                  <Video size={14} />
+                )}
+                {cameraControlLabel({
+                  cameraOn: mode === "video" && !cameraOff,
+                  busy: cameraBusy,
+                })}
+              </button>
               <button
                 type="button"
                 onClick={() => endCall(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs border border-red-500/40 text-red-400 hover:bg-red-500/10"
+                className="inline-flex items-center gap-1.5 min-h-11 px-3 py-2 rounded-lg text-xs border border-red-500/40 text-red-400 hover:bg-red-500/10"
               >
                 <PhoneOff size={14} /> End call
               </button>

@@ -10,6 +10,10 @@ import { createRoomMembership } from "./roomMembership.js";
 import { logRealtime } from "../utils/realtimeLog.js";
 import { canRelayCallSignal } from "../utils/callRelay.js";
 import { publishSavedMessage } from "../utils/realtimeDelivery.js";
+import { applyParticipantMedia } from "../utils/dmCallLifecycle.js";
+import { emitToRooms } from "../utils/realtimeRooms.js";
+import { userNotificationRoom } from "../utils/notify.js";
+import { allowChatMessage, chatRateLimited } from "../utils/socketRateLimit.js";
 import { assertNoBannedKeywords } from "../utils/bannedKeywords.js";
 import {
   MAX_CALLERS,
@@ -268,23 +272,38 @@ export const initLiveSocket = (io) => {
     socket.on("call_presence", async (payload = {}) => {
       const eventId = await canonicalEventId(payload.eventId);
       const room = getCallMap(eventId);
-      const caller = room?.get(socket.id);
+      if (!room) return;
+      const caller = applyParticipantMedia(
+        { status: "active", peers: room },
+        socket.id,
+        payload
+      );
       if (!caller) return;
-      if (typeof payload.mic === "boolean") caller.mic = payload.mic;
-      if (typeof payload.camera === "boolean") caller.camera = payload.camera;
-      if (payload.mode === "audio" || payload.mode === "video") {
-        caller.mode = payload.mode;
+      const rooms = [roomName(eventId)];
+      const seen = new Set();
+      for (const peer of room.values()) {
+        const userId = String(peer.userId || "");
+        if (!userId || seen.has(userId)) continue;
+        seen.add(userId);
+        rooms.push(userNotificationRoom(userId));
       }
-      io.to(roomName(eventId)).emit("call_presence", {
+      emitToRooms(io, rooms, "call_presence", {
         eventId,
         socketId: socket.id,
+        userId: caller.userId,
         mic: caller.mic,
         camera: caller.camera,
         mode: caller.mode,
+        peer: callerPayload(caller),
+        peers: callRoster(eventId),
       });
     });
 
     socket.on("send_message", async (payload = {}, ack) => {
+      if (!allowChatMessage(`${socket.id}:live`)) {
+        chatRateLimited(ack);
+        return;
+      }
       try {
         const eventIdParam = payload.eventId || membership.roomId();
         const text = String(payload.text || "").trim();

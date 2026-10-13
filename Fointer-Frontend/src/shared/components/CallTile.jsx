@@ -1,5 +1,7 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { LuMicOff as MicOff } from "react-icons/lu";
+import ProfileAvatar from "./ProfileAvatar";
+import { hasProfilePhoto, remoteMediaStatus, remoteStatusLabel, shouldShowRemoteVideo } from "../webrtc/mediaTile";
 
 /**
  * Shared WebRTC call tile (DM + live-event calls).
@@ -13,23 +15,25 @@ export default function CallTile({
 }) {
   const videoRef = useRef(null);
   const audioRef = useRef(null);
-  const showVideo =
-    peer.mode === "video" &&
-    peer.camera !== false &&
-    peer.stream &&
-    peer.stream.getVideoTracks().some((track) => track.readyState === "live");
+  const [playbackError, setPlaybackError] = useState(false);
+  const showVideo = shouldShowRemoteVideo(peer) && !playbackError;
+  const status = playbackError ? "avatar" : remoteMediaStatus(peer);
+
+  useEffect(() => {
+    setPlaybackError(false);
+  }, [peer.stream, peer.streamVersion]);
 
   useEffect(() => {
     const el = videoRef.current;
     if (!el) return undefined;
     el.srcObject = peer.stream || null;
-    if (!isLocal && peer.stream) {
+    if (peer.stream && showVideo) {
       el.play?.().catch(() => {});
     }
     return () => {
       if (el.srcObject) el.srcObject = null;
     };
-  }, [isLocal, peer.stream]);
+  }, [peer.stream, peer.streamVersion, showVideo]);
 
   useEffect(() => {
     const el = audioRef.current;
@@ -41,14 +45,16 @@ export default function CallTile({
     return () => {
       if (el.srcObject) el.srcObject = null;
     };
-  }, [isLocal, peer.stream]);
+  }, [isLocal, peer.stream, peer.streamVersion]);
 
   const label = isLocal ? "You" : peer.name || peer.username || fallbackLabel;
+  const photo = hasProfilePhoto(peer.avatar) ? peer.avatar : "";
   const minH = size === "sm" ? "min-h-[140px]" : "min-h-[160px]";
-  const avatar =
+  const avatarClass =
     size === "sm"
       ? "w-12 h-12 text-sm"
       : "w-14 h-14 text-base";
+  const statusLabel = remoteStatusLabel(peer, status);
 
   return (
     <div
@@ -59,21 +65,20 @@ export default function CallTile({
         autoPlay
         playsInline
         muted
+        onError={() => setPlaybackError(true)}
         className={`absolute inset-0 w-full h-full object-cover ${
           showVideo ? "opacity-100" : "opacity-0"
         }`}
       />
       {!isLocal ? <audio ref={audioRef} autoPlay playsInline /> : null}
       {!showVideo ? (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
-          <div
-            className={`${avatar} rounded-full bg-fo-accent/15 border border-fo-accent/40 text-fo-accent flex items-center justify-center font-bold`}
-          >
-            {(label[0] || "?").toUpperCase()}
-          </div>
-          <span className="text-[11px] text-fo-muted">
-            {peer.mode === "audio" ? "Audio" : "Camera off"}
-          </span>
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-3">
+          <ProfileAvatar
+            src={photo}
+            name={label}
+            className={`${avatarClass} rounded-full object-cover border border-fo-accent/40`}
+          />
+          <span className="text-[11px] text-fo-muted text-center">{statusLabel}</span>
         </div>
       ) : null}
       <div className="absolute left-2 bottom-2 right-2 flex items-center gap-1.5">

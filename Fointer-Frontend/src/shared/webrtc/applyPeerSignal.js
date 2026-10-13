@@ -22,7 +22,7 @@ const flushIce = async (peer) => {
 export const applyPeerSignal = async (
   peer,
   signal,
-  { makingOffer = false, onAnswer } = {}
+  { makingOffer = false, onAnswer, beforeAnswer } = {}
 ) => {
   if (!peer?.pc || !peer.iceQueue) return;
   const { type, sdp, candidate } = signal || {};
@@ -41,6 +41,7 @@ export const applyPeerSignal = async (
       await peer.pc.setRemoteDescription(sdp);
     }
     await flushIce(peer);
+    if (typeof beforeAnswer === "function") await beforeAnswer(peer);
     const answer = await peer.pc.createAnswer();
     await peer.pc.setLocalDescription(answer);
     if (typeof onAnswer === "function") onAnswer(peer.pc.localDescription);

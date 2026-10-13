@@ -2,6 +2,7 @@ import SystemSetting from "../models/systemSetting.js";
 import User from "../models/user.js";
 import Warning from "../models/warning.js";
 import { resolveIsSuperAdmin } from "./adminAccess.js";
+import { disconnectRevokedSockets, revokeAuthUser } from "./authRevocation.js";
 import {
   getAdminIdsForNotificationType,
   notify,
@@ -26,10 +27,12 @@ export const getWarningPolicy = async () => {
   };
 };
 
-const applyPlatformBan = async (user, actorId) => {
+const applyPlatformBan = async (user, io) => {
   if (String(user.status || "") === "banned") return user;
   user.status = "banned";
   await user.save();
+  revokeAuthUser(user._id);
+  disconnectRevokedSockets(io, user._id);
   const { hideActiveListingsForSeller } = await import(
     "../controllers/adminMarketplace.controller.js"
   );
@@ -121,7 +124,7 @@ export const issueUserWarning = async ({
     policy.autoBanOnMaxWarnings && count >= policy.maxWarningsBeforeBan;
 
   if (shouldAutoBan) {
-    await applyPlatformBan(target, actor._id);
+    await applyPlatformBan(target, io);
     warning.resultedInBan = true;
     await warning.save();
   }

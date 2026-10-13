@@ -8,6 +8,7 @@ import { authenticateSocket } from "./socketAuth.js";
 import { createRoomMembership } from "./roomMembership.js";
 import { logRealtime } from "../utils/realtimeLog.js";
 import { canRelayCallSignal } from "../utils/callRelay.js";
+import { allowChatMessage, chatRateLimited } from "../utils/socketRateLimit.js";
 import { assertNoBannedKeywords } from "../utils/bannedKeywords.js";
 import { acceptSignedMediaList } from "../utils/s3.js";
 import { notify, personName, userNotificationRoom } from "../utils/notify.js";
@@ -15,6 +16,7 @@ import {
   MAX_DM_CALLERS,
   callerPayload,
   clearDmCall,
+  createDmCallId,
   dmCallRoster,
   dmRoomName,
   ensureDmCall,
@@ -22,7 +24,12 @@ import {
   findDmCallForSignal,
   getDmCall,
   removeDmCaller,
+  startDmCallSweep,
+  sweepExpiredDmCalls,
+  isRetiredDmCall,
 } from "./dmCallState.js";
+import { applyParticipantMedia, callerCanCancel, signalMatchesCall } from "../utils/dmCallLifecycle.js";
+import { dmBroadcastRooms, emitToRooms } from "../utils/realtimeRooms.js";
 
 const roomName = dmRoomName;
 const DM_MEDIA_MAX = 4;
@@ -59,6 +66,7 @@ const assertCanCall = async (conversation, userId) => {
 };
 
 export const initDirectMessageSocket = (io) => {
+  startDmCallSweep(io);
   io.use(async (socket, next) => {
     try {
       if (!socket.user) {
@@ -160,6 +168,10 @@ export const initDirectMessageSocket = (io) => {
     });
 
     socket.on("send_dm", async (payload = {}, ack) => {
+      if (!allowChatMessage(`${socket.id}:dm`)) {
+        chatRateLimited(ack);
+        return;
+      }
       const started = Date.now();
       try {
         const conversationIdParam =
@@ -282,10 +294,13 @@ export const initDirectMessageSocket = (io) => {
           invitedBy: String(socket.user._id),
           invitedAt: new Date(),
           acceptedAt: null,
+          callId: createDmCallId(),
+          calleeId: String(otherId),
         });
 
         const invite = {
           conversationId,
+          callId: call.callId,
           mode: call.mode,
           from: callerPayload(caller),
         };
@@ -313,7 +328,7 @@ export const initDirectMessageSocket = (io) => {
         }).catch(() => {});
 
         if (typeof ack === "function") {
-          ack({ success: true, conversationId, mode: call.mode, self: callerPayload(caller) });
+          ack({ success: true, conversationId, callId: call.callId, mode: call.mode, self: callerPayload(caller) });
         }
       } catch (error) {
         if (typeof ack === "function") {
@@ -334,8 +349,9 @@ export const initDirectMessageSocket = (io) => {
         await assertCanCall(conversation, socket.user._id);
         const conversationId = await joinDmRoom(conversation._id);
 
+        sweepExpiredDmCalls(io);
         const call = getDmCall(conversationId);
-        if (!call || call.status !== "ringing") {
+        if (!call || call.status !== "ringing" || !signalMatchesCall(call, payload.callId)) {
           throw new Error("No incoming call to accept.");
         }
         if (call.peers.has(socket.id)) {
@@ -353,6 +369,7 @@ export const initDirectMessageSocket = (io) => {
 
         const accepted = {
           conversationId,
+          callId: call.callId,
           mode: call.mode,
           peer: callerPayload(callee),
           peers: existingPeers,
@@ -368,6 +385,7 @@ export const initDirectMessageSocket = (io) => {
             success: true,
             conversationId,
             mode: call.mode,
+            callId: call.callId,
             peers: existingPeers,
             self: callerPayload(callee),
           });
@@ -391,9 +409,10 @@ export const initDirectMessageSocket = (io) => {
           throw new Error("You do not have access to this conversation.");
         }
 
+        sweepExpiredDmCalls(io);
         const conversationId = String(conversation._id);
         const call = getDmCall(conversationId);
-        if (!call || call.status !== "ringing") {
+        if (!call || call.status !== "ringing" || !signalMatchesCall(call, payload.callId)) {
           if (typeof ack === "function") ack({ success: true });
           return;
         }
@@ -419,9 +438,10 @@ export const initDirectMessageSocket = (io) => {
         const conversation = await findConversationByParam(conversationIdParam);
         if (!conversation) throw new Error("Conversation not found.");
 
+        sweepExpiredDmCalls(io);
         const conversationId = String(conversation._id);
         const call = getDmCall(conversationId);
-        if (!call?.peers?.has(socket.id)) {
+        if (!callerCanCancel(call, { socketId: socket.id, userId: socket.user._id })) {
           if (typeof ack === "function") ack({ success: true });
           return;
         }
@@ -457,11 +477,14 @@ export const initDirectMessageSocket = (io) => {
     socket.on("dm_call_signal", (payload = {}) => {
       const to = payload.to;
       if (!to) return;
+      if (isRetiredDmCall(payload.callId)) return;
       const found = findDmCallForSignal(socket.id, to);
       if (!found || !canRelayCallSignal(found.call.peers, socket.id, to)) return;
+      if (!signalMatchesCall(found.call, payload.callId)) return;
 
       io.to(to).emit("dm_call_signal", {
         conversationId: found.conversationId,
+        callId: found.call.callId,
         from: socket.id,
         type: payload.type,
         sdp: payload.sdp,
@@ -479,21 +502,26 @@ export const initDirectMessageSocket = (io) => {
         if (!conversation) return;
         const conversationId = String(conversation._id);
         const call = getDmCall(conversationId);
-        const caller = call?.peers?.get(socket.id);
+        if (isRetiredDmCall(payload.callId) || !signalMatchesCall(call, payload.callId)) return;
+        const caller = applyParticipantMedia(call, socket.id, payload);
         if (!caller) return;
 
-        if (typeof payload.mic === "boolean") caller.mic = payload.mic;
-        if (typeof payload.camera === "boolean") caller.camera = payload.camera;
-        if (payload.mode === "audio" || payload.mode === "video") {
-          caller.mode = payload.mode;
-        }
-
-        io.to(roomName(conversationId)).emit("dm_call_presence", {
+        const participantIds = [
+          ...[...call.peers.values()].map((peer) => peer.userId),
+          call.calleeId,
+          call.invitedBy,
+        ];
+        emitToRooms(io, dmBroadcastRooms(conversationId, participantIds), "dm_call_presence", {
           conversationId,
+          callId: call.callId,
+          callMode: call.mode,
           socketId: socket.id,
+          userId: caller.userId,
           mic: caller.mic,
           camera: caller.camera,
           mode: caller.mode,
+          peer: callerPayload(caller),
+          peers: dmCallRoster(conversationId),
         });
       } catch {
         /* ignore */
@@ -512,6 +540,7 @@ export const initDirectMessageSocket = (io) => {
           throw new Error("You do not have access to this conversation.");
         }
 
+        sweepExpiredDmCalls(io);
         const conversationId = String(conversation._id);
         const call = getDmCall(conversationId);
         if (!call) {
@@ -532,6 +561,7 @@ export const initDirectMessageSocket = (io) => {
             success: true,
             call: {
               conversationId,
+              callId: call.callId,
               status: call.status,
               mode: call.mode,
               selfInCall,

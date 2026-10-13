@@ -10,24 +10,43 @@ import {
 } from "react-icons/lu";
 import { getLiveSocket } from "../../../../shared/services/liveSocket";
 import CallTile from "../../../../shared/components/CallTile";
+import { useAuth } from "../../../../context/AuthContext";
 import { ICE_SERVERS } from "../../../../shared/webrtc/iceServers";
 import { applyPeerSignal } from "../../../../shared/webrtc/applyPeerSignal";
 import { createIceQueue, enqueueSerial } from "../../../../shared/webrtc/iceQueue";
 import { addRemoteTracks } from "../../../../shared/webrtc/remoteTracks";
+import { mergeCallTiles } from "../../../../shared/webrtc/mediaTile";
+import { planMeshOffers, shouldOfferToPeer } from "../../../../shared/webrtc/meshPlan";
+import { showVideoJoinControl } from "../../../../shared/webrtc/callSession";
+import {
+  applyRemoteCameraState,
+  attachVideoTrack,
+  cameraControlLabel,
+  cameraPresencePayload,
+  disableLocalCamera,
+  enableLocalCamera,
+  queuePeerRenegotiation,
+  watchRemoteTrack,
+} from "../../../../shared/webrtc/mediaSwitch";
 
-export default function EventCall({ eventId, isLive, callMode = "chat" }) {
+export default function EventCall({ eventId, isLive, callMode = "chat", authorized = true }) {
+  const { user } = useAuth();
   const [joining, setJoining] = useState(false);
   const [inCall, setInCall] = useState(false);
   const [mode, setMode] = useState(callMode === "audio" ? "audio" : "video");
   const [muted, setMuted] = useState(false);
   const [cameraOff, setCameraOff] = useState(false);
+  const [cameraBusy, setCameraBusy] = useState(false);
   const [error, setError] = useState("");
   const [roster, setRoster] = useState([]);
   const [tiles, setTiles] = useState([]);
 
   const localStreamRef = useRef(null);
   const peersRef = useRef(new Map());
+  const rosterRef = useRef([]);
   const inCallRef = useRef(false);
+  const acceptSignalsRef = useRef(false);
+  const cameraBusyRef = useRef(false);
   const modeRef = useRef(mode);
   const makingOfferRef = useRef(new Set());
   const handlersRef = useRef({});
@@ -36,35 +55,36 @@ export default function EventCall({ eventId, isLive, callMode = "chat" }) {
 
   const syncTiles = useCallback(() => {
     const local = localStreamRef.current;
-    const localSocketId = getLiveSocket().id;
-    const next = [];
-    if (local && inCallRef.current) {
-      next.push({
-        socketId: localSocketId || "local",
-        name: "You",
-        mode: modeRef.current,
-        mic: !local.getAudioTracks().some((track) => !track.enabled),
-        camera:
-          modeRef.current === "video" &&
-          local.getVideoTracks().some((track) => track.enabled),
-        stream: local,
-        isLocal: true,
-      });
-    }
-    peersRef.current.forEach((peer, socketId) => {
-      next.push({
-        socketId,
-        name: peer.name,
-        username: peer.username,
-        mode: peer.mode,
-        mic: peer.mic,
-        camera: peer.camera,
-        stream: peer.stream,
-        isLocal: false,
-      });
-    });
-    setTiles(next);
-  }, []);
+    const localSocketId = String(getLiveSocket().id || "");
+    const localTile =
+      local && inCallRef.current
+        ? {
+            socketId: localSocketId || "local",
+            name: "You",
+            avatar: user?.avatar || "",
+            mode: modeRef.current,
+            mic: !local.getAudioTracks().some((track) => !track.enabled),
+            camera:
+              modeRef.current === "video" &&
+              local.getVideoTracks().some((track) => track.enabled),
+            stream: local,
+            isLocal: true,
+          }
+        : null;
+    const peers = [...peersRef.current.entries()].map(([socketId, peer]) => ({
+      socketId,
+      name: peer.name,
+      username: peer.username,
+      avatar: peer.avatar || "",
+      mode: peer.mode,
+      mic: peer.mic,
+      camera: peer.camera,
+      stream: peer.stream,
+      streamVersion: peer.streamVersion || 0,
+      connectionState: peer.connectionState || "",
+    }));
+    setTiles(mergeCallTiles({ local: localTile, roster: rosterRef.current, peers }));
+  }, [user?.avatar]);
 
   const closePeer = useCallback((socketId) => {
     const peer = peersRef.current.get(socketId);
@@ -90,6 +110,7 @@ export default function EventCall({ eventId, isLive, callMode = "chat" }) {
       peersRef.current.clear();
       stopLocal();
       inCallRef.current = false;
+      acceptSignalsRef.current = false;
       earlySignalsRef.current = [];
       setInCall(false);
       setMuted(false);
@@ -106,29 +127,69 @@ export default function EventCall({ eventId, isLive, callMode = "chat" }) {
     [eventId]
   );
 
+  const attachLocalTracks = (pc) => {
+    const stream = localStreamRef.current;
+    if (!stream || !pc?.getSenders) return false;
+    let added = false;
+    const senders = pc.getSenders();
+    for (const track of stream.getTracks()) {
+      if (!track || track.readyState === "ended") continue;
+      if (track.kind === "video") {
+        const plan = attachVideoTrack(pc, track, stream);
+        if (plan.action === "add" || plan.action === "replace") added = true;
+        continue;
+      }
+      const exists = senders.some(
+        (sender) =>
+          sender.track &&
+          (sender.track.id === track.id || sender.track.kind === track.kind)
+      );
+      if (!exists) {
+        pc.addTrack(track, stream);
+        added = true;
+      }
+    }
+    return added;
+  };
+
   const ensurePeer = useCallback(
     (remote) => {
       const socketId = remote.socketId;
       if (!socketId || socketId === getLiveSocket().id) return null;
+      const known =
+        rosterRef.current.find((item) => item.socketId === socketId) || {};
+      const info = {
+        name: remote.name || known.name,
+        username: remote.username || known.username,
+        avatar: remote.avatar || known.avatar,
+        mode: remote.mode || known.mode || "video",
+        mic: typeof remote.mic === "boolean" ? remote.mic : known.mic,
+        camera: typeof remote.camera === "boolean" ? remote.camera : known.camera,
+      };
       const existing = peersRef.current.get(socketId);
       if (existing) {
-        existing.name = remote.name || existing.name;
-        existing.username = remote.username || existing.username;
-        existing.mode = remote.mode || existing.mode;
-        if (typeof remote.mic === "boolean") existing.mic = remote.mic;
-        if (typeof remote.camera === "boolean") existing.camera = remote.camera;
+        existing.name = info.name || existing.name;
+        existing.username = info.username || existing.username;
+        existing.avatar = info.avatar || existing.avatar;
+        existing.mode = info.mode || existing.mode;
+        if (typeof info.mic === "boolean") existing.mic = info.mic;
+        if (typeof info.camera === "boolean") existing.camera = info.camera;
+        if (attachLocalTracks(existing.pc)) existing.needsRenegotiate = true;
         return existing;
       }
 
       const pc = new RTCPeerConnection(ICE_SERVERS);
       const peer = {
         pc,
-        name: remote.name || remote.username || "Member",
-        username: remote.username || "",
-        mode: remote.mode || "audio",
-        mic: remote.mic !== false,
-        camera: remote.camera !== false && remote.mode === "video",
+        name: info.name || info.username || "Member",
+        username: info.username || "",
+        avatar: info.avatar || "",
+        mode: info.mode || "video",
+        mic: info.mic !== false,
+        camera: info.camera !== false,
         stream: new MediaStream(),
+        streamVersion: 0,
+        connectionState: "new",
         polite: String(getLiveSocket().id || "") < String(socketId),
         ignoreOffer: false,
         iceQueue: createIceQueue(),
@@ -143,8 +204,30 @@ export default function EventCall({ eventId, isLive, callMode = "chat" }) {
         sendSignal(socketId, { type: "ice", candidate: event.candidate });
       };
 
+      pc.onconnectionstatechange = () => {
+        peer.connectionState = pc.connectionState;
+        syncTiles();
+      };
+
       pc.ontrack = (event) => {
         addRemoteTracks(peer.stream, event);
+        if (event.track) {
+          watchRemoteTrack(event.track, peer, syncTiles);
+          if (
+            event.track.kind === "video" &&
+            event.track.muted !== true &&
+            event.track.readyState === "live"
+          ) {
+            peer.mode = "video";
+            peer.camera = true;
+          }
+        }
+        peer.streamVersion += 1;
+        syncTiles();
+      };
+
+      peer.stream.onremovetrack = () => {
+        peer.streamVersion += 1;
         syncTiles();
       };
 
@@ -155,9 +238,13 @@ export default function EventCall({ eventId, isLive, callMode = "chat" }) {
   );
 
   const createOffer = useCallback(
-    async (remote) => {
+    async (remote, { force = false } = {}) => {
       const peer = ensurePeer(remote);
       if (!peer) return;
+      const described = peer.pc.localDescription || peer.pc.remoteDescription;
+      if (!force && (peer.offered || described)) return;
+      if (force && peer.pc.signalingState && peer.pc.signalingState !== "stable") return;
+      peer.offered = true;
       try {
         makingOfferRef.current.add(remote.socketId);
         const offer = await peer.pc.createOffer();
@@ -167,6 +254,7 @@ export default function EventCall({ eventId, isLive, callMode = "chat" }) {
           sdp: peer.pc.localDescription,
         });
       } catch {
+        peer.offered = false;
         setError("Could not connect to a caller.");
       } finally {
         makingOfferRef.current.delete(remote.socketId);
@@ -175,10 +263,53 @@ export default function EventCall({ eventId, isLive, callMode = "chat" }) {
     [ensurePeer, sendSignal]
   );
 
+  const reconcileRoster = useCallback(
+    (rosterPeers = []) => {
+      if (!inCallRef.current) return;
+      const myId = String(getLiveSocket().id || "");
+      const present = new Set();
+      for (const remote of rosterPeers) {
+        if (!remote?.socketId || String(remote.socketId) === myId) continue;
+        present.add(remote.socketId);
+        ensurePeer(remote);
+      }
+      for (const socketId of [...peersRef.current.keys()]) {
+        if (!present.has(socketId)) closePeer(socketId);
+      }
+      const already = new Set();
+      for (const [socketId, peer] of peersRef.current) {
+        if (peer.offered || peer.pc.localDescription || peer.pc.remoteDescription) {
+          already.add(socketId);
+        }
+      }
+      for (const remote of planMeshOffers(myId, rosterPeers, already)) {
+        enqueueSerial(signalChainRef.current, () => createOffer(remote));
+      }
+      for (const remote of rosterPeers) {
+        const peer = peersRef.current.get(remote.socketId);
+        if (!peer?.needsRenegotiate) continue;
+        peer.needsRenegotiate = false;
+        peer.offered = false;
+        enqueueSerial(signalChainRef.current, () => createOffer(remote, { force: true }));
+      }
+      syncTiles();
+    },
+    [closePeer, createOffer, ensurePeer, syncTiles]
+  );
+
   const applySignal = useCallback(
     async ({ from, type, sdp, candidate }) => {
       if (!inCallRef.current || !from || !localStreamRef.current) return;
-      const peer = ensurePeer({ socketId: from });
+      const known = rosterRef.current.find((item) => item.socketId === from) || {};
+      const peer = ensurePeer({
+        socketId: from,
+        name: known.name,
+        username: known.username,
+        avatar: known.avatar,
+        mode: known.mode,
+        mic: known.mic,
+        camera: known.camera,
+      });
       if (!peer) return;
       try {
         await applyPeerSignal(
@@ -188,6 +319,15 @@ export default function EventCall({ eventId, isLive, callMode = "chat" }) {
             makingOffer: makingOfferRef.current.has(from),
             onAnswer: (description) => {
               sendSignal(from, { type: "answer", sdp: description });
+            },
+            beforeAnswer: async () => {
+              const stream = localStreamRef.current;
+              const track = stream
+                ?.getVideoTracks?.()
+                .find((item) => item.readyState === "live" && item.enabled !== false);
+              if (!track) return;
+              const plan = attachVideoTrack(peer.pc, track, stream);
+              if (plan.pending) await plan.pending;
             },
           }
         );
@@ -210,6 +350,7 @@ export default function EventCall({ eventId, isLive, callMode = "chat" }) {
   const handleSignal = useCallback(
     (payload) => {
       if (!payload?.from) return;
+      if (!inCallRef.current && !acceptSignalsRef.current) return;
       if (!inCallRef.current || !localStreamRef.current) {
         earlySignalsRef.current.push(payload);
         return;
@@ -238,8 +379,11 @@ export default function EventCall({ eventId, isLive, callMode = "chat" }) {
       setMuted(false);
 
       const socket = getLiveSocket();
+      acceptSignalsRef.current = true;
       socket.emit("call_join", { eventId, mode: nextMode }, async (ack) => {
         if (!ack?.success) {
+          acceptSignalsRef.current = false;
+          earlySignalsRef.current = [];
           stopLocal();
           setError(ack?.message || "Could not join the call.");
           setJoining(false);
@@ -251,15 +395,16 @@ export default function EventCall({ eventId, isLive, callMode = "chat" }) {
         syncTiles();
         flushEarlySignals();
         await signalChainRef.current.chain;
-        const myId = String(socket.id || "");
-        for (const peer of ack.peers || []) {
-          if (myId > String(peer.socketId)) {
-            await enqueueSerial(signalChainRef.current, () => createOffer(peer));
-          }
-        }
+        const peers = ack.peers || [];
+        const full = ack.self ? [...peers, ack.self] : peers;
+        rosterRef.current = full;
+        setRoster(full);
+        reconcileRoster(peers);
         syncTiles();
       });
     } catch (err) {
+      acceptSignalsRef.current = false;
+      earlySignalsRef.current = [];
       stopLocal();
       const denied = err?.name === "NotAllowedError";
       setError(
@@ -283,17 +428,108 @@ export default function EventCall({ eventId, isLive, callMode = "chat" }) {
     syncTiles();
   };
 
-  const toggleCamera = async () => {
-    if (modeRef.current !== "video") return;
-    const stream = localStreamRef.current;
-    if (!stream) return;
-    const nextOff = !cameraOff;
-    stream.getVideoTracks().forEach((track) => {
-      track.enabled = !nextOff;
-    });
-    setCameraOff(nextOff);
-    getLiveSocket().emit("call_presence", { eventId, camera: !nextOff });
+  const publishLiveCamera = (cameraOn) => {
+    const payload = cameraPresencePayload(cameraOn);
+    modeRef.current = payload.mode;
+    setMode(payload.mode);
+    setCameraOff(!cameraOn);
+    getLiveSocket().emit("call_presence", { eventId, ...payload });
     syncTiles();
+  };
+
+  const renegotiateLivePeers = () =>
+    queuePeerRenegotiation({
+      peers: peersRef.current,
+      chain: signalChainRef.current,
+      makingOffer: makingOfferRef.current,
+      isActive: () => inCallRef.current,
+      sendOffer: (socketId, description) => {
+        sendSignal(socketId, { type: "offer", sdp: description });
+      },
+      onError: () => setError("Video update failed. Audio is still connected."),
+    });
+
+  const turnCameraOff = async () => {
+    if (cameraBusyRef.current || !inCallRef.current || !localStreamRef.current) return;
+    const hasLiveVideo = localStreamRef.current
+      .getVideoTracks()
+      .some((track) => track.readyState === "live");
+    if (!hasLiveVideo && modeRef.current !== "video") return;
+    cameraBusyRef.current = true;
+    setCameraBusy(true);
+    setError("");
+    try {
+      await disableLocalCamera({
+        localStream: localStreamRef.current,
+        peerConnections: [...peersRef.current.values()].map((peer) => peer.pc),
+      });
+      if (!inCallRef.current) return;
+      publishLiveCamera(false);
+      await renegotiateLivePeers();
+    } catch {
+      setError("Video update failed. Audio is still connected.");
+    } finally {
+      cameraBusyRef.current = false;
+      setCameraBusy(false);
+      syncTiles();
+    }
+  };
+
+  const turnCameraOn = async () => {
+    if (cameraBusyRef.current || !inCallRef.current) return;
+    const liveVideo = localStreamRef.current
+      ?.getVideoTracks()
+      .some((track) => track.readyState === "live" && track.enabled !== false);
+    if (liveVideo) return;
+    cameraBusyRef.current = true;
+    setCameraBusy(true);
+    setError("");
+    try {
+      const result = await enableLocalCamera({
+        localStream: localStreamRef.current,
+        peerConnections: [...peersRef.current.values()].map((peer) => peer.pc),
+        getUserMedia: (constraints) => {
+          if (!navigator.mediaDevices?.getUserMedia) {
+            const error = new Error("Camera unavailable");
+            error.name = "NotFoundError";
+            return Promise.reject(error);
+          }
+          return navigator.mediaDevices.getUserMedia(constraints);
+        },
+      });
+      if (!inCallRef.current) {
+        result.track?.stop?.();
+        return;
+      }
+      if (!result.ok) {
+        setError(result.message);
+        return;
+      }
+      result.track.onended = () => {
+        if (cameraBusyRef.current) return;
+        const stillLive = localStreamRef.current
+          ?.getVideoTracks()
+          .some((track) => track.id === result.track.id && track.readyState === "live");
+        if (!stillLive && inCallRef.current) void turnCameraOff();
+      };
+      publishLiveCamera(true);
+      await renegotiateLivePeers();
+    } catch {
+      setError("Video update failed. Audio is still connected.");
+    } finally {
+      cameraBusyRef.current = false;
+      setCameraBusy(false);
+      syncTiles();
+    }
+  };
+
+  const toggleCamera = () => {
+    if (cameraBusy) return;
+    const cameraOn = localStreamRef.current
+      ?.getVideoTracks()
+      .some((track) => track.readyState === "live" && track.enabled !== false);
+    if (cameraOn) void turnCameraOff();
+    else void turnCameraOn();
   };
 
   handlersRef.current = {
@@ -301,6 +537,7 @@ export default function EventCall({ eventId, isLive, callMode = "chat" }) {
     createOffer,
     handleSignal,
     leaveCall,
+    reconcileRoster,
     syncTiles,
   };
 
@@ -308,51 +545,51 @@ export default function EventCall({ eventId, isLive, callMode = "chat" }) {
     const socket = getLiveSocket();
 
     const onRoster = ({ peers }) => {
-      setRoster(Array.isArray(peers) ? peers : []);
+      const next = Array.isArray(peers) ? peers : [];
+      rosterRef.current = next;
+      setRoster(next);
+      if (inCallRef.current) handlersRef.current.reconcileRoster(next);
+      else handlersRef.current.syncTiles();
     };
 
     const onPeerJoined = ({ peer }) => {
       if (!peer?.socketId) return;
-      setRoster((prev) => {
-        if (prev.some((item) => item.socketId === peer.socketId)) return prev;
-        return [...prev, peer];
-      });
+      const next = rosterRef.current.filter((item) => item.socketId !== peer.socketId);
+      next.push(peer);
+      rosterRef.current = next;
+      setRoster(next);
       if (!inCallRef.current) return;
-      if (peersRef.current.has(peer.socketId)) return;
-      const myId = String(socket.id || "");
-      if (myId > String(peer.socketId)) {
-        enqueueSerial(signalChainRef.current, () =>
-          handlersRef.current.createOffer(peer)
-        );
+      ensurePeer(peer);
+      const existing = peersRef.current.get(peer.socketId);
+      const described = existing?.pc?.localDescription || existing?.pc?.remoteDescription;
+      if (shouldOfferToPeer(socket.id, peer.socketId) && !existing?.offered && !described) {
+        enqueueSerial(signalChainRef.current, () => handlersRef.current.createOffer(peer));
       }
+      handlersRef.current.syncTiles();
     };
 
     const onPeerLeft = ({ socketId }) => {
       handlersRef.current.closePeer(socketId);
-      setRoster((prev) => prev.filter((item) => item.socketId !== socketId));
+      rosterRef.current = rosterRef.current.filter((item) => item.socketId !== socketId);
+      setRoster(rosterRef.current);
       handlersRef.current.syncTiles();
     };
 
     const onPresence = ({ socketId, mic, camera, mode: nextMode }) => {
       const peer = peersRef.current.get(socketId);
-      if (peer) {
-        if (typeof mic === "boolean") peer.mic = mic;
-        if (typeof camera === "boolean") peer.camera = camera;
-        if (nextMode) peer.mode = nextMode;
-        handlersRef.current.syncTiles();
-      }
-      setRoster((prev) =>
-        prev.map((item) =>
-          item.socketId === socketId
-            ? {
-                ...item,
-                mic: typeof mic === "boolean" ? mic : item.mic,
-                camera: typeof camera === "boolean" ? camera : item.camera,
-                mode: nextMode || item.mode,
-              }
-            : item
-        )
+      if (peer) applyRemoteCameraState(peer, { mic, camera, mode: nextMode });
+      rosterRef.current = rosterRef.current.map((item) =>
+        item.socketId === socketId
+          ? {
+              ...item,
+              mic: typeof mic === "boolean" ? mic : item.mic,
+              camera: typeof camera === "boolean" ? camera : item.camera,
+              mode: nextMode || item.mode,
+            }
+          : item
       );
+      setRoster(rosterRef.current);
+      handlersRef.current.syncTiles();
     };
 
     const onSignal = (payload) => {
@@ -361,12 +598,16 @@ export default function EventCall({ eventId, isLive, callMode = "chat" }) {
 
     const onCallEnded = () => {
       handlersRef.current.leaveCall(false);
+      rosterRef.current = [];
       setRoster([]);
       setError("The call ended.");
     };
 
     socket.emit("call_sync", { eventId }, (ack) => {
-      if (ack?.peers) setRoster(ack.peers);
+      if (!ack?.peers) return;
+      rosterRef.current = ack.peers;
+      setRoster(ack.peers);
+      if (inCallRef.current) handlersRef.current.reconcileRoster(ack.peers);
     });
 
     socket.on("call_roster", onRoster);
@@ -399,14 +640,27 @@ export default function EventCall({ eventId, isLive, callMode = "chat" }) {
   return (
     <div className="border border-fo-border rounded-2xl bg-fo-surface overflow-hidden">
       <div className="px-4 py-2.5 border-b border-fo-border flex items-center gap-2 text-xs text-fo-muted">
-        {callMode === "audio" ? (
+        {(inCall ? mode : callMode) === "audio" ? (
           <Phone size={14} className="text-fo-accent" />
         ) : (
           <Video size={14} className="text-fo-accent" />
         )}
-        {callMode === "audio" ? "Audio call" : "Video & audio call"}
+        {inCall
+          ? mode === "audio"
+            ? "Audio call"
+            : "Video call"
+          : callMode === "audio"
+            ? "Audio call"
+            : "Video & audio call"}
         <span className="ml-auto text-fo-subtle">
-          {inCall ? tiles.length : roster.length} in call
+          {cameraBusy ? "Updating camera… · " : ""}
+          {inCall
+            ? Math.max(
+                tiles.length,
+                roster.filter((peer) => peer.socketId !== getLiveSocket().id).length + 1
+              )
+            : roster.length}{" "}
+          in call
         </span>
       </div>
 
@@ -414,7 +668,7 @@ export default function EventCall({ eventId, isLive, callMode = "chat" }) {
         {inCall ? (
           <div
             className={`grid gap-2 ${
-              tiles.length > 1 ? "sm:grid-cols-2" : "grid-cols-1"
+              tiles.length > 2 ? "grid-cols-2" : tiles.length > 1 ? "sm:grid-cols-2" : "grid-cols-1"
             }`}
           >
             {tiles.map((peer) => (
@@ -446,74 +700,81 @@ export default function EventCall({ eventId, isLive, callMode = "chat" }) {
           <p className="text-xs text-red-400">{error}</p>
         ) : null}
 
-        {isLive ? (
+        {isLive && inCall ? (
           <div className="flex flex-wrap items-center gap-2">
-            {inCall ? (
-              <>
-                <button
-                  type="button"
-                  onClick={toggleMic}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs border border-fo-border text-fo-text hover:border-fo-accent/40"
-                >
-                  {muted ? <MicOff size={14} /> : <Mic size={14} />}
-                  {muted ? "Unmute" : "Mute"}
-                </button>
-                {mode === "video" ? (
-                  <button
-                    type="button"
-                    onClick={toggleCamera}
-                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs border border-fo-border text-fo-text hover:border-fo-accent/40"
-                  >
-                    {cameraOff ? <VideoOff size={14} /> : <Video size={14} />}
-                    {cameraOff ? "Camera on" : "Camera off"}
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={() => leaveCall(true)}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs border border-red-500/40 text-red-400 hover:bg-red-500/10"
-                >
-                  <PhoneOff size={14} /> Leave call
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  disabled={joining}
-                  onClick={() => joinCall("audio")}
-                  className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border ${
-                    suggested === "audio"
-                      ? "bg-fo-accent text-black border-fo-accent"
-                      : "border-fo-border text-fo-text hover:border-fo-accent/40"
-                  } disabled:opacity-50`}
-                >
-                  {joining && mode === "audio" ? (
-                    <Loader2 size={14} className="animate-spin" />
-                  ) : (
-                    <Phone size={14} />
-                  )}
-                  Join audio
-                </button>
-                <button
-                  type="button"
-                  disabled={joining}
-                  onClick={() => joinCall("video")}
-                  className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border ${
-                    suggested === "video"
-                      ? "bg-fo-accent text-black border-fo-accent"
-                      : "border-fo-border text-fo-text hover:border-fo-accent/40"
-                  } disabled:opacity-50`}
-                >
-                  {joining && mode === "video" ? (
-                    <Loader2 size={14} className="animate-spin" />
-                  ) : (
-                    <Video size={14} />
-                  )}
-                  Join video
-                </button>
-              </>
-            )}
+            <button
+              type="button"
+              onClick={toggleMic}
+              className="inline-flex items-center gap-1.5 min-h-11 px-3 py-2 rounded-lg text-xs border border-fo-border text-fo-text hover:border-fo-accent/40"
+            >
+              {muted ? <MicOff size={14} /> : <Mic size={14} />}
+              {muted ? "Unmute" : "Mute"}
+            </button>
+            <button
+              type="button"
+              onClick={toggleCamera}
+              disabled={cameraBusy}
+              className="inline-flex items-center gap-1.5 min-h-11 px-3 py-2 rounded-lg text-xs border border-fo-border text-fo-text hover:border-fo-accent/40 disabled:opacity-60"
+            >
+              {cameraBusy ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : cameraOff || mode === "audio" ? (
+                <VideoOff size={14} />
+              ) : (
+                <Video size={14} />
+              )}
+              {cameraControlLabel({
+                cameraOn: mode === "video" && !cameraOff,
+                busy: cameraBusy,
+              })}
+            </button>
+            <button
+              type="button"
+              onClick={() => leaveCall(true)}
+              className="inline-flex items-center gap-1.5 min-h-11 px-3 py-2 rounded-lg text-xs border border-red-500/40 text-red-400 hover:bg-red-500/10"
+            >
+              <PhoneOff size={14} /> Leave call
+            </button>
+          </div>
+        ) : null}
+        {isLive && !inCall ? (
+          <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch gap-2">
+            {showVideoJoinControl({ isLive, inCall, authorized }) ? (
+              <button
+                type="button"
+                disabled={joining}
+                onClick={() => joinCall("video")}
+                className={`inline-flex items-center justify-center gap-1.5 min-h-11 w-full sm:w-auto px-3 py-2 rounded-lg text-xs font-semibold border ${
+                  suggested === "video"
+                    ? "bg-fo-accent text-black border-fo-accent"
+                    : "border-fo-border text-fo-text hover:border-fo-accent/40"
+                } disabled:opacity-50`}
+              >
+                {joining && mode === "video" ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Video size={14} />
+                )}
+                Join video
+              </button>
+            ) : null}
+            <button
+              type="button"
+              disabled={joining}
+              onClick={() => joinCall("audio")}
+              className={`inline-flex items-center justify-center gap-1.5 min-h-11 w-full sm:w-auto px-3 py-2 rounded-lg text-xs font-semibold border ${
+                suggested === "audio"
+                  ? "bg-fo-accent text-black border-fo-accent"
+                  : "border-fo-border text-fo-text hover:border-fo-accent/40"
+              } disabled:opacity-50`}
+            >
+              {joining && mode === "audio" ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Phone size={14} />
+              )}
+              Join audio
+            </button>
           </div>
         ) : null}
       </div>

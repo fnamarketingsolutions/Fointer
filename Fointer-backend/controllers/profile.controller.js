@@ -23,6 +23,7 @@ import {
   purgeUserAccount,
 } from "../services/accountDeletion.service.js";
 import { countQualifiedReferrals } from "../services/referral.service.js";
+import { disconnectRevokedSockets } from "../utils/authRevocation.js";
 import { getHotSnapshot } from "../utils/hotReadCache.js";
 import mongoose from "mongoose";
 
@@ -561,6 +562,7 @@ export const deleteMyAccount = async (req, res) => {
     }
 
     await purgeUserAccount(user._id);
+    disconnectRevokedSockets(req.app.get("io"), user._id);
 
     res.cookie("token", "", {
       ...getAuthCookieOptions(),

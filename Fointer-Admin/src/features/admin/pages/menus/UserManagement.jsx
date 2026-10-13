@@ -22,6 +22,7 @@ import {
   LuSearch as Search,
   LuTriangleAlert as AlertTriangle,
 } from "react-icons/lu";
+import { PageLoader } from "../../../../shared/components/ThemeSpinner";
 
 const FILTERS = [
   { id: "all", label: "All" },
@@ -299,10 +300,7 @@ const UserManagement = () => {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center gap-2 py-14 text-sm text-fo-muted">
-          <Loader2 size={16} className="animate-spin text-fo-accent" />
-          Loading users…
-        </div>
+        <PageLoader minHeight="py-14" size="md" />
       ) : users.length === 0 ? (
         <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle">
           No users match this filter.

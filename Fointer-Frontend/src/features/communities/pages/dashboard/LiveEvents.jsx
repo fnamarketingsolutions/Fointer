@@ -22,6 +22,7 @@ import {
   fetchLiveEvents,
 } from "../../../../api/liveEvents";
 import { useToast } from "../../../../shared/components/feedback/ToastContext";
+import { PageLoader } from "../../../../shared/components/ThemeSpinner";
 import { useAuth } from "../../../../context/AuthContext";
 import UserProfileLink from "../../../../shared/components/UserProfileLink";
 import { timeAgo } from "../../../../shared/utils/date";
@@ -350,10 +351,7 @@ export default function LiveEvents() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center gap-2 py-14 text-sm text-fo-muted">
-          <Loader2 size={16} className="animate-spin text-fo-accent" />
-          Loading live events…
-        </div>
+        <PageLoader minHeight="py-14" size="md" />
       ) : visibleEvents.length === 0 ? (
         <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle px-4 space-y-3">
           <Radio className="w-8 h-8 mx-auto text-red-500/40" />

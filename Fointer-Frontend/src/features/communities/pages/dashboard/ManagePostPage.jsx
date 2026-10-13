@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from "react-router-dom";
-import { LuLoaderCircle as Loader2 } from "react-icons/lu";
+import { PageLoader } from "../../../../shared/components/ThemeSpinner";
 import PostDetail from "../../../posts/pages/PostDetail";
 import { postSegment } from "../../../../shared/services/entityLinks";
 import useEntityId from "../../../../shared/hooks/useEntityId";
@@ -11,12 +11,7 @@ export default function ManagePostPage() {
   const backTo = `/communities/manage/${communityId}`;
 
   if (resolving) {
-    return (
-      <div className="flex items-center justify-center gap-2 py-20 text-sm text-fo-muted">
-        <Loader2 size={16} className="animate-spin text-fo-accent" />
-        Loading post…
-      </div>
-    );
+    return <PageLoader minHeight="py-20" size="md" />;
   }
 
   if (notFound || !postId) {

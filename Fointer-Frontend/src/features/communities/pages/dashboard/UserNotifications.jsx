@@ -15,8 +15,8 @@ import {
   LuLifeBuoy as LifeBuoy,
   LuFlag as Flag,
   LuLayers as Layers,
-  LuLoaderCircle as Loader2,
 } from "react-icons/lu";
+import { PageLoader } from "../../../../shared/components/ThemeSpinner";
 import {
   deleteNotification,
   fetchNotifications,
@@ -270,10 +270,7 @@ export default function UserNotifications({ onBack }) {
 
       <div className="space-y-3">
         {loading ? (
-          <div className="flex items-center justify-center py-16 text-fo-subtle gap-2 text-sm">
-            <Loader2 size={18} className="animate-spin" />
-            Loading notifications…
-          </div>
+          <PageLoader minHeight="py-16" size="md" />
         ) : visible.length > 0 ? (
           visible.map((n) => {
             const { Icon, className: iconColor } = typeIcon(n.type);

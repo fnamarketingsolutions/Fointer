@@ -19,6 +19,7 @@ import {
 } from "../../../../api/liveEvents";
 import { emitAck, getLiveSocket, nextJoinToken } from "../../../../shared/services/liveSocket";
 import UserProfileLink from "../../../../shared/components/UserProfileLink";
+import { PageLoader } from "../../../../shared/components/ThemeSpinner";
 import { useToast } from "../../../../shared/components/feedback/ToastContext";
 import { useAuth } from "../../../../context/AuthContext";
 import EventCall from "./EventCall";
@@ -254,12 +255,7 @@ export default function LiveRoom() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-16 text-fo-muted text-sm gap-2">
-        <Loader2 size={16} className="animate-spin" />
-        Joining live room...
-      </div>
-    );
+    return <PageLoader minHeight="py-16" size="md" label="Joining live room" />;
   }
 
   if (!event) return null;

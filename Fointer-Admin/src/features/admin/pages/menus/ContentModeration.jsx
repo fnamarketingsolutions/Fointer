@@ -14,6 +14,7 @@ import AdminActionBtn from "../../../../shared/components/AdminActionBtn";
 import AdminUserLink from "../../../../shared/components/AdminUserLink";
 import { getErrorMessage } from "../../../../shared/utils/errors";
 import { timeAgo } from "../../../../shared/utils/date";
+import { PageLoader } from "../../../../shared/components/ThemeSpinner";
 import ConfirmDeleteModal from "../../../../shared/components/modals/ConfirmDeleteModal";
 import WarnUserModal from "../../../../shared/components/modals/WarnUserModal";
 import {
@@ -429,10 +430,7 @@ export default function ContentModeration() {
       ) : null}
 
       {loading ? (
-        <div className="flex items-center justify-center gap-2 py-14 text-sm text-fo-muted">
-          <Loader2 size={16} className="animate-spin text-fo-accent" />
-          Loading content…
-        </div>
+        <PageLoader minHeight="py-14" size="md" />
       ) : tab === "posts" && posts.length === 0 ? (
         <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle px-4 space-y-2">
           <FileText className="w-8 h-8 mx-auto text-fo-accent/40" />

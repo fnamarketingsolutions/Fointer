@@ -18,6 +18,7 @@ import {
   updateListing,
 } from "../../../api/marketplace";
 import { useAuth } from "../../../context/AuthContext";
+import { PageLoader } from "../../../shared/components/ThemeSpinner";
 import { useToast } from "../../../shared/components/feedback/ToastContext";
 import ConfirmDeleteModal from "../../../shared/components/modals/ConfirmDeleteModal";
 import ListingCard from "../components/ListingCard";
@@ -553,9 +554,7 @@ export default function MyListings() {
           </div>
 
           {loading ? (
-            <div className="flex justify-center py-16 text-fo-muted">
-              <Loader2 size={20} className="animate-spin text-fo-accent" />
-            </div>
+            <PageLoader minHeight="py-16" size="md" />
           ) : visible.length === 0 ? (
             <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle px-4 space-y-3">
               <p>

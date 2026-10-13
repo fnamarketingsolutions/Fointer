@@ -1,7 +1,6 @@
 import {
   LuPencil as Pencil,
   LuTrash2 as Trash2,
-  LuLoader as Loader2,
   LuHeart as Heart,
   LuReply as Reply,
   LuChevronDown as ChevronDown,
@@ -16,6 +15,7 @@ import {
   DELETED_USER_LABEL,
   personDisplayName,
 } from "../../../shared/utils/personDisplay";
+import ThemeSpinner from "../../../shared/components/ThemeSpinner";
 
 export default function PostCommentsSection({
   visible,
@@ -127,9 +127,8 @@ export default function PostCommentsSection({
 
       {/* Comments List */}
       {commentsLoading ? (
-        <div className="flex items-center gap-2 text-xs text-fo-subtle py-4">
-          <Loader2 size={14} className="animate-spin text-fo-accent" />{" "}
-          Loading comments...
+        <div className="flex items-center py-4">
+          <ThemeSpinner size="sm" label="Loading comments" />
         </div>
       ) : topLevel.length === 0 ? (
         <p className="text-xs text-fo-subtle py-4">No comments yet.</p>

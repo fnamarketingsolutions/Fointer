@@ -12,9 +12,9 @@ import {
   LuHeadset as Headset,
   LuFlag as Flag,
   LuLayers as Layers,
-  LuLoaderCircle as Loader2,
   LuTriangleAlert as AlertTriangle,
 } from "react-icons/lu";
+import ThemeSpinner from "../../../../shared/components/ThemeSpinner";
 import {
   deleteNotification,
   fetchNotifications,
@@ -267,9 +267,8 @@ export default function UserNotifications({ onBack }) {
 
       <div className="space-y-3">
         {loading ? (
-          <div className="flex items-center justify-center py-16 text-fo-subtle gap-2 text-sm">
-            <Loader2 size={18} className="animate-spin" />
-            Loading notifications…
+          <div className="flex items-center justify-center py-16">
+            <ThemeSpinner size="sm" />
           </div>
         ) : visible.length > 0 ? (
           visible.map((n) => {

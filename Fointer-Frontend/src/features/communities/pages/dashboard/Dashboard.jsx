@@ -23,6 +23,7 @@ import {
 import AuthOnly from "../../../../guards/AuthOnly";
 import PanelShell from "../../../../shared/layouts/PanelShell";
 import RouteSuspense from "../../../../shared/components/RouteSuspense";
+import { PageLoader } from "../../../../shared/components/ThemeSpinner";
 import IncomingDmCallBridge from "../../../messages/components/IncomingDmCallBridge";
 import { fetchUnreadTotal } from "../../../messages/services/messageService";
 import { getLiveSocket } from "../../../../shared/services/liveSocket";
@@ -288,11 +289,7 @@ const Dashboard = () => {
     .map((item) => ({ ...item, isActive: activeTab === item.id }));
 
   if (loading && !isRootFeed) {
-    return (
-      <div className="min-h-screen bg-fo-bg flex items-center justify-center text-fo-muted text-sm">
-        Loading…
-      </div>
-    );
+    return <PageLoader minHeight="min-h-screen" size="lg" className="bg-fo-bg" />;
   }
 
   if (!loading && isGuest && location.pathname === FEED_PATH) {

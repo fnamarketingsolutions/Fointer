@@ -15,6 +15,7 @@ import { deleteCommunity } from "../../../api/communities";
 import { deleteWatchGroup } from "../../../api/watchGroups";
 import { useAuth } from "../../../context/AuthContext";
 import { useToast } from "../../../shared/components/feedback/ToastContext";
+import ThemeSpinner, { PageLoader } from "../../../shared/components/ThemeSpinner";
 import { communitySegment } from "../../../shared/services/entityLinks";
 import { getErrorMessage } from "../../../shared/utils/errors";
 
@@ -152,10 +153,7 @@ export default function DeleteMe() {
       </div>
 
       {loading ? (
-        <div className="flex items-center gap-2 text-sm text-fo-subtle py-14 justify-center">
-          <Loader2 size={16} className="animate-spin" />
-          Loading…
-        </div>
+        <PageLoader minHeight="py-14" size="md" />
       ) : (
         <>
           {blocked ? (

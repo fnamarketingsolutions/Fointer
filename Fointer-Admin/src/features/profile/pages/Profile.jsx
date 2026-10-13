@@ -20,6 +20,7 @@ import { useAuth } from "../../../context/AuthContext";
 import { MAX_FILE_SIZE } from "../../../shared/constants/uploads";
 import { useToast } from "../../../shared/components/feedback/ToastContext";
 import ThemeToggle from "../../../shared/components/ThemeToggle";
+import { PageLoader } from "../../../shared/components/ThemeSpinner";
 import LocationFields from "../../../shared/components/LocationFields";
 import { AGE_RANGES, ageRangeError } from "../../../shared/lib/ageRange";
 import { postalCodeError } from "../../../shared/lib/postalCode";
@@ -275,12 +276,7 @@ export default function Profile() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center gap-2 py-14 text-sm text-fo-muted">
-        <Loader2 size={16} className="animate-spin text-fo-accent" />
-        Loading profile…
-      </div>
-    );
+    return <PageLoader minHeight="py-14" size="md" />;
   }
 
   const tabItems = TABS;

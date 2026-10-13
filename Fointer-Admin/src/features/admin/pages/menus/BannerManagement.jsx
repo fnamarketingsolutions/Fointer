@@ -7,6 +7,7 @@ import {
   LuRefreshCw as RefreshCw,
   LuTrash2 as Trash2,
 } from "react-icons/lu";
+import { PageLoader } from "../../../../shared/components/ThemeSpinner";
 import {
   createAdminBanner,
   deleteAdminBanner,
@@ -389,10 +390,7 @@ export default function BannerManagement() {
 
       <div className="bg-fo-surface border border-fo-border rounded-xl overflow-hidden">
         {loading ? (
-          <div className="flex items-center justify-center gap-2 py-14 text-sm text-fo-muted">
-            <Loader2 size={16} className="animate-spin text-fo-accent" />
-            Loading banners…
-          </div>
+          <PageLoader minHeight="py-14" size="md" />
         ) : banners.length === 0 ? (
           <p className="py-14 text-center text-sm text-fo-subtle">
             No banners yet. Create one to show it on the Feed.

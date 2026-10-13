@@ -36,6 +36,7 @@ import {
   personDisplayName,
 } from "../../../../shared/utils/personDisplay";
 import { useToast } from "../../../../shared/components/feedback/ToastContext";
+import ThemeSpinner from "../../../../shared/components/ThemeSpinner";
 
 const TABS = [
   { id: "posts", label: "My Posts" },
@@ -64,11 +65,10 @@ function EmptyState({ children }) {
   );
 }
 
-function LoadingState({ label }) {
+function LoadingState({ label = "Loading" }) {
   return (
-    <div className="flex items-center justify-center gap-2 py-14 text-sm text-fo-muted">
-      <Loader2 size={16} className="animate-spin text-fo-accent" />
-      {label}
+    <div className="flex items-center justify-center py-14">
+      <ThemeSpinner size="md" label={label} />
     </div>
   );
 }

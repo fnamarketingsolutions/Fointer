@@ -3,12 +3,12 @@ import {
   LuCircleCheck as CheckCircle2,
   LuClock as Clock,
   LuLifeBuoy as LifeBuoy,
-  LuLoaderCircle as Loader2,
   LuRefreshCw as RefreshCw,
   LuCircleX as XCircle
 } from "react-icons/lu";
 import { fetchMySupportTickets } from "../../../../api/channels";
 import { useToast } from "../../../../shared/components/feedback/ToastContext";
+import { PageLoader } from "../../../../shared/components/ThemeSpinner";
 import { getErrorMessage } from "../../../../shared/utils/errors";
 import { timeAgo } from "../../../../shared/utils/date";
 
@@ -159,10 +159,7 @@ export default function Support() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center gap-2 py-14 text-sm text-fo-muted">
-          <Loader2 size={16} className="animate-spin text-fo-accent" />
-          Loading support requests…
-        </div>
+        <PageLoader minHeight="py-14" size="md" />
       ) : tickets.length === 0 ? (
         <div className="border border-dashed border-fo-border rounded-xl py-14 text-center px-4 space-y-2">
           <LifeBuoy className="w-8 h-8 mx-auto text-fo-accent/50" />

@@ -2,12 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   LuArrowLeft as ArrowLeft,
-  LuLoaderCircle as Loader2,
   LuPlus as Plus,
   LuSearch as Search,
   LuCircleHelp as HelpCircle,
   LuFolders as Folders,
 } from "react-icons/lu";
+import { PageLoader } from "../../../../shared/components/ThemeSpinner";
 import CommunityCard from "../../components/CommunityCard";
 import CommunitiesRail from "../../components/CommunitiesRail";
 import {
@@ -223,12 +223,7 @@ export default function ManageCommunities() {
   };
 
   if (communityId && !selectedId && !communityNotFound) {
-    return (
-      <div className="flex items-center justify-center gap-2 py-20 text-fo-muted text-sm">
-        <Loader2 className="w-4 h-4 animate-spin" />
-        Loading community...
-      </div>
-    );
+    return <PageLoader minHeight="py-20" size="md" />;
   }
 
   if (selectedId) {
@@ -314,10 +309,7 @@ export default function ManageCommunities() {
           </div>
 
       {loading && communities.length === 0 ? (
-        <div className="flex items-center justify-center gap-2 py-14 text-sm text-fo-muted">
-          <Loader2 size={16} className="animate-spin text-fo-accent" />
-          Loading communities…
-        </div>
+        <PageLoader minHeight="py-14" size="md" />
       ) : communities.length === 0 ? (
         <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle px-4 space-y-3">
           <Folders className="w-8 h-8 mx-auto text-fo-accent/40" />

@@ -4,12 +4,12 @@ import {
   LuArrowRight as ArrowRight,
   LuChevronDown as ChevronDown,
   LuFilter as Filter,
-  LuLoaderCircle as Loader2,
   LuLogIn as LogIn,
   LuUserPlus as UserPlus,
   LuX as X,
 } from "react-icons/lu";
 import SiteLinksFooter from "../../../../shared/components/SiteLinksFooter";
+import ThemeSpinner from "../../../../shared/components/ThemeSpinner";
 import { ChannelIconGlyph } from "../../../../shared/constants/channelIcons.jsx";
 import { communitySegment } from "../../../../shared/services/entityLinks";
 import { formatCount } from "../../../../shared/utils/format";
@@ -93,9 +93,8 @@ export function WhatsHappeningCard({
       }
     >
       {loading ? (
-        <div className="flex items-center gap-2 text-xs text-fo-subtle py-1">
-          <Loader2 size={12} className="animate-spin text-fo-accent" />
-          Loading...
+        <div className="flex items-center py-2">
+          <ThemeSpinner size="sm" />
         </div>
       ) : topics.length === 0 ? (
         <p className="text-xs text-fo-subtle">Nothing trending yet.</p>
@@ -187,9 +186,8 @@ export function CategoryList({
       }
     >
       {channelsLoading ? (
-        <div className="flex items-center gap-2 text-xs text-fo-subtle py-1">
-          <Loader2 size={12} className="animate-spin text-fo-accent" />
-          Loading...
+        <div className="flex items-center py-2">
+          <ThemeSpinner size="sm" />
         </div>
       ) : channels.length === 0 ? (
         <p className="text-xs text-fo-subtle">No categories yet.</p>
@@ -286,9 +284,8 @@ export function OtherCommunitiesCard({
       }
     >
       {loading ? (
-        <div className="flex items-center gap-2 text-xs text-fo-subtle py-1">
-          <Loader2 size={12} className="animate-spin text-fo-accent" />
-          Loading...
+        <div className="flex items-center py-2">
+          <ThemeSpinner size="sm" />
         </div>
       ) : communities.length === 0 ? (
         <p className="text-xs text-fo-subtle">No other communities yet.</p>

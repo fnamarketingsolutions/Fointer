@@ -9,6 +9,7 @@ import {
   LuX as X,
 } from "react-icons/lu";
 import { useAuth } from "../../../context/AuthContext";
+import { PageLoader } from "../ThemeSpinner";
 import {
   fetchConversations,
   sendMessage,
@@ -222,10 +223,7 @@ export default function ShareSheetModal({
 
         <div className="flex-1 overflow-y-auto px-2 pb-4 min-h-0">
           {!isAuthenticated ? null : loading ? (
-            <div className="flex items-center justify-center gap-2 py-8 text-xs text-fo-subtle">
-              <Loader2 size={14} className="animate-spin" />
-              Loading chats…
-            </div>
+            <PageLoader minHeight="py-8" size="sm" />
           ) : filtered.length === 0 ? (
             <p className="px-3 py-8 text-center text-xs text-fo-subtle">
               {query.trim()

@@ -11,6 +11,7 @@ import {
   LuUsers as Users,
   LuX as X
 } from "react-icons/lu";
+import ThemeSpinner, { PageLoader } from "../../../../shared/components/ThemeSpinner";
 import {
   deleteAdminWatchGroup,
   deleteAdminWatchMessage,
@@ -242,10 +243,7 @@ export default function WatchGroupManagement() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center gap-2 py-14 text-sm text-fo-muted">
-          <Loader2 size={16} className="animate-spin text-fo-accent" />
-          Loading watch groups…
-        </div>
+        <PageLoader minHeight="py-14" size="md" />
       ) : filteredGroups.length === 0 ? (
         <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle px-4 space-y-2">
           <Radio className="w-8 h-8 mx-auto text-fo-accent/40" />
@@ -371,9 +369,8 @@ export default function WatchGroupManagement() {
 
             <div className="flex-1 overflow-y-auto p-4 space-y-2.5 min-h-[200px]">
               {detailLoading ? (
-                <div className="flex items-center justify-center py-10 text-sm text-fo-muted gap-2">
-                  <Loader2 size={16} className="animate-spin text-fo-accent" />
-                  Loading…
+                <div className="flex items-center justify-center py-10">
+                  <ThemeSpinner size="sm" />
                 </div>
               ) : detailTab === "messages" ? (
                 messages.length === 0 ? (

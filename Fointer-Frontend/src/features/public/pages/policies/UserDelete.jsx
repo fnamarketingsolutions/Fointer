@@ -5,9 +5,9 @@ import {
   LuLogIn as LogIn,
   LuArrowRightLeft as Transfer,
   LuExternalLink as ExternalLink,
-  LuLoaderCircle as Loader2,
 } from "react-icons/lu";
 import { useAuth } from "../../../../context/AuthContext";
+import ThemeSpinner from "../../../../shared/components/ThemeSpinner";
 
 /**
  * Public account-deletion instructions for App Store / Play Store.
@@ -35,10 +35,7 @@ export default function UserDelete() {
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3 pt-2 min-h-11">
             {loading ? (
-              <span className="inline-flex items-center gap-2 text-sm text-fo-subtle">
-                <Loader2 size={16} className="animate-spin" aria-hidden />
-                Checking session…
-              </span>
+              <ThemeSpinner size="sm" label="Checking session" />
             ) : isLoggedIn ? (
               <Link
                 to="/delete-me"

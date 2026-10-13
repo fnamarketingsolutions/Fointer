@@ -2,12 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   LuHash as Hash,
-  LuLoaderCircle as Loader2,
   LuPencil as Pencil,
   LuPlus as Plus,
   LuRefreshCw as RefreshCw,
   LuSearch as Search
 } from "react-icons/lu";
+import { PageLoader } from "../../../../shared/components/ThemeSpinner";
 import {
   createAdminChannel,
   createAdminSubchannel,
@@ -254,10 +254,7 @@ export default function ChannelManagement() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center gap-2 py-14 text-sm text-fo-muted">
-          <Loader2 size={16} className="animate-spin text-fo-accent" />
-          Loading…
-        </div>
+        <PageLoader minHeight="py-14" size="md" />
       ) : isChannels ? (
         channels.length === 0 ? (
           <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle px-4 space-y-3">

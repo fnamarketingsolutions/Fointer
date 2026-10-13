@@ -1,9 +1,9 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { isAdminUser } from '../shared/lib/roles';
+import { PageLoader } from '../shared/components/ThemeSpinner';
 
-const DEFAULT_LOADING_CLASS =
-  'min-h-[50vh] flex items-center justify-center bg-fo-auth text-fo-muted text-sm';
+const DEFAULT_LOADING_CLASS = 'bg-fo-auth';
 
 /**
  * Admin SPA gate — UI-only; every admin API must still use
@@ -17,7 +17,13 @@ export default function ProtectedRoute({
   const location = useLocation();
 
   if (loading) {
-    return <div className={loadingClassName}>Loading...</div>;
+    return (
+      <PageLoader
+        minHeight="min-h-[50vh]"
+        size="md"
+        className={loadingClassName}
+      />
+    );
   }
 
   if (!user || !isAdminUser(user)) {

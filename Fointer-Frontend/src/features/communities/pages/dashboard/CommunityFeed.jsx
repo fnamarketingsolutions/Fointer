@@ -18,6 +18,9 @@ import {
   LuUsers as Users,
   LuVideo as Video
 } from "react-icons/lu";
+import ThemeSpinner, {
+  PageLoader,
+} from "../../../../shared/components/ThemeSpinner";
 import {
   acceptInvite,
   declineInvite,
@@ -170,9 +173,8 @@ function CommunitySidebar({
           Live now
         </div>
         {liveLoading ? (
-          <div className="flex items-center gap-2 text-xs text-fo-subtle">
-            <Loader2 size={12} className="animate-spin text-fo-accent" />
-            Loading…
+          <div className="flex items-center py-1">
+            <ThemeSpinner size="sm" />
           </div>
         ) : liveEvents.length === 0 ? (
           <p className="text-xs text-fo-subtle">No live events.</p>
@@ -198,9 +200,8 @@ function CommunitySidebar({
           Watch groups
         </div>
         {watchLoading ? (
-          <div className="flex items-center gap-2 text-xs text-fo-subtle">
-            <Loader2 size={12} className="animate-spin text-fo-accent" />
-            Loading…
+          <div className="flex items-center py-1">
+            <ThemeSpinner size="sm" />
           </div>
         ) : watchGroups.length === 0 ? (
           <p className="text-xs text-fo-subtle">No watch groups.</p>
@@ -254,9 +255,8 @@ function CommunityMembersCard({ community }) {
     <div className="bg-fo-surface border border-fo-border rounded-xl p-4 space-y-3">
       <h4 className="text-sm font-semibold text-fo-text">Community members</h4>
       {loading ? (
-        <div className="flex items-center gap-2 text-xs text-fo-subtle">
-          <Loader2 size={13} className="animate-spin text-fo-accent" />
-          Loading members…
+        <div className="flex items-center py-1">
+          <ThemeSpinner size="sm" />
         </div>
       ) : error ? (
         <p role="alert" className="text-xs text-red-400">
@@ -733,10 +733,7 @@ export default function CommunityFeed() {
     return (
       <div className="text-fo-text w-full pb-6">
         {resolvingPost ? (
-          <div className="flex items-center justify-center gap-2 py-20 text-sm text-fo-muted">
-            <Loader2 size={16} className="animate-spin text-fo-accent" />
-            Loading post…
-          </div>
+          <PageLoader minHeight="py-20" size="md" />
         ) : postNotFound || !openPostId ? (
           <div className="max-w-[1180px] mx-auto">
             <button
@@ -778,12 +775,7 @@ export default function CommunityFeed() {
   }
 
   if (resolvingCommunity || (communityLoading && !community)) {
-    return (
-      <div className="flex items-center justify-center py-16 text-fo-muted text-sm gap-2">
-        <Loader2 size={16} className="animate-spin text-fo-accent" />
-        Loading community…
-      </div>
-    );
+    return <PageLoader minHeight="py-16" size="md" />;
   }
 
   if (!community) {
@@ -1013,10 +1005,7 @@ export default function CommunityFeed() {
               </div>
 
               {loading ? (
-                <div className="flex items-center justify-center py-16 text-fo-muted text-sm gap-2">
-                  <Loader2 size={18} className="animate-spin text-fo-accent" />
-                  Loading posts…
-                </div>
+                <PageLoader minHeight="py-16" size="md" />
               ) : posts.length === 0 ? (
                 <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-fo-subtle text-sm px-4 space-y-3">
                   <p>

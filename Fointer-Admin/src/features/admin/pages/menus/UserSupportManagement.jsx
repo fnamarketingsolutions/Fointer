@@ -10,6 +10,7 @@ import {
   LuSearch as Search,
   LuX as X,
 } from "react-icons/lu";
+import { PageLoader } from "../../../../shared/components/ThemeSpinner";
 import {
   createAdminUserSupportCategory,
   fetchAdminUserSupportCategories,
@@ -289,10 +290,7 @@ export default function UserSupportManagement() {
           </form>
 
           {loading ? (
-            <div className="flex items-center justify-center gap-2 py-14 text-sm text-fo-muted">
-              <Loader2 size={16} className="animate-spin text-fo-accent" />
-              Loading categories…
-            </div>
+            <PageLoader minHeight="py-14" size="md" />
           ) : categories.length === 0 ? (
             <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle px-4 space-y-2">
               <Headset className="w-8 h-8 mx-auto text-fo-accent/40" />
@@ -380,10 +378,7 @@ export default function UserSupportManagement() {
           </div>
 
           {loading ? (
-            <div className="flex items-center justify-center gap-2 py-14 text-sm text-fo-muted">
-              <Loader2 size={16} className="animate-spin text-fo-accent" />
-              Loading requests…
-            </div>
+            <PageLoader minHeight="py-14" size="md" />
           ) : requests.length === 0 ? (
             <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle px-4 space-y-2">
               <Headset className="w-8 h-8 mx-auto text-fo-accent/40" />

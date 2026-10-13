@@ -12,6 +12,7 @@ import {
   updateAdminMarketplaceListing,
 } from '../../services/adminService';
 import { useToast } from '../../../../shared/components/feedback/ToastContext';
+import { PageLoader } from '../../../../shared/components/ThemeSpinner';
 import MediaPicker from '../../../../shared/components/media/MediaPicker';
 import AdminUserLink from '../../../../shared/components/AdminUserLink';
 import { getErrorMessage } from '../../../../shared/utils/errors';
@@ -136,12 +137,7 @@ export default function AdminListingDetail() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center gap-2 py-20 text-sm text-fo-muted">
-        <Loader2 size={16} className="animate-spin text-fo-accent" />
-        Loading listing…
-      </div>
-    );
+    return <PageLoader minHeight="py-20" size="md" />;
   }
 
   if (!listing) return null;

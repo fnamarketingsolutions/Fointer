@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   LuFilter as Filter,
-  LuLoaderCircle as Loader2,
   LuPlus as Plus,
   LuSearch as Search,
   LuShoppingBag as ShoppingBag,
@@ -16,6 +15,7 @@ import ListingFormModal from "../components/ListingFormModal";
 import MarketplaceRail from "../components/MarketplaceRail";
 import { LISTING_CATEGORIES } from "../constants";
 import { listingSegment } from "../../../shared/services/entityLinks";
+import { PageLoader } from "../../../shared/components/ThemeSpinner";
 
 const SORT_OPTIONS = [
   { id: "newest", label: "Newest first" },
@@ -267,9 +267,7 @@ export default function MarketplaceBrowse() {
           ) : null}
 
           {loading ? (
-            <div className="flex justify-center py-16 text-fo-muted">
-              <Loader2 size={20} className="animate-spin text-fo-accent" />
-            </div>
+            <PageLoader minHeight="py-16" size="md" />
           ) : listings.length === 0 ? (
             <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle px-4 space-y-3">
               <p>No listings found.</p>

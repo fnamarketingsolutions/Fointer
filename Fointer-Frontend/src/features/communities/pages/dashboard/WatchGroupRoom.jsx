@@ -32,6 +32,9 @@ import { useToast } from "../../../../shared/components/feedback/ToastContext";
 import { useAuth } from "../../../../context/AuthContext";
 import UserProfileLink from "../../../../shared/components/UserProfileLink";
 import ProfileAvatar from "../../../../shared/components/ProfileAvatar";
+import ThemeSpinner, {
+  PageLoader,
+} from "../../../../shared/components/ThemeSpinner";
 import TransferOwnershipModal from "../../../../shared/components/modals/TransferOwnershipModal";
 import useDebouncedValue from "../../../../shared/hooks/useDebouncedValue";
 import { getErrorMessage } from "../../../../shared/utils/errors";
@@ -430,12 +433,7 @@ export default function WatchGroupRoom() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-16 text-fo-muted text-sm gap-2">
-        <Loader2 size={16} className="animate-spin" />
-        Opening watch group...
-      </div>
-    );
+    return <PageLoader minHeight="py-16" size="md" label="Opening watch group" />;
   }
 
   if (!group) return null;
@@ -687,9 +685,8 @@ export default function WatchGroupRoom() {
                 {inviteQuery.trim().length >= INVITE_SEARCH_MIN ? (
                   <div className="rounded-xl border border-fo-border bg-fo-bg overflow-hidden max-h-56 overflow-y-auto">
                     {inviteSearchLoading ? (
-                      <div className="flex items-center gap-2 px-3 py-3 text-[11px] text-fo-muted">
-                        <Loader2 size={12} className="animate-spin text-fo-accent" />
-                        Searching profiles…
+                      <div className="flex items-center px-3 py-3">
+                        <ThemeSpinner size="sm" label="Searching profiles" />
                       </div>
                     ) : inviteSuggestions.length === 0 ? (
                       <p className="px-3 py-3 text-[11px] text-fo-subtle">

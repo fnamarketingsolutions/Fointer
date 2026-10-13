@@ -1,13 +1,13 @@
 import {
   LuPencil as Pencil,
   LuTrash2 as Trash2,
-  LuLoader as Loader2,
   LuHeart as Heart,
   LuReply as Reply,
   LuChevronDown as ChevronDown,
   LuChevronUp as ChevronUp,
   LuFlag as Flag
 } from "react-icons/lu";
+import ThemeSpinner from "../../../shared/components/ThemeSpinner";
 import PostAuthorAvatar from "./PostAuthorAvatar";
 import UserProfileLink from "../../../shared/components/UserProfileLink";
 import { timeAgo } from "../../../shared/utils/date";
@@ -123,9 +123,8 @@ export default function PostCommentsSection({
 
       {/* Comments List */}
       {commentsLoading ? (
-        <div className="flex items-center gap-2 text-xs text-fo-subtle py-4">
-          <Loader2 size={14} className="animate-spin text-fo-accent" />{" "}
-          Loading comments...
+        <div className="flex items-center py-4">
+          <ThemeSpinner size="sm" />
         </div>
       ) : topLevel.length === 0 ? (
         <p className="text-xs text-fo-subtle py-4">No comments yet.</p>

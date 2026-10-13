@@ -15,6 +15,7 @@ import {
   LuTrash2 as Trash2,
   LuUsers as Users
 } from 'react-icons/lu';
+import ThemeSpinner, { PageLoader } from '../../../../shared/components/ThemeSpinner';
 import { fetchAdminCommunityDetail } from '../../../../api/dashboard';
 import { deleteCommunity } from '../../../../api/communities';
 import { fetchPosts } from '../../../../api/posts';
@@ -276,10 +277,7 @@ export default function CommunityDetail() {
       </div>
 
       {loading && !notFound ? (
-        <div className="flex items-center justify-center gap-2 py-20 text-fo-muted text-sm">
-          <Loader2 className="w-4 h-4 animate-spin" />
-          Loading community detail...
-        </div>
+        <PageLoader minHeight="py-20" size="md" />
       ) : !detail?.community ? (
         <div className="border border-dashed border-fo-border rounded-xl py-12 text-center text-fo-subtle text-sm">
           Community not found.
@@ -641,9 +639,8 @@ export default function CommunityDetail() {
             </div>
 
             {postsLoading ? (
-              <div className="flex items-center justify-center gap-2 py-12 text-sm text-fo-muted">
-                <Loader2 size={14} className="animate-spin" />
-                Loading posts...
+              <div className="flex items-center justify-center py-12">
+                <ThemeSpinner size="sm" />
               </div>
             ) : sortedPosts.length === 0 ? (
               <div className="rounded-xl border border-dashed border-fo-border px-4 py-12 text-center text-xs text-fo-subtle">

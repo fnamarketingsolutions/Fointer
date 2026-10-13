@@ -138,7 +138,7 @@ export default function PanelShell({
   const handleLogout = async () => {
     if (logout) await logout();
     closeMobileMenu();
-    navigate(logoutTo);
+    navigate(logoutTo, { flushSync: true });
   };
 
   const handleSelectNav = (id) => {
@@ -147,7 +147,10 @@ export default function PanelShell({
   };
 
   const requireLogin = (fromPath) => {
-    navigate('/login', { state: { from: fromPath || location.pathname } });
+    navigate('/login', {
+      flushSync: true,
+      state: { from: fromPath || location.pathname },
+    });
   };
 
   const openProfile = () => {
@@ -156,14 +159,14 @@ export default function PanelShell({
       closeMobileMenu();
       return;
     }
-    navigate(profileTo);
+    navigate(profileTo, { flushSync: true });
     closeMobileMenu();
   };
 
   const handleAvatarClick = () => {
     if (window.matchMedia('(min-width: 768px)').matches) {
       if (isGuest) requireLogin(profileTo);
-      else navigate(profileTo);
+      else navigate(profileTo, { flushSync: true });
     } else {
       setIsMobileMenuOpen(true);
     }
@@ -202,7 +205,7 @@ export default function PanelShell({
               {notificationsTo ? (
                 <button
                   type="button"
-                  onClick={() => navigate(notificationsTo)}
+                  onClick={() => navigate(notificationsTo, { flushSync: true })}
                   className={`p-2 rounded-full transition-colors ${
                     notificationsActive
                       ? 'text-fo-accent bg-fo-accent/10'

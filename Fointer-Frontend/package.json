@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "test": "node --test src/shared/webrtc/mediaSwitch.test.js src/shared/webrtc/callReliability.test.js src/shared/webrtc/iceQueue.test.js",
+    "test": "node --test src/shared/webrtc/mediaSwitch.test.js src/shared/webrtc/callReliability.test.js src/shared/webrtc/iceQueue.test.js src/shared/utils/navigateFlush.test.js",
     "preview": "vite preview"
   },
   "dependencies": {

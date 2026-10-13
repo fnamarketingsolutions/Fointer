@@ -1,8 +1,11 @@
-import { Suspense, lazy } from 'react';
+import { lazy } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import PublicSiteLayout from '../../shared/layouts/PublicSiteLayout';
 import HomePage from '../../features/public/pages/home/HomePage';
 import { SITE_LINKS } from '../../shared/constants/siteLinks';
+import RouteSuspense, {
+  routePageFallback,
+} from '../../shared/components/RouteSuspense';
 
 const SignUp = lazy(() => import('../../features/auth/components/SignUp'));
 const Login = lazy(() => import('../../features/auth/components/Login'));
@@ -70,26 +73,28 @@ function RootHome() {
   );
 }
 
+const withSuspense = (element) => (
+  <RouteSuspense fallback={routePageFallback}>{element}</RouteSuspense>
+);
+
 export default function AppRoutes() {
   return (
-    <Suspense>
-      <Routes>
-        <Route path="/signup" element={<SignUp />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/" element={<RootHome />} />
+    <Routes>
+      <Route path="/signup" element={withSuspense(<SignUp />)} />
+      <Route path="/login" element={withSuspense(<Login />)} />
+      <Route path="/" element={<RootHome />} />
 
-        <Route element={<PublicSiteLayout />}>
-          {SITE_LINKS.map((link) => (
-            <Route
-              key={link.segment}
-              path={link.to}
-              element={PUBLIC_PAGE_ELEMENTS[link.segment]}
-            />
-          ))}
-        </Route>
+      <Route element={<PublicSiteLayout />}>
+        {SITE_LINKS.map((link) => (
+          <Route
+            key={link.segment}
+            path={link.to}
+            element={withSuspense(PUBLIC_PAGE_ELEMENTS[link.segment])}
+          />
+        ))}
+      </Route>
 
-        <Route path="/*" element={<Dashboard />} />
-      </Routes>
-    </Suspense>
+      <Route path="/*" element={withSuspense(<Dashboard />)} />
+    </Routes>
   );
 }

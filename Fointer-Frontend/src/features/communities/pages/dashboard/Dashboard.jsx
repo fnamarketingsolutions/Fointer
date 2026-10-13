@@ -1,4 +1,4 @@
-import { Suspense, lazy, useCallback, useEffect, useState } from "react";
+import { lazy, useCallback, useEffect, useState } from "react";
 import {
   useNavigate,
   useLocation,
@@ -22,6 +22,7 @@ import {
 
 import AuthOnly from "../../../../guards/AuthOnly";
 import PanelShell from "../../../../shared/layouts/PanelShell";
+import RouteSuspense from "../../../../shared/components/RouteSuspense";
 import IncomingDmCallBridge from "../../../messages/components/IncomingDmCallBridge";
 import { fetchUnreadTotal } from "../../../messages/services/messageService";
 import { getLiveSocket } from "../../../../shared/services/liveSocket";
@@ -33,42 +34,36 @@ import {
 } from "../../../../shared/constants/paths";
 import { scrollAppToTop } from "../../../../shared/utils/scroll";
 import DashboardFeed from "./DashboardFeed";
+/* Primary sidebar tabs — eager so RR7 startTransition does not keep the old page. */
+import JoinedCommunities from "./JoinedCommunities";
+import ActivityHistory from "./ActivityHistory";
+import Support from "./Support";
+import Profile from "../../../profile/pages/Profile";
+import LiveEvents from "./LiveEvents";
+import WatchGroups from "./WatchGroups";
+import UserNotifications from "./UserNotifications";
+import MarketplaceBrowse from "../../../marketplace/pages/MarketplaceBrowse";
+import MessagesInbox from "../../../messages/pages/MessagesInbox";
+/* Nested / heavy screens stay lazy; RouteSuspense shows Loading on entry. */
 const ManageCommunities = lazy(() => import("./ManageCommunities"));
 const ManagePostPage = lazy(() => import("./ManagePostPage"));
-const JoinedCommunities = lazy(() => import("./JoinedCommunities"));
 const CommunityFeed = lazy(() => import("./CommunityFeed"));
-const ActivityHistory = lazy(() => import("./ActivityHistory"));
-const Support = lazy(() => import("./Support"));
-const Profile = lazy(() => import("../../../profile/pages/Profile"));
 const DeleteMe = lazy(() => import("../../../profile/pages/DeleteMe"));
 const PublicProfile = lazy(() => import("../../../profile/pages/PublicProfile"));
 const SearchResultsPage = lazy(() => import("../../../search/pages/SearchResultsPage"));
-const LiveEvents = lazy(() => import("./LiveEvents"));
 const LiveRoom = lazy(() => import("./LiveRoom"));
-const WatchGroups = lazy(() => import("./WatchGroups"));
 const WatchGroupRoom = lazy(() => import("./WatchGroupRoom"));
-const UserNotifications = lazy(() => import("./UserNotifications"));
-const MarketplaceBrowse = lazy(
-  () => import("../../../marketplace/pages/MarketplaceBrowse")
-);
 const ListingDetail = lazy(
   () => import("../../../marketplace/pages/ListingDetail")
 );
 const MyListings = lazy(() => import("../../../marketplace/pages/MyListings"));
 const SponsorListing = lazy(() => import("../../../marketplace/pages/SponsorListing"));
 const PromoteSuccess = lazy(() => import("../../../marketplace/pages/PromoteSuccess"));
-const MessagesInbox = lazy(
-  () => import("../../../messages/pages/MessagesInbox")
-);
 const ConversationThread = lazy(
   () => import("../../../messages/pages/ConversationThread")
 );
 
-const pageFallback = (
-  <div className="min-h-[30vh] flex items-center justify-center text-fo-muted text-sm">
-    Loading...
-  </div>
-);
+const lazyPage = (element) => <RouteSuspense>{element}</RouteSuspense>;
 
 const VALID_TABS = [
   "postfeed",
@@ -240,6 +235,7 @@ const Dashboard = () => {
 
   const requireLogin = (fromPath) => {
     navigate("/login", {
+      flushSync: true,
       state: { from: fromPath || location.pathname },
     });
   };
@@ -262,7 +258,9 @@ const Dashboard = () => {
       return;
     }
 
-    navigate(targetPath);
+    // RR7 wraps navigations in startTransition; flushSync so Suspense shows
+    // Loading instead of keeping the previous tab painted for seconds.
+    navigate(targetPath, { flushSync: true });
   };
 
   const navItems = [
@@ -312,8 +310,7 @@ const Dashboard = () => {
       allowGuest
     >
       <IncomingDmCallBridge />
-      <Suspense fallback={pageFallback}>
-        <Routes>
+      <Routes>
           <Route path={FEED_PATH} element={<DashboardFeed />} />
           <Route path={EXPLORE_PATH} element={<DashboardFeed />} />
           <Route path="/post/:postSlug" element={<DashboardFeed />} />
@@ -321,7 +318,7 @@ const Dashboard = () => {
             path="/communities/manage/:communityId/posts/:postId"
             element={
               <AuthOnly>
-                <ManagePostPage />
+                {lazyPage(<ManagePostPage />)}
               </AuthOnly>
             }
           />
@@ -329,7 +326,7 @@ const Dashboard = () => {
             path="/communities/manage/:communityId"
             element={
               <AuthOnly>
-                <ManageCommunities />
+                {lazyPage(<ManageCommunities />)}
               </AuthOnly>
             }
           />
@@ -337,7 +334,7 @@ const Dashboard = () => {
             path="/communities/manage"
             element={
               <AuthOnly>
-                <ManageCommunities />
+                {lazyPage(<ManageCommunities />)}
               </AuthOnly>
             }
           />
@@ -363,11 +360,11 @@ const Dashboard = () => {
           />
           <Route
             path="/communities/:communityId/posts/:postSlug"
-            element={<CommunityFeed />}
+            element={lazyPage(<CommunityFeed />)}
           />
           <Route
             path="/communities/:communityId"
-            element={<CommunityFeed />}
+            element={lazyPage(<CommunityFeed />)}
           />
           <Route path="/communities" element={<JoinedCommunities />} />
           <Route
@@ -386,8 +383,8 @@ const Dashboard = () => {
               </AuthOnly>
             }
           />
-          <Route path="/search" element={<SearchResultsPage />} />
-          <Route path="/users/:username" element={<PublicProfile />} />
+          <Route path="/search" element={lazyPage(<SearchResultsPage />)} />
+          <Route path="/users/:username" element={lazyPage(<PublicProfile />)} />
           <Route
             path="/profile"
             element={
@@ -400,7 +397,7 @@ const Dashboard = () => {
             path="/delete-me"
             element={
               <AuthOnly>
-                <DeleteMe />
+                {lazyPage(<DeleteMe />)}
               </AuthOnly>
             }
           />
@@ -408,7 +405,7 @@ const Dashboard = () => {
             path="/live-events/:eventId"
             element={
               <AuthOnly>
-                <LiveRoom />
+                {lazyPage(<LiveRoom />)}
               </AuthOnly>
             }
           />
@@ -417,7 +414,7 @@ const Dashboard = () => {
             path="/watch-groups/:groupId"
             element={
               <AuthOnly>
-                <WatchGroupRoom />
+                {lazyPage(<WatchGroupRoom />)}
               </AuthOnly>
             }
           />
@@ -430,19 +427,19 @@ const Dashboard = () => {
           />
           <Route path="/marketplace/my-listings" element={
               <AuthOnly>
-                <MyListings />
+                {lazyPage(<MyListings />)}
               </AuthOnly>
             }
           />
           <Route path="/marketplace/promote/success" element={
               <AuthOnly>
-                <PromoteSuccess />
+                {lazyPage(<PromoteSuccess />)}
               </AuthOnly>
             }
           />
           <Route path="/marketplace/promote/:listingId" element={
               <AuthOnly>
-                <SponsorListing />
+                {lazyPage(<SponsorListing />)}
               </AuthOnly>
             }
           />
@@ -450,7 +447,7 @@ const Dashboard = () => {
             path="/marketplace/:listingId"
             element={
               <AuthOnly>
-                <ListingDetail />
+                {lazyPage(<ListingDetail />)}
               </AuthOnly>
             }
           />
@@ -466,7 +463,7 @@ const Dashboard = () => {
             path="/messages/:conversationId"
             element={
               <AuthOnly>
-                <ConversationThread />
+                {lazyPage(<ConversationThread />)}
               </AuthOnly>
             }
           />
@@ -485,7 +482,6 @@ const Dashboard = () => {
             }
           />
         </Routes>
-      </Suspense>
     </PanelShell>
   );
 };

@@ -2,12 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   LuArrowRight as ArrowRight,
-  LuLoaderCircle as Loader2,
   LuRefreshCw as RefreshCw,
   LuSearch as Search,
   LuTrash2 as Trash2,
   LuUsers as Users
 } from "react-icons/lu";
+import { PageLoader } from "../../../../shared/components/ThemeSpinner";
 import {
   deleteCommunity,
   fetchAllCommunities,
@@ -176,10 +176,7 @@ export default function CommunityManagement() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center gap-2 py-14 text-sm text-fo-muted">
-          <Loader2 size={16} className="animate-spin text-fo-accent" />
-          Loading communities…
-        </div>
+        <PageLoader minHeight="py-14" size="md" />
       ) : communities.length === 0 ? (
         <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle">
           No communities found.

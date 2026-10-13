@@ -1,6 +1,7 @@
 import { Suspense, lazy } from 'react';
 import { Route, Routes } from 'react-router-dom';
 import ProtectedRoute from '../../guards/ProtectedRoute';
+import { PageLoader } from '../../shared/components/ThemeSpinner';
 
 const AdminLogin = lazy(() =>
   import('../../features/auth/components/AdminLogin')
@@ -13,9 +14,7 @@ export default function AppRoutes() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen flex items-center justify-center bg-fo-auth text-fo-muted text-sm">
-          Loading...
-        </div>
+        <PageLoader minHeight="min-h-screen" size="md" className="bg-fo-auth" />
       }
     >
       <Routes>

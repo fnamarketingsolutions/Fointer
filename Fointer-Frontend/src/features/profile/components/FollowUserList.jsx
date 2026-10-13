@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { LuLoaderCircle as Loader2 } from "react-icons/lu";
 import { fetchFollowers, fetchFollowing } from "../../../api/follow";
 import { useAuth } from "../../../context/AuthContext";
 import FollowButton from "../../../shared/components/FollowButton";
 import ProfileAvatar from "../../../shared/components/ProfileAvatar";
+import { PageLoader } from "../../../shared/components/ThemeSpinner";
 import UserProfileLink from "../../../shared/components/UserProfileLink";
 import { normalizeUsername } from "../../../shared/services/profileLinks";
 
@@ -70,12 +70,7 @@ export default function FollowUserList({ username, mode, forceHidden = false }) 
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center gap-2 py-14 text-sm text-fo-muted">
-        <Loader2 size={16} className="animate-spin text-fo-accent" />
-        Loading…
-      </div>
-    );
+    return <PageLoader minHeight="py-14" size="md" />;
   }
 
   if (error) {

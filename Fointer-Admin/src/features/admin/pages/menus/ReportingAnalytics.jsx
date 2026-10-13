@@ -15,6 +15,7 @@ import {
   LuX as X,
   LuCircleX as XCircle
 } from "react-icons/lu";
+import ThemeSpinner, { PageLoader } from "../../../../shared/components/ThemeSpinner";
 import {
   fetchAdminAnalytics,
   fetchAdminConversationMessages,
@@ -293,10 +294,7 @@ export default function ReportingAnalytics() {
 
       {view === "analytics" ? (
         analyticsLoading ? (
-          <div className="flex items-center justify-center gap-2 py-14 text-sm text-fo-muted">
-            <Loader2 size={16} className="animate-spin text-fo-accent" />
-            Loading analytics…
-          </div>
+          <PageLoader minHeight="py-14" size="md" />
         ) : !analytics ? (
           <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle">
             No analytics available.
@@ -448,10 +446,7 @@ export default function ReportingAnalytics() {
           </div>
 
           {loading ? (
-            <div className="flex items-center justify-center gap-2 py-14 text-sm text-fo-muted">
-              <Loader2 size={16} className="animate-spin text-fo-accent" />
-              Loading reports…
-            </div>
+            <PageLoader minHeight="py-14" size="md" />
           ) : reports.length === 0 ? (
             <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle px-4 space-y-2">
               <Shield className="w-8 h-8 mx-auto text-fo-accent/40" />
@@ -602,8 +597,8 @@ export default function ReportingAnalytics() {
                       Conversation messages
                     </p>
                     {convLoading ? (
-                      <div className="flex justify-center py-6 text-fo-muted">
-                        <Loader2 size={18} className="animate-spin" />
+                      <div className="flex justify-center py-6">
+                        <ThemeSpinner size="sm" />
                       </div>
                     ) : conversationMessages.length ? (
                       <div className="max-h-64 overflow-y-auto space-y-2 rounded-xl border border-fo-border bg-fo-bg p-3">

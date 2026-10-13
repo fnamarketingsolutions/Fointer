@@ -2,12 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
   LuFileText as FileText,
-  LuLoaderCircle as Loader2,
   LuUserRound as UserRound,
   LuUsers as Users,
 } from "react-icons/lu";
 import { globalSearch } from "../../../api/search";
 import ProfileAvatar from "../../../shared/components/ProfileAvatar";
+import { PageLoader } from "../../../shared/components/ThemeSpinner";
 import { useAuth } from "../../../context/AuthContext";
 import { communitySegment, postSegment } from "../../../shared/services/entityLinks";
 import { userProfilePath } from "../../../shared/services/profileLinks";
@@ -121,10 +121,7 @@ export default function SearchResultsPage() {
           </div>
 
           {loading ? (
-            <div className="flex items-center justify-center gap-2 py-14 text-sm text-fo-muted">
-              <Loader2 size={16} className="animate-spin text-fo-accent" />
-              Searching for “{q}”…
-            </div>
+            <PageLoader minHeight="py-14" size="md" label={`Searching for ${q}`} />
           ) : error ? (
             <p className="text-sm text-red-400 py-8 text-center">{error}</p>
           ) : totalCount === 0 ? (

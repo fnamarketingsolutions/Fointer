@@ -18,6 +18,7 @@ import {
 } from '../../../../api/dashboard';
 import { useAuth } from '../../../../context/AuthContext';
 import { useToast } from '../../../../shared/components/feedback/ToastContext';
+import { PageLoader } from '../../../../shared/components/ThemeSpinner';
 import AdminActionBtn from '../../../../shared/components/AdminActionBtn';
 import WarnUserModal from '../../../../shared/components/modals/WarnUserModal';
 import ProfileAvatar from '../../../../shared/components/ProfileAvatar';
@@ -171,10 +172,7 @@ export default function UserDetail() {
       </button>
 
       {loading ? (
-        <div className="flex items-center justify-center gap-2 py-20 text-fo-muted text-sm">
-          <Loader2 className="w-4 h-4 animate-spin text-fo-accent" />
-          Loading user detail...
-        </div>
+        <PageLoader minHeight="py-20" size="md" />
       ) : loadError ? (
         <div className="border border-dashed border-fo-border rounded-xl py-12 px-4 text-center space-y-3">
           <p className="text-sm text-fo-text font-medium">Could not load user</p>

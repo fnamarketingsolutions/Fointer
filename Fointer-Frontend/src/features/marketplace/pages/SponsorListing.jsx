@@ -11,6 +11,7 @@ import {
 } from "../services/marketplaceService";
 import { useToast } from "../../../shared/components/feedback/ToastContext";
 import LocationFields from "../../../shared/components/LocationFields";
+import { PageLoader } from "../../../shared/components/ThemeSpinner";
 import { getErrorMessage } from "../../../shared/utils/errors";
 
 const formatPrice = (amount, currency) => {
@@ -196,11 +197,7 @@ export default function SponsorListing() {
   };
 
   if (loading) {
-    return (
-      <div className="flex justify-center py-20 text-fo-accent">
-        <Loader2 className="animate-spin" />
-      </div>
-    );
+    return <PageLoader minHeight="py-20" size="md" />;
   }
 
   if (loadError) {

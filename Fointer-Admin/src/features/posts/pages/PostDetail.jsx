@@ -31,6 +31,7 @@ import ReportContentModal from "../../../shared/components/modals/ReportContentM
 import PostAuthorAvatar from "../components/PostAuthorAvatar";
 import UserProfileLink from "../../../shared/components/UserProfileLink";
 import PostCommentsSection from "../components/PostCommentsSection";
+import { PageLoader } from "../../../shared/components/ThemeSpinner";
 import PostEditModal from "../components/PostEditModal";
 import { useToast } from "../../../shared/components/feedback/ToastContext";
 import { useAuth } from "../../../context/AuthContext";
@@ -478,12 +479,7 @@ export default function PostDetail({
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20 text-fo-muted text-sm gap-2 w-full">
-        <Loader2 size={18} className="animate-spin text-fo-accent" />
-        Loading post...
-      </div>
-    );
+    return <PageLoader minHeight="py-20" size="md" className="w-full" />;
   }
 
   if (!post) {

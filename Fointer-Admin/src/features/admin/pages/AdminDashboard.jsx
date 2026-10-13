@@ -30,6 +30,7 @@ import {
 
 import PanelShell from '../../../shared/layouts/PanelShell';
 import { useAuth } from '../../../context/AuthContext';
+import { PageLoader } from '../../../shared/components/ThemeSpinner';
 
 const UserManagement = lazy(() => import('./menus/UserManagement'));
 const CommunityManagement = lazy(() => import('./menus/CommunityManagement'));
@@ -57,11 +58,7 @@ const UserNotifications = lazy(() =>
   import('../../communities/pages/dashboard/UserNotifications')
 );
 
-const pageFallback = (
-  <div className="min-h-[30vh] flex items-center justify-center text-fo-muted text-sm">
-    Loading...
-  </div>
-);
+const pageFallback = <PageLoader minHeight="min-h-[30vh]" size="md" />;
 
 const NAV_ITEMS = [
   { id: 'users', label: 'User Management', icon: Users },

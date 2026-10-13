@@ -2,13 +2,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   LuFileText as FileText,
-  LuLoaderCircle as Loader2,
   LuSearch as Search,
   LuUserRound as UserRound,
   LuUsers as Users,
 } from "react-icons/lu";
 import { globalSearch } from "../../api/search";
 import ProfileAvatar from "./ProfileAvatar";
+import ThemeSpinner from "./ThemeSpinner";
 import { useAuth } from "../../context/AuthContext";
 import useDebouncedValue from "../hooks/useDebouncedValue";
 import { communitySegment, postSegment } from "../services/entityLinks";
@@ -141,9 +141,8 @@ export default function HeaderSearch({ className = "" }) {
       {showDropdown ? (
         <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-50 bg-fo-surface border border-fo-border rounded-xl shadow-2xl overflow-hidden max-h-[min(420px,70vh)] overflow-y-auto">
           {loading ? (
-            <div className="flex items-center justify-center gap-2 py-8 text-xs text-fo-subtle">
-              <Loader2 size={14} className="animate-spin text-fo-accent" />
-              Searching…
+            <div className="flex items-center justify-center py-8">
+              <ThemeSpinner size="sm" label="Searching" />
             </div>
           ) : error ? (
             <p className="px-3 py-4 text-xs text-red-400">{error}</p>

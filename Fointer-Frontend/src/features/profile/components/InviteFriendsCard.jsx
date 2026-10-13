@@ -2,12 +2,12 @@ import { useCallback, useEffect, useState } from "react";
 import {
   LuCheck as Check,
   LuCopy as Copy,
-  LuLoaderCircle as Loader2,
   LuShare2 as Share2,
   LuUsers as Users,
 } from "react-icons/lu";
 import { fetchMyReferrals } from "../../../api/referrals";
 import { useToast } from "../../../shared/components/feedback/ToastContext";
+import ThemeSpinner from "../../../shared/components/ThemeSpinner";
 import { normalizeUsername } from "../../../shared/services/profileLinks";
 import ProfileAvatar from "../../../shared/components/ProfileAvatar";
 import { Link } from "react-router-dom";
@@ -107,9 +107,8 @@ export default function InviteFriendsCard() {
       </div>
 
       {loading ? (
-        <div className="flex items-center gap-2 text-xs text-fo-subtle py-2">
-          <Loader2 size={14} className="animate-spin" aria-hidden />
-          Loading invite link…
+        <div className="flex items-center py-2">
+          <ThemeSpinner size="sm" label="Loading invite link" />
         </div>
       ) : error ? (
         <div className="space-y-2">

@@ -5,6 +5,7 @@ import {
   LuArrowRightLeft as Transfer,
 } from "react-icons/lu";
 import ProfileAvatar from "../ProfileAvatar";
+import { PageLoader } from "../ThemeSpinner";
 
 /**
  * Generic ownership transfer picker.
@@ -71,10 +72,7 @@ export default function TransferOwnershipModal({
 
         <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-2">
           {loading ? (
-            <div className="flex items-center justify-center gap-2 py-10 text-sm text-fo-subtle">
-              <Loader2 size={16} className="animate-spin" />
-              Loading members…
-            </div>
+            <PageLoader minHeight="py-10" size="md" />
           ) : candidates.length === 0 ? (
             <p className="text-sm text-fo-subtle py-8 text-center leading-relaxed">
               No other active members to transfer to. Invite someone first, or

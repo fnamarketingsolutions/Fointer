@@ -9,6 +9,7 @@ import {
   LuUserCog as UserCog,
   LuX as X,
 } from 'react-icons/lu';
+import { PageLoader } from '../../../../shared/components/ThemeSpinner';
 import {
   createAdmin,
   fetchAdmins,
@@ -595,10 +596,7 @@ export default function AdminManagement() {
       </form>
 
       {loading ? (
-        <div className="flex items-center justify-center gap-2 py-14 text-sm text-fo-muted">
-          <Loader2 size={16} className="animate-spin text-fo-accent" />
-          Loading admins…
-        </div>
+        <PageLoader minHeight="py-14" size="md" />
       ) : filteredAdmins.length === 0 ? (
         <div className="border border-dashed border-fo-border rounded-xl py-14 text-center space-y-3">
           <p className="text-sm text-fo-subtle">

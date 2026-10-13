@@ -23,6 +23,7 @@ import {
 import { toggleBookmark } from "../../../api/bookmarks";
 import { useAuth } from "../../../context/AuthContext";
 import { useToast } from "../../../shared/components/feedback/ToastContext";
+import { PageLoader } from "../../../shared/components/ThemeSpinner";
 import ConfirmDeleteModal from "../../../shared/components/modals/ConfirmDeleteModal";
 import ReportContentModal from "../../../shared/components/modals/ReportContentModal";
 import ShareSheetModal from "../../../shared/components/modals/ShareSheetModal";
@@ -236,8 +237,8 @@ export default function ListingDetail() {
 
   if (loading || resolving || (!listingId && !notFound)) {
     return (
-      <div className="w-full max-w-[1180px] mx-auto flex items-center justify-center py-20 text-fo-muted">
-        <Loader2 size={20} className="animate-spin text-fo-accent" />
+      <div className="w-full max-w-[1180px] mx-auto">
+        <PageLoader minHeight="py-20" size="md" />
       </div>
     );
   }

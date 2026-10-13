@@ -10,6 +10,7 @@ import {
   LuX as X,
   LuCircleX as XCircle
 } from "react-icons/lu";
+import ThemeSpinner, { PageLoader } from "../../../../shared/components/ThemeSpinner";
 import {
   deleteAdminLiveEvent,
   deleteAdminLiveMessage,
@@ -260,10 +261,7 @@ export default function LiveEventManagement() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center gap-2 py-14 text-sm text-fo-muted">
-          <Loader2 size={16} className="animate-spin text-fo-accent" />
-          Loading live events…
-        </div>
+        <PageLoader minHeight="py-14" size="md" />
       ) : filteredEvents.length === 0 ? (
         <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle px-4 space-y-2">
           <Radio className="w-8 h-8 mx-auto text-fo-accent/40" />
@@ -402,9 +400,8 @@ export default function LiveEventManagement() {
 
             <div className="flex-1 overflow-y-auto p-4 space-y-2.5 min-h-[200px]">
               {messagesLoading ? (
-                <div className="flex items-center justify-center py-10 text-sm text-fo-muted gap-2">
-                  <Loader2 size={16} className="animate-spin text-fo-accent" />
-                  Loading messages…
+                <div className="flex items-center justify-center py-10">
+                  <ThemeSpinner size="sm" />
                 </div>
               ) : messages.length === 0 ? (
                 <p className="text-center text-fo-subtle text-sm py-10">

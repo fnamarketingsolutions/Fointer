@@ -10,6 +10,7 @@ import {
   LuTrash2 as Trash2,
   LuUsers as Users,
 } from "react-icons/lu";
+import { PageLoader } from "../../../shared/components/ThemeSpinner";
 import {
   fetchPost,
   fetchTrendingTopics,
@@ -666,10 +667,7 @@ export default function PostDetail({
               : ""
           }
         >
-          <div className="flex items-center justify-center py-20 text-fo-muted text-sm gap-2 w-full">
-            <Loader2 size={18} className="animate-spin text-fo-accent" />
-            Loading post...
-          </div>
+          <PageLoader minHeight="py-20" size="lg" className="w-full" />
           {desktopRail}
         </div>
       </div>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { LuLoaderCircle as Loader2 } from "react-icons/lu";
+import { PageLoader } from "../../../../shared/components/ThemeSpinner";
 import { useAuth } from "../../../../context/AuthContext";
 import { useToast } from "../../../../shared/components/feedback/ToastContext";
 import {
@@ -141,10 +142,7 @@ export default function UserSupport() {
         <div className="relative max-w-xl mx-auto px-4 sm:px-6 lg:px-8 z-10">
           <div className="bg-fo-surface/40 backdrop-blur-md p-6 sm:p-8 md:p-10 rounded-2xl border border-fo-border shadow-2xl">
             {loading ? (
-              <div className="flex items-center justify-center gap-2 py-10 text-sm text-fo-muted">
-                <Loader2 size={16} className="animate-spin text-fo-accent" />
-                Loading categories…
-              </div>
+              <PageLoader minHeight="py-10" size="md" />
             ) : categories.length === 0 ? (
               <p className="text-sm text-fo-subtle text-center py-8">
                 Support categories will appear here once an admin adds them.

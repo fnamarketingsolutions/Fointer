@@ -31,6 +31,7 @@ import { emitAck, getLiveSocket, nextJoinToken } from "../../../shared/services/
 import { useToast } from "../../../shared/components/feedback/ToastContext";
 import { useAuth } from "../../../context/AuthContext";
 import ProfileAvatar from "../../../shared/components/ProfileAvatar";
+import { PageLoader } from "../../../shared/components/ThemeSpinner";
 import UserProfileLink from "../../../shared/components/UserProfileLink";
 import ListingReference from "../components/ListingReference";
 import PostReference from "../components/PostReference";
@@ -508,11 +509,7 @@ export default function ConversationThread() {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-[40vh] flex items-center justify-center text-fo-muted">
-        <Loader2 size={22} className="animate-spin" />
-      </div>
-    );
+    return <PageLoader minHeight="min-h-[40vh]" size="md" />;
   }
 
   if (!conversation) return null;

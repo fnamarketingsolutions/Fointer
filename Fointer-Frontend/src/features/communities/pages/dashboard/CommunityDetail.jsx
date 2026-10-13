@@ -17,6 +17,9 @@ import {
   LuLayoutGrid as Grid,
   LuArrowRightLeft as Transfer,
 } from "react-icons/lu";
+import ThemeSpinner, {
+  PageLoader,
+} from "../../../../shared/components/ThemeSpinner";
 import {
   inviteToCommunity,
   lookupInviteUser,
@@ -818,10 +821,7 @@ export default function CommunityDetail({
       </button>
 
       {manageLoading && !community ? (
-        <div className="flex items-center justify-center py-16 text-fo-muted text-sm gap-2">
-          <Loader2 size={16} className="animate-spin text-fo-accent" />
-          Loading community…
-        </div>
+        <PageLoader minHeight="py-16" size="md" />
       ) : community ? (
         <>
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px] gap-4 items-start">
@@ -944,13 +944,7 @@ export default function CommunityDetail({
                   </div>
 
                   {postsLoading ? (
-                    <div className="flex items-center justify-center py-14 text-fo-muted text-sm gap-2">
-                      <Loader2
-                        size={16}
-                        className="animate-spin text-fo-accent"
-                      />
-                      Loading posts…
-                    </div>
+                    <PageLoader minHeight="py-14" size="md" />
                   ) : sortedPosts.length === 0 ? (
                     <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle px-4 space-y-3">
                       <p>No posts in this community yet.</p>
@@ -999,13 +993,7 @@ export default function CommunityDetail({
                   </div>
 
                   {joinRequestsLoading ? (
-                    <div className="flex items-center justify-center py-14 text-fo-muted text-sm gap-2">
-                      <Loader2
-                        size={16}
-                        className="animate-spin text-fo-accent"
-                      />
-                      Loading requests…
-                    </div>
+                    <PageLoader minHeight="py-14" size="md" />
                   ) : joinRequests.length === 0 ? (
                     <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle px-4">
                       No pending join requests.
@@ -1131,13 +1119,7 @@ export default function CommunityDetail({
                   </div>
 
                   {membersLoading ? (
-                    <div className="flex items-center justify-center py-14 text-fo-muted text-sm gap-2">
-                      <Loader2
-                        size={16}
-                        className="animate-spin text-fo-accent"
-                      />
-                      Loading members…
-                    </div>
+                    <PageLoader minHeight="py-14" size="md" />
                   ) : members.length === 0 ? (
                     <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle px-4">
                       {memberStatusFilter === "all"
@@ -1306,9 +1288,8 @@ export default function CommunityDetail({
                             Type at least 3 characters to look up a user.
                           </p>
                         ) : inviteLookupLoading ? (
-                          <div className="flex items-center gap-2 text-[11px] text-fo-muted px-1 py-1">
-                            <Loader2 size={12} className="animate-spin" />
-                            Looking up users…
+                          <div className="flex items-center px-1 py-1">
+                            <ThemeSpinner size="sm" label="Looking up users" />
                           </div>
                         ) : inviteLookupUsers.length > 0 ? (
                           <div className="max-h-48 overflow-y-auto space-y-1.5">

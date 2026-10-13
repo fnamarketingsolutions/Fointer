@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { LuX as X } from "react-icons/lu";
 import { fetchChannels } from "../../api/channels";
+import ThemeSpinner from "./ThemeSpinner";
 
 const PREVIEW_COUNT = 10;
 
@@ -93,7 +94,9 @@ export default function InterestSuggestions({
       />
       <div className="flex flex-wrap gap-1.5 mt-2">
         {loading ? (
-          <p className="text-[11px] text-fo-subtle">Loading categories…</p>
+          <div className="flex items-center py-0.5">
+            <ThemeSpinner size="sm" label="Loading categories" />
+          </div>
         ) : visible.length === 0 ? (
           <p className="text-[11px] text-fo-subtle">
             {query.trim() ? "No matching categories." : "No categories yet."}

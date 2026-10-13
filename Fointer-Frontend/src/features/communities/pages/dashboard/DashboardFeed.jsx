@@ -15,6 +15,7 @@ import {
   LuPlus as Plus,
   LuSparkles as Sparkles,
 } from "react-icons/lu";
+import { PageLoader } from "../../../../shared/components/ThemeSpinner";
 import {
   createPost,
   fetchPost,
@@ -577,10 +578,7 @@ export default function DashboardFeed() {
     return (
       <div className="text-fo-text w-full pb-6">
         {resolvingPost ? (
-          <div className="flex items-center justify-center gap-2 py-16 text-sm text-fo-muted">
-            <Loader2 size={16} className="animate-spin text-fo-accent" />
-            Loading post…
-          </div>
+          <PageLoader minHeight="py-16" size="md" />
         ) : postNotFound || !openPostId ? (
           <div className="max-w-[1180px] mx-auto">
             <button

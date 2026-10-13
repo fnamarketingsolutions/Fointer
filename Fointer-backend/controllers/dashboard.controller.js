@@ -13,6 +13,11 @@ import {
 } from "../utils/pagination.js";
 import { escapeRegex } from "../utils/validate.js";
 import { canAccessAdminTab, resolveIsSuperAdmin } from "../utils/adminAccess.js";
+import {
+  disconnectRevokedSockets,
+  restoreAuthUser,
+  revokeAuthUser,
+} from "../utils/authRevocation.js";
 
 const formatAdminUser = (u) => ({
   id: String(u._id),
@@ -266,6 +271,12 @@ export const updateUserStatus = async (req, res) => {
 
     target.status = status;
     await target.save();
+    if (status === "banned") {
+      revokeAuthUser(target._id);
+      disconnectRevokedSockets(req.app.get("io"), target._id);
+    } else {
+      restoreAuthUser(target._id);
+    }
 
     if (status === "banned") {
       const { hideActiveListingsForSeller } = await import(

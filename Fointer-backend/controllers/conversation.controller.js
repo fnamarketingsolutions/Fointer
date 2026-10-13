@@ -19,6 +19,7 @@ import { getBlockState, isMessagingBlocked } from "./block.controller.js";
 import {
   getEditWindowMinutes,
   isWithinEditWindow,
+  peekEditWindowMinutes,
 } from "../utils/communityPermissions.js";
 import { canViewPost } from "./post.controller.js";
 import { hasMarketplaceAdminPower } from "../utils/adminAccess.js";
@@ -370,19 +371,19 @@ export const sendDirectMessage = async ({
     throw new Error("Message cannot be empty.");
   }
 
-  let replyToId = null;
+  let parent = null;
   if (replyTo) {
-    const parent = await DirectMessage.findOne({
+    parent = await DirectMessage.findOne({
       _id: replyTo,
       conversation: conversation._id,
-    }).select("_id");
+    })
+      .select("text type isDeleted author")
+      .populate({ path: "author", select: "username name avatar" });
     if (!parent) {
       throw new Error("Reply target message not found.");
     }
-    replyToId = parent._id;
   }
 
-  const editWindowPromise = getEditWindowMinutes();
   const { saved: formatted, persistMs } = await publishSavedMessage({
     save: async () => {
       const message = await DirectMessage.create({
@@ -393,10 +394,13 @@ export const sendDirectMessage = async ({
           messageType === "call" ? cleanText || previewFromCall(call) : cleanText,
         media: mediaItems,
         call: messageType === "call" ? call : null,
-        replyTo: replyToId,
+        replyTo: parent?._id || null,
         listing: listingSnapshot || null,
         post: postSnapshot || null,
       });
+
+      message.author = author;
+      if (parent) message.replyTo = parent;
 
       conversation.lastMessageText = previewFromMessage(message);
       conversation.lastMessageAt = new Date();
@@ -412,22 +416,52 @@ export const sendDirectMessage = async ({
         }
       }
 
-      const [, , editWindowMinutes] = await Promise.all([
-        conversation.save(),
-        message.populate([
-          { path: "author", select: "username name avatar" },
-          {
-            path: "replyTo",
-            select: "text type isDeleted author",
-            populate: { path: "author", select: "username name avatar" },
-          },
-        ]),
-        editWindowPromise,
-      ]);
+      const previewStarted = Date.now();
+      const conversationId = String(conversation._id);
+      const messageId = String(message._id);
+      const preview = {
+        lastMessageText: conversation.lastMessageText,
+        lastMessageAt: conversation.lastMessageAt,
+        lastMessageAuthor: conversation.lastMessageAuthor,
+      };
+      conversation
+        .save()
+        .then(() => {
+          logRealtime("dm_preview_saved", {
+            conversationId,
+            messageId,
+            previewMs: Date.now() - previewStarted,
+          });
+        })
+        .catch((error) => {
+          if (error?.name !== "VersionError") {
+            logRealtime("dm_preview_failed", {
+              conversationId,
+              messageId,
+              reason: String(error?.message || "preview_failed").slice(0, 180),
+            });
+            return;
+          }
+          Conversation.updateOne({ _id: conversation._id }, { $set: preview })
+            .then(() => {
+              logRealtime("dm_preview_saved", {
+                conversationId,
+                messageId,
+                previewMs: Date.now() - previewStarted,
+              });
+            })
+            .catch((retryError) => {
+              logRealtime("dm_preview_failed", {
+                conversationId,
+                messageId,
+                reason: String(retryError?.message || "preview_failed").slice(0, 180),
+              });
+            });
+        });
 
       return formatMessage(message, {
         viewerId: author._id || author,
-        editWindowMinutes,
+        editWindowMinutes: peekEditWindowMinutes(),
       });
     },
     publish: (next, persistMs) => {
@@ -475,7 +509,7 @@ export const sendDirectMessage = async ({
         : null,
   });
 
-  return { message: formatted, conversation };
+  return { message: formatted, conversation, persistMs };
 };
 
 export const recordCallHistoryMessage = async ({

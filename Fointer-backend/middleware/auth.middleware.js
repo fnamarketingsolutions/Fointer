@@ -5,6 +5,10 @@ import {
   canAccessAdminTab,
   resolveIsSuperAdmin,
 } from "../utils/adminAccess.js";
+import {
+  isAuthUserRevoked,
+  revokeAuthUser,
+} from "../utils/authRevocation.js";
 
 const normalizeRole = (role) =>
   String(role || "")
@@ -32,7 +36,12 @@ const loadUser = (id) => {
     .then((user) => {
       if (user) {
         user.role = normalizeRole(user.role) || "user";
-        userCache.set(key, { user, at: Date.now() });
+        if (isBlockedStatus(user)) {
+          revokeAuthUser(key);
+          userCache.delete(key);
+        } else if (!isAuthUserRevoked(key)) {
+          userCache.set(key, { user, at: Date.now() });
+        }
       }
       return user;
     })
@@ -61,6 +70,15 @@ export const isAuthenticated = async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    if (isAuthUserRevoked(decoded.id)) {
+      userCache.delete(String(decoded.id));
+      return res.status(403).json({
+        success: false,
+        message: "Your account is banned. Contact support.",
+        status: "banned",
+      });
+    }
 
     const user = await loadUser(decoded.id);
 
@@ -98,6 +116,7 @@ export const optionalAuthenticate = async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (isAuthUserRevoked(decoded.id)) return next();
     attachUser(req, await loadUser(decoded.id));
   } catch {
     // Ignore invalid tokens for optional auth.
@@ -118,6 +137,7 @@ export const optionalAuthenticateFast = (req, res, next) => {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const key = String(decoded.id || "");
+    if (isAuthUserRevoked(key)) return next();
     const hit = userCache.get(key);
     if (hit && Date.now() - hit.at < USER_CACHE_MS) {
       attachUser(req, hit.user);

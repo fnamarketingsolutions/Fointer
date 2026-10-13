@@ -17,6 +17,7 @@ import {
   publishSavedMessage,
   watchRoomName,
 } from "../utils/realtimeDelivery.js";
+import { allowChatMessage, chatRateLimited } from "../utils/socketRateLimit.js";
 
 const roomName = (groupId) => `watch:${groupId}`;
 
@@ -144,6 +145,10 @@ export const initWatchGroupSocket = (io) => {
     });
 
     socket.on("send_watch_message", async (payload = {}, ack) => {
+      if (!allowChatMessage(`${socket.id}:watch`)) {
+        chatRateLimited(ack);
+        return;
+      }
       try {
         const groupIdParam = payload.groupId || membership.roomId();
         const text = String(payload.text || "").trim();

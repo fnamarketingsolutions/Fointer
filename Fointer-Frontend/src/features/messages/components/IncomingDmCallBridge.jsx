@@ -1,8 +1,10 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { getLiveSocket } from "../../../shared/services/liveSocket";
 import { useToast } from "../../../shared/components/feedback/ToastContext";
 import { useAuth } from "../../../context/AuthContext";
+import { isDmCallBusy, isRetiredDmCall, retireDmCall } from "../utils/dmCallActivity";
+import { closeCallPushNotification } from "../utils/callRing";
 
 /**
  * Routes incoming 1:1 DM calls to the conversation thread so DirectCall can
@@ -13,6 +15,12 @@ export default function IncomingDmCallBridge() {
   const navigate = useNavigate();
   const location = useLocation();
   const { showToast } = useToast();
+  const pathRef = useRef(location.pathname);
+  const navigateRef = useRef(navigate);
+  const toastRef = useRef(showToast);
+  pathRef.current = location.pathname;
+  navigateRef.current = navigate;
+  toastRef.current = showToast;
 
   useEffect(() => {
     if (!user) return undefined;
@@ -20,21 +28,30 @@ export default function IncomingDmCallBridge() {
     const socket = getLiveSocket();
     const onIncoming = (payload) => {
       const id = payload?.conversationId;
-      if (!id) return;
+      if (!id || isRetiredDmCall(payload.callId)) return;
 
       const target = `/messages/${id}`;
-      if (location.pathname === target) return;
+      if (pathRef.current === target) return;
 
-      const from =
-        payload.from?.name || payload.from?.username || "Someone";
+      const from = payload.from?.name || payload.from?.username || "Someone";
       const kind = payload.mode === "video" ? "video" : "audio";
-      showToast(`${from} is calling (${kind})`);
-      navigate(target);
+      toastRef.current(`${from} is calling (${kind})`);
+      if (isDmCallBusy()) return;
+      navigateRef.current(target);
+    };
+
+    const onEnded = (payload) => {
+      if (payload?.callId) retireDmCall(payload.callId);
+      closeCallPushNotification(payload?.conversationId);
     };
 
     socket.on("dm_call_incoming", onIncoming);
-    return () => socket.off("dm_call_incoming", onIncoming);
-  }, [user, location.pathname, navigate, showToast]);
+    socket.on("dm_call_ended", onEnded);
+    return () => {
+      socket.off("dm_call_incoming", onIncoming);
+      socket.off("dm_call_ended", onEnded);
+    };
+  }, [user]);
 
   return null;
 }

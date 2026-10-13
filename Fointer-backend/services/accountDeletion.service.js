@@ -27,6 +27,7 @@ import SupportTicket from "../models/supportTicket.js";
 import UserSupportRequest from "../models/userSupportRequest.js";
 import Referral from "../models/referral.js";
 import { destroyManyFromS3 } from "../utils/s3.js";
+import { revokeAuthUser } from "../utils/authRevocation.js";
 
 const mediaUrlsFromDocs = (docs = []) =>
   docs.flatMap((doc) =>
@@ -329,6 +330,7 @@ export const purgeUserAccount = async (userId) => {
     console.error("[accountDeletion] S3 cleanup failed:", err?.message || err);
   }
 
+  revokeAuthUser(uid);
   await User.deleteOne({ _id: uid });
 
   return { deletedUserId: String(uid) };

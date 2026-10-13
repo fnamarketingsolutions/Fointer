@@ -16,6 +16,15 @@ export const invalidateEditWindowCache = () => {
   cacheAt = 0;
 };
 
+/** Cached window, or the default, without waiting on a database read. */
+export const peekEditWindowMinutes = () => {
+  if (cachedMinutes != null) return cachedMinutes;
+  getEditWindowMinutes().catch(() => {});
+  return (
+    Number(process.env.POST_EDIT_WINDOW_MINUTES) || DEFAULT_EDIT_WINDOW_MINUTES
+  );
+};
+
 export const getEditWindowMinutes = async () => {
   if (cachedMinutes != null && Date.now() - cacheAt < CACHE_MS) {
     return cachedMinutes;

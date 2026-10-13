@@ -82,15 +82,42 @@ export default function MessagesInbox() {
         fetchConversations()
           .then((res) => setConversations(res?.conversations || []))
           .catch(() => {});
-      }, 250);
+      }, 1200);
     };
-    socket.on("dm_new", refreshSoon);
+    const applyIncoming = (payload) => {
+      const id = String(payload?.conversationId || "");
+      const message = payload?.message;
+      if (!id || !message) {
+        refreshSoon();
+        return;
+      }
+      const mine = String(message.author?.id || "") === String(user?._id || user?.id || "");
+      const preview =
+        String(message.text || "").trim() ||
+        (Array.isArray(message.media) && message.media.length ? "Sent media" : "");
+      setConversations((prev) => {
+        const index = prev.findIndex((row) => String(row.id) === id);
+        if (index < 0) return prev;
+        const current = prev[index];
+        const next = {
+          ...current,
+          lastMessageText: preview || current.lastMessageText,
+          lastMessageAt: message.createdAt || new Date().toISOString(),
+          unreadCount: mine
+            ? current.unreadCount
+            : (Number(current.unreadCount) || 0) + 1,
+        };
+        return [next, ...prev.filter((_, item) => item !== index)];
+      });
+      refreshSoon();
+    };
+    socket.on("dm_new", applyIncoming);
     socket.on("dm_updated", refreshSoon);
     socket.on("dm_deleted", refreshSoon);
     socket.on("dm_unread_changed", refreshSoon);
     return () => {
       if (refreshTimer.current) clearTimeout(refreshTimer.current);
-      socket.off("dm_new", refreshSoon);
+      socket.off("dm_new", applyIncoming);
       socket.off("dm_updated", refreshSoon);
       socket.off("dm_deleted", refreshSoon);
       socket.off("dm_unread_changed", refreshSoon);

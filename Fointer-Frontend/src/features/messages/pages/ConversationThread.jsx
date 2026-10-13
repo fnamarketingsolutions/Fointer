@@ -298,7 +298,18 @@ export default function ConversationThread() {
       };
       let delivered = null;
       if (socket.connected) {
+        const startedAt = performance.now();
         const ack = await emitAck("send_dm", outbound);
+        if (import.meta.env.DEV) {
+          console.info(
+            JSON.stringify({
+              scope: "dm-client",
+              event: "submit_to_ack",
+              ms: Math.round(performance.now() - startedAt),
+              messageId: ack?.message?.id ? String(ack.message.id) : "",
+            })
+          );
+        }
         if (!ack?.success) {
           showToast(ack?.message || "Failed to send message.");
           return;

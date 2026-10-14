@@ -26,6 +26,7 @@ import {
   LuImage as ImageIcon,
   LuSparkles as Sparkles,
   LuUserPlus as UserPlus,
+  LuCreditCard as CreditCard,
 } from 'react-icons/lu';
 
 import PanelShell from '../../../shared/layouts/PanelShell';
@@ -48,6 +49,7 @@ const SystemSettings = lazy(() => import('./menus/SystemSettings'));
 const BannerManagement = lazy(() => import('./menus/BannerManagement'));
 const MarketplaceManagement = lazy(() => import('./menus/MarketplaceManagement'));
 const SponsorshipManagement = lazy(() => import('./menus/SponsorshipManagement'));
+const SubscriptionManagement = lazy(() => import('./menus/SubscriptionManagement'));
 const ReferralManagement = lazy(() => import('./menus/ReferralManagement'));
 const AdminListingDetail = lazy(() => import('./menus/AdminListingDetail'));
 const AdminManagement = lazy(() => import('./menus/AdminManagement'));
@@ -69,6 +71,7 @@ const NAV_ITEMS = [
   { id: 'moderation', label: 'Content Moderation', icon: Shield },
   { id: 'marketplace', label: 'Marketplace', icon: ShoppingBag },
   { id: 'sponsorships', label: 'Sponsorships Management', icon: Sparkles },
+  { id: 'subscriptions', label: 'Subscriptions & Ads', icon: CreditCard },
   { id: 'referrals', label: 'Referrals', icon: UserPlus },
   { id: 'analytics', label: 'Reporting & Analytics', icon: BarChart3 },
   { id: 'warnings', label: 'Warnings', icon: AlertTriangle },
@@ -275,6 +278,14 @@ const AdminDashboard = () => {
             element={
               <TabRoute tab="sponsorships" fallbackTo={defaultTab}>
                 <SponsorshipManagement />
+              </TabRoute>
+            }
+          />
+          <Route
+            path="subscriptions"
+            element={
+              <TabRoute tab="subscriptions" fallbackTo={defaultTab}>
+                <SubscriptionManagement />
               </TabRoute>
             }
           />

@@ -16,6 +16,8 @@ import MarketplaceRail from "../components/MarketplaceRail";
 import { LISTING_CATEGORIES } from "../constants";
 import { listingSegment } from "../../../shared/services/entityLinks";
 import { PageLoader } from "../../../shared/components/ThemeSpinner";
+import ThirdPartyAdSlot from "../../subscription/components/ThirdPartyAdSlot";
+import SplitScrollLayout from "../../../shared/layouts/SplitScrollLayout";
 
 const SORT_OPTIONS = [
   { id: "newest", label: "Newest first" },
@@ -164,8 +166,16 @@ export default function MarketplaceBrowse() {
 
   return (
     <div className="text-fo-text w-full max-w-[1180px] mx-auto pb-6">
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px] gap-4 items-start">
-        <div className="min-w-0 space-y-3">
+      <SplitScrollLayout
+        sidebar={
+          <MarketplaceRail
+            selectedCategory={category}
+            onSelectCategory={setCategory}
+            isGuest={!isAuthenticated}
+          />
+        }
+      >
+        <div className="space-y-3">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="text-xs font-medium text-fo-accent inline-flex items-center gap-1.5">
@@ -303,6 +313,7 @@ export default function MarketplaceBrowse() {
                   </div>
                 </section>
               ) : null}
+              <ThirdPartyAdSlot placement="marketplace_browse" />
               {organicListings.length ? (
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                   {organicListings.map((listing) => (
@@ -313,15 +324,7 @@ export default function MarketplaceBrowse() {
             </div>
           )}
         </div>
-
-        <div className="hidden lg:block lg:sticky lg:top-5">
-          <MarketplaceRail
-            selectedCategory={category}
-            onSelectCategory={setCategory}
-            isGuest={!isAuthenticated}
-          />
-        </div>
-      </div>
+      </SplitScrollLayout>
 
       <div className="lg:hidden mt-4">
         <MarketplaceRail

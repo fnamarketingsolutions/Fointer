@@ -8,6 +8,7 @@ const ADMIN_TAB_IDS = [
   "moderation",
   "marketplace",
   "sponsorships",
+  "subscriptions",
   "referrals",
   "analytics",
   "warnings",

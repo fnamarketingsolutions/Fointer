@@ -30,7 +30,9 @@ import userSupportRoute from "./routes/userSupportRoute.js";
 import locationRoute from "./routes/locationRoute.js";
 import referralRoute from "./routes/referralRoute.js";
 import sponsorshipRoute from "./routes/sponsorshipRoute.js";
+import subscriptionRoute from "./routes/subscriptionRoute.js";
 import { handleFlutterwaveWebhook } from "./controllers/sponsorship.controller.js";
+import { handleFlutterwaveSubscriptionWebhook } from "./controllers/subscription.controller.js";
 import { initLiveSocket } from "./sockets/liveSocket.js";
 import { initWatchGroupSocket } from "./sockets/watchGroupSocket.js";
 import { initNotificationSocket } from "./sockets/notificationSocket.js";
@@ -73,6 +75,11 @@ app.post(
   "/api/marketplace/sponsorships/webhook",
   express.raw({ type: "application/json", limit: "1mb" }),
   handleFlutterwaveWebhook
+);
+app.post(
+  "/api/subscriptions/webhook/flutterwave",
+  express.raw({ type: "application/json", limit: "1mb" }),
+  handleFlutterwaveSubscriptionWebhook
 );
 
 app.use(express.json({ limit: "1mb" }));
@@ -128,6 +135,7 @@ app.use("/api/search", searchRoute);
 app.use("/api/users", userRoute);
 app.use("/api/marketplace", sponsorshipRoute);
 app.use("/api/marketplace", marketplaceRoute);
+app.use("/api", subscriptionRoute);
 app.use("/api/bookmarks", bookmarkRoute);
 app.use("/api/conversations", conversationRoute);
 app.use("/api/blocks", blockRoute);

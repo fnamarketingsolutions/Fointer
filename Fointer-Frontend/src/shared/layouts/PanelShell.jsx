@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LuBell as Bell,
@@ -11,6 +11,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { APP_SCROLL_ID } from '../utils/scroll';
+import { guardAdsenseLayout } from '../utils/guardAdsenseLayout';
 import BrandLogo from '../components/BrandLogo';
 import GuestAuthButtons from '../components/GuestAuthButtons';
 import HeaderSearch from '../components/HeaderSearch';
@@ -121,6 +122,9 @@ export default function PanelShell({
   const navigate = useNavigate();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const shellRef = useRef(null);
+  const bodyRowRef = useRef(null);
+  const mainRef = useRef(null);
   const isGuest = allowGuest && !loading && !user;
   const showGuestPromo = isGuest && !navItems?.length;
 
@@ -132,6 +136,15 @@ export default function PanelShell({
       document.body.style.overflow = previousOverflow;
     };
   }, [isMobileMenuOpen]);
+
+  // AdSense mutates height on scroll/flex ancestors when display ads load.
+  useLayoutEffect(() => {
+    return guardAdsenseLayout([
+      shellRef.current,
+      bodyRowRef.current,
+      mainRef.current,
+    ]);
+  }, []);
 
   const closeMobileMenu = () => setIsMobileMenuOpen(false);
 
@@ -178,7 +191,11 @@ export default function PanelShell({
       location.pathname.startsWith(`${notificationsTo}/`));
 
   return (
-    <div className="h-dvh overflow-hidden bg-fo-bg text-fo-text font-sans flex flex-col antialiased selection:bg-fo-accent selection:text-black">
+    <div
+      ref={shellRef}
+      data-fointer-app-shell
+      className="h-dvh overflow-hidden bg-fo-bg text-fo-text font-sans flex flex-col antialiased selection:bg-fo-accent selection:text-black"
+    >
       <header className="h-16 shrink-0 border-b border-fo-border/80 bg-fo-surface/90 backdrop-blur-md z-40 px-4 sm:px-6 flex items-center gap-3 sm:gap-5">
         <BrandLogo to={homeTo} />
 
@@ -256,7 +273,11 @@ export default function PanelShell({
         <HeaderSearch />
       </div>
 
-      <div className="flex-1 min-h-0 flex max-w-[1600px] w-full mx-auto relative">
+      <div
+        ref={bodyRowRef}
+        data-fointer-app-body
+        className="flex-1 min-h-0 flex max-w-[1600px] w-full mx-auto relative min-w-0"
+      >
         <aside className={`w-[236px] border-r border-fo-border/80 bg-fo-surface/70 flex-col justify-between shrink-0 hidden md:flex h-full overflow-y-auto ${showGuestPromo ? 'p-0' : 'px-3 py-4'}`}>
           <div className={showGuestPromo ? '' : 'space-y-4'}>
             {navItems?.length ? (
@@ -341,8 +362,9 @@ export default function PanelShell({
         ) : null}
 
         <main
+          ref={mainRef}
           id={APP_SCROLL_ID}
-          className="flex-1 min-h-0 px-3 py-3 sm:px-6 sm:py-5 overflow-y-auto w-full"
+          className="flex-1 min-h-0 min-w-0 px-3 py-3 sm:px-6 sm:py-5 overflow-y-auto overflow-x-clip w-full"
         >
           {children}
         </main>

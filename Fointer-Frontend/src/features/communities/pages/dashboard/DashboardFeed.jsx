@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Link,
   useLocation,
@@ -11,11 +11,13 @@ import {
   LuArrowRight as ArrowRight,
   LuCompass as Compass,
   LuHash as Hash,
-  LuLoaderCircle as Loader2,
   LuPlus as Plus,
   LuSparkles as Sparkles,
 } from "react-icons/lu";
-import { PageLoader } from "../../../../shared/components/ThemeSpinner";
+import ThemeSpinner, {
+  PageLoader,
+} from "../../../../shared/components/ThemeSpinner";
+import { APP_SCROLL_ID } from "../../../../shared/utils/scroll";
 import {
   createPost,
   fetchPost,
@@ -50,6 +52,8 @@ import {
   FeedMobileFilters,
 } from "./FeedRail";
 import FeedHeroBanner from "./FeedHeroBanner";
+import ThirdPartyAdSlot from "../../../subscription/components/ThirdPartyAdSlot";
+import SplitScrollLayout from "../../../../shared/layouts/SplitScrollLayout";
 import { useComposerDraft } from "../../../../shared/utils/composerDraft";
 
 const FEED_POST_PATH = "/post";
@@ -453,7 +457,7 @@ export default function DashboardFeed() {
     }
   };
 
-  const handleLoadMore = () => {
+  const handleLoadMore = useCallback(() => {
     if (loadingMore || !hasMore) return;
     load({
       pageNum: page + 1,
@@ -462,7 +466,39 @@ export default function DashboardFeed() {
       feedMode: mode,
       channel: selectedChannel,
     });
-  };
+  }, [
+    loadingMore,
+    hasMore,
+    load,
+    page,
+    sortBy,
+    mode,
+    selectedChannel,
+  ]);
+
+  const loadMoreSentinelRef = useRef(null);
+
+  useEffect(() => {
+    const node = loadMoreSentinelRef.current;
+    if (!node || !hasMore || loading || viewingPost || composing) return undefined;
+
+    const root = document.getElementById(APP_SCROLL_ID) || null;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) handleLoadMore();
+      },
+      { root, rootMargin: "240px 0px", threshold: 0 }
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [
+    hasMore,
+    handleLoadMore,
+    loading,
+    viewingPost,
+    composing,
+    posts.length,
+  ]);
 
   const locationPath = () =>
     `${window.location.pathname}${window.location.search}`;
@@ -656,9 +692,14 @@ export default function DashboardFeed() {
           <ArrowLeft size={16} /> Back to feed
         </button>
       ) : null}
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px] gap-4 items-start">
-        <div className="min-w-0 space-y-3">
+      <SplitScrollLayout
+        sidebar={
+          <FeedDesktopRail {...categoryProps} isGuest={isGuest} />
+        }
+      >
+        <div className="space-y-3">
           <FeedHeroBanner banners={banners} loading={bannersLoading} />
+          <ThirdPartyAdSlot placement="feed_banner" format="horizontal" />
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
@@ -843,49 +884,44 @@ export default function DashboardFeed() {
           ) : (
             <>
               <div className="space-y-3">
-                {posts.map((post) => (
-                  <FeedPostRow
-                    key={post.id}
-                    post={post}
-                    variant="card"
-                    onOpen={() => openPost(post)}
-                    showCommunity
-                    onLike={() => handleLikePost(post)}
-                    onReshare={() => handleResharePost(post)}
-                    onSave={() => handleSavePost(post)}
-                    onCommentPosted={(item, { commentCount }) => {
-                      patchFeedPost(item.id, { commentCount });
-                    }}
-                  />
+                {posts.map((post, index) => (
+                  <div key={post.id} className="space-y-3">
+                    <FeedPostRow
+                      post={post}
+                      variant="card"
+                      onOpen={() => openPost(post)}
+                      showCommunity
+                      onLike={() => handleLikePost(post)}
+                      onReshare={() => handleResharePost(post)}
+                      onSave={() => handleSavePost(post)}
+                      onCommentPosted={(item, { commentCount }) => {
+                        patchFeedPost(item.id, { commentCount });
+                      }}
+                    />
+                    {index === 2 ? (
+                      <ThirdPartyAdSlot placement="home_feed" />
+                    ) : null}
+                  </div>
                 ))}
               </div>
 
               {hasMore ? (
-                <div className="flex justify-center pt-2">
-                  <button
-                    type="button"
-                    onClick={handleLoadMore}
-                    disabled={loadingMore}
-                    className="inline-flex items-center justify-center gap-2 min-h-10 px-5 py-2.5 rounded-lg border border-fo-border text-sm text-fo-text hover:border-fo-accent/50 hover:text-fo-accent disabled:opacity-60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40"
-                  >
-                    {loadingMore ? (
-                      <Loader2
-                        size={16}
-                        className="animate-spin text-fo-accent"
-                      />
-                    ) : null}
-                    Load more
-                  </button>
+                <div
+                  ref={loadMoreSentinelRef}
+                  className="flex justify-center py-4"
+                  aria-hidden={!loadingMore}
+                >
+                  {loadingMore ? (
+                    <ThemeSpinner size="sm" label="Loading more posts" />
+                  ) : (
+                    <span className="h-5 w-5" />
+                  )}
                 </div>
               ) : null}
             </>
           )}
         </div>
-
-        <div className="hidden lg:block lg:sticky lg:top-5">
-          <FeedDesktopRail {...categoryProps} isGuest={isGuest} />
-        </div>
-      </div>
+      </SplitScrollLayout>
 
       <div className="lg:hidden mt-4">
         <FeedFooterRail isGuest={isGuest} />

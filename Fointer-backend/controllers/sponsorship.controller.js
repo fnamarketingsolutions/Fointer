@@ -777,6 +777,13 @@ export const handleFlutterwaveWebhook = async (req, res) => {
     if (!reference) return res.status(400).json({ success: false, message: "Missing transaction reference." });
 
     if (eventType.includes("refund") || String(event?.data?.status || "").toLowerCase() === "refunded") {
+      if (reference.startsWith("FO-SUB-")) {
+        const { processFlutterwaveSubscriptionEvent } = await import(
+          "./subscription.controller.js"
+        );
+        await processFlutterwaveSubscriptionEvent(event);
+        return res.status(200).json({ success: true, subscription: true });
+      }
       await reverseRefundedPurchase(reference);
       return res.status(200).json({ success: true });
     }
@@ -785,7 +792,23 @@ export const handleFlutterwaveWebhook = async (req, res) => {
     }
 
     const purchase = await SponsoredPurchase.findOne({ providerReference: reference });
-    if (!purchase) return res.status(404).json({ success: false, message: "Sponsorship purchase not found." });
+    if (!purchase) {
+      // Shared Flutterwave webhook URL: subscription checkouts use FO-SUB-* refs.
+      if (reference.startsWith("FO-SUB-")) {
+        const { processFlutterwaveSubscriptionEvent } = await import(
+          "./subscription.controller.js"
+        );
+        const result = await processFlutterwaveSubscriptionEvent(event);
+        if (!result.ok && result.status) {
+          return res.status(result.status).json({
+            success: false,
+            message: result.message || "Subscription webhook failed.",
+          });
+        }
+        return res.status(200).json({ success: true, subscription: true });
+      }
+      return res.status(404).json({ success: false, message: "Sponsorship purchase not found." });
+    }
     if (purchase.paymentStatus === "refunded") return res.status(200).json({ success: true });
 
     const transactionId = String(event?.data?.id || "");

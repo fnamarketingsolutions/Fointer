@@ -43,6 +43,8 @@ import {
   postSegment,
 } from "../../../../shared/services/entityLinks";
 import { useAuth } from "../../../../context/AuthContext";
+import ThirdPartyAdSlot from "../../../subscription/components/ThirdPartyAdSlot";
+import SplitScrollLayout from "../../../../shared/layouts/SplitScrollLayout";
 import { formatCount } from "../../../../shared/utils/format";
 import { parseCommunityRules } from "../../../../shared/utils/community";
 import FeedPostRow from "../../../../shared/components/FeedPostRow";
@@ -818,115 +820,116 @@ export default function CommunityFeed() {
 
   return (
     <div className="text-fo-text w-full max-w-6xl mx-auto px-2 sm:px-4 lg:px-6 pb-10">
-      <div className="mb-5 sm:mb-6 space-y-4">
-        <Link
-          to="/communities"
-          className="inline-flex items-center gap-1.5 text-xs text-fo-muted hover:text-fo-accent"
-        >
-          <ArrowLeft size={14} /> Communities
-        </Link>
-
-        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-          <div className="min-w-0 space-y-1">
-            <h1 className="text-2xl sm:text-3xl font-semibold text-fo-text leading-tight truncate">
-              {community.name}
-            </h1>
-            <p className="text-sm text-fo-subtle max-w-xl line-clamp-2">
-              {community.description ||
-                "Posts and discussion from this community."}
-            </p>
-          </div>
-
-          {community.isMember ? (
-            <button
-              type="button"
-              onClick={() => setShowCreatePost(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-fo-accent text-black text-xs font-semibold hover:bg-fo-accent-hover shrink-0"
+      <div className="xl:hidden mb-5">{sidebar}</div>
+      <SplitScrollLayout bp="xl" sidebar={sidebar} className="gap-5">
+        <div className="space-y-4">
+          <div className="space-y-4">
+            <Link
+              to="/communities"
+              className="inline-flex items-center gap-1.5 text-xs text-fo-muted hover:text-fo-accent"
             >
-              <Plus size={14} /> Create post
-            </button>
-          ) : null}
-        </div>
+              <ArrowLeft size={14} /> Communities
+            </Link>
 
-        {inviteId ? (
-          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-fo-accent/35 bg-fo-accent/10 px-4 py-3">
-            <p className="text-xs text-fo-text flex-1 min-w-0">
-              You have a pending invite to this community.
-            </p>
-            <button
-              type="button"
-              disabled={inviteBusy}
-              onClick={handleDeclineInvite}
-              className="px-3 py-1.5 rounded-lg text-xs border border-fo-border text-fo-muted hover:text-fo-text disabled:opacity-50"
-            >
-              Decline
-            </button>
-            <button
-              type="button"
-              disabled={inviteBusy}
-              onClick={handleAcceptInvite}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-fo-accent text-black font-semibold disabled:opacity-50"
-            >
-              {inviteBusy ? (
-                <Loader2 size={12} className="animate-spin" />
-              ) : null}
-              Accept
-            </button>
-          </div>
-        ) : null}
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+              <div className="min-w-0 space-y-1">
+                <h1 className="text-2xl sm:text-3xl font-semibold text-fo-text leading-tight truncate">
+                  {community.name}
+                </h1>
+                <p className="text-sm text-fo-subtle max-w-xl line-clamp-2">
+                  {community.description ||
+                    "Posts and discussion from this community."}
+                </p>
+              </div>
 
-        {!community.isMember && !inviteId ? (
-          <div className="rounded-xl border border-fo-border bg-fo-surface px-4 py-3 space-y-2">
-            {community.joinRequestPending ? (
-              <p className="text-xs text-fo-accent">
-                Your join request is pending.
-              </p>
-            ) : canJoinPublic ? (
-              <button
-                type="button"
-                disabled={joining}
-                onClick={handleJoin}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-fo-accent text-black text-xs font-semibold disabled:opacity-50"
-              >
-                {joining ? (
-                  <Loader2 size={12} className="animate-spin" />
-                ) : (
-                  <Users size={12} />
-                )}
-                Join community
-              </button>
-            ) : canRequestJoin ? (
-              <div className="space-y-2">
-                <textarea
-                  value={joinMessage}
-                  onChange={(e) => setJoinMessage(e.target.value)}
-                  rows={2}
-                  placeholder="Optional message to the moderators…"
-                  className="w-full bg-fo-bg border border-fo-border rounded-lg px-3 py-2 text-xs text-fo-text focus:outline-none focus:border-fo-accent/50 placeholder:text-fo-subtle"
-                />
+              {community.isMember ? (
                 <button
                   type="button"
-                  disabled={joining}
-                  onClick={handleJoin}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-fo-accent text-black text-xs font-semibold disabled:opacity-50"
+                  onClick={() => setShowCreatePost(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-fo-accent text-black text-xs font-semibold hover:bg-fo-accent-hover shrink-0"
                 >
-                  {joining ? (
+                  <Plus size={14} /> Create post
+                </button>
+              ) : null}
+            </div>
+
+            {inviteId ? (
+              <div className="flex flex-wrap items-center gap-2 rounded-xl border border-fo-accent/35 bg-fo-accent/10 px-4 py-3">
+                <p className="text-xs text-fo-text flex-1 min-w-0">
+                  You have a pending invite to this community.
+                </p>
+                <button
+                  type="button"
+                  disabled={inviteBusy}
+                  onClick={handleDeclineInvite}
+                  className="px-3 py-1.5 rounded-lg text-xs border border-fo-border text-fo-muted hover:text-fo-text disabled:opacity-50"
+                >
+                  Decline
+                </button>
+                <button
+                  type="button"
+                  disabled={inviteBusy}
+                  onClick={handleAcceptInvite}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-fo-accent text-black font-semibold disabled:opacity-50"
+                >
+                  {inviteBusy ? (
                     <Loader2 size={12} className="animate-spin" />
                   ) : null}
-                  Request to join
+                  Accept
                 </button>
               </div>
-            ) : (
-              <p className="text-xs text-fo-subtle">
-                This community is invite-only.
-              </p>
-            )}
-          </div>
-        ) : null}
-      </div>
+            ) : null}
 
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_300px] gap-5 items-start">
-        <div className="min-w-0 space-y-4 order-2 xl:order-1">
+            {!community.isMember && !inviteId ? (
+              <div className="rounded-xl border border-fo-border bg-fo-surface px-4 py-3 space-y-2">
+                {community.joinRequestPending ? (
+                  <p className="text-xs text-fo-accent">
+                    Your join request is pending.
+                  </p>
+                ) : canJoinPublic ? (
+                  <button
+                    type="button"
+                    disabled={joining}
+                    onClick={handleJoin}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-fo-accent text-black text-xs font-semibold disabled:opacity-50"
+                  >
+                    {joining ? (
+                      <Loader2 size={12} className="animate-spin" />
+                    ) : (
+                      <Users size={12} />
+                    )}
+                    Join community
+                  </button>
+                ) : canRequestJoin ? (
+                  <div className="space-y-2">
+                    <textarea
+                      value={joinMessage}
+                      onChange={(e) => setJoinMessage(e.target.value)}
+                      rows={2}
+                      placeholder="Optional message to the moderators…"
+                      className="w-full bg-fo-bg border border-fo-border rounded-lg px-3 py-2 text-xs text-fo-text focus:outline-none focus:border-fo-accent/50 placeholder:text-fo-subtle"
+                    />
+                    <button
+                      type="button"
+                      disabled={joining}
+                      onClick={handleJoin}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-fo-accent text-black text-xs font-semibold disabled:opacity-50"
+                    >
+                      {joining ? (
+                        <Loader2 size={12} className="animate-spin" />
+                      ) : null}
+                      Request to join
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-xs text-fo-subtle">
+                    This community is invite-only.
+                  </p>
+                )}
+              </div>
+            ) : null}
+          </div>
+
           {communitySponsoredListings.length > 0 ? (
             <section
               aria-label={`Sponsored listings in ${community.name}`}
@@ -1026,20 +1029,24 @@ export default function CommunityFeed() {
               ) : (
                 <>
                   <div className="space-y-3">
-                    {posts.map((post) => (
-                      <FeedPostRow
-                        key={post.id}
-                        post={post}
-                        variant="row"
-                        onOpen={() => openPost(post)}
-                        active={String(post.id) === String(openPostId)}
-                        onLike={() => handleLikePost(post)}
-                        onReshare={() => handleResharePost(post)}
-                        onSave={() => handleSavePost(post)}
-                        onCommentPosted={(item, { commentCount }) => {
-                          patchFeedPost(item.id, { commentCount });
-                        }}
-                      />
+                    {posts.map((post, index) => (
+                      <div key={post.id} className="space-y-3">
+                        <FeedPostRow
+                          post={post}
+                          variant="row"
+                          onOpen={() => openPost(post)}
+                          active={String(post.id) === String(openPostId)}
+                          onLike={() => handleLikePost(post)}
+                          onReshare={() => handleResharePost(post)}
+                          onSave={() => handleSavePost(post)}
+                          onCommentPosted={(item, { commentCount }) => {
+                            patchFeedPost(item.id, { commentCount });
+                          }}
+                        />
+                        {index === 2 ? (
+                          <ThirdPartyAdSlot placement="community_feed" />
+                        ) : null}
+                      </div>
                     ))}
                   </div>
 
@@ -1070,9 +1077,7 @@ export default function CommunityFeed() {
             </div>
           )}
         </div>
-
-        <div className="order-1 xl:order-2 xl:sticky xl:top-4">{sidebar}</div>
-      </div>
+      </SplitScrollLayout>
     </div>
   );
 }

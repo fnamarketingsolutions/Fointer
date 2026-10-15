@@ -60,6 +60,12 @@ const ListingDetail = lazy(
 const MyListings = lazy(() => import("../../../marketplace/pages/MyListings"));
 const SponsorListing = lazy(() => import("../../../marketplace/pages/SponsorListing"));
 const PromoteSuccess = lazy(() => import("../../../marketplace/pages/PromoteSuccess"));
+const SubscriptionPage = lazy(() =>
+  import("../../../subscription/pages/SubscriptionPage")
+);
+const SubscriptionSuccess = lazy(() =>
+  import("../../../subscription/pages/SubscriptionSuccess")
+);
 const ConversationThread = lazy(
   () => import("../../../messages/pages/ConversationThread")
 );
@@ -387,6 +393,22 @@ const Dashboard = () => {
             element={
               <AuthOnly>
                 <Profile />
+              </AuthOnly>
+            }
+          />
+          <Route
+            path="/subscription"
+            element={
+              <AuthOnly>
+                {lazyPage(<SubscriptionPage />)}
+              </AuthOnly>
+            }
+          />
+          <Route
+            path="/subscription/success"
+            element={
+              <AuthOnly>
+                {lazyPage(<SubscriptionSuccess />)}
               </AuthOnly>
             }
           />

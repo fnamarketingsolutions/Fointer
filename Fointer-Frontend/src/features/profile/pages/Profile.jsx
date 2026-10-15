@@ -46,6 +46,7 @@ const TABS = [
   { id: "following", label: "Following" },
   { id: "communities", label: "Communities" },
   { id: "security", label: "Security" },
+  { id: "subscription", label: "Ad-Free" },
   { id: "referral", label: "Referral Link" },
 ];
 
@@ -800,6 +801,28 @@ export default function Profile() {
             )}
           </section>
         </div>
+      )}
+
+      {tab === "subscription" && (
+        <section className={`${cardClass} space-y-3`}>
+          <div className="flex items-center gap-2">
+            <Shield size={15} className="text-fo-accent" aria-hidden />
+            <h3 className="text-sm font-semibold text-fo-text">
+              Ad-Free Subscription
+            </h3>
+          </div>
+          <p className="text-xs text-fo-subtle leading-relaxed">
+            Remove designated third-party display ads. Sponsored Marketplace
+            Listings and organic content stay visible.
+          </p>
+          <Link
+            to="/subscription"
+            className="inline-flex items-center gap-2 min-h-10 px-4 rounded-lg bg-fo-accent text-black text-sm font-semibold hover:bg-fo-accent-hover"
+          >
+            Manage subscription
+            <ChevronRight size={14} aria-hidden />
+          </Link>
+        </section>
       )}
 
       {tab === "security" && (

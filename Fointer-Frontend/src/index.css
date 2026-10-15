@@ -144,3 +144,38 @@ body,
 .fointer-scrollbar::-webkit-scrollbar-thumb:hover {
   background: var(--theme-scrollbar-thumb-hover);
 }
+
+/*
+ * Keep ad creatives inside the feed column.
+ * Use overflow: clip (not hidden/auto) so the slot is not a scroll container —
+ * AdSense otherwise injects height:auto !important on PanelShell ancestors.
+ */
+.fointer-third-party-ad {
+  max-width: 100%;
+  min-width: 0;
+  overflow: clip;
+  contain: inline-size layout;
+}
+
+.fointer-third-party-ad__frame {
+  max-width: 100%;
+  overflow: clip;
+}
+
+.fointer-third-party-ad .adsbygoogle,
+.fointer-third-party-ad iframe {
+  max-width: 100% !important;
+}
+
+/* Defend h-dvh chrome if AdSense rewrites inline height (JS also strips it). */
+[data-fointer-app-shell] {
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+}
+
+[data-fointer-app-body] {
+  min-height: 0;
+  flex: 1 1 0%;
+}
+

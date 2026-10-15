@@ -337,3 +337,40 @@ export const updateAdminUserSupportRequestStatus = async (id, status) => {
   });
   return response.data;
 };
+
+export const fetchAdminSubscriptionPlans = async () => {
+  const response = await api.get('/admin/subscriptions/plans');
+  return response.data;
+};
+
+export const upsertAdminSubscriptionPlan = async (payload) => {
+  const response = await api.put('/admin/subscriptions/plans', payload);
+  return response.data;
+};
+
+export const fetchAdminSubscribers = async (params = {}) => {
+  const response = await api.get('/admin/subscriptions/subscribers', { params });
+  return response.data;
+};
+
+export const fetchAdminSubscriptionTransactions = async (params = {}) => {
+  const response = await api.get('/admin/subscriptions/transactions', {
+    params,
+  });
+  return response.data;
+};
+
+export const fetchAdminAdsSettings = async () => {
+  const response = await api.get('/admin/subscriptions/ads');
+  return response.data;
+};
+
+export const updateAdminAdsSettings = async (payload) => {
+  const response = await api.put('/admin/subscriptions/ads', payload);
+  return response.data;
+};
+
+export const fetchAdminSubscriptionIntegration = async () => {
+  const response = await api.get('/admin/subscriptions/integration');
+  return response.data;
+};

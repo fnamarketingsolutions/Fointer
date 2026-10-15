@@ -8,7 +8,7 @@
     "dev": "nodemon server.js",
     "smoke:auth": "node scripts/smoke-auth-portals.js",
     "seed:super-admins": "node scripts/seed-super-admins.js",
-    "test": "node --test utils/dmCallLifecycle.test.js utils/callRelay.test.js utils/realtimeDelivery.test.js utils/authRevocation.test.js utils/socketRateLimit.test.js sockets/roomMembership.test.js"
+    "test": "node --test utils/dmCallLifecycle.test.js utils/callRelay.test.js utils/realtimeDelivery.test.js utils/authRevocation.test.js utils/socketRateLimit.test.js sockets/roomMembership.test.js utils/subscriptionEntitlement.test.js"
   },
   "keywords": [],
   "author": "",

@@ -3,9 +3,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   LuArrowLeft as ArrowLeft,
   LuAward as Award,
-  LuCalendar as Calendar,
   LuLoaderCircle as Loader2,
-  LuMapPin as MapPin,
   LuMessageCircle as MessageCircle,
   LuRepeat2 as Repeat2,
 } from "react-icons/lu";
@@ -23,7 +21,7 @@ import FollowUserList from "../components/FollowUserList";
 import CommunityCard from "../../communities/components/CommunityCard";
 import { createConversation } from "../../../api/messages";
 import { useToast } from "../../../shared/components/feedback/ToastContext";
-import { formatLongDate, timeAgo } from "../../../shared/utils/date";
+import { timeAgo } from "../../../shared/utils/date";
 
 const TABS = [
   { id: "about", label: "About" },
@@ -193,9 +191,6 @@ export default function PublicProfile() {
     );
   }
 
-  const locationParts = [profile.city, profile.state, profile.country].filter(
-    Boolean
-  );
   const postCount = profile.stats?.posts || profile.posts?.length || 0;
   const repostCount = profile.stats?.reposts || profile.reposts?.length || 0;
   const communityCount =
@@ -327,22 +322,6 @@ export default function PublicProfile() {
             {profile.bio}
           </p>
         ) : null}
-
-        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-fo-subtle">
-          {profile.ageRange ? <span>Age range: {profile.ageRange}</span> : null}
-          {locationParts.length ? (
-            <span className="inline-flex items-center gap-1">
-              <MapPin size={13} className="text-fo-accent shrink-0" />
-              {locationParts.join(", ")}
-            </span>
-          ) : null}
-          {profile.createdAt ? (
-            <span className="inline-flex items-center gap-1">
-              <Calendar size={13} className="text-fo-accent shrink-0" />
-              Joined {formatLongDate(profile.createdAt)}
-            </span>
-          ) : null}
-        </div>
 
         {profile.achievements?.length ? (
           <div className="mt-3 flex flex-wrap gap-1.5">

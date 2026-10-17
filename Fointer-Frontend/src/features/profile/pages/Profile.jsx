@@ -35,7 +35,7 @@ import { AGE_RANGES, ageRangeError } from "../../../shared/lib/ageRange";
 import { postalCodeError } from "../../../shared/lib/postalCode";
 import { normalizeUsername } from "../../../shared/services/profileLinks";
 import { formatCommunityType } from "../../../shared/utils/community";
-import { formatLongDate, timeAgo } from "../../../shared/utils/date";
+import { timeAgo } from "../../../shared/utils/date";
 import FollowUserList from "../components/FollowUserList";
 import InviteFriendsCard from "../components/InviteFriendsCard";
 
@@ -544,12 +544,6 @@ export default function Profile() {
                 {profile.bio}
               </p>
             ) : null}
-
-            {profile.createdAt ? (
-              <p className="text-xs text-fo-subtle">
-                Joined {formatLongDate(profile.createdAt)}
-              </p>
-            ) : null} 
           </div>
         </div>
       </div>

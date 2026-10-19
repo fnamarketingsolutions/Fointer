@@ -1,5 +1,6 @@
 import Community from "../models/community.js";
 import CommunityMember from "../models/communityMember.js";
+import Follow from "../models/follow.js";
 import Notification, {
   ADMIN_NOTIFICATION_TYPES,
 } from "../models/notification.js";
@@ -194,6 +195,20 @@ export const getAdminIdsForNotificationType = async (type) => {
 
 const isAdminNotificationType = (type) => ADMIN_TYPE_SET.has(type);
 
+const withFollowBackState = async (recipientId, formatted) => {
+  if (!formatted || formatted.type !== "follow" || !formatted.actor?.id) {
+    return formatted;
+  }
+  const already = await Follow.exists({
+    follower: recipientId,
+    following: formatted.actor.id,
+  });
+  return {
+    ...formatted,
+    actor: { ...formatted.actor, isFollowing: Boolean(already) },
+  };
+};
+
 const emitNotification = (io, recipientId, payload) => {
   if (!io || !recipientId || !payload) return;
   io.to(userNotificationRoom(recipientId)).emit("notification:new", payload);
@@ -257,7 +272,10 @@ const createOne = async ({
     );
 
     if (existing) {
-      const formatted = formatNotification(existing);
+      const formatted = await withFollowBackState(
+        recipient,
+        formatNotification(existing)
+      );
       deliverNotification(io, recipient, formatted);
       return formatted;
     }
@@ -274,7 +292,10 @@ const createOne = async ({
     readAt: null,
   });
 
-  const formatted = formatNotification(created);
+  const formatted = await withFollowBackState(
+    recipient,
+    formatNotification(created)
+  );
   deliverNotification(io, recipient, formatted);
   return formatted;
 };

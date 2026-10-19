@@ -24,6 +24,7 @@ import { useAuth } from "../../../context/AuthContext";
 import { MAX_FILE_SIZE } from "../../../shared/constants/uploads";
 import { useToast } from "../../../shared/components/feedback/ToastContext";
 import ProfileAvatar from "../../../shared/components/ProfileAvatar";
+import ProfilePhotoViewer from "../../../shared/components/ProfilePhotoViewer";
 import InterestSuggestions from "../../../shared/components/InterestSuggestions";
 import LocationFields from "../../../shared/components/LocationFields";
 import ThemeToggle from "../../../shared/components/ThemeToggle";
@@ -130,6 +131,7 @@ export default function Profile() {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [avatarSaving, setAvatarSaving] = useState(false);
+  const [photoOpen, setPhotoOpen] = useState(false);
   const [passwordSaving, setPasswordSaving] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [passwordForm, setPasswordForm] = useState(EMPTY_PASSWORD);
@@ -496,27 +498,37 @@ export default function Profile() {
       <div className={cardClass}>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
           <div className="relative shrink-0">
-              <button
-                type="button"
-                onClick={() => avatarInputRef.current?.click()}
-                disabled={avatarSaving}
-                title="Change photo"
-                aria-label="Change profile photo"
-                className="relative rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40 disabled:opacity-70 group"
-              >
+            <button
+              type="button"
+              onClick={() => {
+                if (profile.avatar) setPhotoOpen(true);
+                else avatarInputRef.current?.click();
+              }}
+              disabled={avatarSaving}
+              title={profile.avatar ? "View profile photo" : "Add profile photo"}
+              aria-label={profile.avatar ? "View profile photo" : "Add profile photo"}
+              className="relative rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40 disabled:opacity-70"
+            >
               <ProfileAvatar
                 src={profile.avatar}
                 alt={profile.name || "Profile"}
                 name={profile.name || profile.username}
                 className="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover border border-fo-border"
               />
-              <span className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                {avatarSaving ? (
-                  <Loader2 size={16} className="animate-spin text-fo-accent" />
-                ) : (
-                  <Camera size={16} className="text-fo-text" />
-                )}
-              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => avatarInputRef.current?.click()}
+              disabled={avatarSaving}
+              title="Change photo"
+              aria-label="Change profile photo"
+              className="absolute -bottom-1 -right-1 inline-flex h-8 w-8 items-center justify-center rounded-full border border-fo-border bg-fo-surface text-fo-text shadow-sm hover:text-fo-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40 disabled:opacity-70"
+            >
+              {avatarSaving ? (
+                <Loader2 size={14} className="animate-spin text-fo-accent" />
+              ) : (
+                <Camera size={14} />
+              )}
             </button>
             <input
               ref={avatarInputRef}
@@ -1125,6 +1137,11 @@ export default function Profile() {
           <InviteFriendsCard />
         </section>
       )}
+      <ProfilePhotoViewer
+        src={photoOpen ? profile?.avatar : ""}
+        alt={profile?.name || profile?.username || "Profile photo"}
+        onClose={() => setPhotoOpen(false)}
+      />
     </div>
   );
 }

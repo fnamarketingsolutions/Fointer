@@ -23,6 +23,8 @@ import {
   LuTriangleAlert as AlertTriangle,
 } from "react-icons/lu";
 import { PageLoader } from "../../../../shared/components/ThemeSpinner";
+import CsvExportButton from "../../../../shared/components/CsvExportButton";
+import { csvDate } from "../../../../shared/utils/csv";
 
 const FILTERS = [
   { id: "all", label: "All" },
@@ -235,15 +237,71 @@ const UserManagement = () => {
                 : `Showing ${rangeStart}–${rangeEnd} of ${matchedCount}`}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => loadUsers({ page })}
-          disabled={loading}
-          className="p-2 rounded-lg border border-fo-border text-fo-muted hover:text-fo-accent hover:border-fo-accent/40 transition-colors disabled:opacity-50 shrink-0"
-          title="Refresh"
-        >
-          <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <CsvExportButton
+            filename="fointer-users"
+            disabled={loading}
+            onError={showToast}
+            datasets={[
+              {
+                id: "users",
+                label: "Users",
+                dateValue: (row) => row.createdAt,
+                loadRows: async () => {
+                  const params = { joinedSort };
+                  if (search.trim()) params.q = search.trim();
+                  if (filter === "active" || filter === "banned") {
+                    params.status = filter;
+                  } else if (filter === "users") {
+                    params.role = "user";
+                  } else if (filter === "moderators") {
+                    params.moderators = "true";
+                  }
+                  const all = [];
+                  let pageNum = 1;
+                  let pages = 1;
+                  while (pageNum <= pages && pageNum <= 50) {
+                    const data = await fetchUsers({
+                      ...params,
+                      page: pageNum,
+                      limit: 100,
+                    });
+                    all.push(...(data?.users || []));
+                    pages = data?.pagination?.totalPages || 1;
+                    pageNum += 1;
+                  }
+                  return all;
+                },
+                columns: [
+                  { id: "username", label: "Username", value: (row) => row.username || "" },
+                  { id: "name", label: "Display name", value: (row) => row.name || "" },
+                  { id: "email", label: "Email", value: (row) => row.email || "" },
+                  { id: "role", label: "Role", value: (row) => row.role || "" },
+                  { id: "status", label: "Status", value: (row) => row.status || "" },
+                  {
+                    id: "warnings",
+                    label: "Warnings",
+                    value: (row) => row.warningCount || 0,
+                  },
+                  {
+                    id: "joined",
+                    label: "Joined",
+                    value: (row) => csvDate(row.createdAt),
+                  },
+                ],
+              },
+            ]}
+          />
+          <button
+            type="button"
+            onClick={() => loadUsers({ page })}
+            disabled={loading}
+            className="p-2 rounded-lg border border-fo-border text-fo-muted hover:text-fo-accent hover:border-fo-accent/40 transition-colors disabled:opacity-50 shrink-0"
+            title="Refresh"
+          >
+            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+          </button>
+        </div>
       </header>
 
       <div className="flex gap-1 p-1 rounded-xl bg-fo-bg border border-fo-border overflow-x-auto">

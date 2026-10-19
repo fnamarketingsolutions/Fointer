@@ -92,5 +92,12 @@ export const notificationPath = (notification) => {
   if (type === "watch_group_invite") {
     return "/watch-groups?tab=invites";
   }
+  if (type === "follow") {
+    const username = String(notification?.actor?.username || "").trim();
+    if (username) return `/users/${encodeURIComponent(username)}`;
+  }
+  if (type === "admin_broadcast") {
+    return "/notifications?tab=broadcast";
+  }
   return "/notifications";
 };

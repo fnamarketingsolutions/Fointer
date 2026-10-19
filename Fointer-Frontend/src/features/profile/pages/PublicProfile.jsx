@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   LuArrowLeft as ArrowLeft,
@@ -10,6 +10,7 @@ import {
 import { fetchPublicProfile } from "../../../api/profile";
 import { useAuth } from "../../../context/AuthContext";
 import ProfileAvatar from "../../../shared/components/ProfileAvatar";
+import ProfilePhotoViewer from "../../../shared/components/ProfilePhotoViewer";
 import FeedPostRow from "../../../shared/components/FeedPostRow";
 import {
   communitySegment,
@@ -22,6 +23,46 @@ import CommunityCard from "../../communities/components/CommunityCard";
 import { createConversation } from "../../../api/messages";
 import { useToast } from "../../../shared/components/feedback/ToastContext";
 import { timeAgo } from "../../../shared/utils/date";
+
+function ProfileBio({ bio }) {
+  const textRef = useRef(null);
+  const [expanded, setExpanded] = useState(false);
+  const [overflows, setOverflows] = useState(false);
+
+  useEffect(() => {
+    setExpanded(false);
+  }, [bio]);
+
+  useEffect(() => {
+    const el = textRef.current;
+    if (!el || expanded) return;
+    setOverflows(el.scrollHeight > el.clientHeight + 1);
+  }, [bio, expanded]);
+
+  if (!bio) return null;
+
+  return (
+    <div className="mt-3">
+      <p
+        ref={textRef}
+        className={`text-sm text-fo-muted leading-relaxed whitespace-pre-wrap ${
+          expanded ? "" : "line-clamp-2"
+        }`}
+      >
+        {bio}
+      </p>
+      {overflows ? (
+        <button
+          type="button"
+          onClick={() => setExpanded((open) => !open)}
+          className="mt-1 text-sm font-semibold text-fo-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40 rounded"
+        >
+          {expanded ? "Show less" : "Show more"}
+        </button>
+      ) : null}
+    </div>
+  );
+}
 
 const TABS = [
   { id: "about", label: "About" },
@@ -67,6 +108,7 @@ export default function PublicProfile() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [messaging, setMessaging] = useState(false);
+  const [photoOpen, setPhotoOpen] = useState(false);
 
   const tabParam = searchParams.get("tab");
   const tab = TAB_IDS.has(tabParam) ? tabParam : "about";
@@ -301,12 +343,29 @@ export default function PublicProfile() {
       <article className="bg-fo-surface border border-fo-border rounded-xl p-4 sm:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-start gap-3 min-w-0">
-            <ProfileAvatar
-              src={profile.avatar}
-              alt={displayName}
-              name={displayName}
-              className="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover border border-fo-border shrink-0"
-            />
+            {profile.avatar ? (
+              <button
+                type="button"
+                onClick={() => setPhotoOpen(true)}
+                title="View profile photo"
+                aria-label="View profile photo"
+                className="rounded-full shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40"
+              >
+                <ProfileAvatar
+                  src={profile.avatar}
+                  alt={displayName}
+                  name={displayName}
+                  className="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover border border-fo-border shrink-0"
+                />
+              </button>
+            ) : (
+              <ProfileAvatar
+                src={profile.avatar}
+                alt={displayName}
+                name={displayName}
+                className="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover border border-fo-border shrink-0"
+              />
+            )}
             <div className="min-w-0">
               <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-fo-text leading-tight">
                 {displayName}
@@ -317,11 +376,7 @@ export default function PublicProfile() {
           {actionButtons}
         </div>
 
-        {profile.bio ? (
-          <p className="mt-3 text-sm text-fo-muted leading-relaxed whitespace-pre-wrap">
-            {profile.bio}
-          </p>
-        ) : null}
+        <ProfileBio bio={profile.bio} />
 
         {profile.achievements?.length ? (
           <div className="mt-3 flex flex-wrap gap-1.5">
@@ -524,6 +579,11 @@ export default function PublicProfile() {
           </section>
         </div>
       )}
+      <ProfilePhotoViewer
+        src={photoOpen ? profile.avatar : ""}
+        alt={displayName}
+        onClose={() => setPhotoOpen(false)}
+      />
     </div>
   );
 }

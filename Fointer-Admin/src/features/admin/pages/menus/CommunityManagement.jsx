@@ -16,6 +16,8 @@ import ConfirmDeleteModal from "../../../../shared/components/modals/ConfirmDele
 import { useToast } from "../../../../shared/components/feedback/ToastContext";
 import { COMMUNITY_TYPE_LABELS } from "../../../../shared/constants/community";
 import { communitySegment } from "../../../../shared/services/entityLinks";
+import CsvExportButton from "../../../../shared/components/CsvExportButton";
+import { csvDate } from "../../../../shared/utils/csv";
 
 const TYPE_LABELS = COMMUNITY_TYPE_LABELS;
 
@@ -129,15 +131,77 @@ export default function CommunityManagement() {
               : `Showing ${filteredCommunities.length} of ${summary[typeFilter] ?? summary.all} communities`}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={loadCommunities}
-          disabled={loading}
-          className="p-2 rounded-lg border border-fo-border text-fo-muted hover:text-fo-accent hover:border-fo-accent/40 transition-colors disabled:opacity-50 shrink-0"
-          title="Refresh"
-        >
-          <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <CsvExportButton
+            filename="fointer-communities"
+            disabled={loading}
+            onError={showToast}
+            datasets={[
+              {
+                id: "communities",
+                label: "Communities",
+                dateValue: (row) => row.createdAt,
+                loadRows: async () => filteredCommunities,
+                columns: [
+                  { id: "name", label: "Name", value: (row) => row.name || "" },
+                  {
+                    id: "type",
+                    label: "Type",
+                    value: (row) => TYPE_LABELS[row.type] || row.type || "",
+                  },
+                  {
+                    id: "description",
+                    label: "Description",
+                    value: (row) => row.description || "",
+                  },
+                  {
+                    id: "members",
+                    label: "Members",
+                    value: (row) => row.memberCount ?? 0,
+                  },
+                  {
+                    id: "owner",
+                    label: "Owner username",
+                    value: (row) => row.owner?.username || "",
+                  },
+                  {
+                    id: "ownerName",
+                    label: "Owner name",
+                    value: (row) => row.owner?.name || "",
+                  },
+                  {
+                    id: "channel",
+                    label: "Channel",
+                    value: (row) => row.channel?.name || "",
+                  },
+                  {
+                    id: "subchannels",
+                    label: "Subchannels",
+                    value: (row) =>
+                      (row.subchannels || [])
+                        .map((sub) => sub.name)
+                        .filter(Boolean)
+                        .join("; "),
+                  },
+                  {
+                    id: "created",
+                    label: "Created",
+                    value: (row) => csvDate(row.createdAt),
+                  },
+                ],
+              },
+            ]}
+          />
+          <button
+            type="button"
+            onClick={loadCommunities}
+            disabled={loading}
+            className="p-2 rounded-lg border border-fo-border text-fo-muted hover:text-fo-accent hover:border-fo-accent/40 transition-colors disabled:opacity-50 shrink-0"
+            title="Refresh"
+          >
+            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+          </button>
+        </div>
       </header>
 
       <div className="flex gap-1 p-1 rounded-xl bg-fo-bg border border-fo-border overflow-x-auto">

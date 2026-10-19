@@ -350,14 +350,19 @@ export const adminGetIntegrationStatus = async (_req, res) => {
 export const adminListTransactions = async (req, res) => {
   try {
     const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 40));
+    const page = Math.max(1, Number(req.query.page) || 1);
     const status = String(req.query.status || "").trim().toLowerCase();
     const filter = {};
     if (status && status !== "all") filter.status = status;
 
-    const rows = await SubscriptionTransaction.find(filter)
-      .sort({ createdAt: -1 })
-      .limit(limit)
-      .populate("user", "username email name");
+    const [rows, total] = await Promise.all([
+      SubscriptionTransaction.find(filter)
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .populate("user", "username email name"),
+      SubscriptionTransaction.countDocuments(filter),
+    ]);
 
     return res.json({
       success: true,
@@ -372,6 +377,12 @@ export const adminListTransactions = async (req, res) => {
             }
           : null,
       })),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+      },
     });
   } catch (error) {
     return sendServerError(res, error, "Failed to list transactions.");

@@ -17,6 +17,8 @@ import {
 } from '../../services/adminService';
 import { useToast } from '../../../../shared/components/feedback/ToastContext';
 import { getErrorMessage } from '../../../../shared/utils/errors';
+import CsvExportButton from '../../../../shared/components/CsvExportButton';
+import { csvDate } from '../../../../shared/utils/csv';
 
 const PLACEMENT_LABELS = {
   home_feed: 'Home feed',
@@ -124,14 +126,82 @@ export default function SubscriptionManagement() {
             variables.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={load}
-          className="p-2 rounded-lg border border-fo-border text-fo-muted hover:text-fo-accent"
-          aria-label="Refresh"
-        >
-          <RefreshCw size={16} />
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <CsvExportButton
+            filename="fointer-subscriptions"
+            onError={(message) => showToast(message)}
+            datasets={[
+              {
+                id: 'subscribers',
+                label: 'Subscribers',
+                dateValue: (row) => row.updatedAt || row.lastVerifiedAt,
+                loadRows: async () => {
+                  const all = [];
+                  let cursor = '';
+                  for (let page = 0; page < 50; page += 1) {
+                    const data = await fetchAdminSubscribers({
+                      limit: 100,
+                      ...(cursor ? { cursor } : {}),
+                    });
+                    const batch = data?.subscribers || [];
+                    all.push(...batch);
+                    if (!data?.nextCursor || batch.length < 100) break;
+                    cursor = data.nextCursor;
+                  }
+                  return all;
+                },
+                columns: [
+                  { id: 'username', label: 'Username', value: (row) => row.user?.username || '' },
+                  { id: 'name', label: 'Display name', value: (row) => row.user?.name || '' },
+                  { id: 'email', label: 'Email', value: (row) => row.user?.email || '' },
+                  { id: 'status', label: 'Status', value: (row) => row.entitlement?.subscriptionStatus || '' },
+                  { id: 'adFree', label: 'Ad-free', value: (row) => (row.entitlement?.adFreeActive ? 'yes' : 'no') },
+                  { id: 'periodEnd', label: 'Period end', value: (row) => csvDate(row.entitlement?.currentPeriodEnd) },
+                  { id: 'platform', label: 'Platform', value: (row) => row.platform || '' },
+                  { id: 'provider', label: 'Provider', value: (row) => row.provider || '' },
+                  { id: 'plan', label: 'Plan', value: (row) => row.planCode || '' },
+                ],
+              },
+              {
+                id: 'transactions',
+                label: 'Transactions',
+                dateValue: (row) => row.createdAt,
+                loadRows: async () => {
+                  const all = [];
+                  let page = 1;
+                  let pages = 1;
+                  while (page <= pages && page <= 50) {
+                    const data = await fetchAdminSubscriptionTransactions({
+                      limit: 100,
+                      page,
+                    });
+                    all.push(...(data?.transactions || []));
+                    pages = data?.pagination?.totalPages || 1;
+                    page += 1;
+                  }
+                  return all;
+                },
+                columns: [
+                  { id: 'username', label: 'Username', value: (row) => row.user?.username || '' },
+                  { id: 'email', label: 'Email', value: (row) => row.user?.email || '' },
+                  { id: 'status', label: 'Status', value: (row) => row.status || '' },
+                  { id: 'amount', label: 'Amount', value: (row) => row.amount ?? '' },
+                  { id: 'currency', label: 'Currency', value: (row) => row.currency || '' },
+                  { id: 'reference', label: 'Provider reference', value: (row) => row.providerReference || '' },
+                  { id: 'created', label: 'Created', value: (row) => csvDate(row.createdAt) },
+                ],
+              },
+            ]}
+          />
+          <button
+            type="button"
+            onClick={load}
+            className="p-2 rounded-lg border border-fo-border text-fo-muted hover:text-fo-accent"
+            aria-label="Refresh"
+          >
+            <RefreshCw size={16} />
+          </button>
+        </div>
       </header>
 
       <section className="rounded-xl border border-fo-border bg-fo-surface p-4 space-y-3">

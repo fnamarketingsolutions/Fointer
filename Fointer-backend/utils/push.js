@@ -90,23 +90,23 @@ const staleToken = (error) => {
   );
 };
 
+const uniqueTokens = (devices) => [
+  ...new Set(
+    (devices || [])
+      .map((device) => String(device.token || "").trim())
+      .filter(Boolean)
+  ),
+];
+
 /**
  * One FCM multicast covers web, Android, and iOS tokens together so they
  * receive the same notification in the same send.
  */
-export const pushNotificationToUser = async (recipientId, formatted) => {
-  if (!recipientId || !formatted) return;
+const dispatchPush = async (tokens, formatted) => {
+  if (!formatted || !tokens?.length) return;
 
   const messaging = getMessaging();
   if (!messaging) return;
-
-  const devices = await PushDevice.find({ user: recipientId })
-    .select("token")
-    .lean();
-  const tokens = [
-    ...new Set(devices.map((device) => String(device.token || "").trim()).filter(Boolean)),
-  ];
-  if (!tokens.length) return;
 
   const path = notificationPath(formatted);
   const url = absoluteUrl(path);
@@ -203,4 +203,24 @@ export const pushNotificationToUser = async (recipientId, formatted) => {
       await PushDevice.deleteMany({ token: { $in: dead } });
     }
   }
+};
+
+export const pushNotificationToUser = async (recipientId, formatted) => {
+  if (!recipientId || !formatted) return;
+
+  const devices = await PushDevice.find({ user: recipientId })
+    .select("token")
+    .lean();
+  await dispatchPush(uniqueTokens(devices), formatted);
+};
+
+/** Same payload to every device owned by the given users. */
+export const pushNotificationToUsers = async (userIds, formatted) => {
+  const ids = [...new Set((userIds || []).map((id) => String(id || "")).filter(Boolean))];
+  if (!ids.length || !formatted) return;
+
+  const devices = await PushDevice.find({ user: { $in: ids } })
+    .select("token")
+    .lean();
+  await dispatchPush(uniqueTokens(devices), formatted);
 };

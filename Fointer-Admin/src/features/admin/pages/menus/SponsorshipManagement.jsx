@@ -26,6 +26,8 @@ import {
 import { useToast } from "../../../../shared/components/feedback/ToastContext";
 import ConfirmDeleteModal from "../../../../shared/components/modals/ConfirmDeleteModal";
 import { getErrorMessage } from "../../../../shared/utils/errors";
+import CsvExportButton from "../../../../shared/components/CsvExportButton";
+import { csvDate } from "../../../../shared/utils/csv";
 
 const emptyPackage = {
   name: "",
@@ -315,9 +317,96 @@ export default function SponsorshipManagement() {
           </h1>
           <p className="mt-1 text-sm text-fo-subtle">Manage promotion packages, placements, purchase reports, and community earnings.</p>
         </div>
-        <button type="button" onClick={refresh} className="p-2 rounded-lg border border-fo-border text-fo-muted hover:text-fo-accent" aria-label="Refresh">
-          <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <CsvExportButton
+            filename="fointer-sponsorships"
+            disabled={loading || !data}
+            onError={(message) => showToast(message)}
+            datasets={[
+              {
+                id: "packages",
+                label: "Packages",
+                dateValue: (row) => row.createdAt || row.updatedAt,
+                loadRows: async () => data?.packages || [],
+                columns: [
+                  { id: "name", label: "Package", value: (row) => row.name || "" },
+                  { id: "price", label: "Price", value: (row) => row.price ?? "" },
+                  { id: "currency", label: "Currency", value: (row) => row.currency || "" },
+                  { id: "days", label: "Duration days", value: (row) => row.durationDays ?? "" },
+                  { id: "status", label: "Status", value: (row) => row.status || "" },
+                  {
+                    id: "placement",
+                    label: "Placement",
+                    value: (row) =>
+                      [
+                        row.placement?.top && "top",
+                        row.placement?.section && "section",
+                        row.placement?.badge && "badge",
+                      ]
+                        .filter(Boolean)
+                        .join("; "),
+                  },
+                ],
+              },
+              {
+                id: "purchases",
+                label: "Purchases",
+                dateValue: (row) => row.createdAt || row.startsAt,
+                loadRows: async () => data?.purchases || [],
+                columns: [
+                  { id: "listing", label: "Listing", value: (row) => row.listing?.title || "" },
+                  { id: "buyer", label: "Buyer", value: (row) => row.buyer?.username || row.buyer?.name || "" },
+                  { id: "package", label: "Package", value: (row) => row.package?.name || row.packageSnapshot?.name || "" },
+                  { id: "amount", label: "Amount", value: (row) => row.amount ?? "" },
+                  { id: "currency", label: "Currency", value: (row) => row.currency || "" },
+                  { id: "community", label: "Community", value: (row) => row.community?.name || "" },
+                  { id: "payment", label: "Payment status", value: (row) => row.paymentStatus || "" },
+                  { id: "starts", label: "Starts", value: (row) => csvDate(row.startsAt) },
+                  { id: "expires", label: "Expires", value: (row) => csvDate(row.expiresAt) },
+                  { id: "reference", label: "Reference", value: (row) => row.providerTransactionId || row.providerReference || "" },
+                ],
+              },
+              {
+                id: "placements",
+                label: "Live placements",
+                dateValue: (row) => row.createdAt || row.startsAt,
+                loadRows: async () => data?.activePlacements || [],
+                columns: [
+                  { id: "listing", label: "Listing", value: (row) => row.listing?.title || "" },
+                  { id: "community", label: "Community", value: (row) => row.community?.name || "" },
+                  {
+                    id: "placement",
+                    label: "Placement",
+                    value: (row) =>
+                      [row.placement?.top && "top", row.placement?.section && "section", row.placement?.badge && "badge"]
+                        .filter(Boolean)
+                        .join("; "),
+                  },
+                  { id: "expires", label: "Expires", value: (row) => csvDate(row.expiresAt) },
+                ],
+              },
+              {
+                id: "earnings",
+                label: "Earnings",
+                dateValue: (row) => row.createdAt || row.updatedAt,
+                loadRows: async () => data?.earnings || [],
+                columns: [
+                  { id: "community", label: "Community", value: (row) => row.community?.name || "" },
+                  { id: "owner", label: "Owner", value: (row) => row.owner?.username || row.owner?.name || row.owner?.email || "" },
+                  { id: "gross", label: "Gross", value: (row) => row.gross ?? "" },
+                  { id: "currency", label: "Currency", value: (row) => row.currency || "" },
+                  { id: "rate", label: "Commission %", value: (row) => row.percentUsed ?? "" },
+                  { id: "commission", label: "Commission", value: (row) => row.commissionAmount ?? "" },
+                  { id: "status", label: "Status", value: (row) => row.status || "" },
+                  { id: "purchases", label: "Purchases", value: (row) => row.purchaseCount ?? "" },
+                ],
+              },
+            ]}
+          />
+          <button type="button" onClick={refresh} className="p-2 rounded-lg border border-fo-border text-fo-muted hover:text-fo-accent" aria-label="Refresh">
+            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+          </button>
+        </div>
       </header>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   LuArrowLeft as ArrowLeft,
@@ -23,46 +23,6 @@ import CommunityCard from "../../communities/components/CommunityCard";
 import { createConversation } from "../../../api/messages";
 import { useToast } from "../../../shared/components/feedback/ToastContext";
 import { timeAgo } from "../../../shared/utils/date";
-
-function ProfileBio({ bio }) {
-  const textRef = useRef(null);
-  const [expanded, setExpanded] = useState(false);
-  const [overflows, setOverflows] = useState(false);
-
-  useEffect(() => {
-    setExpanded(false);
-  }, [bio]);
-
-  useEffect(() => {
-    const el = textRef.current;
-    if (!el || expanded) return;
-    setOverflows(el.scrollHeight > el.clientHeight + 1);
-  }, [bio, expanded]);
-
-  if (!bio) return null;
-
-  return (
-    <div className="mt-3">
-      <p
-        ref={textRef}
-        className={`text-sm text-fo-muted leading-relaxed whitespace-pre-wrap ${
-          expanded ? "" : "line-clamp-2"
-        }`}
-      >
-        {bio}
-      </p>
-      {overflows ? (
-        <button
-          type="button"
-          onClick={() => setExpanded((open) => !open)}
-          className="mt-1 text-sm font-semibold text-fo-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40 rounded"
-        >
-          {expanded ? "Show less" : "Show more"}
-        </button>
-      ) : null}
-    </div>
-  );
-}
 
 const TABS = [
   { id: "about", label: "About" },
@@ -375,8 +335,6 @@ export default function PublicProfile() {
           </div>
           {actionButtons}
         </div>
-
-        <ProfileBio bio={profile.bio} />
 
         {profile.achievements?.length ? (
           <div className="mt-3 flex flex-wrap gap-1.5">

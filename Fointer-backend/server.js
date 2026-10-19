@@ -112,6 +112,11 @@ const io = new Server(server, {
     origin: allowedOrigins,
     credentials: true,
   },
+  // A phone radio blip keeps the same socket id long enough to finish the call.
+  connectionStateRecovery: {
+    maxDisconnectionDuration: 2 * 60 * 1000,
+    skipMiddlewares: true,
+  },
 });
 
 app.set("io", io);

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { callerPayload } from "./callerPayload.js";
 import { isRingingExpired } from "../utils/dmCallLifecycle.js";
+import { callSignalBuffer } from "../utils/callSignalBuffer.js";
 
 const roomName = (conversationId) => `dm:${conversationId}`;
 
@@ -100,6 +101,7 @@ export const clearDmCall = (
   rememberRetiredCall(call.callId);
 
   dmCalls.delete(id);
+  callSignalBuffer.drop(id);
 
   const payload = {
     conversationId: id,
@@ -165,6 +167,24 @@ export const startDmCallSweep = (io) => {
   if (sweepTimer) return;
   sweepTimer = setInterval(() => sweepExpiredDmCalls(io), 5000);
   sweepTimer.unref?.();
+};
+
+/** Ends every call this person is already in, so the next call can start cleanly. */
+export const endCallsForUser = (io, userId, reason = "ended") => {
+  const uid = String(userId || "");
+  if (!uid) return [];
+  const ids = [];
+  for (const [conversationId, call] of dmCalls.entries()) {
+    const involved =
+      String(call.invitedBy || "") === uid ||
+      String(call.calleeId || "") === uid ||
+      [...(call.peers?.values() || [])].some(
+        (peer) => String(peer.userId || "") === uid
+      );
+    if (involved) ids.push(conversationId);
+  }
+  for (const conversationId of ids) clearDmCall(io, conversationId, reason);
+  return ids;
 };
 
 export const findDmCallBySocket = (socketId) => {

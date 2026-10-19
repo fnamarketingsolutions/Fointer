@@ -1,6 +1,50 @@
 {
   "rewrites": [
     {
+      "source": "/post/:slug",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(twitterbot|facebookexternalhit|facebot|whatsapp|linkedinbot|slackbot|discordbot|telegrambot|pinterest|redditbot|embedly|iframely|skypeuripreview|vkshare|tumblr|bitlybot).*"
+        }
+      ],
+      "destination": "https://api.fointer.net/share/post/:slug"
+    },
+    {
+      "source": "/communities/:communityId/posts/:slug",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(twitterbot|facebookexternalhit|facebot|whatsapp|linkedinbot|slackbot|discordbot|telegrambot|pinterest|redditbot|embedly|iframely|skypeuripreview|vkshare|tumblr|bitlybot).*"
+        }
+      ],
+      "destination": "https://api.fointer.net/share/post/:slug"
+    },
+    {
+      "source": "/manage-community/:communityId/posts/:slug",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(twitterbot|facebookexternalhit|facebot|whatsapp|linkedinbot|slackbot|discordbot|telegrambot|pinterest|redditbot|embedly|iframely|skypeuripreview|vkshare|tumblr|bitlybot).*"
+        }
+      ],
+      "destination": "https://api.fointer.net/share/post/:slug"
+    },
+    {
+      "source": "/communities/manage/:communityId/posts/:slug",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(twitterbot|facebookexternalhit|facebot|whatsapp|linkedinbot|slackbot|discordbot|telegrambot|pinterest|redditbot|embedly|iframely|skypeuripreview|vkshare|tumblr|bitlybot).*"
+        }
+      ],
+      "destination": "https://api.fointer.net/share/post/:slug"
+    },
+    {
       "source": "/((?!push-sw\\.js|manifest\\.webmanifest|favicon\\.svg|robots\\.txt|assets/).*)",
       "destination": "/index.html"
     }

@@ -41,6 +41,7 @@ import { startHotReadCache } from "./utils/hotReadCache.js";
 import { safeErrorMessage } from "./utils/safeError.js";
 import { getAllowedOrigins } from "./utils/allowedOrigins.js";
 import { csrfProtect } from "./middleware/csrf.middleware.js";
+import { sharePostPreview } from "./controllers/sharePreview.controller.js";
 
 dns.setServers(["8.8.8.8", "8.8.4.4"]);
 
@@ -142,6 +143,10 @@ app.use("/api/blocks", blockRoute);
 app.use("/api/locations", locationRoute);
 app.use("/api", bannerRoute);
 app.use("/api", userSupportRoute);
+
+// Social crawlers (Twitter/X, WhatsApp, Facebook) are proxied here by the
+// frontend host. They need this HTML in the first response; they do not run React.
+app.get("/share/post/:segment", sharePostPreview);
 
 // Multer / unexpected errors — never leak internals
 app.use((err, _req, res, _next) => {

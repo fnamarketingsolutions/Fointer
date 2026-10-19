@@ -19,6 +19,24 @@ export const clipText = (value, max) => {
   return `${clean.slice(0, Math.max(0, max - 1)).trimEnd()}…`;
 };
 
+/**
+ * X draws this string on the image. Reddit uses the same slot:
+ * "From the {community} community on Reddit: {title}".
+ */
+export const shareCardTitle = ({
+  title = "",
+  text = "",
+  authorName = "",
+  communityName = "",
+} = {}) => {
+  const headline = collapseText(title) || clipText(text, 80) || "Post";
+  const community = collapseText(communityName);
+  const author = collapseText(authorName);
+  if (community) return `From the ${community} community on Fointer: ${headline}`;
+  if (author) return `From ${author} on Fointer: ${headline}`;
+  return `On Fointer: ${headline}`;
+};
+
 const isHttpUrl = (value) => {
   try {
     const url = new URL(String(value || ""));

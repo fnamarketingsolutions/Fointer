@@ -4,6 +4,7 @@ import {
   buildPostShareHtml,
   clipText,
   escapeHtml,
+  shareCardImageUrl,
   shareCardTitle,
 } from "./sharePreview.js";
 
@@ -60,6 +61,13 @@ test("share card title names Fointer the way Reddit names Reddit", () => {
       authorName: "Ashhad Ali",
     }),
     "From Ashhad Ali on Fointer: Delegation Dilemma"
+  );
+});
+
+test("share card image points at the branded file", () => {
+  assert.equal(
+    shareCardImageUrl("https://api.fointer.net/", "ff2xtv3"),
+    "https://api.fointer.net/share/post/ff2xtv3/image"
   );
 });
 

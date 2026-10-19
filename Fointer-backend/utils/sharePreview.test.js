@@ -1,6 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildPostShareHtml, clipText, escapeHtml } from "./sharePreview.js";
+import {
+  buildPostShareHtml,
+  clipText,
+  escapeHtml,
+  shareCardTitle,
+} from "./sharePreview.js";
 
 test("share preview escapes title and description", () => {
   const html = buildPostShareHtml({
@@ -38,6 +43,24 @@ test("share preview ignores non-http image urls", () => {
   });
   assert.equal(html.includes("javascript:"), false);
   assert.match(html, /fointer-logo1\.jpeg/);
+});
+
+test("share card title names Fointer the way Reddit names Reddit", () => {
+  assert.equal(
+    shareCardTitle({
+      title: "जय श्री राम",
+      communityName: "IndianArtAI",
+      authorName: "Ashhad",
+    }),
+    "From the IndianArtAI community on Fointer: जय श्री राम"
+  );
+  assert.equal(
+    shareCardTitle({
+      title: "Delegation Dilemma",
+      authorName: "Ashhad Ali",
+    }),
+    "From Ashhad Ali on Fointer: Delegation Dilemma"
+  );
 });
 
 test("clipText and escapeHtml", () => {

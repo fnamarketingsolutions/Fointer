@@ -5,7 +5,7 @@ import { getPublicFrontendUrl } from "../utils/publicAppUrls.js";
 import {
   buildPostShareHtml,
   collapseText,
-  clipText,
+  shareCardTitle,
 } from "../utils/sharePreview.js";
 
 const bylineFor = (post) => {
@@ -36,20 +36,15 @@ const previewFromPost = (post, siteUrl, pageUrl) => {
     .map((item) => item.url);
   const hasVideo = (post.media || []).some((item) => item?.type === "video");
 
-  let ogTitle = "Post on Fointer";
-  let ogDescription = byline;
-  if (title && text) {
-    ogTitle = title;
-    ogDescription = text;
-  } else if (title) {
-    ogTitle = title;
-    ogDescription = byline;
-  } else if (text) {
-    ogTitle = clipText(text, 90);
-    ogDescription = byline;
-  } else if (post.author?.name || post.author?.username) {
-    ogTitle = `Post by ${collapseText(post.author.name) || collapseText(post.author.username)}`;
-  }
+  const authorName =
+    collapseText(post.author?.name) || collapseText(post.author?.username);
+  const ogTitle = shareCardTitle({
+    title,
+    text,
+    authorName,
+    communityName: post.community?.name,
+  });
+  let ogDescription = text || byline;
 
   if (hasVideo && imageUrls.length === 0) {
     ogDescription = `Video · ${ogDescription}`;

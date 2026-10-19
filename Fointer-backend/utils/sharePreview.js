@@ -37,6 +37,12 @@ export const shareCardTitle = ({
   return `On Fointer: ${headline}`;
 };
 
+/** Image X fetches. The transparent mark is composited onto this file. */
+export const shareCardImageUrl = (apiUrl, segment) => {
+  const api = String(apiUrl || "https://api.fointer.net").replace(/\/$/, "");
+  return `${api}/share/post/${encodeURIComponent(String(segment || ""))}/image`;
+};
+
 const isHttpUrl = (value) => {
   try {
     const url = new URL(String(value || ""));

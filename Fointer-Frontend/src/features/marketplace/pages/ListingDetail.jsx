@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   LuArrowLeft as ArrowLeft,
   LuBookmark as Bookmark,
@@ -35,7 +35,7 @@ import {
   categoryLabel,
   conditionLabel,
   formatLocation,
-  formatPrice,
+  formatListingPrice,
 } from "../constants";
 import { timeAgo } from "../../../shared/utils/date";
 import useEntityId from "../../../shared/hooks/useEntityId";
@@ -354,7 +354,7 @@ export default function ListingDetail() {
             <div className="p-4 sm:p-5 space-y-4">
               <div>
                 <p className="text-xl font-semibold text-fo-text">
-                  {formatPrice(listing.price, listing.currency)}
+                  {formatListingPrice(listing)}
                 </p>
                 <h1 className="mt-1 text-lg font-semibold tracking-tight text-fo-text leading-snug">
                   {listing.title}
@@ -375,6 +375,14 @@ export default function ListingDetail() {
                   <span>· {conditionLabel(listing.condition)}</span>
                   <span>· Listed {timeAgo(listing.createdAt)}</span>
                 </div>
+                {listing.store?.slug ? (
+                  <Link
+                    to={`/store/${listing.store.slug}`}
+                    className="mt-2 inline-block text-xs font-medium text-fo-accent hover:underline"
+                  >
+                    {listing.store.name || "View store"}
+                  </Link>
+                ) : null}
               </div>
 
               {listing.description ? (

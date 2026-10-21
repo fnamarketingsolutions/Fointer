@@ -102,6 +102,7 @@ export const formatListingSnapshot = (listing) => {
     title: listing.title || "",
     price: listing.price ?? 0,
     currency: listing.currency || "USD",
+    pricing: listing.pricing === "free" ? "free" : "paid",
     imageUrl: firstImage?.url || "",
   };
 };

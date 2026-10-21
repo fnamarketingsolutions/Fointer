@@ -21,7 +21,7 @@ import {
   restoreAdminMarketplaceListing,
   warnAdminMarketplaceSeller,
 } from "../../../../api/dashboard";
-import { formatPrice } from "../../../marketplace/constants";
+import { formatListingPrice } from "../../../marketplace/constants";
 import { useToast } from "../../../../shared/components/feedback/ToastContext";
 import AdminActionBtn from "../../../../shared/components/AdminActionBtn";
 import WarnUserModal from "../../../../shared/components/modals/WarnUserModal";
@@ -278,7 +278,7 @@ export default function MarketplaceManagement() {
                         {listing.title}
                       </p>
                       <p className="text-xs text-fo-accent font-semibold">
-                        {formatPrice(listing.price, listing.currency)}
+                        {formatListingPrice(listing)}
                       </p>
                       <p className="text-[11px] text-fo-subtle mt-1">
                         {listing.status} · {listing.seller?.username || "seller"}

@@ -13,12 +13,14 @@ import {
   LISTING_CONDITIONS,
   SELLER_EDITABLE_LISTING_STATUSES,
 } from "../constants";
+import { fetchMyStores } from "../../stores/services/storeService";
 
 const emptyForm = () => ({
   title: "",
   description: "",
   price: "",
   currency: "USD",
+  pricing: "paid",
   category: "other",
   condition: "good",
   city: "",
@@ -26,6 +28,8 @@ const emptyForm = () => ({
   country: "",
   media: [],
   status: "active",
+  store: "",
+  storeCategory: "",
 });
 
 const LISTING_DRAFT_KEY = "listing:create";
@@ -42,9 +46,11 @@ export default function ListingFormModal({
   initial,
   submitting = false,
   title = "Create listing",
+  defaultStoreId = "",
 }) {
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState("");
+  const [stores, setStores] = useState([]);
   const contentLocked = Boolean(
     initial && initial.isLocked && !initial.canEdit
   );
@@ -57,6 +63,7 @@ export default function ListingFormModal({
         description: initial.description || "",
         price: initial.price != null ? String(initial.price) : "",
         currency: initial.currency || "USD",
+        pricing: initial.pricing === "free" ? "free" : "paid",
         category: initial.category || "other",
         condition: initial.condition || "good",
         city: initial.city || "",
@@ -64,6 +71,8 @@ export default function ListingFormModal({
         country: initial.country || "",
         media: initial.media || [],
         status: initial.status || "active",
+        store: initial.store?.id || "",
+        storeCategory: initial.storeCategory?.id || "",
       });
     } else {
       const saved = readComposerDraft(LISTING_DRAFT_KEY);
@@ -73,12 +82,30 @@ export default function ListingFormModal({
               ...emptyForm(),
               ...saved,
               media: persistableMedia(saved.media),
+              store: saved.store || defaultStoreId || "",
+              storeCategory: saved.storeCategory || "",
+              pricing: saved.pricing === "free" ? "free" : "paid",
             }
-          : emptyForm()
+          : { ...emptyForm(), store: defaultStoreId || "" }
       );
     }
     setError("");
-  }, [open, initial]);
+  }, [open, initial, defaultStoreId]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    let cancelled = false;
+    fetchMyStores()
+      .then((data) => {
+        if (!cancelled) setStores(data?.stores || []);
+      })
+      .catch(() => {
+        if (!cancelled) setStores([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open || initial) return;
@@ -103,22 +130,35 @@ export default function ListingFormModal({
       setError("Title is required.");
       return;
     }
-    const price = Number(form.price);
-    if (!Number.isFinite(price) || price < 0) {
-      setError("Enter a valid price.");
-      return;
+    const pricing = form.pricing === "free" ? "free" : "paid";
+    let price = 0;
+    if (pricing === "paid") {
+      price = Number(form.price);
+      if (!Number.isFinite(price) || price < 0) {
+        setError("Enter a valid price.");
+        return;
+      }
     }
     setError("");
     if (contentLocked) {
       await onSubmit({ status: form.status });
       return;
     }
-    await onSubmit({
+    const payload = {
       ...form,
       title: form.title.trim(),
       description: form.description.trim(),
       price,
-    });
+      pricing,
+    };
+    if (form.store || stores.length) {
+      payload.store = form.store || null;
+      payload.storeCategory = form.store ? form.storeCategory || null : null;
+    } else {
+      delete payload.store;
+      delete payload.storeCategory;
+    }
+    await onSubmit(payload);
     if (!initial) clearComposerDraft(LISTING_DRAFT_KEY);
   };
 
@@ -180,6 +220,33 @@ export default function ListingFormModal({
             />
           </div>
 
+          <div>
+            <label className={labelClass}>Listing type</label>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { id: "paid", label: "Paid" },
+                { id: "free", label: "Free" },
+              ].map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  disabled={contentLocked}
+                  onClick={() =>
+                    setForm((current) => ({ ...current, pricing: option.id }))
+                  }
+                  className={`min-h-9 rounded-lg border text-sm font-medium disabled:opacity-60 ${
+                    form.pricing === option.id
+                      ? "border-fo-accent bg-fo-accent text-black"
+                      : "border-fo-border text-fo-muted"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {form.pricing === "paid" ? (
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-[10px] uppercase tracking-wider text-fo-subtle mb-1">
@@ -211,6 +278,7 @@ export default function ListingFormModal({
               />
             </div>
           </div>
+          ) : null}
 
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -252,6 +320,52 @@ export default function ListingFormModal({
               </select>
             </div>
           </div>
+
+          {!contentLocked && stores.length ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className={labelClass}>Store</label>
+                <select
+                  value={form.store}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      store: e.target.value,
+                      storeCategory: "",
+                    }))
+                  }
+                  className={fieldClass}
+                >
+                  <option value="">Personal listing</option>
+                  {stores.map((store) => (
+                    <option key={store.id} value={store.id}>
+                      {store.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className={labelClass}>Store section</label>
+                <select
+                  value={form.storeCategory}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, storeCategory: e.target.value }))
+                  }
+                  className={fieldClass}
+                  disabled={!form.store}
+                >
+                  <option value="">None</option>
+                  {(stores.find((store) => store.id === form.store)?.categories || []).map(
+                    (category) => (
+                      <option key={category.id} value={category.id}>
+                        {category.name}
+                      </option>
+                    )
+                  )}
+                </select>
+              </div>
+            </div>
+          ) : null}
 
           {!contentLocked ? (
             <div className="space-y-2">

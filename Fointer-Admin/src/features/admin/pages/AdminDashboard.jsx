@@ -21,6 +21,7 @@ import {
   LuLayers as Layers,
   LuSettings as Settings,
   LuShoppingBag as ShoppingBag,
+  LuStore as StoreIcon,
   LuUserCog as UserCog,
   LuTriangleAlert as AlertTriangle,
   LuImage as ImageIcon,
@@ -50,6 +51,7 @@ const SystemSettings = lazy(() => import('./menus/SystemSettings'));
 const BannerManagement = lazy(() => import('./menus/BannerManagement'));
 const BroadcastManagement = lazy(() => import('./menus/BroadcastManagement'));
 const MarketplaceManagement = lazy(() => import('./menus/MarketplaceManagement'));
+const StoreManagement = lazy(() => import('./menus/StoreManagement'));
 const SponsorshipManagement = lazy(() => import('./menus/SponsorshipManagement'));
 const SubscriptionManagement = lazy(() => import('./menus/SubscriptionManagement'));
 const ReferralManagement = lazy(() => import('./menus/ReferralManagement'));
@@ -72,6 +74,7 @@ const NAV_ITEMS = [
   { id: 'watchgroups', label: 'Watch Groups Management', icon: Radio },
   { id: 'moderation', label: 'Content Moderation', icon: Shield },
   { id: 'marketplace', label: 'Marketplace', icon: ShoppingBag },
+  { id: 'stores', label: 'Stores', icon: StoreIcon },
   { id: 'sponsorships', label: 'Sponsorships Management', icon: Sparkles },
   { id: 'subscriptions', label: 'Subscriptions & Ads', icon: CreditCard },
   { id: 'referrals', label: 'Referrals', icon: UserPlus },
@@ -305,6 +308,14 @@ const AdminDashboard = () => {
             element={
               <TabRoute tab="marketplace" fallbackTo={defaultTab}>
                 <MarketplaceManagement />
+              </TabRoute>
+            }
+          />
+          <Route
+            path="stores"
+            element={
+              <TabRoute tab="stores" fallbackTo={defaultTab}>
+                <StoreManagement />
               </TabRoute>
             }
           />

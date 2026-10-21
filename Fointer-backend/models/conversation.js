@@ -30,6 +30,7 @@ const listingSnapshotSchema = new mongoose.Schema(
     title: { type: String, default: "" },
     price: { type: Number, default: 0 },
     currency: { type: String, default: "USD" },
+    pricing: { type: String, enum: ["free", "paid"], default: "paid" },
     imageUrl: { type: String, default: "" },
   },
   { _id: false }

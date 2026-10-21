@@ -143,6 +143,11 @@ export const notificationPath = (notification) => {
     const username = String(notification?.actor?.username || '').trim();
     if (username) return `/users/${encodeURIComponent(username)}`;
   }
+  if (type === 'store_listing') {
+    const slug = String(entity?.shortCode || '').trim();
+    if (slug) return `/store/${encodeURIComponent(slug)}`;
+    return '/stores';
+  }
   if (type === 'admin_broadcast') {
     return '/notifications?tab=broadcast';
   }

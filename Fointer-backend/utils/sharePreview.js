@@ -37,6 +37,15 @@ export const shareCardTitle = ({
   return `On Fointer: ${headline}`;
 };
 
+export const storeShareCopy = ({ name = "", description = "" } = {}) => {
+  const storeName = collapseText(name) || "Store";
+  return {
+    title: clipText(`${storeName} on Fointer`, 90),
+    description:
+      clipText(description, 220) || `Shop ${storeName} on Fointer.`,
+  };
+};
+
 /** Image X fetches. The transparent mark is composited onto this file. */
 export const shareCardImageUrl = (apiUrl, segment) => {
   const api = String(apiUrl || "https://api.fointer.net").replace(/\/$/, "");

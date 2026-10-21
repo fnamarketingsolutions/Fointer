@@ -58,6 +58,8 @@ jobs:
           username: ubuntu
           key: ${{ secrets.AWS_SSH_KEY }}
           envs: DEPLOY_SHA
+          # npm ci on the small EC2 (sharp, ffmpeg-static, firebase-admin) can exceed the 10m default.
+          command_timeout: 30m
           script: |
             set -euo pipefail
             cd /var/www/fointer/Fointer-backend
@@ -71,6 +73,15 @@ jobs:
             else
               git checkout --force origin/main
             fi
-            npm ci --omit=dev
+            LOCK_HASH="$(sha256sum package-lock.json | awk '{print $1}')"
+            if [ -f node_modules/.install-hash ] && [ "$(cat node_modules/.install-hash)" = "$LOCK_HASH" ]; then
+              echo "package-lock.json unchanged; skipping npm ci"
+            else
+              echo "Installing production dependencies..."
+              npm ci --omit=dev --no-audit --no-fund
+              echo "$LOCK_HASH" > node_modules/.install-hash
+            fi
+            echo "Restarting PM2..."
             pm2 restart Fointer-backend --update-env
             pm2 describe Fointer-backend >/dev/null
+            echo "Deploy complete: $(git rev-parse --short HEAD)"

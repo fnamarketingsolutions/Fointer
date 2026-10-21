@@ -24,6 +24,7 @@ import {
   LuUserCog as UserCog,
   LuTriangleAlert as AlertTriangle,
   LuImage as ImageIcon,
+  LuMegaphone as Megaphone,
   LuSparkles as Sparkles,
   LuUserPlus as UserPlus,
   LuCreditCard as CreditCard,
@@ -47,6 +48,7 @@ const CommunityDetail = lazy(() => import('./menus/CommunityDetail'));
 const AdminCommunityPostPage = lazy(() => import('./menus/AdminCommunityPostPage'));
 const SystemSettings = lazy(() => import('./menus/SystemSettings'));
 const BannerManagement = lazy(() => import('./menus/BannerManagement'));
+const BroadcastManagement = lazy(() => import('./menus/BroadcastManagement'));
 const MarketplaceManagement = lazy(() => import('./menus/MarketplaceManagement'));
 const SponsorshipManagement = lazy(() => import('./menus/SponsorshipManagement'));
 const SubscriptionManagement = lazy(() => import('./menus/SubscriptionManagement'));
@@ -78,6 +80,7 @@ const NAV_ITEMS = [
   { id: 'support', label: 'Support Tools', icon: LifeBuoy },
   { id: 'usersupport', label: 'User Support Management', icon: Headset },
   { id: 'banners', label: 'Banner Management', icon: ImageIcon },
+  { id: 'broadcasts', label: 'Broadcast Management', icon: Megaphone },
   { id: 'admins', label: 'Admin Management', icon: UserCog },
   { id: 'settings', label: 'System Settings', icon: Settings },
   { id: 'profile', label: 'Profile', icon: UserRound },
@@ -366,6 +369,14 @@ const AdminDashboard = () => {
             element={
               <TabRoute tab="banners" fallbackTo={defaultTab}>
                 <BannerManagement />
+              </TabRoute>
+            }
+          />
+          <Route
+            path="broadcasts"
+            element={
+              <TabRoute tab="broadcasts" fallbackTo={defaultTab}>
+                <BroadcastManagement />
               </TabRoute>
             }
           />

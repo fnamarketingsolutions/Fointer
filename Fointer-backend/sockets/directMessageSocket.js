@@ -20,6 +20,7 @@ import {
   dmCallRoster,
   dmRoomName,
   ensureDmCall,
+  endCallsForUser,
   findDmCallBySocket,
   findDmCallForSignal,
   getDmCall,
@@ -30,6 +31,7 @@ import {
 } from "./dmCallState.js";
 import { applyParticipantMedia, callerCanCancel, signalMatchesCall } from "../utils/dmCallLifecycle.js";
 import { dmBroadcastRooms, emitToRooms } from "../utils/realtimeRooms.js";
+import { callSignalBuffer } from "../utils/callSignalBuffer.js";
 
 const roomName = dmRoomName;
 const DM_MEDIA_MAX = 4;
@@ -52,6 +54,29 @@ const buildCaller = (socket, mode) => ({
   mic: true,
   camera: mode === "video",
 });
+
+const emitCallSignal = (io, conversationId, call, from, payload) => {
+  io.to(payload.to).emit("dm_call_signal", {
+    conversationId,
+    callId: call.callId,
+    from,
+    type: payload.type,
+    sdp: payload.sdp,
+    candidate: payload.candidate,
+  });
+};
+
+const flushQueuedCallSignals = (io, conversationId, call) => {
+  const ready = callSignalBuffer.takeReady(conversationId, (item) =>
+    canRelayCallSignal(call.peers, item.from, item.to) &&
+    signalMatchesCall(call, item.callId)
+  );
+  for (const item of ready) emitCallSignal(io, conversationId, call, item.from, item);
+};
+
+const ackCall = (ack, body = { success: true }) => {
+  if (typeof ack === "function") ack(body);
+};
 
 const assertCanCall = async (conversation, userId) => {
   if (!userInConversation(conversation, userId)) {
@@ -281,10 +306,10 @@ export const initDirectMessageSocket = (io) => {
         const otherId = await assertCanCall(conversation, socket.user._id);
         const conversationId = await joinDmRoom(conversation._id);
 
-        const existing = getDmCall(conversationId);
-        if (existing) {
-          throw new Error("A call is already in progress.");
-        }
+        // A previous call that never fully closed was blocking the next person.
+        endCallsForUser(io, socket.user._id, "ended");
+        const stuck = getDmCall(conversationId);
+        if (stuck) clearDmCall(io, conversationId, "ended");
 
         const caller = buildCaller(socket, mode);
         const call = ensureDmCall(conversationId, {
@@ -379,6 +404,7 @@ export const initDirectMessageSocket = (io) => {
           if (!peer.socketId || peer.socketId === socket.id) continue;
           io.to(peer.socketId).emit("dm_call_accepted", accepted);
         }
+        flushQueuedCallSignals(io, conversationId, call);
 
         if (typeof ack === "function") {
           ack({
@@ -457,54 +483,92 @@ export const initDirectMessageSocket = (io) => {
       }
     });
 
-    socket.on("dm_call_leave", async (payload = {}) => {
+    socket.on("dm_call_leave", async (payload = {}, ack) => {
       const conversationIdParam =
         payload.conversationId || membership.roomId();
       if (!conversationIdParam) {
         const found = findDmCallBySocket(socket.id);
         if (found) removeDmCaller(io, found.conversationId, socket.id);
+        ackCall(ack);
         return;
       }
       try {
         const conversation = await findConversationByParam(conversationIdParam);
-        if (!conversation) return;
+        if (!conversation) {
+          ackCall(ack, { success: false, message: "Conversation not found." });
+          return;
+        }
         removeDmCaller(io, conversation._id, socket.id);
-      } catch {
-        /* ignore */
+        ackCall(ack);
+      } catch (error) {
+        ackCall(ack, { success: false, message: error.message });
       }
     });
 
-    socket.on("dm_call_signal", (payload = {}) => {
+    socket.on("dm_call_signal", (payload = {}, ack) => {
+      const done = (body) => {
+        if (typeof ack === "function") ack(body);
+      };
       const to = payload.to;
-      if (!to) return;
-      if (isRetiredDmCall(payload.callId)) return;
+      if (!to) {
+        done({ success: false, message: "Missing recipient." });
+        return;
+      }
+      if (isRetiredDmCall(payload.callId)) {
+        done({ success: false, message: "That call has ended." });
+        return;
+      }
       const found = findDmCallForSignal(socket.id, to);
-      if (!found || !canRelayCallSignal(found.call.peers, socket.id, to)) return;
-      if (!signalMatchesCall(found.call, payload.callId)) return;
-
-      io.to(to).emit("dm_call_signal", {
-        conversationId: found.conversationId,
-        callId: found.call.callId,
-        from: socket.id,
-        type: payload.type,
-        sdp: payload.sdp,
-        candidate: payload.candidate,
-      });
+      if (
+        found &&
+        canRelayCallSignal(found.call.peers, socket.id, to) &&
+        signalMatchesCall(found.call, payload.callId)
+      ) {
+        emitCallSignal(io, found.conversationId, found.call, socket.id, payload);
+        done({ success: true });
+        return;
+      }
+      const sender = findDmCallBySocket(socket.id);
+      if (sender && signalMatchesCall(sender.call, payload.callId)) {
+        callSignalBuffer.push(sender.conversationId, {
+          to,
+          from: socket.id,
+          type: payload.type,
+          sdp: payload.sdp,
+          candidate: payload.candidate,
+          callId: payload.callId,
+        });
+        done({ success: true, queued: true });
+        return;
+      }
+      done({ success: false, message: "Call is not ready." });
     });
 
-    socket.on("dm_call_presence", async (payload = {}) => {
+    socket.on("dm_call_presence", async (payload = {}, ack) => {
       const conversationIdParam =
         payload.conversationId || membership.roomId();
-      if (!conversationIdParam) return;
+      if (!conversationIdParam) {
+        ackCall(ack, { success: false, message: "conversationId is required." });
+        return;
+      }
 
       try {
         const conversation = await findConversationByParam(conversationIdParam);
-        if (!conversation) return;
+        if (!conversation) {
+          ackCall(ack, { success: false, message: "Conversation not found." });
+          return;
+        }
         const conversationId = String(conversation._id);
         const call = getDmCall(conversationId);
-        if (isRetiredDmCall(payload.callId) || !signalMatchesCall(call, payload.callId)) return;
+        if (isRetiredDmCall(payload.callId) || !signalMatchesCall(call, payload.callId)) {
+          ackCall(ack, { success: false, message: "That call has ended." });
+          return;
+        }
         const caller = applyParticipantMedia(call, socket.id, payload);
-        if (!caller) return;
+        if (!caller) {
+          ackCall(ack, { success: false, message: "You are not in this call." });
+          return;
+        }
 
         const participantIds = [
           ...[...call.peers.values()].map((peer) => peer.userId),
@@ -523,8 +587,9 @@ export const initDirectMessageSocket = (io) => {
           peer: callerPayload(caller),
           peers: dmCallRoster(conversationId),
         });
-      } catch {
-        /* ignore */
+        ackCall(ack);
+      } catch (error) {
+        ackCall(ack, { success: false, message: error.message });
       }
     });
 
@@ -578,10 +643,14 @@ export const initDirectMessageSocket = (io) => {
     });
 
     socket.on("disconnect", () => {
-      const found = findDmCallBySocket(socket.id);
-      if (found) {
-        removeDmCaller(io, found.conversationId, socket.id);
-      }
+      const droppedId = socket.id;
+      // Mobile networks drop the socket for a moment. Keep the call if it returns.
+      setTimeout(() => {
+        const live = io.sockets.sockets.get(droppedId);
+        if (live?.connected) return;
+        const found = findDmCallBySocket(droppedId);
+        if (found) removeDmCaller(io, found.conversationId, droppedId);
+      }, 12000);
       if (membership.roomId()) {
         socket.leave(roomName(membership.roomId()));
       }

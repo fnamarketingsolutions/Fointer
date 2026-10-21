@@ -10,6 +10,7 @@ import {
 import { fetchPublicProfile } from "../../../api/profile";
 import { useAuth } from "../../../context/AuthContext";
 import ProfileAvatar from "../../../shared/components/ProfileAvatar";
+import ProfilePhotoViewer from "../../../shared/components/ProfilePhotoViewer";
 import FeedPostRow from "../../../shared/components/FeedPostRow";
 import {
   communitySegment,
@@ -67,6 +68,7 @@ export default function PublicProfile() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [messaging, setMessaging] = useState(false);
+  const [photoOpen, setPhotoOpen] = useState(false);
 
   const tabParam = searchParams.get("tab");
   const tab = TAB_IDS.has(tabParam) ? tabParam : "about";
@@ -301,12 +303,29 @@ export default function PublicProfile() {
       <article className="bg-fo-surface border border-fo-border rounded-xl p-4 sm:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-start gap-3 min-w-0">
-            <ProfileAvatar
-              src={profile.avatar}
-              alt={displayName}
-              name={displayName}
-              className="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover border border-fo-border shrink-0"
-            />
+            {profile.avatar ? (
+              <button
+                type="button"
+                onClick={() => setPhotoOpen(true)}
+                title="View profile photo"
+                aria-label="View profile photo"
+                className="rounded-full shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40"
+              >
+                <ProfileAvatar
+                  src={profile.avatar}
+                  alt={displayName}
+                  name={displayName}
+                  className="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover border border-fo-border shrink-0"
+                />
+              </button>
+            ) : (
+              <ProfileAvatar
+                src={profile.avatar}
+                alt={displayName}
+                name={displayName}
+                className="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover border border-fo-border shrink-0"
+              />
+            )}
             <div className="min-w-0">
               <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-fo-text leading-tight">
                 {displayName}
@@ -316,12 +335,6 @@ export default function PublicProfile() {
           </div>
           {actionButtons}
         </div>
-
-        {profile.bio ? (
-          <p className="mt-3 text-sm text-fo-muted leading-relaxed whitespace-pre-wrap">
-            {profile.bio}
-          </p>
-        ) : null}
 
         {profile.achievements?.length ? (
           <div className="mt-3 flex flex-wrap gap-1.5">
@@ -524,6 +537,11 @@ export default function PublicProfile() {
           </section>
         </div>
       )}
+      <ProfilePhotoViewer
+        src={photoOpen ? profile.avatar : ""}
+        alt={displayName}
+        onClose={() => setPhotoOpen(false)}
+      />
     </div>
   );
 }

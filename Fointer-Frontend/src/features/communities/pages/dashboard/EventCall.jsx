@@ -11,7 +11,8 @@ import {
 import { getLiveSocket } from "../../../../shared/services/liveSocket";
 import CallTile from "../../../../shared/components/CallTile";
 import { useAuth } from "../../../../context/AuthContext";
-import { ICE_SERVERS } from "../../../../shared/webrtc/iceServers";
+import { getIceConfig } from "../../../../shared/webrtc/iceServers";
+import { watchPeerConnection } from "../../../../shared/webrtc/iceRestart";
 import { applyPeerSignal } from "../../../../shared/webrtc/applyPeerSignal";
 import { createIceQueue, enqueueSerial } from "../../../../shared/webrtc/iceQueue";
 import { addRemoteTracks } from "../../../../shared/webrtc/remoteTracks";
@@ -48,6 +49,7 @@ export default function EventCall({ eventId, isLive, callMode = "chat", authoriz
   const acceptSignalsRef = useRef(false);
   const cameraBusyRef = useRef(false);
   const modeRef = useRef(mode);
+  const iceConfigRef = useRef(null);
   const makingOfferRef = useRef(new Set());
   const handlersRef = useRef({});
   const earlySignalsRef = useRef([]);
@@ -178,7 +180,7 @@ export default function EventCall({ eventId, isLive, callMode = "chat", authoriz
         return existing;
       }
 
-      const pc = new RTCPeerConnection(ICE_SERVERS);
+      const pc = new RTCPeerConnection(iceConfigRef.current || undefined);
       const peer = {
         pc,
         name: info.name || info.username || "Member",
@@ -201,13 +203,23 @@ export default function EventCall({ eventId, isLive, callMode = "chat", authoriz
 
       pc.onicecandidate = (event) => {
         if (!event.candidate) return;
-        sendSignal(socketId, { type: "ice", candidate: event.candidate });
+        sendSignal(socketId, {
+          type: "ice",
+          candidate: event.candidate.toJSON ? event.candidate.toJSON() : event.candidate,
+        });
       };
 
       pc.onconnectionstatechange = () => {
         peer.connectionState = pc.connectionState;
         syncTiles();
       };
+      watchPeerConnection(pc, {
+        polite: peer.polite,
+        isActive: () => inCallRef.current,
+        sendOffer: (description) => {
+          sendSignal(socketId, { type: "offer", sdp: description });
+        },
+      });
 
       pc.ontrack = (event) => {
         addRemoteTracks(peer.stream, event);
@@ -372,6 +384,7 @@ export default function EventCall({ eventId, isLive, callMode = "chat", authoriz
             ? { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } }
             : false,
       });
+      iceConfigRef.current = await getIceConfig();
       localStreamRef.current = stream;
       modeRef.current = nextMode;
       setMode(nextMode);

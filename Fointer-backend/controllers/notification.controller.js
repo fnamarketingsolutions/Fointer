@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import Follow from "../models/follow.js";
 import Notification, {
   ADMIN_NOTIFICATION_TYPES,
   SYSTEM_NOTIFICATION_TYPES,
@@ -25,6 +26,36 @@ const recipientScope = (user) => {
     query.type = { $in: types.length ? types : ["__none__"] };
   }
   return query;
+};
+
+const withFollowBackFlags = async (viewerId, notifications) => {
+  const actorIds = [
+    ...new Set(
+      notifications
+        .filter((item) => item.type === "follow" && item.actor?.id)
+        .map((item) => String(item.actor.id))
+    ),
+  ];
+  if (!actorIds.length) return notifications;
+
+  const rows = await Follow.find({
+    follower: viewerId,
+    following: { $in: actorIds },
+  })
+    .select("following")
+    .lean();
+  const following = new Set(rows.map((row) => String(row.following)));
+
+  return notifications.map((item) => {
+    if (item.type !== "follow" || !item.actor?.id) return item;
+    return {
+      ...item,
+      actor: {
+        ...item.actor,
+        isFollowing: following.has(String(item.actor.id)),
+      },
+    };
+  });
 };
 
 const ownedNotification = async (id, userId) => {
@@ -73,6 +104,8 @@ export const listNotifications = async (req, res) => {
       query.type = "mention";
     } else if (filter === "system") {
       query.type = { $in: SYSTEM_NOTIFICATION_TYPES };
+    } else if (filter === "broadcast" || filter === "broadcasts") {
+      query.type = "admin_broadcast";
     }
 
     const unreadQuery = {
@@ -89,9 +122,14 @@ export const listNotifications = async (req, res) => {
       Notification.countDocuments(unreadQuery),
     ]);
 
+    const notifications = await withFollowBackFlags(
+      req.user._id,
+      items.map(formatNotification)
+    );
+
     return res.status(200).json({
       success: true,
-      notifications: items.map(formatNotification),
+      notifications,
       unreadCount,
       pagination: buildPaginationMeta({ page, limit, total }),
     });

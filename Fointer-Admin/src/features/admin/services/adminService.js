@@ -308,6 +308,16 @@ export const deleteAdminBanner = async (id) => {
   return response.data;
 };
 
+export const fetchAdminBroadcasts = async () => {
+  const response = await api.get('/admin/broadcasts');
+  return response.data;
+};
+
+export const sendAdminBroadcast = async (payload) => {
+  const response = await api.post('/admin/broadcasts', payload);
+  return response.data;
+};
+
 export const fetchAdminUserSupportCategories = async () => {
   const response = await api.get('/admin/user-support/categories');
   return response.data;

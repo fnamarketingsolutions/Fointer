@@ -26,6 +26,7 @@ import bookmarkRoute from "./routes/bookmarkRoute.js";
 import conversationRoute from "./routes/conversationRoute.js";
 import blockRoute from "./routes/blockRoute.js";
 import bannerRoute from "./routes/bannerRoute.js";
+import broadcastRoute from "./routes/broadcastRoute.js";
 import userSupportRoute from "./routes/userSupportRoute.js";
 import locationRoute from "./routes/locationRoute.js";
 import referralRoute from "./routes/referralRoute.js";
@@ -111,6 +112,11 @@ const io = new Server(server, {
     origin: allowedOrigins,
     credentials: true,
   },
+  // A phone radio blip keeps the same socket id long enough to finish the call.
+  connectionStateRecovery: {
+    maxDisconnectionDuration: 2 * 60 * 1000,
+    skipMiddlewares: true,
+  },
 });
 
 app.set("io", io);
@@ -142,6 +148,7 @@ app.use("/api/conversations", conversationRoute);
 app.use("/api/blocks", blockRoute);
 app.use("/api/locations", locationRoute);
 app.use("/api", bannerRoute);
+app.use("/api", broadcastRoute);
 app.use("/api", userSupportRoute);
 
 // Social crawlers (Twitter/X, WhatsApp, Facebook) are proxied here by the

@@ -31,6 +31,7 @@ const TYPE_LABELS = {
   watch_group_invite: 'Watch group invite',
   referral_qualified: 'Referral',
   ownership_transferred: 'Ownership',
+  admin_broadcast: 'Admin broadcast',
 };
 
 export const isSystemNotification = (type) => SYSTEM_TYPES.has(type);
@@ -137,6 +138,13 @@ export const notificationPath = (notification) => {
   }
   if (type === 'ownership_transferred') {
     return communityPath || '/communities';
+  }
+  if (type === 'follow') {
+    const username = String(notification?.actor?.username || '').trim();
+    if (username) return `/users/${encodeURIComponent(username)}`;
+  }
+  if (type === 'admin_broadcast') {
+    return '/notifications?tab=broadcast';
   }
   return '/notifications';
 };

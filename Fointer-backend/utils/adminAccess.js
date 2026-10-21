@@ -15,6 +15,7 @@ const ADMIN_TAB_IDS = [
   "support",
   "usersupport",
   "banners",
+  "broadcasts",
   "settings",
   "profile",
   "admins",

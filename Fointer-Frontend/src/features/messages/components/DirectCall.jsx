@@ -20,7 +20,8 @@ import { getLiveSocket } from "../../../shared/services/liveSocket";
 import ProfileAvatar from "../../../shared/components/ProfileAvatar";
 import CallTile from "../../../shared/components/CallTile";
 import { useAuth } from "../../../context/AuthContext";
-import { ICE_SERVERS } from "../../../shared/webrtc/iceServers";
+import { getIceConfig } from "../../../shared/webrtc/iceServers";
+import { watchPeerConnection } from "../../../shared/webrtc/iceRestart";
 import { applyPeerSignal } from "../../../shared/webrtc/applyPeerSignal";
 import {
   callPhaseCanSignal,
@@ -80,6 +81,7 @@ const DirectCall = forwardRef(function DirectCall(
   const callIdRef = useRef("");
   const syncGenRef = useRef(0);
   const cameraBusyRef = useRef(false);
+  const iceConfigRef = useRef(null);
 
   modeRef.current = mode;
   conversationIdRef.current = conversationId;
@@ -200,7 +202,7 @@ const DirectCall = forwardRef(function DirectCall(
         return existing;
       }
 
-      const pc = new RTCPeerConnection(ICE_SERVERS);
+      const pc = new RTCPeerConnection(iceConfigRef.current || undefined);
       const stream = new MediaStream();
       const myId = String(getLiveSocket().id || "");
       const polite = myId < String(remote.socketId);
@@ -234,7 +236,7 @@ const DirectCall = forwardRef(function DirectCall(
         if (!event.candidate) return;
         sendSignal(remote.socketId, {
           type: "ice",
-          candidate: event.candidate,
+          candidate: event.candidate.toJSON ? event.candidate.toJSON() : event.candidate,
         });
       };
 
@@ -242,6 +244,13 @@ const DirectCall = forwardRef(function DirectCall(
         peer.connectionState = pc.connectionState;
         syncTiles();
       };
+      watchPeerConnection(pc, {
+        polite,
+        isActive: () => phaseRef.current !== "idle",
+        sendOffer: (description) => {
+          sendSignal(remote.socketId, { type: "offer", sdp: description });
+        },
+      });
 
       pc.ontrack = (event) => {
         addRemoteTracks(peer.stream, event);
@@ -443,6 +452,7 @@ const DirectCall = forwardRef(function DirectCall(
       setError("");
       setCallPhase("connecting");
       try {
+        iceConfigRef.current = await getIceConfig();
         await acquireMedia(nextMode);
         flushEarlySignals();
         const socket = getLiveSocket();
@@ -477,6 +487,7 @@ const DirectCall = forwardRef(function DirectCall(
     setError("");
     setCallPhase("connecting");
     try {
+      iceConfigRef.current = await getIceConfig();
       await acquireMedia(modeRef.current);
       flushEarlySignals();
       const socket = getLiveSocket();
@@ -556,6 +567,8 @@ const DirectCall = forwardRef(function DirectCall(
       if (!matches(payload)) return;
       if (payload?.callId) retireDmCall(payload.callId);
       syncGenRef.current += 1;
+      // Starting the next call clears the previous one. Don't tear the new attempt down.
+      if (phaseRef.current === "connecting" && !callIdRef.current) return;
       if (!shouldApplyEnd({
         activeCallId: callIdRef.current,
         endedCallId: payload?.callId,

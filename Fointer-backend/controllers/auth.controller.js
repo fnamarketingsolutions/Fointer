@@ -464,11 +464,29 @@ export const googleLogin = async (req, res) => {
         console.error("[referral] google code:", referralError?.message || referralError);
       }
     } else {
-      if (!user.googleId) user.googleId = googleId;
-      if (picture) user.avatar = picture;
-      if (name) user.name = name;
-      if (user.role) user.role = String(user.role).toLowerCase().trim();
-      await user.save();
+      // Keep a display name and photo the member already saved.
+      // Google values fill those fields only when they are still empty.
+      let changed = false;
+      if (!user.googleId) {
+        user.googleId = googleId;
+        changed = true;
+      }
+      if (!String(user.avatar || "").trim() && picture) {
+        user.avatar = picture;
+        changed = true;
+      }
+      if (!String(user.name || "").trim() && name) {
+        user.name = name;
+        changed = true;
+      }
+      if (user.role) {
+        const normalized = String(user.role).toLowerCase().trim();
+        if (normalized !== user.role) {
+          user.role = normalized;
+          changed = true;
+        }
+      }
+      if (changed) await user.save();
     }
 
     if (!user.isEmailVerified) {
@@ -795,10 +813,20 @@ export const adminGoogleLogin = async (req, res) => {
 
     // Do not mutate non-admin accounts before portal role check.
     if (user && normalizeRole(user) === "admin") {
-      if (!user.googleId) user.googleId = googleId;
-      if (picture) user.avatar = picture;
-      if (name) user.name = name;
-      await user.save();
+      let changed = false;
+      if (!user.googleId) {
+        user.googleId = googleId;
+        changed = true;
+      }
+      if (!String(user.avatar || "").trim() && picture) {
+        user.avatar = picture;
+        changed = true;
+      }
+      if (!String(user.name || "").trim() && name) {
+        user.name = name;
+        changed = true;
+      }
+      if (changed) await user.save();
     }
 
     return finishAdminSocialLogin(res, user, { providerLabel: "Google" });
@@ -896,9 +924,16 @@ export const adminFacebookLogin = async (req, res) => {
     let user = await User.findOne({ facebookId });
 
     if (user && normalizeRole(user) === "admin") {
-      if (!user.avatar && avatar) user.avatar = avatar;
-      if (name) user.name = name;
-      await user.save();
+      let changed = false;
+      if (!String(user.avatar || "").trim() && avatar) {
+        user.avatar = avatar;
+        changed = true;
+      }
+      if (!String(user.name || "").trim() && name) {
+        user.name = name;
+        changed = true;
+      }
+      if (changed) await user.save();
     } else {
       user = null;
     }

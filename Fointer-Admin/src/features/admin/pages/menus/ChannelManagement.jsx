@@ -22,6 +22,8 @@ import { ChannelIconGlyph } from "../../../../shared/constants/channelIcons.jsx"
 import { useToast } from "../../../../shared/components/feedback/ToastContext";
 import { getErrorMessage } from "../../../../shared/utils/errors";
 import { timeAgo } from "../../../../shared/utils/date";
+import CsvExportButton from "../../../../shared/components/CsvExportButton";
+import { csvDate } from "../../../../shared/utils/csv";
 
 const TABS = [
   { id: "channels", label: "Channels" },
@@ -79,10 +81,26 @@ export default function ChannelManagement() {
 
   const query = search.trim().toLowerCase();
 
+  const subchannelsByChannel = useMemo(() => {
+    const map = new Map();
+    for (const sub of subchannels) {
+      const id = String(sub.channel?.id || "");
+      if (!id) continue;
+      const list = map.get(id) || [];
+      list.push(sub);
+      map.set(id, list);
+    }
+    return map;
+  }, [subchannels]);
+
   const filteredChannels = useMemo(() => {
     if (!query) return channels;
-    return channels.filter((c) => (c.name || "").toLowerCase().includes(query));
-  }, [channels, query]);
+    return channels.filter((channel) => {
+      if ((channel.name || "").toLowerCase().includes(query)) return true;
+      const subs = subchannelsByChannel.get(String(channel.id)) || [];
+      return subs.some((sub) => (sub.name || "").toLowerCase().includes(query));
+    });
+  }, [channels, query, subchannelsByChannel]);
 
   const filteredSubchannels = useMemo(() => {
     const channelIdFilter = searchParams.get("channelId");
@@ -173,6 +191,65 @@ export default function ChannelManagement() {
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          <CsvExportButton
+            filename="fointer-channels"
+            disabled={loading}
+            onError={showToast}
+            datasets={[
+              {
+                id: "channels",
+                label: "Channels",
+                dateValue: (row) => row.createdAt,
+                loadRows: async () => filteredChannels,
+                columns: [
+                  { id: "name", label: "Channel", value: (row) => row.name || "" },
+                  { id: "icon", label: "Icon", value: (row) => row.icon || "" },
+                  {
+                    id: "communities",
+                    label: "Active communities",
+                    value: (row) => row.activeCommunityCount || 0,
+                  },
+                  {
+                    id: "subchannels",
+                    label: "Subchannels",
+                    value: (row) =>
+                      (subchannelsByChannel.get(String(row.id)) || [])
+                        .map((sub) => sub.name)
+                        .join("; "),
+                  },
+                  {
+                    id: "created",
+                    label: "Created",
+                    value: (row) => csvDate(row.createdAt),
+                  },
+                ],
+              },
+              {
+                id: "subchannels",
+                label: "Subchannels",
+                dateValue: (row) => row.createdAt,
+                loadRows: async () => filteredSubchannels,
+                columns: [
+                  { id: "name", label: "Subchannel", value: (row) => row.name || "" },
+                  {
+                    id: "channel",
+                    label: "Channel",
+                    value: (row) => row.channel?.name || "",
+                  },
+                  {
+                    id: "communities",
+                    label: "Active communities",
+                    value: (row) => row.activeCommunityCount || 0,
+                  },
+                  {
+                    id: "created",
+                    label: "Created",
+                    value: (row) => csvDate(row.createdAt),
+                  },
+                ],
+              },
+            ]}
+          />
           <button
             type="button"
             onClick={loadData}
@@ -244,7 +321,7 @@ export default function ChannelManagement() {
           type="text"
           placeholder={
             isChannels
-              ? "Search by channel name…"
+              ? "Search by channel or subchannel…"
               : "Search by subchannel or channel…"
           }
           value={search}
@@ -273,10 +350,13 @@ export default function ChannelManagement() {
           </div>
         ) : (
           <div className="space-y-2.5">
-            {filteredChannels.map((channel) => (
+            {filteredChannels.map((channel) => {
+              const channelSubs =
+                subchannelsByChannel.get(String(channel.id)) || [];
+              return (
               <article
                 key={channel.id}
-                className="flex items-center gap-3 bg-fo-surface border border-fo-border hover:border-fo-accent/35 rounded-xl p-3.5 sm:p-4 transition-colors"
+                className="flex items-start gap-3 bg-fo-surface border border-fo-border hover:border-fo-accent/35 rounded-xl p-3.5 sm:p-4 transition-colors"
               >
                 <div className="w-10 h-10 rounded-lg bg-[#1A1510] border border-fo-border flex items-center justify-center shrink-0">
                   {channel.icon ? (
@@ -294,8 +374,27 @@ export default function ChannelManagement() {
                     {(channel.activeCommunityCount || 0) === 1
                       ? "community"
                       : "communities"}
+                    {" · "}
+                    {channelSubs.length}{" "}
+                    {channelSubs.length === 1 ? "subchannel" : "subchannels"}
                     {channel.createdAt ? ` · ${timeAgo(channel.createdAt)}` : ""}
                   </p>
+                  {channelSubs.length ? (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {channelSubs.map((sub) => (
+                        <span
+                          key={sub.id}
+                          className="px-2 py-0.5 rounded-md bg-fo-bg border border-fo-border text-[11px] text-fo-muted"
+                        >
+                          {sub.name}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-[11px] text-fo-subtle">
+                      No subchannels yet
+                    </p>
+                  )}
                 </div>
                 <button
                   type="button"
@@ -306,7 +405,8 @@ export default function ChannelManagement() {
                   <Pencil size={14} />
                 </button>
               </article>
-            ))}
+              );
+            })}
           </div>
         )
       ) : channels.length === 0 ? (

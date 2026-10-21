@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   LuBell as Bell,
   LuCheckCheck as CheckCheck,
@@ -15,6 +15,7 @@ import {
   LuLifeBuoy as LifeBuoy,
   LuFlag as Flag,
   LuLayers as Layers,
+  LuMegaphone as Megaphone,
 } from "react-icons/lu";
 import { PageLoader } from "../../../../shared/components/ThemeSpinner";
 import {
@@ -33,6 +34,7 @@ import {
 import { useNotifications } from "../../../../context/NotificationContext";
 import { timeAgo } from "../../../../shared/utils/date";
 import { useToast } from "../../../../shared/components/feedback/ToastContext";
+import FollowButton from "../../../../shared/components/FollowButton";
 import ProfileAvatar from "../../../../shared/components/ProfileAvatar";
 import { getLiveSocket } from "../../../../shared/services/liveSocket";
 import { getDashboardPathForRole } from "../../../../shared/lib/roles";
@@ -42,6 +44,7 @@ const USER_FILTERS = [
   { id: "unread", label: "Unread" },
   { id: "mentions", label: "Mentions" },
   { id: "system", label: "System & Access" },
+  { id: "broadcast", label: "Admin Broadcast" },
 ];
 
 const typeIcon = (type) => {
@@ -50,6 +53,10 @@ const typeIcon = (type) => {
     return { Icon: MessageCircle, className: "text-sky-400" };
   }
   if (type === "reshare") return { Icon: Repeat, className: "text-emerald-400" };
+  if (type === "follow") return { Icon: UserPlus, className: "text-fo-accent" };
+  if (type === "admin_broadcast") {
+    return { Icon: Megaphone, className: "text-fo-accent" };
+  }
   if (type === "invite" || type === "invite_accepted" || type === "join_request") {
     return { Icon: UserPlus, className: "text-fo-accent" };
   }
@@ -76,7 +83,10 @@ export default function UserNotifications({ onBack }) {
   const { showToast } = useToast();
   const { unreadCount, refreshUnread, adjustUnread, setUnread } =
     useNotifications();
-  const [filter, setFilter] = useState("all");
+  const [searchParams] = useSearchParams();
+  const [filter, setFilter] = useState(() =>
+    searchParams.get("tab") === "broadcast" ? "broadcast" : "all"
+  );
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const filters = USER_FILTERS;
@@ -123,6 +133,9 @@ export default function UserNotifications({ onBack }) {
         if (filter === "unread" && !payload.isUnread) return prev;
         if (filter === "mentions" && payload.type !== "mention") return prev;
         if (filter === "system" && !isSystemNotification(payload.type)) {
+          return prev;
+        }
+        if (filter === "broadcast" && payload.type !== "admin_broadcast") {
           return prev;
         }
         if (filter === "reports" && payload.type !== "content_report") {
@@ -181,6 +194,21 @@ export default function UserNotifications({ onBack }) {
     }
   };
 
+  const handleFollowBack = (item, { following }) => {
+    const actorId = item.actor?.id;
+    setNotifications((prev) =>
+      prev.map((n) => {
+        const sameActor =
+          actorId && n.actor?.id && String(n.actor.id) === String(actorId);
+        if (!sameActor && n.id !== item.id) return n;
+        return {
+          ...n,
+          actor: n.actor ? { ...n.actor, isFollowing: following } : n.actor,
+        };
+      })
+    );
+  };
+
   const openNotification = async (item) => {
     if (item.isUnread) {
       try {
@@ -192,6 +220,10 @@ export default function UserNotifications({ onBack }) {
       } catch {
         refreshUnread();
       }
+    }
+    if (item.type === "admin_broadcast") {
+      setFilter("broadcast");
+      return;
     }
     navigate(notificationPath(item));
   };
@@ -334,6 +366,19 @@ export default function UserNotifications({ onBack }) {
                 </button>
 
                 <div className="flex items-center gap-1 sm:gap-2 shrink-0 opacity-80 group-hover:opacity-100 transition-opacity">
+                  {n.type === "follow" && n.actor?.username ? (
+                    <FollowButton
+                      username={n.actor.username}
+                      initialFollowing={Boolean(n.actor.isFollowing)}
+                      initialFollowedBy
+                      onChange={(next) => handleFollowBack(n, next)}
+                      className={`inline-flex items-center justify-center min-h-8 px-3 rounded-full text-[12px] font-semibold disabled:opacity-60 transition-colors ${
+                        n.actor.isFollowing
+                          ? "border border-fo-border text-fo-text hover:border-red-500/40 hover:text-red-400"
+                          : "bg-fo-accent text-black hover:bg-fo-accent-hover"
+                      }`}
+                    />
+                  ) : null}
                   <button
                     type="button"
                     onClick={() => toggleReadStatus(n)}

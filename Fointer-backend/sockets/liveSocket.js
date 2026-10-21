@@ -241,14 +241,20 @@ export const initLiveSocket = (io) => {
       removeCaller(io, eventId, socket.id);
     });
 
-    socket.on("call_signal", (payload = {}) => {
+    socket.on("call_signal", (payload = {}, ack) => {
+      const done = (body) => {
+        if (typeof ack === "function") ack(body);
+      };
       const to = payload.to;
-      if (!to) return;
+      if (!to) {
+        done({ success: false, message: "Missing recipient." });
+        return;
+      }
 
       const relay = (eventId) => {
-        if (!eventId) return;
+        if (!eventId) return false;
         const room = getCallMap(eventId);
-        if (!canRelayCallSignal(room, socket.id, to)) return;
+        if (!canRelayCallSignal(room, socket.id, to)) return false;
         io.to(to).emit("call_signal", {
           eventId,
           from: socket.id,
@@ -256,17 +262,30 @@ export const initLiveSocket = (io) => {
           sdp: payload.sdp,
           candidate: payload.candidate,
         });
+        return true;
       };
 
       const known = membership.roomId();
       if (known) {
-        relay(known);
+        done(
+          relay(known)
+            ? { success: true }
+            : { success: false, message: "Call is not ready." }
+        );
         return;
       }
 
       canonicalEventId(payload.eventId)
-        .then((eventId) => relay(eventId))
-        .catch(() => {});
+        .then((eventId) => {
+          done(
+            relay(eventId)
+              ? { success: true }
+              : { success: false, message: "Call is not ready." }
+          );
+        })
+        .catch((error) => {
+          done({ success: false, message: error?.message || "Could not relay the call." });
+        });
     });
 
     socket.on("call_presence", async (payload = {}) => {

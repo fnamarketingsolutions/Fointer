@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { LuPlus as Plus, LuStore as StoreIcon } from "react-icons/lu";
+import { LuArrowLeft as ArrowLeft, LuPlus as Plus, LuStore as StoreIcon } from "react-icons/lu";
 import { useToast } from "../../../shared/components/feedback/ToastContext";
 import { PageLoader } from "../../../shared/components/ThemeSpinner";
 import ConfirmDeleteModal from "../../../shared/components/modals/ConfirmDeleteModal";
@@ -65,6 +65,13 @@ export default function ManageStores() {
 
   return (
     <div className="mx-auto w-full max-w-[900px] pb-8 text-fo-text">
+      <button
+        type="button"
+        onClick={() => navigate("/marketplace")}
+        className="mb-3 inline-flex min-h-9 items-center gap-2 rounded-lg px-1 text-sm text-fo-muted hover:text-fo-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40"
+      >
+        <ArrowLeft size={16} /> Back to marketplace
+      </button>
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-medium text-fo-accent inline-flex items-center gap-1.5">

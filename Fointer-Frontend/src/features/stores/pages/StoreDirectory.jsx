@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { LuSearch as Search, LuStore as StoreIcon } from "react-icons/lu";
+import { LuArrowLeft as ArrowLeft, LuSearch as Search, LuStore as StoreIcon } from "react-icons/lu";
 import { PageLoader } from "../../../shared/components/ThemeSpinner";
 import { displayImageUrl } from "../../../shared/utils/imageUrl";
 import { categoryLabel, formatLocation } from "../../marketplace/constants";
@@ -44,6 +44,12 @@ export default function StoreDirectory() {
 
   return (
     <div className="mx-auto w-full max-w-[1100px] pb-8 text-fo-text">
+      <Link
+        to="/marketplace"
+        className="mb-3 inline-flex min-h-9 items-center gap-2 rounded-lg px-1 text-sm text-fo-muted hover:text-fo-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40"
+      >
+        <ArrowLeft size={16} /> Back to marketplace
+      </Link>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-xs font-medium text-fo-accent inline-flex items-center gap-1.5">

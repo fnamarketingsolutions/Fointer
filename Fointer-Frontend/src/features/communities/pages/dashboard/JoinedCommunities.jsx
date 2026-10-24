@@ -417,7 +417,7 @@ export default function JoinedCommunities() {
     <div className="text-fo-text w-full max-w-[1180px] mx-auto pb-6">
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px] gap-4 items-start">
         <div className="min-w-0 space-y-3">
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
             <div className="min-w-0">
               <p className="text-xs font-medium text-fo-accent inline-flex items-center gap-1.5">
                 <Users size={14} aria-hidden /> Communities
@@ -434,7 +434,7 @@ export default function JoinedCommunities() {
                 <button
                   type="button"
                   onClick={() => setCategory("")}
-                  className="inline-flex items-center gap-1.5 mt-1 px-2.5 py-1 rounded-lg text-xs bg-fo-accent/15 text-fo-accent hover:bg-fo-accent/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40"
+                  className="hidden lg:inline-flex items-center gap-1.5 mt-1 px-2.5 py-1 rounded-lg text-xs bg-fo-accent/15 text-fo-accent hover:bg-fo-accent/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40"
                 >
                   <Hash size={11} aria-hidden />
                   {category}
@@ -446,18 +446,18 @@ export default function JoinedCommunities() {
               ) : null}
             </div>
             {isAuthenticated ? (
-              <div className="flex flex-wrap gap-2 shrink-0">
+              <div className="flex flex-wrap gap-2 xl:max-w-lg xl:justify-end">
                 <button
                   type="button"
                   onClick={() => navigate("/communities/manage")}
-                  className="inline-flex items-center min-h-9 px-3.5 rounded-full border border-fo-border text-[13px] font-medium text-fo-text hover:border-fo-accent/40 hover:text-fo-accent transition-colors shrink-0"
+                  className="inline-flex items-center min-h-9 px-3.5 rounded-full border border-fo-border text-[13px] font-medium text-fo-text hover:border-fo-accent/40 hover:text-fo-accent transition-colors"
                 >
                   Manage
                 </button>
                 <button
                   type="button"
                   onClick={() => navigate("/communities/manage?create=1")}
-                  className="inline-flex items-center gap-1.5 min-h-9 px-3.5 rounded-full bg-fo-accent text-black text-[13px] font-semibold hover:bg-fo-accent-hover transition-colors shrink-0"
+                  className="inline-flex items-center gap-1.5 min-h-9 px-3.5 rounded-full bg-fo-accent text-black text-[13px] font-semibold hover:bg-fo-accent-hover transition-colors"
                 >
                   <Plus size={16} aria-hidden /> Create
                 </button>
@@ -514,6 +514,44 @@ export default function JoinedCommunities() {
               controlsId={FILTERS_PANEL_ID}
             />
           </div>
+          {!channelsLoading && channels.length > 0 ? (
+            <div className="lg:hidden min-w-0" role="group" aria-label="Categories">
+              <div className="flex gap-2 overflow-x-auto overscroll-x-contain fointer-scrollbar [-webkit-overflow-scrolling:touch]">
+                <button
+                  type="button"
+                  onClick={() => setCategory("")}
+                  aria-pressed={!category}
+                  className={`shrink-0 inline-flex items-center min-h-9 px-3.5 rounded-full text-[13px] font-medium transition-colors ${
+                    category
+                      ? "border border-fo-border text-fo-text"
+                      : "bg-fo-accent text-black"
+                  }`}
+                >
+                  All
+                </button>
+                {channels.map((channel) => {
+                  const name = channel.name || "";
+                  const active =
+                    category.toLowerCase() === name.toLowerCase();
+                  return (
+                    <button
+                      key={channel.id || name}
+                      type="button"
+                      onClick={() => setCategory(active ? "" : name)}
+                      aria-pressed={active}
+                      className={`shrink-0 inline-flex items-center min-h-9 px-3.5 rounded-full text-[13px] font-medium transition-colors ${
+                        active
+                          ? "bg-fo-accent text-black"
+                          : "border border-fo-border text-fo-text"
+                      }`}
+                    >
+                      {name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
 
       {loading ? (
         <div

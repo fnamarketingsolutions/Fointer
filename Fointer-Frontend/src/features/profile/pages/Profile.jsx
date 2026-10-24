@@ -438,8 +438,8 @@ export default function Profile() {
     setSearchParams(next, { replace: true });
   };
   return (
-    <div className="w-full max-w-3xl mx-auto space-y-5">
-      <header className="flex items-start justify-between gap-3">
+    <div className="w-full min-w-0 max-w-3xl mx-auto space-y-5">
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-1 min-w-0">
           <h1 className="text-xl sm:text-2xl font-semibold text-fo-text">
             Profile
@@ -449,7 +449,7 @@ export default function Profile() {
             referral link.
           </p>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => selectTab("referral")}
@@ -496,8 +496,8 @@ export default function Profile() {
       ) : null}
 
       <div className={cardClass}>
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-          <div className="relative shrink-0">
+        <div className="flex items-start gap-4">
+          <div className="relative w-fit shrink-0 self-start">
             <button
               type="button"
               onClick={() => {
@@ -561,7 +561,7 @@ export default function Profile() {
       </div>
 
       <div
-        className="flex gap-1 p-1 rounded-xl bg-fo-bg border border-fo-border overflow-x-auto overscroll-x-contain scrollbar-thin [-webkit-overflow-scrolling:touch]"
+        className="flex gap-1 p-1 w-full min-w-0 max-w-full rounded-xl bg-fo-bg border border-fo-border overflow-x-auto overscroll-x-contain fointer-scrollbar [-webkit-overflow-scrolling:touch]"
         role="tablist"
         aria-label="Profile sections"
       >

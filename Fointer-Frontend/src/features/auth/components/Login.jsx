@@ -244,8 +244,8 @@ export default function Login() {
         </div>
 
         <div className="mt-12 md:mt-0 space-y-6">
-          <p className="auth-hero-lead text-sm md:text-base max-w-md leading-relaxed font-light">
-            Welcome back! Log in to re-connect with your network and explore high-impact opportunities.
+          <p className="auth-hero-lead text-sm md:text-base max-w-md leading-relaxed font-light">Welcome back!
+          Find your interest, find your community.
           </p>
 
           <div className="auth-hero-separator pt-4 border-t flex items-center space-x-3">
@@ -261,7 +261,7 @@ export default function Login() {
               ))}
             </div>
             <span className="auth-hero-meta text-xs font-medium">
-              <strong>12k+</strong> professionals active today
+              <strong>12k+</strong> Users active today
             </span>
           </div>
         </div>

@@ -72,14 +72,14 @@ const NAV_ITEMS = [
   { id: 'channels', label: 'Channels Management', icon: Layers },
   { id: 'commentary', label: 'Live Events Management', icon: MessageSquare },
   { id: 'watchgroups', label: 'Watch Groups Management', icon: Radio },
-  { id: 'moderation', label: 'Content Moderation', icon: Shield },
-  { id: 'marketplace', label: 'Marketplace', icon: ShoppingBag },
-  { id: 'stores', label: 'Stores', icon: StoreIcon },
+  { id: 'moderation', label: 'Content Management', icon: Shield },
+  { id: 'marketplace', label: 'Marketplace Management', icon: ShoppingBag },
+  { id: 'stores', label: 'Stores Management', icon: StoreIcon },
   { id: 'sponsorships', label: 'Sponsorships Management', icon: Sparkles },
   { id: 'subscriptions', label: 'Subscriptions & Ads', icon: CreditCard },
-  { id: 'referrals', label: 'Referrals', icon: UserPlus },
+  { id: 'referrals', label: 'Referrals Management', icon: UserPlus },
   { id: 'analytics', label: 'Reporting & Analytics', icon: BarChart3 },
-  { id: 'warnings', label: 'Warnings', icon: AlertTriangle },
+  { id: 'warnings', label: 'Warnings Management', icon: AlertTriangle },
   { id: 'support', label: 'Support Tools', icon: LifeBuoy },
   { id: 'usersupport', label: 'User Support Management', icon: Headset },
   { id: 'banners', label: 'Banner Management', icon: ImageIcon },
@@ -135,7 +135,7 @@ const AdminDashboard = () => {
     () => NAV_ITEMS.filter((item) => canAccessTab(item.id)),
     [canAccessTab]
   );
-
+ 
   const defaultTab = allowedNavItems[0]?.id || 'profile';
   const pathTab = getPathTab(location.pathname);
   const activeTab =

@@ -17,6 +17,7 @@ export default function MarketplaceRail({
   onSelectCategory,
   isGuest = false,
   seller = null,
+  showCategories = true,
 }) {
   const location = useLocation();
   const sellerLabel = personDisplayName(seller, DELETED_USER_LABEL);
@@ -42,7 +43,7 @@ export default function MarketplaceRail({
         </div>
       ) : null}
 
-      <div className={SIDE_CARD}>
+      {showCategories ? <div className={SIDE_CARD}>
         <div className="flex items-center gap-1.5">
           <LayoutGrid size={15} className="text-fo-accent shrink-0" aria-hidden />
           <h2 className="text-[13px] font-semibold text-fo-text">Categories</h2>
@@ -82,7 +83,7 @@ export default function MarketplaceRail({
             );
           })}
         </ul>
-      </div>
+      </div> : null}
 
       <div className={SIDE_CARD}>
         <div className="flex items-center gap-1.5">

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
+  LuChevronDown as ChevronDown,
   LuLoaderCircle as Loader2,
   LuRefreshCw as RefreshCw,
   LuSearch as Search,
@@ -37,6 +38,8 @@ export default function ReferralManagement() {
   const [searchInput, setSearchInput] = useState("");
   const [rows, setRows] = useState([]);
   const [stats, setStats] = useState({ total: 0, pending: 0, qualified: 0 });
+  const [leaders, setLeaders] = useState([]);
+  const [leadersOpen, setLeadersOpen] = useState(false);
   const [nextCursor, setNextCursor] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -54,6 +57,7 @@ export default function ReferralManagement() {
           cursor: cursor || undefined,
         });
         setStats(result.stats || { total: 0, pending: 0, qualified: 0 });
+        setLeaders(result.leaders || []);
         setNextCursor(result.nextCursor || null);
         setRows((prev) =>
           append ? [...prev, ...(result.referrals || [])] : result.referrals || []
@@ -116,6 +120,82 @@ export default function ReferralManagement() {
           </div>
         ))}
       </div>
+
+      <section className="rounded-2xl border border-fo-border bg-fo-surface">
+        <button
+          type="button"
+          onClick={() => setLeadersOpen((open) => !open)}
+          aria-expanded={leadersOpen}
+          className="flex w-full items-center justify-between gap-3 p-4 text-left"
+        >
+          <span>
+            <span className="block text-sm font-semibold">Most qualified referrals</span>
+            <span className="mt-1 block text-xs text-fo-subtle">
+              Ranked by referrals that reached email verification.
+            </span>
+          </span>
+          <ChevronDown
+            size={16}
+            aria-hidden
+            className={`shrink-0 text-fo-subtle transition-transform ${
+              leadersOpen ? "rotate-180" : ""
+            }`}
+          />
+        </button>
+        {leadersOpen && leaders.length ? (
+          <ol className="divide-y divide-fo-border/80 border-t border-fo-border px-4">
+            {leaders.map((leader) => (
+              <li
+                key={leader.referrer?.id || leader.rank}
+                className="flex items-center justify-between gap-3 py-2.5"
+              >
+                <div className="flex min-w-0 items-center gap-3">
+                  <span
+                    className={`w-6 shrink-0 text-sm font-semibold ${
+                      leader.rank === 1 ? "text-fo-accent" : "text-fo-subtle"
+                    }`}
+                  >
+                    {leader.rank}
+                  </span>
+                  <div className="min-w-0">
+                    {leader.referrer?.id ? (
+                      <Link
+                        to={`/users/${leader.referrer.id}`}
+                        className="block truncate text-sm font-medium hover:text-fo-accent"
+                      >
+                        {personLabel(leader.referrer)}
+                      </Link>
+                    ) : (
+                      <p className="truncate text-sm text-fo-subtle">
+                        {personLabel(leader.referrer)}
+                      </p>
+                    )}
+                    <p className="truncate text-[11px] text-fo-subtle">
+                      {leader.referrer?.username
+                        ? `@${leader.referrer.username}`
+                        : leader.referrer?.email || "—"}
+                      {leader.referrer?.referralCode
+                        ? ` · ${leader.referrer.referralCode}`
+                        : ""}
+                    </p>
+                  </div>
+                </div>
+                <p className="shrink-0 text-sm font-semibold">
+                  {leader.qualified}
+                  <span className="ml-1 text-[11px] font-medium text-fo-subtle">
+                    qualified
+                  </span>
+                </p>
+              </li>
+            ))}
+          </ol>
+        ) : null}
+        {leadersOpen && !leaders.length ? (
+          <p className="border-t border-fo-border px-4 py-3 text-sm text-fo-subtle">
+            No qualified referrals yet.
+          </p>
+        ) : null}
+      </section>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div

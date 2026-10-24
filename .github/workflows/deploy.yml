@@ -49,7 +49,20 @@ jobs:
     # Configure required reviewers on this GitHub Environment before go-live.
     environment: production
     steps:
-      - name: Deploy pinned commit to AWS EC2
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: Fointer-backend/package-lock.json
+
+      # The EC2 box has ~900MB RAM. npm ci there froze the OS. Install on the
+      # runner instead, and only ship node_modules when the lockfile changed.
+      - name: Check dependency stamp on EC2
+        id: deps
         uses: appleboy/ssh-action@v1.2.2
         env:
           DEPLOY_SHA: ${{ github.sha }}
@@ -58,14 +71,72 @@ jobs:
           username: ubuntu
           key: ${{ secrets.AWS_SSH_KEY }}
           envs: DEPLOY_SHA
-          # npm ci on the small EC2 (sharp, ffmpeg-static, firebase-admin) can exceed the 10m default.
-          command_timeout: 30m
+          capture_stdout: true
+          command_timeout: 2m
           script: |
             set -euo pipefail
             cd /var/www/fointer/Fointer-backend
+            git fetch --prune origin >&2
+            if git cat-file -e "${DEPLOY_SHA}^{commit}" 2>/dev/null; then
+              git checkout --force "$DEPLOY_SHA" >&2
+            elif git fetch --depth 1 origin "$DEPLOY_SHA" >&2 && git cat-file -e "${DEPLOY_SHA}^{commit}" 2>/dev/null; then
+              git checkout --force "$DEPLOY_SHA" >&2
+            else
+              git checkout --force origin/main >&2
+            fi
+            LOCK_HASH="$(sha256sum package-lock.json | awk '{print $1}')"
+            if [ -f node_modules/.install-hash ] && [ "$(tr -d '[:space:]' < node_modules/.install-hash)" = "$LOCK_HASH" ]; then
+              echo DEPS_CURRENT
+            else
+              echo DEPS_STALE
+            fi
+
+      - name: Install production dependencies
+        if: ${{ !contains(steps.deps.outputs.stdout, 'DEPS_CURRENT') }}
+        working-directory: Fointer-backend
+        run: npm ci --omit=dev --no-audit --no-fund
+
+      - name: Pack production dependencies
+        if: ${{ !contains(steps.deps.outputs.stdout, 'DEPS_CURRENT') }}
+        run: tar -C Fointer-backend -czf fointer-node_modules.tgz node_modules
+
+      - name: Upload production dependencies
+        if: ${{ !contains(steps.deps.outputs.stdout, 'DEPS_CURRENT') }}
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.AWS_HOST }}
+          username: ubuntu
+          key: ${{ secrets.AWS_SSH_KEY }}
+          source: fointer-node_modules.tgz
+          target: /tmp
+          timeout: 60s
+          command_timeout: 10m
+
+      - name: Publish release and restart
+        uses: appleboy/ssh-action@v1.2.2
+        env:
+          DEPLOY_SHA: ${{ github.sha }}
+        with:
+          host: ${{ secrets.AWS_HOST }}
+          username: ubuntu
+          key: ${{ secrets.AWS_SSH_KEY }}
+          envs: DEPLOY_SHA
+          command_timeout: 10m
+          script: |
+            set -euo pipefail
+            if ! swapon --show | awk 'NR > 1 { print $1 }' | grep -qx '/swapfile'; then
+              if [ ! -f /swapfile ]; then
+                sudo fallocate -l 1G /swapfile
+                sudo chmod 600 /swapfile
+                sudo mkswap /swapfile
+              fi
+              sudo swapon /swapfile
+            fi
+            if ! grep -q '^/swapfile ' /etc/fstab; then
+              echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab >/dev/null
+            fi
+            cd /var/www/fointer/Fointer-backend
             git fetch --prune origin
-            # Prefer the exact CI commit when this clone shares the monorepo history;
-            # otherwise fall back to origin/main (CI already verified that push).
             if git cat-file -e "${DEPLOY_SHA}^{commit}" 2>/dev/null; then
               git checkout --force "$DEPLOY_SHA"
             elif git fetch --depth 1 origin "$DEPLOY_SHA" 2>/dev/null && git cat-file -e "${DEPLOY_SHA}^{commit}" 2>/dev/null; then
@@ -74,12 +145,17 @@ jobs:
               git checkout --force origin/main
             fi
             LOCK_HASH="$(sha256sum package-lock.json | awk '{print $1}')"
-            if [ -f node_modules/.install-hash ] && [ "$(cat node_modules/.install-hash)" = "$LOCK_HASH" ]; then
-              echo "package-lock.json unchanged; skipping npm ci"
-            else
-              echo "Installing production dependencies..."
-              npm ci --omit=dev --no-audit --no-fund
+            if [ -f /tmp/fointer-node_modules.tgz ]; then
+              echo "Extracting production dependencies..."
+              rm -rf node_modules
+              tar -xzf /tmp/fointer-node_modules.tgz -C /var/www/fointer/Fointer-backend
+              rm -f /tmp/fointer-node_modules.tgz
               echo "$LOCK_HASH" > node_modules/.install-hash
+            elif [ -f node_modules/.install-hash ] && [ "$(tr -d '[:space:]' < node_modules/.install-hash)" = "$LOCK_HASH" ]; then
+              echo "package-lock.json unchanged; keeping existing node_modules"
+            else
+              echo "Production dependencies are missing on the server." >&2
+              exit 1
             fi
             echo "Restarting PM2..."
             pm2 restart Fointer-backend --update-env

@@ -355,7 +355,7 @@ export default function PublicProfile() {
       </article>
 
       <div
-        className="flex items-center gap-1 border-b border-fo-border pb-1 overflow-x-auto fointer-scrollbar flex-nowrap"
+        className="flex items-center gap-1 w-full min-w-0 max-w-full border-b border-fo-border pb-1 overflow-x-auto overscroll-x-contain fointer-scrollbar flex-nowrap [-webkit-overflow-scrolling:touch]"
         role="tablist"
         aria-label="Profile sections"
       >

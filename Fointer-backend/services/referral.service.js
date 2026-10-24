@@ -188,6 +188,42 @@ export const countQualifiedReferrals = async (userId) => {
   });
 };
 
+const mapReferralPerson = (user) =>
+  user
+    ? {
+        id: String(user._id),
+        username: user.username || "",
+        name: user.name || "",
+        email: user.email || "",
+        avatar: user.avatar || "",
+        status: user.status || "",
+        referralCode: user.referralCode || "",
+      }
+    : null;
+
+/** Referrers with the most email-verified referrals, highest first. */
+export const getQualifiedReferralLeaders = async (limit = 10) => {
+  const take = Math.min(Math.max(Number(limit) || 10, 1), 25);
+  const grouped = await Referral.aggregate([
+    { $match: { status: "qualified" } },
+    { $group: { _id: "$referrer", qualified: { $sum: 1 } } },
+    { $sort: { qualified: -1, _id: 1 } },
+    { $limit: take },
+  ]);
+  if (!grouped.length) return [];
+
+  const users = await User.find({ _id: { $in: grouped.map((row) => row._id) } })
+    .select("username name email avatar status referralCode")
+    .lean();
+  const userById = new Map(users.map((user) => [String(user._id), user]));
+
+  return grouped.map((row, index) => ({
+    rank: index + 1,
+    qualified: row.qualified,
+    referrer: mapReferralPerson(userById.get(String(row._id))),
+  }));
+};
+
 /**
  * Admin list: all referrals with optional status / q filters + cursor pagination.
  */
@@ -231,8 +267,15 @@ export const getAdminReferrals = async ({
     if (!ids.length && code) {
       filter.codeUsed = code;
     } else if (!ids.length) {
+      const [total, pending, qualified, leaders] = await Promise.all([
+        Referral.countDocuments({}),
+        Referral.countDocuments({ status: "pending" }),
+        Referral.countDocuments({ status: "qualified" }),
+        getQualifiedReferralLeaders(),
+      ]);
       return {
-        stats: { total: 0, pending: 0, qualified: 0 },
+        stats: { total, pending, qualified },
+        leaders,
         referrals: [],
         nextCursor: null,
       };
@@ -242,10 +285,11 @@ export const getAdminReferrals = async ({
     }
   }
 
-  const [total, pending, qualified, rows] = await Promise.all([
+  const [total, pending, qualified, leaders, rows] = await Promise.all([
     Referral.countDocuments({}),
     Referral.countDocuments({ status: "pending" }),
     Referral.countDocuments({ status: "qualified" }),
+    getQualifiedReferralLeaders(),
     Referral.find(filter)
       .sort({ createdAt: -1 })
       .limit(take + 1)
@@ -260,21 +304,9 @@ export const getAdminReferrals = async ({
     ? page[page.length - 1]?.createdAt?.toISOString?.() || null
     : null;
 
-  const mapPerson = (user) =>
-    user
-      ? {
-          id: String(user._id),
-          username: user.username || "",
-          name: user.name || "",
-          email: user.email || "",
-          avatar: user.avatar || "",
-          status: user.status || "",
-          referralCode: user.referralCode || "",
-        }
-      : null;
-
   return {
     stats: { total, pending, qualified },
+    leaders,
     referrals: page.map((row) => ({
       id: String(row._id),
       status: row.status,
@@ -282,8 +314,8 @@ export const getAdminReferrals = async ({
       createdAt: row.createdAt,
       qualifiedAt: row.qualifiedAt,
       notifiedAt: row.notifiedAt,
-      referrer: mapPerson(row.referrer),
-      referee: mapPerson(row.referee),
+      referrer: mapReferralPerson(row.referrer),
+      referee: mapReferralPerson(row.referee),
     })),
     nextCursor,
   };

@@ -370,7 +370,7 @@ export default function ManageCommunities() {
       </button>
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px] gap-4 items-start">
         <div className="min-w-0 space-y-3">
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
             <div className="min-w-0">
               <p className="text-xs font-medium text-fo-accent inline-flex items-center gap-1.5">
                 <Folders size={14} aria-hidden /> Manage
@@ -383,7 +383,7 @@ export default function ManageCommunities() {
                 settings.
               </p>
             </div>
-            <div className="flex flex-wrap gap-2 shrink-0">
+            <div className="flex flex-wrap gap-2 xl:max-w-lg xl:justify-end">
               <button
                 type="button"
                 onClick={() => setHelpOpen(true)}

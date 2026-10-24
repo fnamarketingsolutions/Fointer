@@ -306,8 +306,8 @@ export default function SignUp() {
 
         <div className="mt-12 md:mt-0 space-y-6">
           <p className="auth-hero-lead text-sm md:text-base max-w-md leading-relaxed font-light">
-            Join the next generation of community networking. An exclusive ecosystem designed for high-impact leaders and creative visionaries.
-          </p>
+          A community for every interest. 
+Discover your people. Find where you belong.  </p>
 
           <div className="auth-hero-separator pt-4 border-t flex items-center space-x-3">
             <div className="flex -space-x-2 overflow-hidden">
@@ -318,11 +318,11 @@ export default function SignUp() {
                   aria-hidden="true"
                 >
                   {initials}
-                </span>
+                </span>  
               ))}
             </div>
             <span className="auth-hero-meta text-xs font-medium">
-              <strong>12k+</strong> professionals active today
+              <strong>12k+</strong> Users active today
             </span>
           </div>
         </div>

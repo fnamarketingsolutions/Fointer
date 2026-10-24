@@ -186,7 +186,7 @@ export default function MarketplaceBrowse() {
         }
       >
         <div className="space-y-3">
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
             <div className="min-w-0">
               <p className="text-xs font-medium text-fo-accent inline-flex items-center gap-1.5">
                 <ShoppingBag size={14} aria-hidden /> Marketplace
@@ -199,7 +199,7 @@ export default function MarketplaceBrowse() {
                 processed separately; Fointer does not process item-sale payments.
               </p>
             </div>
-            <div className="flex flex-wrap gap-2 shrink-0">
+            <div className="flex flex-wrap gap-2 xl:max-w-lg xl:justify-end">
               <button
                 type="button"
                 onClick={() => setFreeOnly(false)}
@@ -313,11 +313,45 @@ export default function MarketplaceBrowse() {
               ) : null}
             </div>
           </div>
+          <div className="lg:hidden min-w-0" role="group" aria-label="Categories">
+            <div className="flex gap-2 overflow-x-auto overscroll-x-contain fointer-scrollbar [-webkit-overflow-scrolling:touch]">
+              <button
+                type="button"
+                onClick={() => setCategory("")}
+                aria-pressed={!category}
+                className={`shrink-0 inline-flex items-center min-h-9 px-3.5 rounded-full text-[13px] font-medium transition-colors ${
+                  category
+                    ? "border border-fo-border text-fo-text"
+                    : "bg-fo-accent text-black"
+                }`}
+              >
+                All
+              </button>
+              {LISTING_CATEGORIES.map((item) => {
+                const active = category === item.value;
+                return (
+                  <button
+                    key={item.value}
+                    type="button"
+                    onClick={() => setCategory(active ? "" : item.value)}
+                    aria-pressed={active}
+                    className={`shrink-0 inline-flex items-center min-h-9 px-3.5 rounded-full text-[13px] font-medium transition-colors ${
+                      active
+                        ? "bg-fo-accent text-black"
+                        : "border border-fo-border text-fo-text"
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
           {category ? (
             <button
               type="button"
               onClick={() => setCategory("")}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs bg-fo-accent/15 text-fo-accent hover:bg-fo-accent/25"
+              className="hidden lg:inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs bg-fo-accent/15 text-fo-accent hover:bg-fo-accent/25"
             >
               {categoryName}
               <span aria-hidden>×</span>
@@ -342,7 +376,7 @@ export default function MarketplaceBrowse() {
           ) : (
             <div className="space-y-5">
               {topSponsored.length ? (
-                <section aria-label="Top sponsored listings" className="space-y-2">
+                <section aria-label="Top sponsored listings" className="space-y-2 min-w-0">
                   <h2 className="text-sm font-semibold text-fo-text">Featured listings</h2>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                     {topSponsored.map((listing) => (
@@ -352,11 +386,16 @@ export default function MarketplaceBrowse() {
                 </section>
               ) : null}
               {sectionSponsored.length ? (
-                <section aria-label="Sponsored listings" className="space-y-2">
+                <section aria-label="Sponsored listings" className="space-y-2 min-w-0">
                   <h2 className="text-sm font-semibold text-fo-text">Sponsored</h2>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  <div className="flex gap-3 w-full min-w-0 overflow-x-auto overscroll-x-contain snap-x snap-mandatory pb-1 fointer-scrollbar [-webkit-overflow-scrolling:touch]">
                     {sectionSponsored.map((listing) => (
-                      <ListingCard key={listing.id} listing={listing} onSave={handleSaveListing} />
+                      <div
+                        key={listing.id}
+                        className="w-[calc((100%-0.75rem)/2)] md:w-[calc((100%-1.5rem)/3)] shrink-0 snap-start"
+                      >
+                        <ListingCard listing={listing} onSave={handleSaveListing} />
+                      </div>
                     ))}
                   </div>
                 </section>
@@ -379,6 +418,7 @@ export default function MarketplaceBrowse() {
           selectedCategory={category}
           onSelectCategory={setCategory}
           isGuest={!isAuthenticated}
+          showCategories={false}
         />
       </div>
 

@@ -2,7 +2,7 @@ import "./config/loadEnv.js";
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
-import dns from "dns";
+import dns from "dns"; 
 import http from "http";
 import { Server } from "socket.io";
 import cookieParser from "cookie-parser";
@@ -32,6 +32,7 @@ import locationRoute from "./routes/locationRoute.js";
 import referralRoute from "./routes/referralRoute.js";
 import sponsorshipRoute from "./routes/sponsorshipRoute.js";
 import subscriptionRoute from "./routes/subscriptionRoute.js";
+import storeRoute from "./routes/storeRoute.js";
 import { handleFlutterwaveWebhook } from "./controllers/sponsorship.controller.js";
 import { handleFlutterwaveSubscriptionWebhook } from "./controllers/subscription.controller.js";
 import { initLiveSocket } from "./sockets/liveSocket.js";
@@ -42,17 +43,13 @@ import { startHotReadCache } from "./utils/hotReadCache.js";
 import { safeErrorMessage } from "./utils/safeError.js";
 import { getAllowedOrigins } from "./utils/allowedOrigins.js";
 import { csrfProtect } from "./middleware/csrf.middleware.js";
-import { sharePostImage, sharePostPreview } from "./controllers/sharePreview.controller.js";
+import { sharePostImage, sharePostPreview, shareStorePreview } from "./controllers/sharePreview.controller.js";
 
 dns.setServers(["8.8.8.8", "8.8.4.4"]);
-
+ 
 const app = express();
 const server = http.createServer(app);
 const PORT = process.env.PORT;
-
-// Only trust X-Forwarded-* when explicitly enabled (or a hop count is set).
-// Leaving this always-on lets clients spoof IPs and bypass rate limits when
-// the app is exposed without a reverse proxy.
 const trustProxyRaw = String(process.env.TRUST_PROXY || "").trim().toLowerCase();
 if (trustProxyRaw === "true" || trustProxyRaw === "1") {
   app.set("trust proxy", 1);
@@ -142,6 +139,7 @@ app.use("/api/search", searchRoute);
 app.use("/api/users", userRoute);
 app.use("/api/marketplace", sponsorshipRoute);
 app.use("/api/marketplace", marketplaceRoute);
+app.use("/api/stores", storeRoute);
 app.use("/api", subscriptionRoute);
 app.use("/api/bookmarks", bookmarkRoute);
 app.use("/api/conversations", conversationRoute);
@@ -150,11 +148,9 @@ app.use("/api/locations", locationRoute);
 app.use("/api", bannerRoute);
 app.use("/api", broadcastRoute);
 app.use("/api", userSupportRoute);
-
-// Social crawlers (Twitter/X, WhatsApp, Facebook) are proxied here by the
-// frontend host. They need this HTML in the first response; they do not run React.
 app.get("/share/post/:segment/image", sharePostImage);
 app.get("/share/post/:segment", sharePostPreview);
+app.get("/share/store/:slug", shareStorePreview);
 
 // Multer / unexpected errors — never leak internals
 app.use((err, _req, res, _next) => {

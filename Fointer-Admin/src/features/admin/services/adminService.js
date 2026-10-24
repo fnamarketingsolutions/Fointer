@@ -384,3 +384,18 @@ export const fetchAdminSubscriptionIntegration = async () => {
   const response = await api.get('/admin/subscriptions/integration');
   return response.data;
 };
+
+export const fetchAdminStores = async (params = {}) => {
+  const response = await api.get('/stores/admin', { params });
+  return response.data;
+};
+
+export const suspendAdminStore = async (id) => {
+  const response = await api.post(`/stores/admin/${id}/suspend`);
+  return response.data;
+};
+
+export const restoreAdminStore = async (id) => {
+  const response = await api.post(`/stores/admin/${id}/restore`);
+  return response.data;
+};

@@ -32,6 +32,7 @@ import {
   FEED_PATH,
   MARKETPLACE_PATH,
   MESSAGES_PATH,
+  STORES_MANAGE_PATH,
 } from "../../../../shared/constants/paths";
 import { scrollAppToTop } from "../../../../shared/utils/scroll";
 import DashboardFeed from "./DashboardFeed";
@@ -60,6 +61,10 @@ const ListingDetail = lazy(
 const MyListings = lazy(() => import("../../../marketplace/pages/MyListings"));
 const SponsorListing = lazy(() => import("../../../marketplace/pages/SponsorListing"));
 const PromoteSuccess = lazy(() => import("../../../marketplace/pages/PromoteSuccess"));
+const ManageStores = lazy(() => import("../../../stores/pages/ManageStores"));
+const ManageStore = lazy(() => import("../../../stores/pages/ManageStore"));
+const Storefront = lazy(() => import("../../../stores/pages/Storefront"));
+const StoreDirectory = lazy(() => import("../../../stores/pages/StoreDirectory"));
 const SubscriptionPage = lazy(() =>
   import("../../../subscription/pages/SubscriptionPage")
 );
@@ -191,7 +196,11 @@ const Dashboard = () => {
     location.pathname.startsWith("/post/");
   const isMarketplace =
     location.pathname === MARKETPLACE_PATH ||
-    location.pathname.startsWith("/marketplace/");
+    location.pathname.startsWith("/marketplace/") ||
+    location.pathname === STORES_MANAGE_PATH ||
+    location.pathname === "/stores" ||
+    location.pathname.startsWith("/stores/") ||
+    location.pathname.startsWith("/store/");
   const isMessages =
     location.pathname === MESSAGES_PATH ||
     location.pathname.startsWith("/messages/");
@@ -470,6 +479,24 @@ const Dashboard = () => {
               </AuthOnly>
             }
           />
+          <Route
+            path="/stores/manage/:storeId"
+            element={
+              <AuthOnly>
+                {lazyPage(<ManageStore />)}
+              </AuthOnly>
+            }
+          />
+          <Route
+            path={STORES_MANAGE_PATH}
+            element={
+              <AuthOnly>
+                {lazyPage(<ManageStores />)}
+              </AuthOnly>
+            }
+          />
+          <Route path="/stores" element={lazyPage(<StoreDirectory />)} />
+          <Route path="/store/:slug" element={lazyPage(<Storefront />)} />
           <Route
             path={MESSAGES_PATH}
             element={

@@ -1,4 +1,5 @@
 import Post from "../models/post.js";
+import Store from "../models/store.js";
 import { canViewPost } from "./post.controller.js";
 import { resolveDocumentId } from "../utils/shortCode.js";
 import { getPublicApiUrl, getPublicFrontendUrl } from "../utils/publicAppUrls.js";
@@ -8,6 +9,7 @@ import {
   collapseText,
   shareCardImageUrl,
   shareCardTitle,
+  storeShareCopy,
 } from "../utils/sharePreview.js";
 
 const SHARE_BADGE = {
@@ -135,5 +137,51 @@ export const sharePostImage = async (req, res) => {
   } catch (error) {
     console.error(error);
     return res.status(404).end();
+  }
+};
+
+const genericStorePreview = (siteUrl, pageUrl) =>
+  buildPostShareHtml({
+    siteUrl,
+    pageUrl,
+    title: "Store on Fointer",
+    description: "Open this store on Fointer.",
+  });
+
+/** HTML card for a public store link. Suspended stores stay unnamed. */
+export const shareStorePreview = async (req, res) => {
+  const siteUrl = getPublicFrontendUrl();
+  const slug = String(req.params.slug || "").trim().toLowerCase();
+  const pageUrl = slug ? `${siteUrl}/store/${encodeURIComponent(slug)}` : siteUrl;
+
+  res.set("Cache-Control", "public, max-age=300");
+  res.set("X-Robots-Tag", "noindex");
+  res.type("html");
+
+  if (!slug) return res.status(200).send(genericStorePreview(siteUrl, pageUrl));
+
+  try {
+    const store = await Store.findOne({ slug, status: "active" })
+      .select("name description coverImage logo")
+      .lean();
+    if (!store) return res.status(200).send(genericStorePreview(siteUrl, pageUrl));
+
+    const copy = storeShareCopy(store);
+    const image = [store.coverImage, store.logo].find((url) =>
+      /^https?:\/\//i.test(String(url || ""))
+    );
+
+    return res.status(200).send(
+      buildPostShareHtml({
+        siteUrl,
+        pageUrl,
+        title: copy.title,
+        description: copy.description,
+        imageUrls: image ? [image] : [],
+      })
+    );
+  } catch (error) {
+    console.error(error);
+    return res.status(200).send(genericStorePreview(siteUrl, pageUrl));
   }
 };

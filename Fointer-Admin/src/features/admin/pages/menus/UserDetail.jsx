@@ -28,7 +28,7 @@ import { formatCommunityType } from '../../../../shared/utils/community';
 import { formatLongDate } from '../../../../shared/utils/date';
 import {
   categoryLabel,
-  formatPrice,
+  formatListingPrice,
   statusLabel,
 } from '../../../marketplace/constants';
 
@@ -361,10 +361,7 @@ export default function UserDetail() {
                             <span className="mx-1">·</span>
                             {categoryLabel(listing.category)}
                             <span className="mx-1">·</span>
-                            {formatPrice(
-                              listing.price,
-                              listing.currency || 'USD'
-                            )}
+                            {formatListingPrice(listing)}
                           </p>
                         </div>
                         <ChevronRight

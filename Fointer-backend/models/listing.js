@@ -65,6 +65,12 @@ const listingSchema = new mongoose.Schema(
       min: 0,
       index: true,
     },
+    /** Free listings have no price and appear on the Free tab. */
+    pricing: {
+      type: String,
+      enum: ["free", "paid"],
+      default: "paid",
+    },
     currency: {
       type: String,
       default: "USD",
@@ -105,6 +111,18 @@ const listingSchema = new mongoose.Schema(
       ref: "Community",
       default: null,
       index: true,
+    },
+    /** Vendor storefront. Null keeps a personal marketplace listing. */
+    store: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Store",
+      default: null,
+      index: true,
+    },
+    storeCategory: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "StoreCategory",
+      default: null,
     },
     media: {
       type: [mediaSchema],
@@ -155,7 +173,9 @@ listingSchema.index({ createdAt: -1 });
 listingSchema.index({ status: 1, createdAt: -1 });
 listingSchema.index({ status: 1, category: 1, createdAt: -1 });
 listingSchema.index({ status: 1, price: 1, createdAt: -1 });
+listingSchema.index({ pricing: 1, status: 1, createdAt: -1 });
 listingSchema.index({ seller: 1, status: 1, createdAt: -1 });
+listingSchema.index({ store: 1, status: 1, createdAt: -1 });
 
 withShortCode(listingSchema);
 

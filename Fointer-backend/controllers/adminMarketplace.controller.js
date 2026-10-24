@@ -125,7 +125,9 @@ export const listAdminListings = async (req, res) => {
 
     const query = Listing.find(filter)
       .sort({ createdAt: -1 })
-      .populate("seller", "username name avatar status");
+      .populate("seller", "username name avatar status")
+      .populate("store", "name slug status")
+      .populate("storeCategory", "name");
 
     if (enabled) query.skip(skip).limit(limit + 1);
     else query.limit(200);

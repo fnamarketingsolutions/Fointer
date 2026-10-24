@@ -7,6 +7,7 @@ const ADMIN_TAB_IDS = [
   "watchgroups",
   "moderation",
   "marketplace",
+  "stores",
   "sponsorships",
   "subscriptions",
   "referrals",
@@ -176,6 +177,12 @@ export const hasContentAdminPower = (user) =>
 
 export const hasMarketplaceAdminPower = (user) =>
   hasAdminTabPower(user, "marketplace");
+
+export const hasStoresAdminPower = (user) => hasAdminTabPower(user, "stores");
+
+/** Marketplace moderators kept this until the Stores tab existed. */
+export const hasStorefrontAdminPower = (user) =>
+  hasAdminTabPower(user, "stores", "marketplace");
 
 export const hasWatchGroupsAdminPower = (user) =>
   hasAdminTabPower(user, "watchgroups");

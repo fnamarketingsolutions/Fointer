@@ -22,7 +22,7 @@ import {
   categoryLabel,
   conditionLabel,
   formatLocation,
-  formatPrice,
+  formatListingPrice,
   statusLabel,
 } from '../../../marketplace/constants';
 
@@ -63,6 +63,7 @@ export default function AdminListingDetail() {
     title: item.title || '',
     description: item.description || '',
     price: item.price ?? '',
+    pricing: item.pricing === 'free' ? 'free' : 'paid',
     status: item.status || 'active',
     category: item.category || 'other',
     condition: item.condition || 'good',
@@ -96,12 +97,13 @@ export default function AdminListingDetail() {
   const handleSave = async (e) => {
     e?.preventDefault?.();
     if (!listing || !editForm) return;
-    const price = Number(editForm.price);
+    const pricing = editForm.pricing === 'free' ? 'free' : 'paid';
+    const price = pricing === 'free' ? 0 : Number(editForm.price);
     if (!editForm.title.trim()) {
       showToast('Title is required.');
       return;
     }
-    if (!Number.isFinite(price) || price < 0) {
+    if (pricing === 'paid' && (!Number.isFinite(price) || price < 0)) {
       showToast('Enter a valid price.');
       return;
     }
@@ -112,6 +114,7 @@ export default function AdminListingDetail() {
         title: editForm.title.trim(),
         description: editForm.description.trim(),
         price,
+        pricing,
         status: editForm.status,
         category: editForm.category,
         condition: editForm.condition,
@@ -233,7 +236,7 @@ export default function AdminListingDetail() {
               {listing.title}
             </h1>
             <p className="text-lg font-semibold text-fo-accent">
-              {formatPrice(listing.price, listing.currency)}
+              {formatListingPrice(listing)}
             </p>
           </div>
 
@@ -339,6 +342,33 @@ export default function AdminListingDetail() {
               </div>
               <div>
                 <label className="block text-[11px] uppercase tracking-wider text-fo-subtle mb-1">
+                  Listing type
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { id: 'paid', label: 'Paid' },
+                    { id: 'free', label: 'Free' },
+                  ].map((option) => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() =>
+                        setEditForm((current) => ({ ...current, pricing: option.id }))
+                      }
+                      className={`min-h-9 rounded-lg border text-sm font-medium ${
+                        editForm.pricing === option.id
+                          ? 'border-fo-accent bg-fo-accent text-black'
+                          : 'border-fo-border text-fo-muted'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {editForm.pricing !== 'free' ? (
+              <div>
+                <label className="block text-[11px] uppercase tracking-wider text-fo-subtle mb-1">
                   Price
                 </label>
                 <input
@@ -353,6 +383,7 @@ export default function AdminListingDetail() {
                   required
                 />
               </div>
+              ) : null}
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="block text-[11px] uppercase tracking-wider text-fo-subtle mb-1">

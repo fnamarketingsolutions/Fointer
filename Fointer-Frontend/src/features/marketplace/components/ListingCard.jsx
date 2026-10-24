@@ -1,6 +1,6 @@
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { LuBookmark as Bookmark, LuMapPin as MapPin } from "react-icons/lu";
-import { categoryLabel, formatLocation, formatPrice } from "../constants";
+import { categoryLabel, formatListingPrice, formatLocation } from "../constants";
 import { listingSegment } from "../../../shared/services/entityLinks";
 import { displayImageUrl } from "../../../shared/utils/imageUrl";
 
@@ -69,7 +69,7 @@ export default function ListingCard({ listing, onSave }) {
         </div>
         <div className="p-3 space-y-1">
           <p className="text-sm font-semibold text-fo-text">
-            {formatPrice(listing.price, listing.currency)}
+            {formatListingPrice(listing)}
           </p>
           <p className="text-[13px] text-fo-text line-clamp-2 leading-snug">
             {listing.title}
@@ -89,6 +89,16 @@ export default function ListingCard({ listing, onSave }) {
           </div>
         </div>
       </button>
+      {listing.store?.slug ? (
+        <div className="px-3 pb-3 -mt-1">
+          <Link
+            to={`/store/${listing.store.slug}`}
+            className="text-[11px] font-medium text-fo-accent hover:underline"
+          >
+            {listing.store.name || "View store"}
+          </Link>
+        </div>
+      ) : null}
 
       {onSave ? (
         <button

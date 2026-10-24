@@ -5,6 +5,8 @@ import Listing, {
 } from "../models/listing.js";
 import Community from "../models/community.js";
 import CommunityMember from "../models/communityMember.js";
+import Store from "../models/store.js";
+import StoreCategory from "../models/storeCategory.js";
 import SponsoredPlacement from "../models/sponsoredPlacement.js";
 import { matchesSponsoredAudience } from "../utils/sponsoredTargeting.js";
 import User from "../models/user.js";
@@ -37,6 +39,14 @@ import {
 } from "../utils/communityPermissions.js";
 import { formatUserRef } from "../utils/deletedUser.js";
 import { getHotSnapshot, refreshHotReads } from "../utils/hotReadCache.js";
+import { activeSlotRequired, applyPublicStoreVisibility } from "../utils/storeListingAccess.js";
+import { notifyStoreFollowersOfListing } from "../utils/storeFollowNotify.js";
+import {
+  assertStoreProductCapacity,
+  loadSuspendedStoreIds,
+  resolveListingStore,
+  resolveStoreBrowseTarget,
+} from "../utils/storeListingRules.js";
 
 const LISTING_SORT_MAP = {
   newest: { createdAt: -1 },
@@ -85,6 +95,30 @@ const formatCommunity = (community) => {
   };
 };
 
+const formatStoreRef = (store) => {
+  if (!store) return null;
+  if (typeof store !== "object" || !store._id) {
+    return { id: String(store), name: "", slug: "", status: "" };
+  }
+  return {
+    id: String(store._id),
+    name: store.name || "",
+    slug: store.slug || "",
+    status: store.status || "",
+  };
+};
+
+const formatStoreCategory = (category) => {
+  if (!category) return null;
+  if (typeof category !== "object" || !category._id) {
+    return { id: String(category), name: "" };
+  }
+  return {
+    id: String(category._id),
+    name: category.name || "",
+  };
+};
+
 export const formatListing = (listing, extras = {}) => ({
   id: listing._id,
   shortCode: listing.shortCode || "",
@@ -92,12 +126,15 @@ export const formatListing = (listing, extras = {}) => ({
   description: listing.description || "",
   price: listing.price,
   currency: listing.currency || "USD",
+  pricing: listing.pricing === "free" ? "free" : "paid",
   category: listing.category,
   condition: listing.condition,
   city: listing.city || "",
   state: listing.state || "",
   country: listing.country || "",
   community: formatCommunity(listing.community),
+  store: formatStoreRef(listing.store),
+  storeCategory: formatStoreCategory(listing.storeCategory),
   media: formatMedia(listing.media),
   status: listing.status,
   hiddenAt: listing.hiddenAt || null,
@@ -128,10 +165,13 @@ export const findListingByParam = async (
   if (!id) return null;
   // Public seller fields by default — phone/email only when explicitly requested
   // (owner/admin flows) so raw docs never carry contact for guests.
-  return Listing.findById(id).populate(
-    "seller",
-    includeSellerContact ? SELLER_CONTACT_SELECT : SELLER_PUBLIC_SELECT
-  );
+  return Listing.findById(id)
+    .populate(
+      "seller",
+      includeSellerContact ? SELLER_CONTACT_SELECT : SELLER_PUBLIC_SELECT
+    )
+    .populate("store", "name slug status")
+    .populate("storeCategory", "name");
 };
 
 const hydrateSellerContact = async (listing) => {
@@ -181,6 +221,11 @@ const mediaFingerprint = (media) =>
     .filter(Boolean)
     .join("\0");
 
+const normalizePricing = (value, fallback = "paid") => {
+  const raw = value == null || value === "" ? fallback : value;
+  return String(raw).trim().toLowerCase() === "free" ? "free" : "paid";
+};
+
 /** True when the request tries to change listing content (not just status). */
 const listingContentChanged = (listing, body = {}) => {
   if (
@@ -199,6 +244,12 @@ const listingContentChanged = (listing, body = {}) => {
   if (
     body.price !== undefined &&
     Number(body.price) !== Number(listing.price)
+  ) {
+    return true;
+  }
+  if (
+    body.pricing !== undefined &&
+    normalizePricing(body.pricing) !== normalizePricing(listing.pricing, "paid")
   ) {
     return true;
   }
@@ -244,6 +295,20 @@ const listingContentChanged = (listing, body = {}) => {
   if (
     body.media !== undefined &&
     mediaFingerprint(body.media) !== mediaFingerprint(listing.media)
+  ) {
+    return true;
+  }
+  const refId = (value) => {
+    if (value == null || value === "") return "";
+    if (typeof value === "object") return String(value._id || value.id || "");
+    return String(value);
+  };
+  if (body.store !== undefined && refId(body.store) !== refId(listing.store)) {
+    return true;
+  }
+  if (
+    body.storeCategory !== undefined &&
+    refId(body.storeCategory) !== refId(listing.storeCategory)
   ) {
     return true;
   }
@@ -307,6 +372,11 @@ const buildBrowseFilter = (query = {}, { mine = false, userId = null } = {}) => 
     filter.price = {};
     if (Number.isFinite(minPrice)) filter.price.$gte = minPrice;
     if (Number.isFinite(maxPrice)) filter.price.$lte = maxPrice;
+  }
+
+  if (!mine && !String(query.store || "").trim()) {
+    const pricing = String(query.pricing || "").trim().toLowerCase();
+    filter.pricing = pricing === "free" ? "free" : { $ne: "free" };
   }
 
   const city = String(query.city || "").trim();
@@ -428,6 +498,8 @@ export const listListings = async (req, res) => {
       req.query.maxPrice == null &&
       !String(req.query.city || "").trim() &&
       !String(req.query.communityId || "").trim() &&
+      !String(req.query.store || "").trim() &&
+      String(req.query.pricing || "").trim().toLowerCase() !== "free" &&
       String(req.query.sponsoredOnly || "").toLowerCase() !== "true" &&
       !hasMarketplaceAdminPower(req.user);
 
@@ -474,6 +546,7 @@ export const listListings = async (req, res) => {
           const listing = placement.listing;
           const listingId = String(listing?._id || "");
           if (!listingId || seen.has(listingId)) continue;
+          if (listing?.store?.status === "suspended") continue;
           seen.add(listingId);
           rows.push({ listing, placement });
         }
@@ -515,7 +588,9 @@ export const listListings = async (req, res) => {
       const joined = viewerKey
         ? hot.accessByUser.get(viewerKey)?.joinedIdSet || new Set()
         : new Set();
-      const pageRows = hot.listings.slice(0, limit);
+      const pageRows = hot.listings
+        .filter((row) => row.pricing !== "free")
+        .slice(0, limit);
       const sponsorships = new Map();
       for (const placement of hot.listingPlacements || []) {
         if (!pageRows.some((row) => String(row._id) === placement.listingId)) {
@@ -597,12 +672,16 @@ export const listListings = async (req, res) => {
         startsAt: { $lte: now },
         expiresAt: { $gt: now },
       })
-        .populate("listing")
+        .populate({
+          path: "listing",
+          populate: { path: "store", select: "status" },
+        })
         .lean();
       const sponsoredListingIds = placements
         .filter(
           (placement) =>
             placement.listing?.status === "active" &&
+            placement.listing?.store?.status !== "suspended" &&
             matchesSponsoredAudience(placement.geo, req.user)
         )
         .map((placement) => placement.listing._id);
@@ -612,11 +691,26 @@ export const listListings = async (req, res) => {
     if (!req.query.mine) {
       await applyActiveSellerFilter(filter);
     }
+    const storeParam = String(req.query.store || "").trim();
+    if (storeParam) {
+      const scoped = await resolveStoreBrowseTarget(storeParam, req.user);
+      if (!scoped.ok) {
+        return res.status(scoped.status).json({
+          success: false,
+          message: scoped.message,
+        });
+      }
+      filter.store = scoped.store._id;
+    } else if (!req.query.mine) {
+      applyPublicStoreVisibility(filter, await loadSuspendedStoreIds());
+    }
 
     const query = Listing.find(filter)
       .sort(sort)
       .populate("seller", SELLER_PUBLIC_SELECT)
-      .populate("community", "name");
+      .populate("community", "name")
+      .populate("store", "name slug status")
+      .populate("storeCategory", "name");
 
     if (enabled) {
       query.skip(skip).limit(limit + 1);
@@ -698,6 +792,8 @@ export const listMyListings = async (req, res) => {
       .sort({ createdAt: -1 })
       .populate("seller", SELLER_CONTACT_SELECT)
       .populate("community", "name")
+      .populate("store", "name slug status")
+      .populate("storeCategory", "name")
       .lean();
 
     // Sellers see all of their own boosts (platform + any community attribution).
@@ -775,7 +871,12 @@ export const getListing = async (req, res) => {
     const sellerId = String(cached?.seller?._id || cached?.seller || "");
     const viewerIsOwner = Boolean(req.user?._id) && sellerId === String(req.user._id);
 
-    if (cached && !viewerIsOwner && !hasMarketplaceAdminPower(req.user)) {
+    if (
+      cached &&
+      cached.store?.status !== "suspended" &&
+      !viewerIsOwner &&
+      !hasMarketplaceAdminPower(req.user)
+    ) {
       const viewerKey = req.user?._id ? String(req.user._id) : "";
       const joined = viewerKey
         ? hot.accessByUser.get(viewerKey)?.joinedIdSet || new Set()
@@ -855,10 +956,32 @@ export const getListing = async (req, res) => {
             },
           },
           {
+            $lookup: {
+              from: Store.collection.name,
+              localField: "store",
+              foreignField: "_id",
+              pipeline: [{ $project: { name: 1, slug: 1, status: 1 } }],
+              as: "store",
+            },
+          },
+          {
+            $lookup: {
+              from: StoreCategory.collection.name,
+              localField: "storeCategory",
+              foreignField: "_id",
+              pipeline: [{ $project: { name: 1 } }],
+              as: "storeCategory",
+            },
+          },
+          {
             $set: {
               seller: { $ifNull: [{ $arrayElemAt: ["$seller", 0] }, null] },
               community: {
                 $ifNull: [{ $arrayElemAt: ["$community", 0] }, null],
+              },
+              store: { $ifNull: [{ $arrayElemAt: ["$store", 0] }, null] },
+              storeCategory: {
+                $ifNull: [{ $arrayElemAt: ["$storeCategory", 0] }, null],
               },
             },
           },
@@ -892,6 +1015,16 @@ export const getListing = async (req, res) => {
 
     const flags = buildListingFlags(listing, req.user, editWindowMinutes);
     if (listing.status !== "active" && !flags.isOwner && !flags.isAdmin) {
+      return res.status(404).json({
+        success: false,
+        message: "Listing not found.",
+      });
+    }
+    if (
+      listing.store?.status === "suspended" &&
+      !flags.isOwner &&
+      !flags.isAdmin
+    ) {
       return res.status(404).json({
         success: false,
         message: "Listing not found.",
@@ -945,12 +1078,16 @@ export const createListing = async (req, res) => {
       });
     }
 
-    const numericPrice = Number(price);
-    if (!Number.isFinite(numericPrice) || numericPrice < 0) {
-      return res.status(400).json({
-        success: false,
-        message: "A valid price is required.",
-      });
+    const pricing = normalizePricing(req.body.pricing, "paid");
+    let numericPrice = 0;
+    if (pricing === "paid") {
+      numericPrice = Number(price);
+      if (!Number.isFinite(numericPrice) || numericPrice < 0) {
+        return res.status(400).json({
+          success: false,
+          message: "A valid price is required.",
+        });
+      }
     }
 
     const cleanCategory = String(category || "other").toLowerCase();
@@ -998,6 +1135,27 @@ export const createListing = async (req, res) => {
     const cleanDescription = String(description || "").trim();
     if (await respondIfBanned(res, cleanTitle, cleanDescription)) return;
 
+    const assignment = await resolveListingStore(req.user._id, req.body, null, {
+      isAdmin: hasMarketplaceAdminPower(req.user),
+    });
+    if (!assignment.ok) {
+      return res.status(assignment.status).json({
+        success: false,
+        message: assignment.message,
+      });
+    }
+    const openedStoreSlot = Boolean(assignment.store && cleanStatus === "active");
+    if (openedStoreSlot) {
+      const capacity = await assertStoreProductCapacity({ store: assignment.store });
+      if (!capacity.ok) {
+        return res.status(capacity.status).json({
+          success: false,
+          message: capacity.message,
+          maxActiveProducts: capacity.maxActiveProducts,
+        });
+      }
+    }
+
     const seller = await User.findById(req.user._id)
       .select("city state country")
       .lean();
@@ -1007,6 +1165,7 @@ export const createListing = async (req, res) => {
       title: cleanTitle,
       description: cleanDescription,
       price: numericPrice,
+      pricing,
       currency: String(currency || "USD").trim().toUpperCase().slice(0, 3) || "USD",
       category: cleanCategory,
       condition: cleanCondition,
@@ -1015,9 +1174,21 @@ export const createListing = async (req, res) => {
       country: String(country || seller?.country || "").trim(),
       media: acceptedMedia.items,
       status: cleanStatus,
+      store: assignment.store?._id || null,
+      storeCategory: assignment.storeCategory || null,
     });
 
     await hydrateSellerContact(listing);
+    await listing.populate("store", "name slug status");
+    await listing.populate("storeCategory", "name");
+    if (openedStoreSlot) {
+      await notifyStoreFollowersOfListing({
+        store: assignment.store,
+        listing,
+        actor: req.user,
+        io: req.app.get("io"),
+      });
+    }
     refreshHotReads();
 
     const flags = buildListingFlags(
@@ -1066,6 +1237,42 @@ export const updateListing = async (req, res) => {
       });
     }
 
+    const assignment = await resolveListingStore(
+      listing.seller?._id || listing.seller,
+      req.body,
+      listing,
+      { isAdmin: flags.isAdmin }
+    );
+    if (!assignment.ok) {
+      return res.status(assignment.status).json({
+        success: false,
+        message: assignment.message,
+      });
+    }
+    const nextStatus =
+      req.body.status !== undefined
+        ? String(req.body.status || "").toLowerCase()
+        : listing.status;
+    const openedStoreSlot = activeSlotRequired({
+      previousStatus: listing.status,
+      nextStatus,
+      previousStoreId: listing.store?._id || listing.store,
+      nextStoreId: assignment.store?._id,
+    });
+    if (openedStoreSlot) {
+      const capacity = await assertStoreProductCapacity({
+        store: assignment.store,
+        listingId: listing._id,
+      });
+      if (!capacity.ok) {
+        return res.status(capacity.status).json({
+          success: false,
+          message: capacity.message,
+          maxActiveProducts: capacity.maxActiveProducts,
+        });
+      }
+    }
+
     if (flags.canEdit) {
       if (req.body.title !== undefined) {
         listing.title = String(req.body.title || "").trim();
@@ -1073,15 +1280,27 @@ export const updateListing = async (req, res) => {
       if (req.body.description !== undefined) {
         listing.description = String(req.body.description || "").trim();
       }
-      if (req.body.price !== undefined) {
-        const numericPrice = Number(req.body.price);
-        if (!Number.isFinite(numericPrice) || numericPrice < 0) {
-          return res.status(400).json({
-            success: false,
-            message: "A valid price is required.",
-          });
+      if (req.body.pricing !== undefined || req.body.price !== undefined) {
+        const nextPricing =
+          req.body.pricing !== undefined
+            ? normalizePricing(req.body.pricing)
+            : normalizePricing(listing.pricing, "paid");
+        if (nextPricing === "free") {
+          listing.pricing = "free";
+          listing.price = 0;
+        } else {
+          const numericPrice = Number(
+            req.body.price !== undefined ? req.body.price : listing.price
+          );
+          if (!Number.isFinite(numericPrice) || numericPrice < 0) {
+            return res.status(400).json({
+              success: false,
+              message: "A valid price is required.",
+            });
+          }
+          listing.pricing = "paid";
+          listing.price = numericPrice;
         }
-        listing.price = numericPrice;
       }
       if (req.body.currency !== undefined) {
         listing.currency =
@@ -1116,6 +1335,10 @@ export const updateListing = async (req, res) => {
       }
       if (req.body.country !== undefined) {
         listing.country = String(req.body.country || "").trim();
+      }
+      if (req.body.store !== undefined || req.body.storeCategory !== undefined) {
+        listing.store = assignment.store?._id || null;
+        listing.storeCategory = assignment.storeCategory || null;
       }
     }
 
@@ -1187,6 +1410,16 @@ export const updateListing = async (req, res) => {
     );
     if (responseFlags.includeSellerContact) {
       await hydrateSellerContact(listing);
+    }
+    await listing.populate("store", "name slug status");
+    await listing.populate("storeCategory", "name");
+    if (openedStoreSlot && listing.status === "active") {
+      await notifyStoreFollowersOfListing({
+        store: assignment.store,
+        listing,
+        actor: req.user,
+        io: req.app.get("io"),
+      });
     }
     refreshHotReads();
 

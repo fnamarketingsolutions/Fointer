@@ -6,7 +6,26 @@ import {
   escapeHtml,
   shareCardImageUrl,
   shareCardTitle,
+  storeShareCopy,
 } from "./sharePreview.js";
+
+test("store share card uses the store name and cover", () => {
+  const copy = storeShareCopy({
+    name: "Ada's Fashion",
+    description: "Clothes & accessories",
+  });
+  assert.equal(copy.title, "Ada's Fashion on Fointer");
+  const html = buildPostShareHtml({
+    siteUrl: "https://fointer.net",
+    pageUrl: "https://fointer.net/store/adas-fashion",
+    title: copy.title,
+    description: copy.description,
+    imageUrls: ["https://cdn.example.com/cover.jpg"],
+  });
+  assert.match(html, /og:title" content="Ada&#39;s Fashion on Fointer"/);
+  assert.match(html, /og:image" content="https:\/\/cdn\.example\.com\/cover\.jpg"/);
+  assert.match(html, /og:url" content="https:\/\/fointer\.net\/store\/adas-fashion"/);
+});
 
 test("share preview escapes title and description", () => {
   const html = buildPostShareHtml({

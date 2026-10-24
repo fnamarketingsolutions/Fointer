@@ -42,6 +42,7 @@ export default function MarketplaceBrowse() {
   const filterRef = useRef(null);
 
   const category = searchParams.get("category") || "";
+  const freeOnly = searchParams.get("pricing") === "free";
 
   useEffect(() => {
     if (!searchParams.get("communityId")) return;
@@ -59,12 +60,21 @@ export default function MarketplaceBrowse() {
     setSearchParams(next, { replace: true });
   };
 
+  const setFreeOnly = (on) => {
+    const next = new URLSearchParams(searchParams);
+    if (on) next.set("pricing", "free");
+    else next.delete("pricing");
+    next.delete("communityId");
+    setSearchParams(next, { replace: true });
+  };
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetchListings({
         q: search.trim() || undefined,
         category: category || undefined,
+        pricing: freeOnly ? "free" : undefined,
         sort,
         page: 1,
         limit: 48,
@@ -75,7 +85,7 @@ export default function MarketplaceBrowse() {
     } finally {
       setLoading(false);
     }
-  }, [search, category, sort, showToast]);
+  }, [search, category, sort, freeOnly, showToast]);
 
   useEffect(() => {
     const timer = setTimeout(load, 250);
@@ -182,7 +192,7 @@ export default function MarketplaceBrowse() {
                 <ShoppingBag size={14} aria-hidden /> Marketplace
               </p>
               <h1 className="mt-1 text-xl font-semibold tracking-tight text-fo-text leading-tight">
-                Buy and sell with your community
+                {freeOnly ? "Free listings" : "Buy and sell with your community"}
               </h1>
               <p className="mt-1 text-sm text-fo-subtle leading-snug max-w-xl">
                 List items and connect with buyers directly. Promotion fees are
@@ -190,14 +200,52 @@ export default function MarketplaceBrowse() {
               </p>
             </div>
             <div className="flex flex-wrap gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setFreeOnly(false)}
+                className={`inline-flex items-center min-h-9 px-3.5 rounded-full text-[13px] font-medium transition-colors ${
+                  freeOnly
+                    ? "border border-fo-border text-fo-text hover:border-fo-accent/40 hover:text-fo-accent"
+                    : "bg-fo-accent text-black"
+                }`}
+              >
+                Listings
+              </button>
+              <button
+                type="button"
+                onClick={() => setFreeOnly(true)}
+                className={`inline-flex items-center min-h-9 px-3.5 rounded-full text-[13px] font-medium transition-colors ${
+                  freeOnly
+                    ? "bg-fo-accent text-black"
+                    : "border border-fo-border text-fo-text hover:border-fo-accent/40 hover:text-fo-accent"
+                }`}
+              >
+                Free listing
+              </button>
               {isAuthenticated ? (
-                <button
-                  type="button"
-                  onClick={() => navigate("/marketplace/my-listings")}
-                  className="inline-flex items-center min-h-9 px-3.5 rounded-full border border-fo-border text-[13px] font-medium text-fo-text hover:border-fo-accent/40 hover:text-fo-accent transition-colors"
-                >
-                  My listings
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => navigate("/stores")}
+                    className="inline-flex items-center min-h-9 px-3.5 rounded-full border border-fo-border text-[13px] font-medium text-fo-text hover:border-fo-accent/40 hover:text-fo-accent transition-colors"
+                  >
+                    Stores
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigate("/stores/manage")}
+                    className="inline-flex items-center min-h-9 px-3.5 rounded-full border border-fo-border text-[13px] font-medium text-fo-text hover:border-fo-accent/40 hover:text-fo-accent transition-colors"
+                  >
+                    My stores
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigate("/marketplace/my-listings")}
+                    className="inline-flex items-center min-h-9 px-3.5 rounded-full border border-fo-border text-[13px] font-medium text-fo-text hover:border-fo-accent/40 hover:text-fo-accent transition-colors"
+                  >
+                    My listings
+                  </button>
+                </>
               ) : null}
               <button
                 type="button"

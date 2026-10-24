@@ -51,6 +51,11 @@ export const formatPrice = (price, currency = "USD") => {
   }
 };
 
+export const formatListingPrice = (listing = {}) => {
+  if (listing.pricing === "free") return "Free";
+  return formatPrice(listing.price, listing.currency);
+};
+
 export const formatLocation = (listing = {}) => {
   return [listing.city, listing.state, listing.country]
     .filter(Boolean)

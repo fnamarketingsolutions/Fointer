@@ -14,6 +14,8 @@ import {
   getEditWindowMinutes,
   getEffectiveMemberRole,
 } from "./communityPermissions.js";
+import { applyPublicStoreVisibility } from "./storeListingAccess.js";
+import { loadSuspendedStoreIds } from "./storeListingRules.js";
 
 const REFRESH_MS = 8_000;
 const POST_LIMIT = 40;
@@ -149,6 +151,7 @@ const loadListings = async () => {
   const inactiveIds = inactiveSellers.map((user) => user._id);
   const filter = { status: "active" };
   if (inactiveIds.length) filter.seller = { $nin: inactiveIds };
+  applyPublicStoreVisibility(filter, await loadSuspendedStoreIds());
 
   const [found, listingTotal] = await Promise.all([
     Listing.find(filter)
@@ -156,6 +159,8 @@ const loadListings = async () => {
       .limit(LISTING_LIMIT + 1)
       .populate("seller", "username name avatar city state country status")
       .populate("community", "name")
+      .populate("store", "name slug status")
+      .populate("storeCategory", "name")
       .lean(),
     Listing.countDocuments(filter),
   ]);
@@ -248,6 +253,8 @@ const loadSponsoredPlacements = async () => {
       populate: [
         { path: "seller", select: "username name avatar city state country status" },
         { path: "community", select: "name" },
+        { path: "store", select: "name slug status" },
+        { path: "storeCategory", select: "name" },
       ],
     })
     .sort({ "placement.top": -1, "placement.priority": -1, expiresAt: 1 })
@@ -256,7 +263,8 @@ const loadSponsoredPlacements = async () => {
     (placement) =>
       placement.listing &&
       placement.listing.status === "active" &&
-      placement.listing.seller?.status === "active"
+      placement.listing.seller?.status === "active" &&
+      placement.listing.store?.status !== "suspended"
   );
   const ids = sponsoredPlacements.map((placement) => placement.listing._id);
   const saves = ids.length

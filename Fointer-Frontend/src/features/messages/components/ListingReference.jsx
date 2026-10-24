@@ -1,4 +1,4 @@
-import { formatPrice } from '../../marketplace/constants';
+import { formatListingPrice } from '../../marketplace/constants';
 
 export default function ListingReference({ listing, onClick }) {
   if (!listing) return null;
@@ -23,7 +23,7 @@ export default function ListingReference({ listing, onClick }) {
           {listing.title || 'Listing'}
         </p>
         <p className="text-xs text-fo-accent font-semibold">
-          {formatPrice(listing.price, listing.currency)}
+          {formatListingPrice(listing)}
         </p>
       </div>
     </div>

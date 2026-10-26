@@ -107,6 +107,7 @@ const DirectCall = forwardRef(function DirectCall(
   const closePeer = useCallback((socketId) => {
     const peer = peersRef.current.get(socketId);
     if (!peer) return;
+    peer.stopIceRecovery?.();
     try {
       peer.pc.close();
     } catch {
@@ -244,13 +245,33 @@ const DirectCall = forwardRef(function DirectCall(
         peer.connectionState = pc.connectionState;
         syncTiles();
       };
-      watchPeerConnection(pc, {
+      peer.stopIceRecovery = watchPeerConnection(pc, {
         polite,
         isActive: () => phaseRef.current !== "idle",
         sendOffer: (description) => {
           sendSignal(remote.socketId, { type: "offer", sdp: description });
         },
       });
+
+      pc.oniceconnectionstatechange = () => {
+        peer.iceConnectionState = pc.iceConnectionState;
+        if (import.meta.env.DEV) {
+          console.info("[dm-call] ICE connection state", {
+            callId: callIdRef.current || undefined,
+            state: pc.iceConnectionState,
+          });
+        }
+        syncTiles();
+      };
+
+      pc.onicecandidateerror = (event) => {
+        if (import.meta.env.DEV) {
+          console.warn("[dm-call] ICE candidate error", {
+            code: event.errorCode,
+            text: event.errorText,
+          });
+        }
+      };
 
       pc.ontrack = (event) => {
         addRemoteTracks(peer.stream, event);
@@ -450,16 +471,24 @@ const DirectCall = forwardRef(function DirectCall(
     async (nextMode = "audio") => {
       if (disabled || phaseRef.current !== "idle" || !conversationId) return;
       setError("");
+      const socket = getLiveSocket();
+      if (!socket.connected) {
+        resetCallUi("Realtime is reconnecting. Please try the call again.");
+        return;
+      }
       setCallPhase("connecting");
       try {
         iceConfigRef.current = await getIceConfig();
         await acquireMedia(nextMode);
         flushEarlySignals();
-        const socket = getLiveSocket();
-        socket.emit(
+        socket.timeout(15_000).emit(
           "dm_call_invite",
           { conversationId, mode: nextMode },
-          (ack) => {
+          (timeoutError, ack) => {
+            if (timeoutError) {
+              resetCallUi("The call request timed out. Check your connection and try again.");
+              return;
+            }
             if (!ack?.success) {
               resetCallUi(ack?.message || "Could not start the call.");
               return;

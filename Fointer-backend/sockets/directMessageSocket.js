@@ -295,6 +295,10 @@ export const initDirectMessageSocket = (io) => {
 
     socket.on("dm_call_invite", async (payload = {}, ack) => {
       try {
+        const userId = socket.user?._id;
+        if (!userId) {
+          throw new Error("Please reconnect before starting a call.");
+        }
         const conversationIdParam =
           payload.conversationId || membership.roomId();
         const mode = payload.mode === "video" ? "video" : "audio";
@@ -303,11 +307,11 @@ export const initDirectMessageSocket = (io) => {
         const conversation = await findConversationByParam(conversationIdParam);
         if (!conversation) throw new Error("Conversation not found.");
 
-        const otherId = await assertCanCall(conversation, socket.user._id);
+        const otherId = await assertCanCall(conversation, userId);
         const conversationId = await joinDmRoom(conversation._id);
 
         // A previous call that never fully closed was blocking the next person.
-        endCallsForUser(io, socket.user._id, "ended");
+        endCallsForUser(io, userId, "ended");
         const stuck = getDmCall(conversationId);
         if (stuck) clearDmCall(io, conversationId, "ended");
 
@@ -316,7 +320,7 @@ export const initDirectMessageSocket = (io) => {
           status: "ringing",
           mode,
           peers: new Map([[socket.id, caller]]),
-          invitedBy: String(socket.user._id),
+          invitedBy: String(userId),
           invitedAt: new Date(),
           acceptedAt: null,
           callId: createDmCallId(),

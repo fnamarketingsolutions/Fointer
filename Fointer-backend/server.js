@@ -111,10 +111,10 @@ const io = new Server(server, {
     origin: allowedOrigins,
     credentials: true,
   },
-  // A phone radio blip keeps the same socket id long enough to finish the call.
+  // Recover rooms/socket ids after a brief disconnect, but always re-run auth.
   connectionStateRecovery: {
     maxDisconnectionDuration: 2 * 60 * 1000,
-    skipMiddlewares: true,
+    skipMiddlewares: false,
   },
 });
 

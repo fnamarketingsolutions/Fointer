@@ -15,9 +15,14 @@ import {
 } from "react-icons/lu";
 import {
   contactSeller,
+  contactFreeListingSeller,
   deleteListing,
+  deleteFreeListing,
+  fetchFreeListing,
   fetchListing,
+  markFreeListingSold,
   markListingSold,
+  updateFreeListing,
   updateListing,
 } from "../../../api/marketplace";
 import { toggleBookmark } from "../../../api/bookmarks";
@@ -39,9 +44,12 @@ import {
 } from "../constants";
 import { timeAgo } from "../../../shared/utils/date";
 import useEntityId from "../../../shared/hooks/useEntityId";
-import { listingSegment } from "../../../shared/services/entityLinks";
+import {
+  freeListingSegment,
+  listingSegment,
+} from "../../../shared/services/entityLinks";
 
-export default function ListingDetail() {
+export default function ListingDetail({ isFreeListing = false }) {
   const { listingId: listingParam } = useParams();
   const navigate = useNavigate();
   const { showToast } = useToast();
@@ -50,7 +58,7 @@ export default function ListingDetail() {
     id: listingId,
     resolving,
     notFound,
-  } = useEntityId("listing", listingParam);
+  } = useEntityId(isFreeListing ? "freeListing" : "listing", listingParam);
 
   const [listing, setListing] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -68,32 +76,39 @@ export default function ListingDetail() {
   const [lockModal, setLockModal] = useState(null);
 
   const listingPath =
-    (listing ? listingSegment(listing) : "") || listingParam || listingId || "";
+    (listing
+      ? isFreeListing
+        ? freeListingSegment(listing)
+        : listingSegment(listing)
+      : "") || listingParam || listingId || "";
+  const detailPath = isFreeListing ? "/free-listings" : "/marketplace";
 
   const load = useCallback(async () => {
     if (!listingId) return;
     setLoading(true);
     try {
-      const res = await fetchListing(listingId);
+      const res = isFreeListing
+        ? await fetchFreeListing(listingId)
+        : await fetchListing(listingId);
       setListing(res?.listing || null);
       setActiveImage(0);
     } catch (err) {
       showToast(err?.response?.data?.message || "Listing not found.");
-      navigate("/marketplace", { replace: true });
+      navigate(detailPath, { replace: true });
     } finally {
       setLoading(false);
     }
-  }, [listingId, navigate, showToast]);
+  }, [listingId, navigate, showToast, isFreeListing, detailPath]);
 
   useEffect(() => {
     if (notFound) {
       showToast("Listing not found.");
-      navigate("/marketplace", { replace: true });
+      navigate(detailPath, { replace: true });
       return;
     }
     if (resolving || !listingId) return;
     load();
-  }, [load, listingId, navigate, notFound, resolving, showToast]);
+  }, [load, listingId, navigate, notFound, resolving, showToast, detailPath]);
 
   useEffect(() => {
     const count = Array.isArray(listing?.media) ? listing.media.length : 0;
@@ -113,7 +128,7 @@ export default function ListingDetail() {
   const handleContact = async (e) => {
     e.preventDefault();
     if (!isAuthenticated) {
-      navigate("/login", { state: { from: `/marketplace/${listingPath}` } });
+      navigate("/login", { state: { from: `${detailPath}/${listingPath}` } });
       return;
     }
     if (!contactMessage.trim()) {
@@ -122,7 +137,8 @@ export default function ListingDetail() {
     }
     setContacting(true);
     try {
-      const res = await contactSeller(listing.id, {
+      const contact = isFreeListing ? contactFreeListingSeller : contactSeller;
+      const res = await contact(listing.id, {
         message: contactMessage.trim(),
       });
       setContactOpen(false);
@@ -139,7 +155,8 @@ export default function ListingDetail() {
 
   const handleMarkSold = async () => {
     try {
-      const res = await markListingSold(listing.id);
+      const markSold = isFreeListing ? markFreeListingSold : markListingSold;
+      const res = await markSold(listing.id);
       setListing(res?.listing || listing);
       showToast("Listing marked as sold.");
     } catch (err) {
@@ -150,10 +167,14 @@ export default function ListingDetail() {
   const handleDelete = async () => {
     setDeleting(true);
     try {
-      await deleteListing(listing.id);
+      const remove = isFreeListing ? deleteFreeListing : deleteListing;
+      await remove(listing.id);
       setDeleteOpen(false);
       showToast("Listing deleted.");
-      navigate("/marketplace/my-listings", { replace: true });
+      navigate(
+        isFreeListing ? "/free-listings/mine" : "/marketplace/my-listings",
+        { replace: true }
+      );
     } catch (err) {
       showToast(err?.response?.data?.message || "Failed to delete listing.");
     } finally {
@@ -178,7 +199,8 @@ export default function ListingDetail() {
   const handleEdit = async (payload) => {
     setSubmitting(true);
     try {
-      const res = await updateListing(listing.id, payload);
+      const update = isFreeListing ? updateFreeListing : updateListing;
+      const res = await update(listing.id, payload);
       setListing(res?.listing || listing);
       showToast("Listing updated.");
       setEditOpen(false);
@@ -198,9 +220,7 @@ export default function ListingDetail() {
 
   const handleSave = async () => {
     if (!isAuthenticated) {
-      navigate("/login", {
-        state: { from: `/marketplace/${listingPath}` },
-      });
+      navigate("/login", { state: { from: `${detailPath}/${listingPath}` } });
       return;
     }
     if (!listing) return;
@@ -232,7 +252,7 @@ export default function ListingDetail() {
   const goCategory = (value) => {
     const params = new URLSearchParams();
     if (value) params.set("category", value);
-    navigate(`/marketplace${params.toString() ? `?${params}` : ""}`);
+    navigate(`${detailPath}${params.toString() ? `?${params}` : ""}`);
   };
 
   if (loading || resolving || (!listingId && !notFound)) {
@@ -268,10 +288,10 @@ export default function ListingDetail() {
     <div className="text-fo-text w-full max-w-[1180px] mx-auto pb-6">
       <button
         type="button"
-        onClick={() => navigate("/marketplace")}
+        onClick={() => navigate(detailPath)}
         className="inline-flex items-center gap-2 min-h-9 px-1 mb-3 text-sm text-fo-muted hover:text-fo-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40 rounded-lg"
       >
-        <ArrowLeft size={16} /> Back to marketplace
+        <ArrowLeft size={16} /> {isFreeListing ? "Back to free listings" : "Back to marketplace"}
       </button>
 
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px] gap-4 items-start">
@@ -354,7 +374,7 @@ export default function ListingDetail() {
             <div className="p-4 sm:p-5 space-y-4">
               <div>
                 <p className="text-xl font-semibold text-fo-text">
-                  {formatListingPrice(listing)}
+                  {isFreeListing ? "Free" : formatListingPrice(listing)}
                 </p>
                 <h1 className="mt-1 text-lg font-semibold tracking-tight text-fo-text leading-snug">
                   {listing.title}
@@ -424,7 +444,7 @@ export default function ListingDetail() {
                       onClick={() => {
                         if (!isAuthenticated) {
                           navigate("/login", {
-                            state: { from: `/marketplace/${listingPath}` },
+                            state: { from: `${detailPath}/${listingPath}` },
                           });
                           return;
                         }
@@ -552,6 +572,7 @@ export default function ListingDetail() {
         submitting={submitting}
         initial={listing}
         title="Edit listing"
+        isFree={isFreeListing}
       />
 
       <ConfirmDeleteModal
@@ -562,7 +583,8 @@ export default function ListingDetail() {
         onConfirm={handleDelete}
         onClose={() => setDeleteOpen(false)}
       >
-        This listing will be removed from the marketplace. This cannot be
+        This listing will be removed from{" "}
+        {isFreeListing ? "free listings" : "the marketplace"}. This cannot be
         undone.
       </ConfirmDeleteModal>
 
@@ -590,8 +612,10 @@ export default function ListingDetail() {
           .replace(/\s+/g, " ")
           .trim()
           .slice(0, 140)}
-        url={`${window.location.origin}/marketplace/${
-          listingSegment(listing) || listing.shortCode || listing.id || listingPath
+        url={`${window.location.origin}${detailPath}/${
+          isFreeListing
+            ? freeListingSegment(listing)
+            : listingSegment(listing) || listing.shortCode || listing.id || listingPath
         }`}
         listingId={listing.id}
       />

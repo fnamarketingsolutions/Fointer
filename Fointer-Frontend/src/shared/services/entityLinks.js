@@ -5,12 +5,14 @@ const RESOLVE_PATHS = {
   community: (code) => `/communities/resolve/${code}`,
   post: (code) => `/posts/resolve/${code}`,
   listing: (code) => `/marketplace/resolve/${code}`,
+  freeListing: (code) => `/free-listings/resolve/${code}`,
 };
 
 const caches = {
   community: new Map(),
   post: new Map(),
   listing: new Map(),
+  freeListing: new Map(),
 };
 
 const isObjectId = (value) => /^[a-f\d]{24}$/i.test(String(value ?? ''));
@@ -59,6 +61,18 @@ export const postSegment = (post) => buildSegment('post', post, post?.title);
 export const listingSegment = (listing) =>
   buildSegment(
     'listing',
+    listing
+      ? {
+          id: listing.id || listing.listingId,
+          shortCode: listing.shortCode,
+        }
+      : null,
+    listing?.title
+  );
+
+export const freeListingSegment = (listing) =>
+  buildSegment(
+    'freeListing',
     listing
       ? {
           id: listing.id || listing.listingId,

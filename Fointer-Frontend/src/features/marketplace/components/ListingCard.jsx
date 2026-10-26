@@ -1,17 +1,25 @@
 import { Link, useNavigate } from "react-router-dom";
 import { LuBookmark as Bookmark, LuMapPin as MapPin } from "react-icons/lu";
 import { categoryLabel, formatListingPrice, formatLocation } from "../constants";
-import { listingSegment } from "../../../shared/services/entityLinks";
+import {
+  freeListingSegment,
+  listingSegment,
+} from "../../../shared/services/entityLinks";
 import { displayImageUrl } from "../../../shared/utils/imageUrl";
 
-export default function ListingCard({ listing, onSave }) {
+export default function ListingCard({ listing, onSave, freeListing = false }) {
   const navigate = useNavigate();
   const cover = listing.media?.[0];
   const location = formatLocation(listing);
 
   const handleClick = () => {
-    const segment = listingSegment(listing) || listing.shortCode || listing.id;
-    navigate(`/marketplace/${segment}`);
+    const segment =
+      (freeListing
+        ? freeListingSegment(listing)
+        : listingSegment(listing)) ||
+      listing.shortCode ||
+      listing.id;
+    navigate(`${freeListing ? "/free-listings" : "/marketplace"}/${segment}`);
   };
 
   return (
@@ -69,7 +77,7 @@ export default function ListingCard({ listing, onSave }) {
         </div>
         <div className="p-3 space-y-1">
           <p className="text-sm font-semibold text-fo-text">
-            {formatListingPrice(listing)}
+            {freeListing ? "Free" : formatListingPrice(listing)}
           </p>
           <p className="text-[13px] text-fo-text line-clamp-2 leading-snug">
             {listing.title}

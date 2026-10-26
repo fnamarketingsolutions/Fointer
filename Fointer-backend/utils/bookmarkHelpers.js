@@ -1,6 +1,7 @@
 import Bookmark from "../models/bookmark.js";
 import Post from "../models/post.js";
 import Listing from "../models/listing.js";
+import FreeListing from "../models/freeListing.js";
 import { parseObjectIdInput, resolveDocumentId } from "./shortCode.js";
 
 export const BOOKMARK_TARGET_TYPES = ["post", "listing"];
@@ -48,11 +49,16 @@ export const resolveBookmarkTarget = async (targetType, rawId) => {
     return { ok: true, targetType: type, targetId: doc._id };
   }
 
-  const id = await resolveDocumentId(Listing, rawId);
+  let id = await resolveDocumentId(Listing, rawId);
+  let Model = Listing;
+  if (!id) {
+    id = await resolveDocumentId(FreeListing, rawId);
+    Model = FreeListing;
+  }
   if (!id) {
     return { ok: false, status: 404, message: "Listing not found." };
   }
-  const doc = await Listing.findById(id).select("_id").lean();
+  const doc = await Model.findById(id).select("_id").lean();
   if (!doc) {
     return { ok: false, status: 404, message: "Listing not found." };
   }

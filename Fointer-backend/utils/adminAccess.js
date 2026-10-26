@@ -7,6 +7,7 @@ const ADMIN_TAB_IDS = [
   "watchgroups",
   "moderation",
   "marketplace",
+  "freelistings",
   "stores",
   "sponsorships",
   "subscriptions",
@@ -177,6 +178,9 @@ export const hasContentAdminPower = (user) =>
 
 export const hasMarketplaceAdminPower = (user) =>
   hasAdminTabPower(user, "marketplace");
+
+export const hasFreeListingsAdminPower = (user) =>
+  hasAdminTabPower(user, "freelistings");
 
 export const hasStoresAdminPower = (user) => hasAdminTabPower(user, "stores");
 

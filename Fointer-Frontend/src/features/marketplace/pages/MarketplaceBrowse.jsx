@@ -6,7 +6,12 @@ import {
   LuSearch as Search,
   LuShoppingBag as ShoppingBag,
 } from "react-icons/lu";
-import { createListing, fetchListings } from "../../../api/marketplace";
+import {
+  createFreeListing,
+  createListing,
+  fetchFreeListings,
+  fetchListings,
+} from "../../../api/marketplace";
 import { toggleBookmark } from "../../../api/bookmarks";
 import { useAuth } from "../../../context/AuthContext";
 import { useToast } from "../../../shared/components/feedback/ToastContext";
@@ -14,7 +19,10 @@ import ListingCard from "../components/ListingCard";
 import ListingFormModal from "../components/ListingFormModal";
 import MarketplaceRail from "../components/MarketplaceRail";
 import { LISTING_CATEGORIES } from "../constants";
-import { listingSegment } from "../../../shared/services/entityLinks";
+import {
+  freeListingSegment,
+  listingSegment,
+} from "../../../shared/services/entityLinks";
 import { PageLoader } from "../../../shared/components/ThemeSpinner";
 import ThirdPartyAdSlot from "../../subscription/components/ThirdPartyAdSlot";
 import SplitScrollLayout from "../../../shared/layouts/SplitScrollLayout";
@@ -26,7 +34,7 @@ const SORT_OPTIONS = [
   { id: "price-desc", label: "Price: high to low" },
 ];
 
-export default function MarketplaceBrowse() {
+export default function MarketplaceBrowse({ isFreeListing = false }) {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { showToast } = useToast();
@@ -42,7 +50,6 @@ export default function MarketplaceBrowse() {
   const filterRef = useRef(null);
 
   const category = searchParams.get("category") || "";
-  const freeOnly = searchParams.get("pricing") === "free";
 
   useEffect(() => {
     if (!searchParams.get("communityId")) return;
@@ -60,32 +67,27 @@ export default function MarketplaceBrowse() {
     setSearchParams(next, { replace: true });
   };
 
-  const setFreeOnly = (on) => {
-    const next = new URLSearchParams(searchParams);
-    if (on) next.set("pricing", "free");
-    else next.delete("pricing");
-    next.delete("communityId");
-    setSearchParams(next, { replace: true });
-  };
-
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetchListings({
+      const fetchItems = isFreeListing ? fetchFreeListings : fetchListings;
+      const res = await fetchItems({
         q: search.trim() || undefined,
         category: category || undefined,
-        pricing: freeOnly ? "free" : undefined,
         sort,
         page: 1,
         limit: 48,
       });
       setListings(res?.listings || []);
     } catch (err) {
-      showToast(err?.response?.data?.message || "Failed to load marketplace.");
+      showToast(
+        err?.response?.data?.message ||
+          `Failed to load ${isFreeListing ? "free listings" : "marketplace"}.`
+      );
     } finally {
       setLoading(false);
     }
-  }, [search, category, sort, freeOnly, showToast]);
+  }, [search, category, sort, showToast, isFreeListing]);
 
   useEffect(() => {
     const timer = setTimeout(load, 250);
@@ -103,7 +105,9 @@ export default function MarketplaceBrowse() {
 
   const openCreate = () => {
     if (!isAuthenticated) {
-      navigate("/login", { state: { from: "/marketplace" } });
+      navigate("/login", {
+        state: { from: isFreeListing ? "/free-listings" : "/marketplace" },
+      });
       return;
     }
     setModalOpen(true);
@@ -112,14 +116,21 @@ export default function MarketplaceBrowse() {
   const handleCreate = async (payload) => {
     setSubmitting(true);
     try {
-      const res = await createListing(payload);
-      showToast("Listing created.");
+      const res = isFreeListing
+        ? await createFreeListing(payload)
+        : await createListing(payload);
+      showToast(isFreeListing ? "Free listing created." : "Listing created.");
       setModalOpen(false);
-      const segment = listingSegment(res?.listing);
-      if (segment) navigate(`/marketplace/${segment}`);
+      const segment = isFreeListing
+        ? freeListingSegment(res?.listing)
+        : listingSegment(res?.listing);
+      if (segment) navigate(`${isFreeListing ? "/free-listings" : "/marketplace"}/${segment}`);
       else load();
     } catch (err) {
-      showToast(err?.response?.data?.message || "Failed to create listing.");
+      showToast(
+        err?.response?.data?.message ||
+          `Failed to create ${isFreeListing ? "free listing" : "listing"}.`
+      );
     } finally {
       setSubmitting(false);
     }
@@ -127,7 +138,9 @@ export default function MarketplaceBrowse() {
 
   const handleSaveListing = async (listing) => {
     if (!isAuthenticated) {
-      navigate("/login", { state: { from: "/marketplace" } });
+      navigate("/login", {
+        state: { from: isFreeListing ? "/free-listings" : "/marketplace" },
+      });
       return;
     }
     const prev = listings;
@@ -160,8 +173,10 @@ export default function MarketplaceBrowse() {
   };
 
   const categoryName = LISTING_CATEGORIES.find((c) => c.value === category)?.label;
-  const topSponsored = listings.filter((listing) => listing.sponsorship?.top);
-  const sectionSponsored = listings.filter(
+  const topSponsored = isFreeListing
+    ? []
+    : listings.filter((listing) => listing.sponsorship?.top);
+  const sectionSponsored = isFreeListing ? [] : listings.filter(
     (listing) =>
       listing.isSponsored &&
       !listing.sponsorship?.top &&
@@ -189,61 +204,40 @@ export default function MarketplaceBrowse() {
           <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
             <div className="min-w-0">
               <p className="text-xs font-medium text-fo-accent inline-flex items-center gap-1.5">
-                <ShoppingBag size={14} aria-hidden /> Marketplace
+                <ShoppingBag size={14} aria-hidden /> {isFreeListing ? "Free Listings" : "Marketplace"}
               </p>
               <h1 className="mt-1 text-xl font-semibold tracking-tight text-fo-text leading-tight">
-                {freeOnly ? "Free listings" : "Buy and sell with your community"}
+                {isFreeListing ? "Give away items in your community" : "Buy and sell with your community"}
               </h1>
               <p className="mt-1 text-sm text-fo-subtle leading-snug max-w-xl">
-                List items and connect with buyers directly. Promotion fees are
-                processed separately; Fointer does not process item-sale payments.
+                {isFreeListing
+                  ? "Find items offered for free or share something you no longer need."
+                  : "List items and connect with buyers directly. Promotion fees are processed separately; Fointer does not process item-sale payments."}
               </p>
             </div>
             <div className="flex flex-wrap gap-2 xl:max-w-lg xl:justify-end">
-              <button
-                type="button"
-                onClick={() => setFreeOnly(false)}
-                className={`inline-flex items-center min-h-9 px-3.5 rounded-full text-[13px] font-medium transition-colors ${
-                  freeOnly
-                    ? "border border-fo-border text-fo-text hover:border-fo-accent/40 hover:text-fo-accent"
-                    : "bg-fo-accent text-black"
-                }`}
-              >
-                Listings
-              </button>
-              <button
-                type="button"
-                onClick={() => setFreeOnly(true)}
-                className={`inline-flex items-center min-h-9 px-3.5 rounded-full text-[13px] font-medium transition-colors ${
-                  freeOnly
-                    ? "bg-fo-accent text-black"
-                    : "border border-fo-border text-fo-text hover:border-fo-accent/40 hover:text-fo-accent"
-                }`}
-              >
-                Free listing
-              </button>
               {isAuthenticated ? (
                 <>
-                  <button
+                  {!isFreeListing ? <button
                     type="button"
                     onClick={() => navigate("/stores")}
                     className="inline-flex items-center min-h-9 px-3.5 rounded-full border border-fo-border text-[13px] font-medium text-fo-text hover:border-fo-accent/40 hover:text-fo-accent transition-colors"
                   >
                     Stores
-                  </button>
-                  <button
+                  </button> : null}
+                  {!isFreeListing ? <button
                     type="button"
                     onClick={() => navigate("/stores/manage")}
                     className="inline-flex items-center min-h-9 px-3.5 rounded-full border border-fo-border text-[13px] font-medium text-fo-text hover:border-fo-accent/40 hover:text-fo-accent transition-colors"
                   >
                     My stores
-                  </button>
+                  </button> : null}
                   <button
                     type="button"
-                    onClick={() => navigate("/marketplace/my-listings")}
+                    onClick={() => navigate(isFreeListing ? "/free-listings/mine" : "/marketplace/my-listings")}
                     className="inline-flex items-center min-h-9 px-3.5 rounded-full border border-fo-border text-[13px] font-medium text-fo-text hover:border-fo-accent/40 hover:text-fo-accent transition-colors"
                   >
-                    My listings
+                    {isFreeListing ? "My free listings" : "My listings"}
                   </button>
                 </>
               ) : null}
@@ -252,7 +246,7 @@ export default function MarketplaceBrowse() {
                 onClick={openCreate}
                 className="inline-flex items-center gap-1.5 min-h-9 px-3.5 rounded-full bg-fo-accent text-black text-[13px] font-semibold hover:bg-fo-accent-hover transition-colors"
               >
-                <Plus size={16} aria-hidden /> Sell
+                <Plus size={16} aria-hidden /> {isFreeListing ? "Give away" : "Sell"}
               </button>
             </div>
           </div>
@@ -289,7 +283,12 @@ export default function MarketplaceBrowse() {
                   <p className="px-2 py-1 text-[11px] uppercase tracking-wide text-fo-subtle">
                     Sort by
                   </p>
-                  {SORT_OPTIONS.map((opt) => {
+                  {(isFreeListing
+                    ? SORT_OPTIONS.filter((option) =>
+                        ["newest", "oldest"].includes(option.id)
+                      )
+                    : SORT_OPTIONS
+                  ).map((opt) => {
                     const active = sort === opt.id;
                     return (
                       <button
@@ -362,14 +361,14 @@ export default function MarketplaceBrowse() {
             <PageLoader minHeight="py-16" size="md" />
           ) : listings.length === 0 ? (
             <div className="border border-dashed border-fo-border rounded-xl py-14 text-center text-sm text-fo-subtle px-4 space-y-3">
-              <p>No listings found.</p>
+              <p>{isFreeListing ? "No free listings found." : "No listings found."}</p>
               {isAuthenticated ? (
                 <button
                   type="button"
                   onClick={openCreate}
                   className="inline-flex items-center gap-2 text-fo-accent hover:text-fo-accent-hover font-medium"
                 >
-                  Be the first to list something
+                  {isFreeListing ? "Be the first to offer something for free" : "Be the first to list something"}
                 </button>
               ) : null}
             </div>
@@ -380,7 +379,7 @@ export default function MarketplaceBrowse() {
                   <h2 className="text-sm font-semibold text-fo-text">Featured listings</h2>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                     {topSponsored.map((listing) => (
-                      <ListingCard key={listing.id} listing={listing} onSave={handleSaveListing} />
+                      <ListingCard key={listing.id} listing={listing} onSave={handleSaveListing} freeListing={isFreeListing} />
                     ))}
                   </div>
                 </section>
@@ -394,17 +393,17 @@ export default function MarketplaceBrowse() {
                         key={listing.id}
                         className="w-[calc((100%-0.75rem)/2)] md:w-[calc((100%-1.5rem)/3)] shrink-0 snap-start"
                       >
-                        <ListingCard listing={listing} onSave={handleSaveListing} />
+                        <ListingCard listing={listing} onSave={handleSaveListing} freeListing={isFreeListing} />
                       </div>
                     ))}
                   </div>
                 </section>
               ) : null}
-              <ThirdPartyAdSlot placement="marketplace_browse" />
+              {!isFreeListing ? <ThirdPartyAdSlot placement="marketplace_browse" /> : null}
               {organicListings.length ? (
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                   {organicListings.map((listing) => (
-                    <ListingCard key={listing.id} listing={listing} onSave={handleSaveListing} />
+                    <ListingCard key={listing.id} listing={listing} onSave={handleSaveListing} freeListing={isFreeListing} />
                   ))}
                 </div>
               ) : null}
@@ -427,6 +426,8 @@ export default function MarketplaceBrowse() {
         onClose={() => setModalOpen(false)}
         onSubmit={handleCreate}
         submitting={submitting}
+        isFree={isFreeListing}
+        title={isFreeListing ? "Create free listing" : "Create listing"}
       />
     </div>
   );

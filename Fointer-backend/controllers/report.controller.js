@@ -11,6 +11,7 @@ import LiveEvent from "../models/liveEvent.js";
 import WatchGroup from "../models/watchGroup.js";
 import Community from "../models/community.js";
 import Listing from "../models/listing.js";
+import FreeListing from "../models/freeListing.js";
 import Conversation from "../models/conversation.js";
 import DirectMessage from "../models/directMessage.js";
 import { sendServerError } from "../utils/safeError.js";
@@ -245,7 +246,9 @@ const deleteTargetContent = async (targetType, targetId) => {
   }
 
   if (targetType === "listing") {
-    const listing = await Listing.findById(targetId);
+    const listing =
+      (await Listing.findById(targetId)) ||
+      (await FreeListing.findById(targetId));
     if (!listing) {
       return { deleted: false, message: "Listing already removed." };
     }
@@ -355,10 +358,9 @@ export const createReport = async (req, res) => {
       }
       snapshot = buildCommentSnapshot(comment);
     } else if (targetType === "listing") {
-      const listing = await Listing.findById(targetId).populate(
-        "seller",
-        "username name"
-      );
+      const listing =
+        (await Listing.findById(targetId).populate("seller", "username name")) ||
+        (await FreeListing.findById(targetId).populate("seller", "username name"));
       if (!listing || listing.status === "removed") {
         return res.status(404).json({
           success: false,
@@ -493,7 +495,9 @@ export const listAdminReports = async (req, res) => {
         } else if (r.targetType === "comment") {
           exists = Boolean(await Comment.exists({ _id: r.targetId }));
         } else if (r.targetType === "listing") {
-          const listing = await Listing.findById(r.targetId).select("status");
+          const listing =
+            (await Listing.findById(r.targetId).select("status")) ||
+            (await FreeListing.findById(r.targetId).select("status"));
           exists = Boolean(listing && listing.status !== "removed");
         } else if (r.targetType === "conversation") {
           exists = Boolean(await Conversation.exists({ _id: r.targetId }));
@@ -657,7 +661,9 @@ export const updateAdminReport = async (req, res) => {
     } else if (report.targetType === "comment") {
       exists = Boolean(await Comment.exists({ _id: report.targetId }));
     } else if (report.targetType === "listing") {
-      const listing = await Listing.findById(report.targetId).select("status");
+      const listing =
+        (await Listing.findById(report.targetId).select("status")) ||
+        (await FreeListing.findById(report.targetId).select("status"));
       exists = Boolean(listing && listing.status !== "removed");
     } else if (report.targetType === "conversation") {
       exists = Boolean(await Conversation.exists({ _id: report.targetId }));

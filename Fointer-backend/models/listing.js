@@ -65,10 +65,9 @@ const listingSchema = new mongoose.Schema(
       min: 0,
       index: true,
     },
-    /** Free listings have no price and appear on the Free tab. */
     pricing: {
       type: String,
-      enum: ["free", "paid"],
+      enum: ["paid"],
       default: "paid",
     },
     currency: {

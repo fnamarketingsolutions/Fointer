@@ -1,5 +1,6 @@
 import Post from "../models/post.js";
 import Listing from "../models/listing.js";
+import FreeListing from "../models/freeListing.js";
 import DirectMessage from "../models/directMessage.js";
 import { sendServerError } from "../utils/safeError.js";
 import {
@@ -12,14 +13,16 @@ import {
 const sameId = (left, right) => String(left || "") === String(right || "");
 
 const userOwnsMedia = async (userId, url) => {
-  const [post, listing, message] = await Promise.all([
+  const [post, listing, freeListing, message] = await Promise.all([
     Post.findOne({ "media.url": url }).select("author").lean(),
     Listing.findOne({ "media.url": url }).select("seller").lean(),
+    FreeListing.findOne({ "media.url": url }).select("seller").lean(),
     DirectMessage.findOne({ "media.url": url }).select("author").lean(),
   ]);
   return (
     sameId(post?.author, userId) ||
     sameId(listing?.seller, userId) ||
+    sameId(freeListing?.seller, userId) ||
     sameId(message?.author, userId)
   );
 };

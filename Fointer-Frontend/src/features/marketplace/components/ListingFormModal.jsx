@@ -20,7 +20,6 @@ const emptyForm = () => ({
   description: "",
   price: "",
   currency: "USD",
-  pricing: "paid",
   category: "other",
   condition: "good",
   city: "",
@@ -47,10 +46,12 @@ export default function ListingFormModal({
   submitting = false,
   title = "Create listing",
   defaultStoreId = "",
+  isFree = false,
 }) {
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState("");
   const [stores, setStores] = useState([]);
+  const draftKey = isFree ? "free-listing:create" : LISTING_DRAFT_KEY;
   const contentLocked = Boolean(
     initial && initial.isLocked && !initial.canEdit
   );
@@ -63,7 +64,6 @@ export default function ListingFormModal({
         description: initial.description || "",
         price: initial.price != null ? String(initial.price) : "",
         currency: initial.currency || "USD",
-        pricing: initial.pricing === "free" ? "free" : "paid",
         category: initial.category || "other",
         condition: initial.condition || "good",
         city: initial.city || "",
@@ -75,7 +75,7 @@ export default function ListingFormModal({
         storeCategory: initial.storeCategory?.id || "",
       });
     } else {
-      const saved = readComposerDraft(LISTING_DRAFT_KEY);
+      const saved = readComposerDraft(draftKey);
       setForm(
         saved
           ? {
@@ -84,17 +84,17 @@ export default function ListingFormModal({
               media: persistableMedia(saved.media),
               store: saved.store || defaultStoreId || "",
               storeCategory: saved.storeCategory || "",
-              pricing: saved.pricing === "free" ? "free" : "paid",
             }
           : { ...emptyForm(), store: defaultStoreId || "" }
       );
     }
     setError("");
-  }, [open, initial, defaultStoreId]);
+  }, [open, initial, defaultStoreId, draftKey]);
 
   useEffect(() => {
     if (!open) return undefined;
     let cancelled = false;
+    if (isFree) return undefined;
     fetchMyStores()
       .then((data) => {
         if (!cancelled) setStores(data?.stores || []);
@@ -105,7 +105,7 @@ export default function ListingFormModal({
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [open, isFree]);
 
   useEffect(() => {
     if (!open || initial) return;
@@ -113,14 +113,14 @@ export default function ListingFormModal({
     const blank =
       !String(form.title || "").trim() &&
       !String(form.description || "").trim() &&
-      !String(form.price || "").trim() &&
+      (isFree || !String(form.price || "").trim()) &&
       !String(form.city || "").trim() &&
       !String(form.state || "").trim() &&
       !String(form.country || "").trim() &&
       media.length === 0;
-    if (blank) clearComposerDraft(LISTING_DRAFT_KEY);
-    else writeComposerDraft(LISTING_DRAFT_KEY, { ...form, media });
-  }, [open, initial, form]);
+    if (blank) clearComposerDraft(draftKey);
+    else writeComposerDraft(draftKey, { ...form, media });
+  }, [open, initial, form, draftKey, isFree]);
 
   if (!open) return null;
 
@@ -130,14 +130,10 @@ export default function ListingFormModal({
       setError("Title is required.");
       return;
     }
-    const pricing = form.pricing === "free" ? "free" : "paid";
-    let price = 0;
-    if (pricing === "paid") {
-      price = Number(form.price);
-      if (!Number.isFinite(price) || price < 0) {
-        setError("Enter a valid price.");
-        return;
-      }
+    const price = Number(form.price);
+    if (!isFree && (!Number.isFinite(price) || price < 0)) {
+      setError("Enter a valid price.");
+      return;
     }
     setError("");
     if (contentLocked) {
@@ -148,10 +144,13 @@ export default function ListingFormModal({
       ...form,
       title: form.title.trim(),
       description: form.description.trim(),
-      price,
-      pricing,
+      ...(isFree ? { price: 0 } : { price }),
     };
-    if (form.store || stores.length) {
+    delete payload.pricing;
+    if (isFree) {
+      delete payload.store;
+      delete payload.storeCategory;
+    } else if (form.store || stores.length) {
       payload.store = form.store || null;
       payload.storeCategory = form.store ? form.storeCategory || null : null;
     } else {
@@ -159,7 +158,7 @@ export default function ListingFormModal({
       delete payload.storeCategory;
     }
     await onSubmit(payload);
-    if (!initial) clearComposerDraft(LISTING_DRAFT_KEY);
+    if (!initial) clearComposerDraft(draftKey);
   };
 
   return (
@@ -198,7 +197,7 @@ export default function ListingFormModal({
               value={form.title}
               onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
               className="w-full rounded-lg border border-fo-border bg-fo-bg px-3 py-2 text-sm text-fo-text disabled:opacity-60"
-              placeholder="What are you selling?"
+              placeholder={isFree ? "What are you giving away?" : "What are you selling?"}
               maxLength={200}
               disabled={contentLocked}
             />
@@ -220,64 +219,38 @@ export default function ListingFormModal({
             />
           </div>
 
-          <div>
-            <label className={labelClass}>Listing type</label>
-            <div className="grid grid-cols-2 gap-2">
-              {[
-                { id: "paid", label: "Paid" },
-                { id: "free", label: "Free" },
-              ].map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
+          {!isFree ? (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[10px] uppercase tracking-wider text-fo-subtle mb-1">
+                  Price *
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.price}
+                  onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))}
+                  className="w-full rounded-lg border border-fo-border bg-fo-bg px-3 py-2 text-sm text-fo-text disabled:opacity-60"
+                  placeholder="0.00"
                   disabled={contentLocked}
-                  onClick={() =>
-                    setForm((current) => ({ ...current, pricing: option.id }))
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] uppercase tracking-wider text-fo-subtle mb-1">
+                  Currency
+                </label>
+                <input
+                  value={form.currency}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, currency: e.target.value.toUpperCase() }))
                   }
-                  className={`min-h-9 rounded-lg border text-sm font-medium disabled:opacity-60 ${
-                    form.pricing === option.id
-                      ? "border-fo-accent bg-fo-accent text-black"
-                      : "border-fo-border text-fo-muted"
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
+                  className="w-full rounded-lg border border-fo-border bg-fo-bg px-3 py-2 text-sm text-fo-text disabled:opacity-60"
+                  maxLength={3}
+                  disabled={contentLocked}
+                />
+              </div>
             </div>
-          </div>
-
-          {form.pricing === "paid" ? (
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[10px] uppercase tracking-wider text-fo-subtle mb-1">
-                Price *
-              </label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={form.price}
-                onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))}
-                className="w-full rounded-lg border border-fo-border bg-fo-bg px-3 py-2 text-sm text-fo-text disabled:opacity-60"
-                placeholder="0.00"
-                disabled={contentLocked}
-              />
-            </div>
-            <div>
-              <label className="block text-[10px] uppercase tracking-wider text-fo-subtle mb-1">
-                Currency
-              </label>
-              <input
-                value={form.currency}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, currency: e.target.value.toUpperCase() }))
-                }
-                className="w-full rounded-lg border border-fo-border bg-fo-bg px-3 py-2 text-sm text-fo-text disabled:opacity-60"
-                maxLength={3}
-                disabled={contentLocked}
-              />
-            </div>
-          </div>
           ) : null}
 
           <div className="grid grid-cols-2 gap-3">
@@ -321,7 +294,7 @@ export default function ListingFormModal({
             </div>
           </div>
 
-          {!contentLocked && stores.length ? (
+          {!isFree && !contentLocked && stores.length ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className={labelClass}>Store</label>
@@ -431,9 +404,9 @@ export default function ListingFormModal({
           ) : null}
 
           <p className="text-[11px] text-fo-subtle leading-relaxed">
-            Fointer may process an optional listing-promotion fee. It does not
-            process item-sale payments, escrow, seller payouts, or shipping.
-            Buyers and sellers arrange item-sale details directly.
+            {isFree
+              ? "Post items you are offering for free. Buyers and sellers arrange pickup directly."
+              : "Fointer may process an optional listing-promotion fee. It does not process item-sale payments, escrow, seller payouts, or shipping. Buyers and sellers arrange item-sale details directly."}
           </p>
 
           {error ? (

@@ -35,6 +35,46 @@ export const deleteListing = async (id) => {
   return response.data;
 };
 
+export const fetchFreeListings = async (params = {}) => {
+  const response = await api.get('/free-listings', { params });
+  return response.data;
+};
+
+export const fetchMyFreeListings = async (params = {}) => {
+  const response = await api.get('/free-listings/mine', { params });
+  return response.data;
+};
+
+export const fetchFreeListing = async (id) => {
+  const response = await api.get(`/free-listings/${id}`);
+  return response.data;
+};
+
+export const createFreeListing = async (payload) => {
+  const response = await api.post('/free-listings', payload);
+  return response.data;
+};
+
+export const updateFreeListing = async (id, payload) => {
+  const response = await api.patch(`/free-listings/${id}`, payload);
+  return response.data;
+};
+
+export const markFreeListingSold = async (id) => {
+  const response = await api.post(`/free-listings/${id}/sold`);
+  return response.data;
+};
+
+export const deleteFreeListing = async (id) => {
+  const response = await api.delete(`/free-listings/${id}`);
+  return response.data;
+};
+
+export const contactFreeListingSeller = async (id, payload) => {
+  const response = await api.post(`/free-listings/${id}/contact`, payload);
+  return response.data;
+};
+
 export const contactSeller = async (id, payload) => {
   const response = await api.post(`/marketplace/${id}/contact`, payload);
   return response.data;

@@ -1,4 +1,5 @@
 import Listing, { LISTING_CATEGORIES, LISTING_STATUSES } from "../models/listing.js";
+import FreeListing from "../models/freeListing.js";
 import Report from "../models/report.js";
 import User from "../models/user.js";
 import DirectMessage from "../models/directMessage.js";
@@ -26,16 +27,17 @@ import {
  * Uses status "hidden" + hiddenReason "account_ban" (not moderation "removed").
  */
 export const hideActiveListingsForSeller = async (sellerId) => {
-  await Listing.updateMany(
-    { seller: sellerId, status: "active" },
-    {
-      $set: {
-        status: "hidden",
-        hiddenAt: new Date(),
-        hiddenReason: "account_ban",
-      },
-    }
-  );
+  const update = {
+    $set: {
+      status: "hidden",
+      hiddenAt: new Date(),
+      hiddenReason: "account_ban",
+    },
+  };
+  await Promise.all([
+    Listing.updateMany({ seller: sellerId, status: "active", pricing: { $ne: "free" } }, update),
+    FreeListing.updateMany({ seller: sellerId, status: "active" }, update),
+  ]);
 };
 
 /**
@@ -44,21 +46,29 @@ export const hideActiveListingsForSeller = async (sellerId) => {
  * Legacy rows without hiddenReason are treated as ban-hidden.
  */
 export const restoreHiddenListingsForSeller = async (sellerId) => {
-  await Listing.updateMany(
-    {
-      seller: sellerId,
-      status: "hidden",
-      $or: [
-        { hiddenReason: "account_ban" },
-        { hiddenReason: null },
-        { hiddenReason: { $exists: false } },
-      ],
-    },
-    {
-      $set: { status: "active" },
-      $unset: { hiddenAt: 1, hiddenReason: 1 },
-    }
-  );
+  const filter = {
+    seller: sellerId,
+    status: "hidden",
+    $or: [
+      { hiddenReason: "account_ban" },
+      { hiddenReason: null },
+      { hiddenReason: { $exists: false } },
+    ],
+  };
+  const update = {
+    $set: { status: "active" },
+    $unset: { hiddenAt: 1, hiddenReason: 1 },
+  };
+  await Promise.all([
+    Listing.updateMany(
+      { ...filter, pricing: { $ne: "free" } },
+      update
+    ),
+    FreeListing.updateMany(
+      filter,
+      update
+    ),
+  ]);
 };
 
 const getReportedListingIds = async () => {
@@ -78,7 +88,7 @@ export const listAdminListings = async (req, res) => {
       maxLimit: 100,
     });
 
-    const filter = {};
+    const filter = { pricing: { $ne: "free" } };
     const status = String(req.query.status || "all").toLowerCase();
     if (status !== "all" && LISTING_STATUSES.includes(status)) {
       filter.status = status;
@@ -170,8 +180,8 @@ export const listAdminListings = async (req, res) => {
     for (const s of ["all", ...LISTING_STATUSES]) {
       statusCounts[s] =
         s === "all"
-          ? await Listing.countDocuments()
-          : await Listing.countDocuments({ status: s });
+          ? await Listing.countDocuments({ pricing: { $ne: "free" } })
+          : await Listing.countDocuments({ status: s, pricing: { $ne: "free" } });
     }
 
     return res.json({
@@ -378,7 +388,7 @@ export const restoreAdminListing = async (req, res) => {
 export const listAdminUserListings = async (req, res) => {
   try {
     const userId = req.params.userId;
-    const listings = await Listing.find({ seller: userId })
+    const listings = await Listing.find({ seller: userId, pricing: { $ne: "free" } })
       .sort({ createdAt: -1 })
       .populate("seller", "username name avatar status");
 

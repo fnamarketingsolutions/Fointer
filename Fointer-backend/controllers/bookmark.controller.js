@@ -1,6 +1,7 @@
 import Bookmark from "../models/bookmark.js";
 import Post from "../models/post.js";
 import Listing from "../models/listing.js";
+import FreeListing from "../models/freeListing.js";
 import {
   BOOKMARK_TARGET_TYPES,
   resolveBookmarkTarget,
@@ -97,7 +98,7 @@ export const listMyBookmarks = async (req, res) => {
       .filter((row) => row.targetType === "listing")
       .map((row) => row.targetId);
 
-    const [posts, listings] = await Promise.all([
+    const [posts, listings, freeListings] = await Promise.all([
       postIds.length
         ? Post.find({
             _id: { $in: postIds },
@@ -115,11 +116,19 @@ export const listMyBookmarks = async (req, res) => {
             )
             .lean()
         : [],
+      listingIds.length
+        ? FreeListing.find({ _id: { $in: listingIds } })
+            .populate(
+              "seller",
+              "username name avatar city state country phone email status"
+            )
+            .lean()
+        : [],
     ]);
 
     const postMap = Object.fromEntries(posts.map((p) => [String(p._id), p]));
     const listingMap = Object.fromEntries(
-      listings.map((l) => [String(l._id), l])
+      [...listings, ...freeListings].map((l) => [String(l._id), l])
     );
 
     const items = [];

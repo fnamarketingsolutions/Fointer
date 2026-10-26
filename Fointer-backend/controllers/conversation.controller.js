@@ -3,6 +3,7 @@ import Conversation from "../models/conversation.js";
 import DirectMessage from "../models/directMessage.js";
 import User from "../models/user.js";
 import Listing from "../models/listing.js";
+import FreeListing from "../models/freeListing.js";
 import Post from "../models/post.js";
 import {
   parsePagination,
@@ -29,6 +30,16 @@ import { logRealtime } from "../utils/realtimeLog.js";
 import { publishSavedMessage } from "../utils/realtimeDelivery.js";
 
 const DM_MEDIA_MAX = 4;
+
+const findListingInEitherCollection = async (listingId) => {
+  const paidId = await resolveDocumentId(Listing, listingId);
+  if (paidId) {
+    const paidListing = await Listing.findById(paidId);
+    if (paidListing) return paidListing;
+  }
+  const freeId = await resolveDocumentId(FreeListing, listingId);
+  return freeId ? FreeListing.findById(freeId) : null;
+};
 
 const formatDuration = (seconds = 0) => {
   const total = Math.max(0, Math.floor(Number(seconds) || 0));
@@ -710,9 +721,7 @@ export const createConversation = async (req, res) => {
 
     let listingSnapshot = null;
     if (listingId) {
-      const listing = await Listing.findById(
-        await resolveDocumentId(Listing, listingId)
-      );
+      const listing = await findListingInEitherCollection(listingId);
       if (!listing) {
         return res.status(404).json({
           success: false,
@@ -977,9 +986,7 @@ export const postMessage = async (req, res) => {
 
     let listingSnapshot = null;
     if (listingId) {
-      const listing = await Listing.findById(
-        await resolveDocumentId(Listing, listingId)
-      );
+      const listing = await findListingInEitherCollection(listingId);
       if (!listing) {
         return res.status(404).json({
           success: false,

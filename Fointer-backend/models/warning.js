@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 export const WARNING_SOURCES = [
   "admin_panel",
   "marketplace",
+  "free_listing",
   "report",
   "moderation",
 ];

@@ -33,6 +33,8 @@ import referralRoute from "./routes/referralRoute.js";
 import sponsorshipRoute from "./routes/sponsorshipRoute.js";
 import subscriptionRoute from "./routes/subscriptionRoute.js";
 import storeRoute from "./routes/storeRoute.js";
+import freeListingRoute from "./routes/freeListingRoute.js";
+import freeListingsRoute from "./routes/freeListingsRoute.js";
 import { handleFlutterwaveWebhook } from "./controllers/sponsorship.controller.js";
 import { handleFlutterwaveSubscriptionWebhook } from "./controllers/subscription.controller.js";
 import { initLiveSocket } from "./sockets/liveSocket.js";
@@ -109,10 +111,10 @@ const io = new Server(server, {
     origin: allowedOrigins,
     credentials: true,
   },
-  // A phone radio blip keeps the same socket id long enough to finish the call.
+  // Recover rooms/socket ids after a brief disconnect, but always re-run auth.
   connectionStateRecovery: {
     maxDisconnectionDuration: 2 * 60 * 1000,
-    skipMiddlewares: true,
+    skipMiddlewares: false,
   },
 });
 
@@ -124,6 +126,7 @@ initDirectMessageSocket(io);
 
 app.use("/api/auth", authRoute);
 app.use("/api", dashboardRoute);
+app.use("/api", freeListingRoute);
 app.use("/api", channelRoute);
 app.use("/api/communities", communityRoute);
 app.use("/api/posts", postRoute);
@@ -139,6 +142,7 @@ app.use("/api/search", searchRoute);
 app.use("/api/users", userRoute);
 app.use("/api/marketplace", sponsorshipRoute);
 app.use("/api/marketplace", marketplaceRoute);
+app.use("/api/free-listings", freeListingsRoute);
 app.use("/api/stores", storeRoute);
 app.use("/api", subscriptionRoute);
 app.use("/api/bookmarks", bookmarkRoute);

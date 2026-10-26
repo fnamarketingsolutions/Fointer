@@ -8,6 +8,7 @@ import Bookmark from "../models/bookmark.js";
 import Follow from "../models/follow.js";
 import UserBlock from "../models/userBlock.js";
 import Listing from "../models/listing.js";
+import FreeListing from "../models/freeListing.js";
 import Conversation from "../models/conversation.js";
 import DirectMessage from "../models/directMessage.js";
 import Notification from "../models/notification.js";
@@ -185,9 +186,13 @@ export const purgeUserAccount = async (userId) => {
 
   // --- Listings ---
   const listings = await Listing.find({ seller: uid }).select("media").lean();
+  const freeListings = await FreeListing.find({ seller: uid }).select("media").lean();
   mediaUrls.push(...mediaUrlsFromDocs(listings));
+  mediaUrls.push(...mediaUrlsFromDocs(freeListings));
   await Listing.deleteMany({ seller: uid });
+  await FreeListing.deleteMany({ seller: uid });
   await Listing.updateMany({ removedBy: uid }, { $set: { removedBy: null } });
+  await FreeListing.updateMany({ removedBy: uid }, { $set: { removedBy: null } });
 
   // --- Communities (membership only; ownership blocked earlier) ---
   const activeMemberships = await CommunityMember.find({

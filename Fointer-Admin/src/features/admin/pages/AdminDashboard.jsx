@@ -21,6 +21,7 @@ import {
   LuLayers as Layers,
   LuSettings as Settings,
   LuShoppingBag as ShoppingBag,
+  LuGift as Gift,
   LuStore as StoreIcon,
   LuUserCog as UserCog,
   LuTriangleAlert as AlertTriangle,
@@ -51,6 +52,7 @@ const SystemSettings = lazy(() => import('./menus/SystemSettings'));
 const BannerManagement = lazy(() => import('./menus/BannerManagement'));
 const BroadcastManagement = lazy(() => import('./menus/BroadcastManagement'));
 const MarketplaceManagement = lazy(() => import('./menus/MarketplaceManagement'));
+const FreeListingManagement = lazy(() => import('./menus/FreeListingManagement'));
 const StoreManagement = lazy(() => import('./menus/StoreManagement'));
 const SponsorshipManagement = lazy(() => import('./menus/SponsorshipManagement'));
 const SubscriptionManagement = lazy(() => import('./menus/SubscriptionManagement'));
@@ -74,6 +76,7 @@ const NAV_ITEMS = [
   { id: 'watchgroups', label: 'Watch Groups Management', icon: Radio },
   { id: 'moderation', label: 'Content Management', icon: Shield },
   { id: 'marketplace', label: 'Marketplace Management', icon: ShoppingBag },
+  { id: 'freelistings', label: 'Free Listings', icon: Gift },
   { id: 'stores', label: 'Stores Management', icon: StoreIcon },
   { id: 'sponsorships', label: 'Sponsorships Management', icon: Sparkles },
   { id: 'subscriptions', label: 'Subscriptions & Ads', icon: CreditCard },
@@ -280,6 +283,14 @@ const AdminDashboard = () => {
             }
           />
           <Route
+            path="freelistings/:listingId"
+            element={
+              <TabRoute tab="freelistings" fallbackTo={defaultTab}>
+                <AdminListingDetail freeListing />
+              </TabRoute>
+            }
+          />
+          <Route
             path="sponsorships"
             element={
               <TabRoute tab="sponsorships" fallbackTo={defaultTab}>
@@ -308,6 +319,14 @@ const AdminDashboard = () => {
             element={
               <TabRoute tab="marketplace" fallbackTo={defaultTab}>
                 <MarketplaceManagement />
+              </TabRoute>
+            }
+          />
+          <Route
+            path="freelistings"
+            element={
+              <TabRoute tab="freelistings" fallbackTo={defaultTab}>
+                <FreeListingManagement />
               </TabRoute>
             }
           />

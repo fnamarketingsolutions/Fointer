@@ -17,6 +17,7 @@ import {
   LuUserRound as UserRound,
   LuLifeBuoy as LifeBuoy,
   LuShoppingBag as ShoppingBag,
+  LuGift as Gift,
   LuMessageCircle as MessageCircle,
 } from "react-icons/lu";
 
@@ -59,6 +60,7 @@ const ListingDetail = lazy(
   () => import("../../../marketplace/pages/ListingDetail")
 );
 const MyListings = lazy(() => import("../../../marketplace/pages/MyListings"));
+const MyFreeListings = lazy(() => import("../../../marketplace/pages/MyFreeListings"));
 const SponsorListing = lazy(() => import("../../../marketplace/pages/SponsorListing"));
 const PromoteSuccess = lazy(() => import("../../../marketplace/pages/PromoteSuccess"));
 const ManageStores = lazy(() => import("../../../stores/pages/ManageStores"));
@@ -80,6 +82,7 @@ const lazyPage = (element) => <RouteSuspense>{element}</RouteSuspense>;
 const VALID_TABS = [
   "postfeed",
   "marketplace",
+  "freelistings",
   "messages",
   "communities",
   "events",
@@ -92,6 +95,7 @@ const VALID_TABS = [
 const TAB_PATHS = {
   postfeed: FEED_PATH,
   marketplace: MARKETPLACE_PATH,
+  freelistings: "/free-listings",
   messages: MESSAGES_PATH,
   communities: "/communities",
   events: "/live-events",
@@ -201,6 +205,9 @@ const Dashboard = () => {
     location.pathname === "/stores" ||
     location.pathname.startsWith("/stores/") ||
     location.pathname.startsWith("/store/");
+  const isFreeListings =
+    location.pathname === "/free-listings" ||
+    location.pathname.startsWith("/free-listings/");
   const isMessages =
     location.pathname === MESSAGES_PATH ||
     location.pathname.startsWith("/messages/");
@@ -227,7 +234,9 @@ const Dashboard = () => {
 
   const firstSegment = isRootFeed
     ? "postfeed"
-    : isMarketplace
+    : isFreeListings
+      ? "freelistings"
+      : isMarketplace
       ? "marketplace"
       : isMessages
         ? "messages"
@@ -282,6 +291,7 @@ const Dashboard = () => {
   const navItems = [
     { id: "postfeed", label: "Feed", icon: Newspaper },
     { id: "marketplace", label: "Marketplace", icon: ShoppingBag },
+    { id: "freelistings", label: "Free Listings", icon: Gift },
     {
       id: "messages",
       label: "Messages",
@@ -450,6 +460,30 @@ const Dashboard = () => {
           <Route path={MARKETPLACE_PATH} element={
               <AuthOnly>
                 <MarketplaceBrowse />
+              </AuthOnly>
+            }
+          />
+          <Route
+            path="/free-listings"
+            element={
+              <AuthOnly>
+                <MarketplaceBrowse isFreeListing />
+              </AuthOnly>
+            }
+          />
+          <Route
+            path="/free-listings/mine"
+            element={
+              <AuthOnly>
+                {lazyPage(<MyFreeListings />)}
+              </AuthOnly>
+            }
+          />
+          <Route
+            path="/free-listings/:listingId"
+            element={
+              <AuthOnly>
+                {lazyPage(<ListingDetail isFreeListing />)}
               </AuthOnly>
             }
           />

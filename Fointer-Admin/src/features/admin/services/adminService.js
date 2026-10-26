@@ -184,6 +184,36 @@ export const fetchAdminMarketplaceListings = async (params = {}) => {
   return response.data;
 };
 
+export const fetchAdminFreeListings = async (params = {}) => {
+  const response = await api.get('/admin/free-listings', { params });
+  return response.data;
+};
+
+export const fetchAdminFreeListing = async (id) => {
+  const response = await api.get(`/admin/free-listings/${id}`);
+  return response.data;
+};
+
+export const updateAdminFreeListing = async (id, payload) => {
+  const response = await api.patch(`/admin/free-listings/${id}`, payload);
+  return response.data;
+};
+
+export const removeAdminFreeListing = async (id) => {
+  const response = await api.post(`/admin/free-listings/${id}/remove`);
+  return response.data;
+};
+
+export const restoreAdminFreeListing = async (id) => {
+  const response = await api.post(`/admin/free-listings/${id}/restore`);
+  return response.data;
+};
+
+export const warnAdminFreeListingSeller = async (id, payload) => {
+  const response = await api.post(`/admin/free-listings/${id}/warn`, payload);
+  return response.data;
+};
+
 export const fetchAdminMarketplaceListing = async (id) => {
   const response = await api.get(`/admin/marketplace/listings/${id}`);
   return response.data;

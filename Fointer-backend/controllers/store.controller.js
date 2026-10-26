@@ -2,6 +2,7 @@ import Store from "../models/store.js";
 import StoreCategory from "../models/storeCategory.js";
 import StorePlan from "../models/storePlan.js";
 import Listing, { LISTING_CATEGORIES } from "../models/listing.js";
+import FreeListing from "../models/freeListing.js";
 import { acceptSignedImageValue } from "../utils/s3.js";
 import { respondIfBanned } from "../utils/bannedKeywords.js";
 import { sendServerError } from "../utils/safeError.js";
@@ -448,6 +449,10 @@ export const deleteStore = async (req, res) => {
       { store: storeId },
       { $set: { store: null, storeCategory: null } }
     );
+    await FreeListing.updateMany(
+      { store: storeId },
+      { $set: { store: null, storeCategory: null } }
+    );
     await StoreCategory.deleteMany({ store: storeId });
     await StoreFollow.deleteMany({ store: storeId });
     await Store.deleteOne({ _id: storeId });
@@ -455,7 +460,8 @@ export const deleteStore = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: "Store deleted. Its products stay on the marketplace.",
+      message:
+        "Store deleted. Paid products stay on the marketplace and free listings remain in Free Listings.",
     });
   } catch (error) {
     return sendServerError(res, error);

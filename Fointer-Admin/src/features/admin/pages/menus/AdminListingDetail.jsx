@@ -8,6 +8,8 @@ import {
   LuX as X,
 } from 'react-icons/lu';
 import {
+  fetchAdminFreeListing,
+  updateAdminFreeListing,
   fetchAdminMarketplaceListing,
   updateAdminMarketplaceListing,
 } from '../../services/adminService';
@@ -29,7 +31,7 @@ import {
 const inputClass =
   'w-full rounded-lg border border-fo-border bg-fo-bg px-3 py-2 text-sm text-fo-text focus:outline-none focus:border-fo-accent/50';
 
-export default function AdminListingDetail() {
+export default function AdminListingDetail({ freeListing = false }) {
   const { listingId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -44,16 +46,18 @@ export default function AdminListingDetail() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await fetchAdminMarketplaceListing(listingId);
+      const data = freeListing
+        ? await fetchAdminFreeListing(listingId)
+        : await fetchAdminMarketplaceListing(listingId);
       setListing(data?.listing || null);
       setActiveMedia(0);
     } catch (err) {
       showToast(getErrorMessage(err, 'Listing not found.'));
-      navigate('/marketplace', { replace: true });
+      navigate(freeListing ? '/freelistings' : '/marketplace', { replace: true });
     } finally {
       setLoading(false);
     }
-  }, [listingId, navigate, showToast]);
+  }, [freeListing, listingId, navigate, showToast]);
 
   useEffect(() => {
     load();
@@ -63,7 +67,6 @@ export default function AdminListingDetail() {
     title: item.title || '',
     description: item.description || '',
     price: item.price ?? '',
-    pricing: item.pricing === 'free' ? 'free' : 'paid',
     status: item.status || 'active',
     category: item.category || 'other',
     condition: item.condition || 'good',
@@ -97,24 +100,25 @@ export default function AdminListingDetail() {
   const handleSave = async (e) => {
     e?.preventDefault?.();
     if (!listing || !editForm) return;
-    const pricing = editForm.pricing === 'free' ? 'free' : 'paid';
-    const price = pricing === 'free' ? 0 : Number(editForm.price);
+    const price = freeListing ? 0 : Number(editForm.price);
     if (!editForm.title.trim()) {
       showToast('Title is required.');
       return;
     }
-    if (pricing === 'paid' && (!Number.isFinite(price) || price < 0)) {
+    if (!freeListing && (!Number.isFinite(price) || price < 0)) {
       showToast('Enter a valid price.');
       return;
     }
 
     setSaving(true);
     try {
-      const data = await updateAdminMarketplaceListing(listing.id, {
+      const updateListing = freeListing
+        ? updateAdminFreeListing
+        : updateAdminMarketplaceListing;
+      const data = await updateListing(listing.id, {
         title: editForm.title.trim(),
         description: editForm.description.trim(),
-        price,
-        pricing,
+        ...(freeListing ? {} : { price }),
         status: editForm.status,
         category: editForm.category,
         condition: editForm.condition,
@@ -123,7 +127,7 @@ export default function AdminListingDetail() {
         country: editForm.country.trim(),
         media: editForm.media || [],
       });
-      showToast('Listing updated.');
+      showToast(freeListing ? 'Free listing updated.' : 'Listing updated.');
       if (data?.listing) {
         setListing((prev) => ({ ...prev, ...data.listing }));
         setActiveMedia(0);
@@ -154,11 +158,11 @@ export default function AdminListingDetail() {
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <button
           type="button"
-          onClick={() => navigate('/marketplace')}
+          onClick={() => navigate(freeListing ? '/freelistings' : '/marketplace')}
           className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-fo-border text-xs text-fo-muted hover:text-fo-accent hover:border-fo-accent/40"
         >
           <ArrowLeft size={14} />
-          Back to marketplace
+          {freeListing ? 'Back to free listings' : 'Back to marketplace'}
         </button>
         <button
           type="button"
@@ -340,33 +344,7 @@ export default function AdminListingDetail() {
                   className={`${inputClass} resize-y`}
                 />
               </div>
-              <div>
-                <label className="block text-[11px] uppercase tracking-wider text-fo-subtle mb-1">
-                  Listing type
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { id: 'paid', label: 'Paid' },
-                    { id: 'free', label: 'Free' },
-                  ].map((option) => (
-                    <button
-                      key={option.id}
-                      type="button"
-                      onClick={() =>
-                        setEditForm((current) => ({ ...current, pricing: option.id }))
-                      }
-                      className={`min-h-9 rounded-lg border text-sm font-medium ${
-                        editForm.pricing === option.id
-                          ? 'border-fo-accent bg-fo-accent text-black'
-                          : 'border-fo-border text-fo-muted'
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              {editForm.pricing !== 'free' ? (
+              {!freeListing ? (
               <div>
                 <label className="block text-[11px] uppercase tracking-wider text-fo-subtle mb-1">
                   Price

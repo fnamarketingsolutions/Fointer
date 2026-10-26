@@ -73,6 +73,9 @@ const formatUser = (user, { includeContact = false } = {}) => {
   if (user.status) {
     payload.status = user.status;
   }
+  if (user.warningCount != null) {
+    payload.warningCount = Number(user.warningCount) || 0;
+  }
   if (includeContact) {
     payload.phone = user.phone || "";
     payload.email = user.email || "";
@@ -165,13 +168,14 @@ export const findListingByParam = async (
   if (!id) return null;
   // Public seller fields by default — phone/email only when explicitly requested
   // (owner/admin flows) so raw docs never carry contact for guests.
-  return Listing.findById(id)
+  const listing = await Listing.findById(id)
     .populate(
       "seller",
       includeSellerContact ? SELLER_CONTACT_SELECT : SELLER_PUBLIC_SELECT
     )
     .populate("store", "name slug status")
     .populate("storeCategory", "name");
+  return listing?.pricing === "free" ? null : listing;
 };
 
 const hydrateSellerContact = async (listing) => {
@@ -221,11 +225,6 @@ const mediaFingerprint = (media) =>
     .filter(Boolean)
     .join("\0");
 
-const normalizePricing = (value, fallback = "paid") => {
-  const raw = value == null || value === "" ? fallback : value;
-  return String(raw).trim().toLowerCase() === "free" ? "free" : "paid";
-};
-
 /** True when the request tries to change listing content (not just status). */
 const listingContentChanged = (listing, body = {}) => {
   if (
@@ -244,12 +243,6 @@ const listingContentChanged = (listing, body = {}) => {
   if (
     body.price !== undefined &&
     Number(body.price) !== Number(listing.price)
-  ) {
-    return true;
-  }
-  if (
-    body.pricing !== undefined &&
-    normalizePricing(body.pricing) !== normalizePricing(listing.pricing, "paid")
   ) {
     return true;
   }
@@ -340,7 +333,7 @@ const validateListingStatusChange = (listing, nextStatus, user) => {
 };
 
 const buildBrowseFilter = (query = {}, { mine = false, userId = null } = {}) => {
-  const filter = {};
+  const filter = { pricing: { $ne: "free" } };
 
   if (mine) {
     filter.seller = userId;
@@ -372,11 +365,6 @@ const buildBrowseFilter = (query = {}, { mine = false, userId = null } = {}) => 
     filter.price = {};
     if (Number.isFinite(minPrice)) filter.price.$gte = minPrice;
     if (Number.isFinite(maxPrice)) filter.price.$lte = maxPrice;
-  }
-
-  if (!mine && !String(query.store || "").trim()) {
-    const pricing = String(query.pricing || "").trim().toLowerCase();
-    filter.pricing = pricing === "free" ? "free" : { $ne: "free" };
   }
 
   const city = String(query.city || "").trim();
@@ -499,7 +487,6 @@ export const listListings = async (req, res) => {
       !String(req.query.city || "").trim() &&
       !String(req.query.communityId || "").trim() &&
       !String(req.query.store || "").trim() &&
-      String(req.query.pricing || "").trim().toLowerCase() !== "free" &&
       String(req.query.sponsoredOnly || "").toLowerCase() !== "true" &&
       !hasMarketplaceAdminPower(req.user);
 
@@ -589,7 +576,6 @@ export const listListings = async (req, res) => {
         ? hot.accessByUser.get(viewerKey)?.joinedIdSet || new Set()
         : new Set();
       const pageRows = hot.listings
-        .filter((row) => row.pricing !== "free")
         .slice(0, limit);
       const sponsorships = new Map();
       for (const placement of hot.listingPlacements || []) {
@@ -1078,16 +1064,18 @@ export const createListing = async (req, res) => {
       });
     }
 
-    const pricing = normalizePricing(req.body.pricing, "paid");
-    let numericPrice = 0;
-    if (pricing === "paid") {
-      numericPrice = Number(price);
-      if (!Number.isFinite(numericPrice) || numericPrice < 0) {
-        return res.status(400).json({
-          success: false,
-          message: "A valid price is required.",
-        });
-      }
+    if (String(req.body.pricing || "").trim().toLowerCase() === "free") {
+      return res.status(400).json({
+        success: false,
+        message: "Free listings are managed separately from Marketplace.",
+      });
+    }
+    const numericPrice = Number(price);
+    if (!Number.isFinite(numericPrice) || numericPrice < 0) {
+      return res.status(400).json({
+        success: false,
+        message: "A valid price is required.",
+      });
     }
 
     const cleanCategory = String(category || "other").toLowerCase();
@@ -1165,7 +1153,7 @@ export const createListing = async (req, res) => {
       title: cleanTitle,
       description: cleanDescription,
       price: numericPrice,
-      pricing,
+      pricing: "paid",
       currency: String(currency || "USD").trim().toUpperCase().slice(0, 3) || "USD",
       category: cleanCategory,
       condition: cleanCondition,
@@ -1280,27 +1268,22 @@ export const updateListing = async (req, res) => {
       if (req.body.description !== undefined) {
         listing.description = String(req.body.description || "").trim();
       }
-      if (req.body.pricing !== undefined || req.body.price !== undefined) {
-        const nextPricing =
-          req.body.pricing !== undefined
-            ? normalizePricing(req.body.pricing)
-            : normalizePricing(listing.pricing, "paid");
-        if (nextPricing === "free") {
-          listing.pricing = "free";
-          listing.price = 0;
-        } else {
-          const numericPrice = Number(
-            req.body.price !== undefined ? req.body.price : listing.price
-          );
-          if (!Number.isFinite(numericPrice) || numericPrice < 0) {
-            return res.status(400).json({
-              success: false,
-              message: "A valid price is required.",
-            });
-          }
-          listing.pricing = "paid";
-          listing.price = numericPrice;
+      if (String(req.body.pricing || "").trim().toLowerCase() === "free") {
+        return res.status(400).json({
+          success: false,
+          message: "Free listings are managed separately from Marketplace.",
+        });
+      }
+      if (req.body.price !== undefined) {
+        const numericPrice = Number(req.body.price);
+        if (!Number.isFinite(numericPrice) || numericPrice < 0) {
+          return res.status(400).json({
+            success: false,
+            message: "A valid price is required.",
+          });
         }
+        listing.pricing = "paid";
+        listing.price = numericPrice;
       }
       if (req.body.currency !== undefined) {
         listing.currency =

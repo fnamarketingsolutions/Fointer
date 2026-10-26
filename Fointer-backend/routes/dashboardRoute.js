@@ -106,7 +106,7 @@ router.get(
   isAuthenticated,
   authorize("admin"),
   // Readable by any tab that can issue warnings (not full System Settings).
-  requireAdminTab("warnings", "users", "moderation", "marketplace"),
+  requireAdminTab("warnings", "users", "moderation", "marketplace", "freelistings"),
   getWarningPolicySettings
 );
 router.post(

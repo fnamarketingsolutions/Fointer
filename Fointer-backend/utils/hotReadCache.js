@@ -149,7 +149,7 @@ const loadListings = async () => {
     .select("_id")
     .lean();
   const inactiveIds = inactiveSellers.map((user) => user._id);
-  const filter = { status: "active" };
+  const filter = { status: "active", pricing: { $ne: "free" } };
   if (inactiveIds.length) filter.seller = { $nin: inactiveIds };
   applyPublicStoreVisibility(filter, await loadSuspendedStoreIds());
 

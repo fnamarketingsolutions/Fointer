@@ -134,17 +134,18 @@ export default function SponsorListing() {
     [data, location]
   );
 
-  useEffect(() => {
-    if (!packagesWithAvailability.length) return;
-    const selected = packagesWithAvailability.find((item) => item.id === packageId);
-    if (selected?.availableForLocation) return;
-    const next = packagesWithAvailability.find((item) => item.availableForLocation);
-    if (next) setPackageId(next.id);
-  }, [packagesWithAvailability, packageId]);
+  const resolvedPackageId =
+    packagesWithAvailability.find(
+      (item) => item.id === packageId && item.availableForLocation
+    )?.id ||
+    packagesWithAvailability.find((item) => item.availableForLocation)?.id ||
+    "";
 
   const selectedPackage = useMemo(
-    () => packagesWithAvailability.find((item) => item.id === packageId) || null,
-    [packagesWithAvailability, packageId]
+    () =>
+      packagesWithAvailability.find((item) => item.id === resolvedPackageId) ||
+      null,
+    [packagesWithAvailability, resolvedPackageId]
   );
   const availableCommunities = useMemo(() => {
     const allowedIds = selectedPackage?.communityAllowList || [];
@@ -183,7 +184,7 @@ export default function SponsorListing() {
     setSubmitting(true);
     try {
       const result = await startSponsorshipCheckout(listingId, {
-        packageId,
+        packageId: resolvedPackageId,
         communityId: communityId || undefined,
         country: location.country.trim(),
         state: location.state.trim(),
@@ -297,6 +298,8 @@ export default function SponsorListing() {
                 onChange={setLocation}
                 inputClass={fieldClass}
                 labelClass={labelClass}
+                showAddress={false}
+                showPostal={false}
               />
             </div>
 
@@ -325,7 +328,7 @@ export default function SponsorListing() {
                       type="radio"
                       name="package"
                       value={item.id}
-                      checked={packageId === item.id}
+                      checked={resolvedPackageId === item.id}
                       disabled={!ok}
                       onChange={() => {
                         setPackageId(item.id);
@@ -388,7 +391,7 @@ export default function SponsorListing() {
                 </select>
                 <span className="block text-xs text-fo-subtle">
                   Marketplace visibility still applies. Choosing a community also
-                  credits that owner from the admin commission % (Phase 2 revenue share).
+                  credits that owner from the admin commission %.
                 </span>
               </label>
             ) : selectedPackage?.placement.communityRequired ? (

@@ -100,6 +100,7 @@ export default function CreatePostForm({
           media={media}
           onChange={onMediaChange}
           onError={onError}
+          allowReplace
         />
 
         <div className="flex items-center justify-end gap-2 pt-2">

@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { LuLoaderCircle as Loader2, LuShare2 as Share2 } from "react-icons/lu";
+import {
+  LuArrowLeft as ArrowLeft,
+  LuLoaderCircle as Loader2,
+  LuMail as Mail,
+  LuPhone as Phone,
+  LuShare2 as Share2,
+} from "react-icons/lu";
 import { fetchListings } from "../../../api/marketplace";
 import { useAuth } from "../../../context/AuthContext";
 import ShareSheetModal from "../../../shared/components/modals/ShareSheetModal";
@@ -8,6 +14,7 @@ import { useToast } from "../../../shared/components/feedback/ToastContext";
 import { PageLoader } from "../../../shared/components/ThemeSpinner";
 import { getErrorMessage } from "../../../shared/utils/errors";
 import { displayImageUrl } from "../../../shared/utils/imageUrl";
+import ProfileAvatar from "../../../shared/components/ProfileAvatar";
 import ListingCard from "../../marketplace/components/ListingCard";
 import { categoryLabel, formatLocation } from "../../marketplace/constants";
 import {
@@ -123,31 +130,52 @@ export default function Storefront() {
 
   return (
     <div className="mx-auto w-full max-w-[1100px] pb-10 text-fo-text">
-      <div className="overflow-hidden rounded-2xl border border-fo-border bg-fo-surface">
-        <div className="relative h-40 sm:h-52 bg-fo-bg">
+      <Link
+        to="/stores"
+        className="mb-3 inline-flex min-h-9 items-center gap-2 rounded-lg px-1 text-sm text-fo-muted transition-colors hover:text-fo-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40"
+      >
+        <ArrowLeft size={16} aria-hidden />
+        Back to stores
+      </Link>
+      <section className="rounded-2xl border border-fo-border bg-fo-surface">
+        <div className="relative h-40 overflow-hidden rounded-t-2xl bg-fo-bg sm:h-56">
           {store.coverImage ? (
-            <img src={displayImageUrl(store.coverImage, 1200)} alt="" className="h-full w-full object-cover" />
-          ) : null}
-        </div>
-        <div className="flex flex-wrap items-end gap-4 px-4 pb-5 sm:px-6">
-          <div className="-mt-10 h-20 w-20 overflow-hidden rounded-2xl border-2 border-fo-surface bg-fo-bg">
+            <img
+              src={displayImageUrl(store.coverImage, 1200)}
+              alt=""
+              className="absolute inset-0 h-full w-full rounded-t-2xl object-cover"
+            />
+          ) : (
+            <div className="absolute inset-0 rounded-t-2xl bg-gradient-to-br from-fo-accent/20 via-fo-surface to-fo-bg" />
+          )}
+          <div className="absolute bottom-4 left-4 z-10 h-20 w-20 overflow-hidden rounded-2xl border-4 border-fo-surface bg-fo-bg shadow-md sm:left-6">
             {store.logo ? (
-              <img src={displayImageUrl(store.logo, 160)} alt="" className="h-full w-full object-cover" />
-            ) : null}
+              <img
+                src={displayImageUrl(store.logo, 160)}
+                alt={`${store.name} logo`}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-2xl font-semibold text-fo-accent">
+                {store.name?.trim()?.charAt(0)?.toUpperCase() || "S"}
+              </div>
+            )}
           </div>
-          <div className="min-w-0 flex-1 pb-1">
+        </div>
+        <div className="flex flex-col gap-4 rounded-b-2xl px-4 py-5 sm:flex-row sm:items-center sm:gap-4 sm:px-6">
+          <div className="min-w-0 flex-1">
             <h1 className="text-xl font-semibold tracking-tight">{store.name}</h1>
-            <p className="mt-1 text-xs text-fo-subtle">
+            <p className="mt-1 text-xs leading-relaxed text-fo-subtle">
               {categoryLabel(store.category)}
               {place ? ` · ${place}` : ""}
               {` · ${store.followerCount || 0} followers`}
             </p>
           </div>
-          <div className="mb-1 flex flex-wrap gap-2">
+          <div className="flex shrink-0 flex-wrap gap-2">
             {store.isOwner ? (
               <Link
                 to={`/stores/manage/${store.id}`}
-                className="inline-flex min-h-8 items-center rounded-full border border-fo-border px-3 text-xs font-medium hover:border-fo-accent/40"
+                className="inline-flex min-h-9 items-center rounded-full border border-fo-border px-4 text-xs font-medium hover:border-fo-accent/40"
               >
                 Manage
               </Link>
@@ -157,7 +185,7 @@ export default function Storefront() {
                   type="button"
                   onClick={toggleFollow}
                   disabled={following}
-                  className={`inline-flex min-h-8 items-center rounded-full px-3 text-xs font-semibold disabled:opacity-60 ${
+                  className={`inline-flex min-h-9 items-center rounded-full px-4 text-xs font-semibold disabled:opacity-60 ${
                     store.followedByMe
                       ? "border border-fo-border text-fo-text"
                       : "bg-fo-accent text-black"
@@ -168,7 +196,7 @@ export default function Storefront() {
                 <button
                   type="button"
                   onClick={() => (user ? setMessageOpen(true) : requireAccount())}
-                  className="inline-flex min-h-8 items-center rounded-full border border-fo-border px-3 text-xs font-medium"
+                  className="inline-flex min-h-9 items-center rounded-full border border-fo-border px-4 text-xs font-medium"
                 >
                   Message
                 </button>
@@ -177,13 +205,13 @@ export default function Storefront() {
             <button
               type="button"
               onClick={() => setShareOpen(true)}
-              className="inline-flex min-h-8 items-center gap-1 rounded-full border border-fo-border px-3 text-xs font-medium"
+              className="inline-flex min-h-9 items-center gap-1 rounded-full border border-fo-border px-4 text-xs font-medium"
             >
               <Share2 size={13} /> Share
             </button>
           </div>
         </div>
-      </div>
+      </section>
 
       {store.status === "suspended" ? (
         <p className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-600">
@@ -220,20 +248,108 @@ export default function Storefront() {
         </form>
       ) : null}
 
-      {store.description ? (
-        <p className="mt-4 text-sm leading-relaxed text-fo-muted whitespace-pre-wrap">{store.description}</p>
-      ) : null}
+      {store.owner || store.description || store.contactPhone || store.contactEmail ? (
+        <section className="mt-4 rounded-2xl border border-fo-border bg-fo-surface p-4 sm:p-5">
+          <div
+            className={`grid gap-5 ${
+              store.owner && (store.description || store.contactPhone || store.contactEmail)
+                ? "md:grid-cols-[minmax(200px,0.8fr)_minmax(0,1.7fr)] md:gap-6"
+                : ""
+            }`}
+          >
+            {store.owner ? (
+              <div
+                className={
+                  store.description || store.contactPhone || store.contactEmail
+                    ? "border-b border-fo-border pb-4 md:border-b-0 md:border-r md:pb-0 md:pr-6"
+                    : ""
+                }
+              >
+                <h2 className="text-xs font-semibold uppercase tracking-wide text-fo-subtle">
+                  Store owner
+                </h2>
+                {store.owner.username ? (
+                  <Link
+                    to={`/users/${encodeURIComponent(store.owner.username)}`}
+                    className="mt-3 inline-flex max-w-full items-center gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40"
+                  >
+                    <ProfileAvatar
+                      src={store.owner.avatar}
+                      alt={store.owner.name || store.owner.username}
+                      name={store.owner.name || store.owner.username}
+                      className="h-11 w-11 rounded-full border border-fo-border object-cover"
+                    />
+                    <span className="min-w-0 text-left">
+                      <span className="block truncate text-sm font-semibold text-fo-text">
+                        {store.owner.name || store.owner.username}
+                      </span>
+                      <span className="block truncate text-xs text-fo-subtle">
+                        @{store.owner.username}
+                      </span>
+                    </span>
+                  </Link>
+                ) : (
+                  <div className="mt-3 inline-flex items-center gap-3">
+                    <ProfileAvatar
+                      src={store.owner.avatar}
+                      alt={store.owner.name || "Store owner"}
+                      name={store.owner.name || "Store owner"}
+                      className="h-11 w-11 rounded-full border border-fo-border object-cover"
+                    />
+                    <span className="text-sm font-semibold text-fo-text">
+                      {store.owner.name || "Store owner"}
+                    </span>
+                  </div>
+                )}
+              </div>
+            ) : null}
 
-      {store.contactPhone || store.contactEmail ? (
-        <p className="mt-2 text-xs text-fo-subtle">
-          {store.contactPhone ? <a href={`tel:${store.contactPhone}`} className="hover:text-fo-accent">{store.contactPhone}</a> : null}
-          {store.contactPhone && store.contactEmail ? " · " : null}
-          {store.contactEmail ? <a href={`mailto:${store.contactEmail}`} className="hover:text-fo-accent">{store.contactEmail}</a> : null}
-        </p>
+            {store.description || store.contactPhone || store.contactEmail ? (
+              <div className="min-w-0">
+                {store.description ? (
+                  <div>
+                    <h2 className="text-sm font-semibold">About this store</h2>
+                    <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-fo-muted">
+                      {store.description}
+                    </p>
+                  </div>
+                ) : null}
+                {store.contactPhone || store.contactEmail ? (
+                  <div
+                    className={`flex flex-wrap gap-2 ${
+                      store.description
+                        ? "mt-4 border-t border-fo-border pt-3"
+                        : ""
+                    }`}
+                  >
+                    {store.contactPhone ? (
+                      <a
+                        href={`tel:${store.contactPhone}`}
+                        className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-fo-border px-3 text-xs text-fo-muted transition-colors hover:border-fo-accent/40 hover:text-fo-accent"
+                      >
+                        <Phone size={14} aria-hidden />
+                        {store.contactPhone}
+                      </a>
+                    ) : null}
+                    {store.contactEmail ? (
+                      <a
+                        href={`mailto:${store.contactEmail}`}
+                        className="inline-flex min-h-9 max-w-full items-center gap-2 rounded-lg border border-fo-border px-3 text-xs text-fo-muted transition-colors hover:border-fo-accent/40 hover:text-fo-accent"
+                      >
+                        <Mail size={14} className="shrink-0" aria-hidden />
+                        <span className="break-all">{store.contactEmail}</span>
+                      </a>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        </section>
       ) : null}
 
       {(store.categories || []).length ? (
-        <div className="mt-5 flex flex-wrap gap-2">
+        <div className="mt-5 flex flex-wrap gap-2" role="group" aria-label="Filter products by section">
           <button
             type="button"
             onClick={() => setSection("")}
@@ -256,15 +372,32 @@ export default function Storefront() {
         </div>
       ) : null}
 
-      {visible.length === 0 ? (
-        <p className="mt-6 text-sm text-fo-subtle">No products in this section yet.</p>
-      ) : (
-        <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
-          {visible.map((listing) => (
-            <ListingCard key={listing.id} listing={listing} />
-          ))}
+      <section className="mt-6">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2 className="text-base font-semibold">
+            {section
+              ? store.categories?.find((category) => category.id === section)?.name || "Products"
+              : "Products"}
+          </h2>
+          <span className="text-xs text-fo-subtle">{visible.length} items</span>
         </div>
-      )}
+        {visible.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-fo-border bg-fo-surface px-4 py-12 text-center">
+            <p className="text-sm font-medium text-fo-text">No products here yet</p>
+            <p className="mt-1 text-xs text-fo-subtle">
+              {section
+                ? "Try another section or check back later."
+                : "This store has not added any products yet."}
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
+            {visible.map((listing) => (
+              <ListingCard key={listing.id} listing={listing} />
+            ))}
+          </div>
+        )}
+      </section>
       <ShareSheetModal
         open={shareOpen}
         onClose={() => setShareOpen(false)}

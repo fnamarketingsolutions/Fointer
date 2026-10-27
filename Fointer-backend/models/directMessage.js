@@ -13,6 +13,21 @@ const listingSnapshotSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const storeSnapshotSchema = new mongoose.Schema(
+  {
+    storeId: { type: mongoose.Schema.Types.ObjectId, ref: "Store" },
+    shortCode: { type: String, default: "" },
+    slug: { type: String, default: "" },
+    name: { type: String, default: "" },
+    category: { type: String, default: "" },
+    city: { type: String, default: "" },
+    state: { type: String, default: "" },
+    country: { type: String, default: "" },
+    logo: { type: String, default: "" },
+  },
+  { _id: false }
+);
+
 const postSnapshotSchema = new mongoose.Schema(
   {
     postId: { type: mongoose.Schema.Types.ObjectId, ref: "Post" },
@@ -128,6 +143,10 @@ const directMessageSchema = new mongoose.Schema(
     },
     listing: {
       type: listingSnapshotSchema,
+      default: null,
+    },
+    store: {
+      type: storeSnapshotSchema,
       default: null,
     },
     post: {

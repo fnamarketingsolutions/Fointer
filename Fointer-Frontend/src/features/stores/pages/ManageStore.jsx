@@ -221,22 +221,40 @@ export default function ManageStore() {
 
   return (
     <div className="mx-auto w-full max-w-[900px] space-y-6 pb-10 text-fo-text">
-      <div className="overflow-hidden rounded-2xl border border-fo-border bg-fo-surface">
-        <div className="relative h-36 bg-fo-bg">
-          {coverSrc ? <img src={coverSrc} alt="" className="h-full w-full object-cover" /> : null}
-        </div>
-        <div className="flex items-end gap-3 px-4 pb-4">
-          <div className="-mt-8 h-16 w-16 overflow-hidden rounded-xl border border-fo-border bg-fo-bg">
-            {logoSrc ? <img src={logoSrc} alt="" className="h-full w-full object-cover" /> : null}
+      <section className="rounded-2xl border border-fo-border bg-fo-surface">
+        <div className="relative h-36 overflow-hidden rounded-t-2xl bg-fo-bg sm:h-44">
+          {coverSrc ? (
+            <img
+              src={coverSrc}
+              alt=""
+              className="absolute inset-0 h-full w-full rounded-t-2xl object-cover"
+            />
+          ) : (
+            <div className="absolute inset-0 rounded-t-2xl bg-gradient-to-br from-fo-accent/20 via-fo-surface to-fo-bg" />
+          )}
+          <div className="absolute bottom-3 left-4 z-10 h-16 w-16 overflow-hidden rounded-xl border-4 border-fo-surface bg-fo-bg shadow-md sm:left-5">
+            {logoSrc ? (
+              <img
+                src={logoSrc}
+                alt={`${store.name} logo`}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-xl font-semibold text-fo-accent">
+                {store.name?.trim()?.charAt(0)?.toUpperCase() || "S"}
+              </div>
+            )}
           </div>
-          <div className="min-w-0 pb-1">
+        </div>
+        <div className="flex min-h-20 items-center gap-3 rounded-b-2xl px-4 py-4 sm:px-5">
+          <div className="min-w-0">
             <h1 className="truncate text-lg font-semibold">{store.name}</h1>
             <Link to={`/store/${store.slug}`} className="text-xs text-fo-accent hover:underline">
               /store/{store.slug}
             </Link>
           </div>
         </div>
-      </div>
+      </section>
 
       {store.status === "suspended" ? (
         <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-600">

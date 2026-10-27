@@ -813,6 +813,16 @@ export const listPublicStores = async (req, res) => {
       maxLimit: 50,
     });
     const filter = { status: "active" };
+    if (req.query.owner !== undefined) {
+      const ownerId = parseObjectIdInput(req.query.owner);
+      if (!ownerId) {
+        return res.status(400).json({
+          success: false,
+          message: "Owner must be a valid user ID.",
+        });
+      }
+      filter.owner = ownerId;
+    }
     const q = String(req.query.q || "").trim();
     if (q) {
       filter.name = { $regex: escapeRegex(q), $options: "i" };
@@ -950,6 +960,17 @@ export const messageStore = async (req, res) => {
       conversation,
       author: req.user,
       text: message,
+      storeSnapshot: {
+        storeId: store._id,
+        shortCode: store.shortCode || "",
+        slug: store.slug,
+        name: store.name,
+        category: store.category,
+        city: store.city || "",
+        state: store.state || "",
+        country: store.country || "",
+        logo: store.logo || "",
+      },
       io: req.app.get("io"),
     });
     return res.status(200).json({

@@ -35,6 +35,7 @@ import { PageLoader } from "../../../shared/components/ThemeSpinner";
 import UserProfileLink from "../../../shared/components/UserProfileLink";
 import ListingReference from "../components/ListingReference";
 import PostReference from "../components/PostReference";
+import StoreReference from "../components/StoreReference";
 import DirectCall from "../components/DirectCall";
 import { timeAgo } from "../../../shared/utils/date";
 import ReportContentModal from "../../../shared/components/modals/ReportContentModal";
@@ -783,6 +784,10 @@ export default function ConversationThread() {
                         if (path) navigate(path);
                       }}
                     />
+                  ) : null}
+
+                  {message.store && !message.isDeleted ? (
+                    <StoreReference store={message.store} />
                   ) : null}
 
                   {isEditing ? (

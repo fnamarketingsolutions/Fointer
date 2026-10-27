@@ -1,11 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import {
+  Link,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
 import {
   LuArrowLeft as ArrowLeft,
   LuAward as Award,
   LuLoaderCircle as Loader2,
   LuMessageCircle as MessageCircle,
   LuRepeat2 as Repeat2,
+  LuStore as StoreIcon,
 } from "react-icons/lu";
 import { fetchPublicProfile } from "../../../api/profile";
 import { useAuth } from "../../../context/AuthContext";
@@ -23,12 +29,16 @@ import CommunityCard from "../../communities/components/CommunityCard";
 import { createConversation } from "../../../api/messages";
 import { useToast } from "../../../shared/components/feedback/ToastContext";
 import { timeAgo } from "../../../shared/utils/date";
+import { displayImageUrl } from "../../../shared/utils/imageUrl";
+import { categoryLabel, formatLocation } from "../../marketplace/constants";
+import { fetchPublicStores } from "../../stores/services/storeService";
 
 const TABS = [
   { id: "about", label: "About" },
   { id: "posts", label: "Posts" },
   { id: "reposts", label: "Reposts" },
   { id: "communities", label: "Communities" },
+  { id: "stores", label: "Stores" },
   { id: "followers", label: "Followers" },
   { id: "following", label: "Following" },
 ];
@@ -66,9 +76,12 @@ export default function PublicProfile() {
   const { showToast } = useToast();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadedUsername, setLoadedUsername] = useState("");
   const [error, setError] = useState("");
   const [messaging, setMessaging] = useState(false);
   const [photoOpen, setPhotoOpen] = useState(false);
+  const [storesResult, setStoresResult] = useState(null);
+  const [storesRetry, setStoresRetry] = useState(0);
 
   const tabParam = searchParams.get("tab");
   const tab = TAB_IDS.has(tabParam) ? tabParam : "about";
@@ -96,9 +109,6 @@ export default function PublicProfile() {
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setError("");
-
     fetchPublicProfile(username)
       .then((data) => {
         if (cancelled) return;
@@ -110,13 +120,53 @@ export default function PublicProfile() {
         setError(err?.response?.data?.message || "Could not load profile.");
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (cancelled) return;
+        setLoadedUsername(username);
+        setLoading(false);
       });
 
     return () => {
       cancelled = true;
     };
   }, [username]);
+
+  useEffect(() => {
+    if (tab !== "stores" || !profile?.id) return undefined;
+
+    let cancelled = false;
+    const requestKey = `${profile.id}:${storesRetry}`;
+
+    fetchPublicStores({ owner: profile.id, page: 1, limit: 50 })
+      .then((data) => {
+        if (!cancelled) {
+          setStoresResult({
+            key: requestKey,
+            stores: data?.stores || [],
+            error: "",
+          });
+        }
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setStoresResult({
+          key: requestKey,
+          stores: [],
+          error:
+            err?.response?.data?.message ||
+            "Could not load this user's stores.",
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [tab, profile?.id, storesRetry]);
+
+  const storesRequestKey = `${profile?.id || ""}:${storesRetry}`;
+  const storesResultMatches = storesResult?.key === storesRequestKey;
+  const storesLoading = tab === "stores" && !storesResultMatches;
+  const stores = storesResultMatches ? storesResult.stores : [];
+  const storesError = storesResultMatches ? storesResult.error : "";
 
   useEffect(() => {
     const clean = normalizeUsername(username);
@@ -153,7 +203,7 @@ export default function PublicProfile() {
     </div>
   );
 
-  if (loading) {
+  if (loading || loadedUsername !== username) {
     return shell(
       <div className="space-y-3" aria-busy="true">
         <div className="bg-fo-surface border border-fo-border rounded-xl overflow-hidden animate-pulse p-4 sm:p-5">
@@ -449,6 +499,90 @@ export default function PublicProfile() {
                     </span>
                   }
                 />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {tab === "stores" && (
+        <section aria-label="Stores" className="space-y-3">
+          {storesLoading ? (
+            <div
+              className="grid grid-cols-1 gap-3 sm:grid-cols-2"
+              aria-busy="true"
+            >
+              {[0, 1].map((item) => (
+                <div
+                  key={item}
+                  className="flex items-center gap-3 rounded-xl border border-fo-border bg-fo-surface p-3 animate-pulse"
+                >
+                  <div className="h-14 w-14 shrink-0 rounded-lg bg-fo-surface-hover" />
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <div className="h-4 w-2/3 rounded bg-fo-surface-hover" />
+                    <div className="h-3 w-1/2 rounded bg-fo-surface-hover" />
+                    <div className="h-3 w-1/3 rounded bg-fo-surface-hover" />
+                  </div>
+                </div>
+              ))}
+              <span className="sr-only">Loading stores…</span>
+            </div>
+          ) : storesError ? (
+            <EmptyState>
+              <div className="space-y-3">
+                <p>{storesError}</p>
+                <button
+                  type="button"
+                  onClick={() => setStoresRetry((retry) => retry + 1)}
+                  className="rounded-full border border-fo-border px-3 py-1.5 text-xs font-medium text-fo-muted hover:border-fo-accent/40 hover:text-fo-accent"
+                >
+                  Retry
+                </button>
+              </div>
+            </EmptyState>
+          ) : stores.length === 0 ? (
+            <EmptyState>
+              <span className="inline-flex items-center gap-2">
+                <StoreIcon size={16} aria-hidden />
+                No stores found.
+              </span>
+            </EmptyState>
+          ) : (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {stores.map((store) => (
+                <Link
+                  key={store.id}
+                  to={`/store/${store.slug}`}
+                  className="flex items-center gap-3 rounded-xl border border-fo-border bg-fo-surface p-3 transition-colors hover:border-fo-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40"
+                >
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-fo-bg">
+                    {store.logo ? (
+                      <img
+                        src={displayImageUrl(store.logo, 120)}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <StoreIcon
+                        size={20}
+                        className="text-fo-subtle"
+                        aria-hidden
+                      />
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-fo-text">
+                      {store.name}
+                    </p>
+                    <p className="truncate text-[11px] text-fo-subtle">
+                      {categoryLabel(store.category)}
+                      {formatLocation(store) ? ` · ${formatLocation(store)}` : ""}
+                    </p>
+                    <p className="text-[11px] text-fo-muted">
+                      {store.followerCount || 0} followers
+                    </p>
+                  </div>
+                </Link>
               ))}
             </div>
           )}

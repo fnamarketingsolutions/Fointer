@@ -75,6 +75,10 @@ const previewFromMessage = (messageOrText, media = []) => {
       return `Post: ${snippet(messageOrText.post.title, 80)}`;
     }
     if (messageOrText.post) return "Shared a post";
+    if (messageOrText.store?.name) {
+      return `Store: ${snippet(messageOrText.store.name, 80)}`;
+    }
+    if (messageOrText.store) return "Shared a store";
     return previewFromMessage("", messageOrText.media);
   }
   const clean = String(messageOrText || "").trim();
@@ -163,6 +167,7 @@ export const formatMessage = (message, extras = {}) => {
     media: message.isDeleted ? [] : message.media || [],
     call: message.isDeleted ? null : message.call || null,
     listing: message.isDeleted ? null : message.listing || null,
+    store: message.isDeleted ? null : message.store || null,
     post: message.isDeleted ? null : message.post || null,
     replyTo: formatReplySnapshot(message.replyTo),
     author: formatUser(message.author),
@@ -355,6 +360,7 @@ export const sendDirectMessage = async ({
   text,
   media = [],
   listingSnapshot = null,
+  storeSnapshot = null,
   postSnapshot = null,
   replyTo = null,
   type = "text",
@@ -364,7 +370,7 @@ export const sendDirectMessage = async ({
 }) => {
   const cleanText = String(text || "").trim();
   const mediaItems = Array.isArray(media) ? media.slice(0, DM_MEDIA_MAX) : [];
-  const hasShareCard = Boolean(listingSnapshot || postSnapshot);
+  const hasShareCard = Boolean(listingSnapshot || storeSnapshot || postSnapshot);
   const messageType =
     type === "call"
       ? "call"
@@ -408,6 +414,7 @@ export const sendDirectMessage = async ({
         call: messageType === "call" ? call : null,
         replyTo: parent?._id || null,
         listing: listingSnapshot || null,
+        store: storeSnapshot || null,
         post: postSnapshot || null,
       });
 

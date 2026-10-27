@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { LuLoaderCircle as Loader2, LuShare2 as Share2 } from "react-icons/lu";
+import {
+  LuArrowLeft as ArrowLeft,
+  LuLoaderCircle as Loader2,
+  LuMail as Mail,
+  LuPhone as Phone,
+  LuShare2 as Share2,
+} from "react-icons/lu";
 import { fetchListings } from "../../../api/marketplace";
 import { useAuth } from "../../../context/AuthContext";
 import ShareSheetModal from "../../../shared/components/modals/ShareSheetModal";
@@ -8,6 +14,7 @@ import { useToast } from "../../../shared/components/feedback/ToastContext";
 import { PageLoader } from "../../../shared/components/ThemeSpinner";
 import { getErrorMessage } from "../../../shared/utils/errors";
 import { displayImageUrl } from "../../../shared/utils/imageUrl";
+import ProfileAvatar from "../../../shared/components/ProfileAvatar";
 import ListingCard from "../../marketplace/components/ListingCard";
 import { categoryLabel, formatLocation } from "../../marketplace/constants";
 import {
@@ -123,6 +130,13 @@ export default function Storefront() {
 
   return (
     <div className="mx-auto w-full max-w-[1100px] pb-10 text-fo-text">
+      <Link
+        to="/stores"
+        className="mb-3 inline-flex min-h-9 items-center gap-2 rounded-lg px-1 text-sm text-fo-muted transition-colors hover:text-fo-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40"
+      >
+        <ArrowLeft size={16} aria-hidden />
+        Back to stores
+      </Link>
       <section className="rounded-2xl border border-fo-border bg-fo-surface">
         <div className="relative h-40 overflow-hidden rounded-t-2xl bg-fo-bg sm:h-56">
           {store.coverImage ? (
@@ -234,34 +248,103 @@ export default function Storefront() {
         </form>
       ) : null}
 
-      {store.description || store.contactPhone || store.contactEmail ? (
+      {store.owner || store.description || store.contactPhone || store.contactEmail ? (
         <section className="mt-4 rounded-2xl border border-fo-border bg-fo-surface p-4 sm:p-5">
-          {store.description ? (
-            <>
-              <h2 className="text-sm font-semibold">About this store</h2>
-              <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-fo-muted">
-                {store.description}
-              </p>
-            </>
-          ) : null}
-          {store.contactPhone || store.contactEmail ? (
-            <div
-              className={`flex flex-wrap gap-x-4 gap-y-2 text-xs text-fo-subtle ${
-                store.description ? "mt-4 border-t border-fo-border pt-3" : ""
-              }`}
-            >
-              {store.contactPhone ? (
-                <a href={`tel:${store.contactPhone}`} className="hover:text-fo-accent">
-                  {store.contactPhone}
-                </a>
-              ) : null}
-              {store.contactEmail ? (
-                <a href={`mailto:${store.contactEmail}`} className="break-all hover:text-fo-accent">
-                  {store.contactEmail}
-                </a>
-              ) : null}
-            </div>
-          ) : null}
+          <div
+            className={`grid gap-5 ${
+              store.owner && (store.description || store.contactPhone || store.contactEmail)
+                ? "md:grid-cols-[minmax(200px,0.8fr)_minmax(0,1.7fr)] md:gap-6"
+                : ""
+            }`}
+          >
+            {store.owner ? (
+              <div
+                className={
+                  store.description || store.contactPhone || store.contactEmail
+                    ? "border-b border-fo-border pb-4 md:border-b-0 md:border-r md:pb-0 md:pr-6"
+                    : ""
+                }
+              >
+                <h2 className="text-xs font-semibold uppercase tracking-wide text-fo-subtle">
+                  Store owner
+                </h2>
+                {store.owner.username ? (
+                  <Link
+                    to={`/users/${encodeURIComponent(store.owner.username)}`}
+                    className="mt-3 inline-flex max-w-full items-center gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40"
+                  >
+                    <ProfileAvatar
+                      src={store.owner.avatar}
+                      alt={store.owner.name || store.owner.username}
+                      name={store.owner.name || store.owner.username}
+                      className="h-11 w-11 rounded-full border border-fo-border object-cover"
+                    />
+                    <span className="min-w-0 text-left">
+                      <span className="block truncate text-sm font-semibold text-fo-text">
+                        {store.owner.name || store.owner.username}
+                      </span>
+                      <span className="block truncate text-xs text-fo-subtle">
+                        @{store.owner.username}
+                      </span>
+                    </span>
+                  </Link>
+                ) : (
+                  <div className="mt-3 inline-flex items-center gap-3">
+                    <ProfileAvatar
+                      src={store.owner.avatar}
+                      alt={store.owner.name || "Store owner"}
+                      name={store.owner.name || "Store owner"}
+                      className="h-11 w-11 rounded-full border border-fo-border object-cover"
+                    />
+                    <span className="text-sm font-semibold text-fo-text">
+                      {store.owner.name || "Store owner"}
+                    </span>
+                  </div>
+                )}
+              </div>
+            ) : null}
+
+            {store.description || store.contactPhone || store.contactEmail ? (
+              <div className="min-w-0">
+                {store.description ? (
+                  <div>
+                    <h2 className="text-sm font-semibold">About this store</h2>
+                    <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-fo-muted">
+                      {store.description}
+                    </p>
+                  </div>
+                ) : null}
+                {store.contactPhone || store.contactEmail ? (
+                  <div
+                    className={`flex flex-wrap gap-2 ${
+                      store.description
+                        ? "mt-4 border-t border-fo-border pt-3"
+                        : ""
+                    }`}
+                  >
+                    {store.contactPhone ? (
+                      <a
+                        href={`tel:${store.contactPhone}`}
+                        className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-fo-border px-3 text-xs text-fo-muted transition-colors hover:border-fo-accent/40 hover:text-fo-accent"
+                      >
+                        <Phone size={14} aria-hidden />
+                        {store.contactPhone}
+                      </a>
+                    ) : null}
+                    {store.contactEmail ? (
+                      <a
+                        href={`mailto:${store.contactEmail}`}
+                        className="inline-flex min-h-9 max-w-full items-center gap-2 rounded-lg border border-fo-border px-3 text-xs text-fo-muted transition-colors hover:border-fo-accent/40 hover:text-fo-accent"
+                      >
+                        <Mail size={14} className="shrink-0" aria-hidden />
+                        <span className="break-all">{store.contactEmail}</span>
+                      </a>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
         </section>
       ) : null}
 

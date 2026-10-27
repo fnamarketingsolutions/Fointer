@@ -65,6 +65,7 @@ export default function PostEditModal({
             onChange={(media) => setForm((p) => ({ ...p, media }))}
             onError={showToast}
             label="Media"
+            allowReplace
           />
         </div>
         <button

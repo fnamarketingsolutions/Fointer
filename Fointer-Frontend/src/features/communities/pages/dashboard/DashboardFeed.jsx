@@ -672,6 +672,9 @@ export default function DashboardFeed() {
           showCommunitySelect
           communities={joinedCommunities}
           communityId={postForm.communityId}
+          community={joinedCommunities.find(
+            (item) => String(item.id) === String(postForm.communityId)
+          )}
           onCommunityChange={(communityId) =>
             setPostForm((f) => ({ ...f, communityId }))
           }

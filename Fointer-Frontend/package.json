@@ -4,8 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "dev": "node init && vite",
+    "build": "node init && vite build",
     "lint": "eslint .",
     "test": "node --test src/shared/webrtc/mediaSwitch.test.js src/shared/webrtc/callReliability.test.js src/shared/webrtc/iceQueue.test.js src/shared/webrtc/iceRestart.test.js src/shared/utils/navigateFlush.test.js src/features/subscription/utils/adEligibility.test.js",
     "preview": "vite preview"

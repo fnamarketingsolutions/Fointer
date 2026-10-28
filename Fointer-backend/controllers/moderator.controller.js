@@ -82,14 +82,8 @@ export const listCommunityMembers = async (req, res) => {
     const membership = canModerate
       ? null
       : await getMembership(community._id, req.user._id);
-    const isPrivateCommunity = ["private_request", "private_invite"].includes(
-      community.type
-    );
-
-    if (
-      !canModerate &&
-      (!isPrivateCommunity || !getEffectiveMemberRole(membership))
-    ) {
+    const isActiveMember = Boolean(getEffectiveMemberRole(membership));
+    if (!canModerate && !isActiveMember) {
       return res.status(403).json({
         success: false,
         message: "Only community members can view this member list.",

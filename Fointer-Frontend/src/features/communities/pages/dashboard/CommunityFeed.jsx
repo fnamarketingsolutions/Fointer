@@ -73,6 +73,7 @@ function CommunitySidebar({
   liveLoading,
   watchGroups,
   watchLoading,
+  isAuthenticated,
 }) {
   const [rulesExpanded, setRulesExpanded] = useState(false);
   const typeLabel =
@@ -137,8 +138,7 @@ function CommunitySidebar({
         </div>
       </div>
 
-      {community?.isMember &&
-      ["private_request", "private_invite"].includes(community.type) ? (
+      {isAuthenticated && community?.isMember ? (
         <CommunityMembersCard key={community.id} community={community} />
       ) : null}
 
@@ -446,7 +446,7 @@ export default function CommunityFeed() {
 
   useEffect(() => {
     if (!communityId || viewingPost) return;
-    if (!community?.isMember) {
+    if (community?.type !== "public" && !community?.isMember) {
       setPosts([]);
       setLoading(false);
       setHasMore(false);
@@ -455,6 +455,7 @@ export default function CommunityFeed() {
     loadPosts({ q: query, pageNum: 1, append: false, sort: sortBy });
   }, [
     communityId,
+    community?.type,
     community?.isMember,
     query,
     sortBy,
@@ -726,6 +727,7 @@ export default function CommunityFeed() {
       liveLoading={liveLoading}
       watchGroups={watchGroups}
       watchLoading={watchLoading}
+      isAuthenticated={isAuthenticated}
     />
   ) : null;
 
@@ -812,6 +814,7 @@ export default function CommunityFeed() {
           }}
           saving={postSaving}
           communityLabel={community.name}
+          community={community}
           onError={showToast}
         />
       </div>

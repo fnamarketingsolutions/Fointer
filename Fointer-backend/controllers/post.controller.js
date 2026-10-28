@@ -439,7 +439,14 @@ export const listPosts = async (req, res) => {
         joinedIdSet.has(communityIdStr) ||
         manageableIdSet.has(communityIdStr);
 
-      if (!allowed) {
+      const isPublicCommunity =
+        !allowed &&
+        (await Community.exists({
+          _id: parsedCommunityId,
+          type: { $in: OPEN_FEED_COMMUNITY_TYPES },
+        }));
+
+      if (!allowed && !isPublicCommunity) {
         return res.status(403).json({
           success: false,
           message: "You cannot view posts in this community.",

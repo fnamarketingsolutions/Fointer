@@ -1,7 +1,12 @@
+import { useState } from "react";
 import {
   LuArrowLeft as ArrowLeft,
-  LuLoaderCircle as Loader2
+  LuEye as Eye,
+  LuPencil as Pencil,
+  LuLoaderCircle as Loader2,
 } from "react-icons/lu";
+import { useAuth } from "../../../context/AuthContext";
+import FeedPostRow from "../FeedPostRow";
 import MediaPicker from "../media/MediaPicker";
 
 /**
@@ -24,7 +29,20 @@ export default function CreatePostForm({
   onCommunityChange,
   onError,
   submitLabel = "Post",
+  community,
 }) {
+  const { user } = useAuth();
+  const [showPreview, setShowPreview] = useState(false);
+  const previewPost = {
+    author: user,
+    title,
+    text,
+    media,
+    community: community || null,
+    createdAt: new Date().toISOString(),
+    canEngage: false,
+  };
+
   return (
     <div className="w-full max-w-2xl mx-auto">
       <button
@@ -49,61 +67,97 @@ export default function CreatePostForm({
       </div>
 
       <form onSubmit={onSubmit} className="space-y-5">
-        {showCommunitySelect ? (
-          <div>
-            <label className="block text-[11px] uppercase tracking-wide text-fo-subtle mb-1.5">
-              Community (optional)
-            </label>
-            <select
-              value={communityId}
-              onChange={(e) => onCommunityChange?.(e.target.value)}
-              className="w-full bg-fo-bg border border-fo-border rounded-xl px-3 py-2.5 text-sm text-fo-text focus:outline-none focus:border-fo-accent/50"
-            >
-              <option value="">No community</option>
-              {communities.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        ) : null}
+        {showPreview ? (
+          <section aria-label="Post preview" className="space-y-3">
+            <p className="text-xs text-fo-subtle">
+              Preview — only you can see this until you publish.
+            </p>
+            <FeedPostRow
+              post={previewPost}
+              variant="card"
+              showActions={false}
+              showCommunity={Boolean(community)}
+              preview
+            />
+          </section>
+        ) : (
+          <>
+            {showCommunitySelect ? (
+              <div>
+                <label className="block text-[11px] uppercase tracking-wide text-fo-subtle mb-1.5">
+                  Community (optional)
+                </label>
+                <select
+                  value={communityId}
+                  onChange={(e) => onCommunityChange?.(e.target.value)}
+                  className="w-full bg-fo-bg border border-fo-border rounded-xl px-3 py-2.5 text-sm text-fo-text focus:outline-none focus:border-fo-accent/50"
+                >
+                  <option value="">No community</option>
+                  {communities.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
 
-        <div>
-          <label className="block text-[11px] uppercase tracking-wide text-fo-subtle mb-1.5">
-            Title (optional)
-          </label>
-          <input
-            type="text"
-            value={title}
-            onChange={(e) => onTitleChange(e.target.value)}
-            maxLength={200}
-            placeholder="Post title"
-            className="w-full bg-fo-bg border border-fo-border rounded-xl px-3 py-3 text-sm text-fo-text focus:outline-none focus:border-fo-accent/50 placeholder:text-fo-subtle"
-          />
-        </div>
+            <div>
+              <label className="block text-[11px] uppercase tracking-wide text-fo-subtle mb-1.5">
+                Title (optional)
+              </label>
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => onTitleChange(e.target.value)}
+                maxLength={200}
+                placeholder="Post title"
+                className="w-full bg-fo-bg border border-fo-border rounded-xl px-3 py-3 text-sm text-fo-text focus:outline-none focus:border-fo-accent/50 placeholder:text-fo-subtle"
+              />
+            </div>
 
-        <div>
-          <label className="block text-[11px] uppercase tracking-wide text-fo-subtle mb-1.5">
-            Text
-          </label>
-          <textarea
-            value={text}
-            onChange={(e) => onTextChange(e.target.value)}
-            rows={8}
-            placeholder="Share something with the community…"
-            className="w-full bg-fo-bg border border-fo-border rounded-xl px-3 py-3 text-sm text-fo-text focus:outline-none focus:border-fo-accent/50 placeholder:text-fo-subtle resize-y min-h-[160px]"
-          />
-        </div>
+            <div>
+              <label className="block text-[11px] uppercase tracking-wide text-fo-subtle mb-1.5">
+                Text
+              </label>
+              <textarea
+                value={text}
+                onChange={(e) => onTextChange(e.target.value)}
+                rows={8}
+                placeholder="Share something with the community…"
+                className="w-full bg-fo-bg border border-fo-border rounded-xl px-3 py-3 text-sm text-fo-text focus:outline-none focus:border-fo-accent/50 placeholder:text-fo-subtle resize-y min-h-[160px]"
+              />
+            </div>
 
-        <MediaPicker
-          media={media}
-          onChange={onMediaChange}
-          onError={onError}
-          allowReplace
-        />
+            <MediaPicker
+              media={media}
+              onChange={onMediaChange}
+              onError={onError}
+              allowReplace
+            />
+          </>
+        )}
 
         <div className="flex items-center justify-end gap-2 pt-2">
+          {showPreview ? (
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => setShowPreview(false)}
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm text-fo-muted hover:text-fo-text border border-fo-border disabled:opacity-50"
+            >
+              <Pencil size={14} /> Edit
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => setShowPreview(true)}
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm text-fo-muted hover:text-fo-text border border-fo-border disabled:opacity-50"
+            >
+              <Eye size={14} /> Preview
+            </button>
+          )}
           <button
             type="button"
             disabled={saving}

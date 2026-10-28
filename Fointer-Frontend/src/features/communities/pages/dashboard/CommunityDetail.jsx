@@ -803,6 +803,7 @@ export default function CommunityDetail({
           }}
           saving={postSaving}
           communityLabel={community.name}
+          community={community}
           onError={showToast}
         />
       </div>

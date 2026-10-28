@@ -108,6 +108,7 @@ export default function FeedPostRow({
   /** When true (default), Comment opens an inline composer instead of navigating away. */
   inlineComment = true,
   onCommentPosted,
+  preview = false,
 }) {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
@@ -265,12 +266,12 @@ export default function FeedPostRow({
   if (variant === "card") {
     return (
       <article
-        role="link"
-        tabIndex={0}
-        onClick={activate}
-        onKeyDown={onKeyDown}
-        aria-label={`Open post: ${openLabel}`}
-        className={`group bg-fo-surface border rounded-xl overflow-hidden cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40 ${borderClass} ${
+        role={preview ? undefined : "link"}
+        tabIndex={preview ? undefined : 0}
+        onClick={preview ? undefined : activate}
+        onKeyDown={preview ? undefined : onKeyDown}
+        aria-label={preview ? undefined : `Open post: ${openLabel}`}
+        className={`group bg-fo-surface border rounded-xl overflow-hidden ${preview ? "" : "cursor-pointer"} transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40 ${borderClass} ${
           showActions || commentOpen ? "" : "pb-3"
         }`}
       >
@@ -329,7 +330,7 @@ export default function FeedPostRow({
                 ) : null}
               </div>
             </div>
-            <PostMoreMenu post={post} />
+            {preview ? null : <PostMoreMenu post={post} />}
           </div>
 
           {title ? (
@@ -386,12 +387,12 @@ export default function FeedPostRow({
 
   return (
     <article
-      role="link"
-      tabIndex={0}
-      onClick={activate}
-      onKeyDown={onKeyDown}
-      aria-label={`Open post: ${openLabel}`}
-      className={`group bg-fo-surface border rounded-[16px] overflow-hidden cursor-pointer transition-colors p-4 shadow-[0_1px_2px_rgba(26,22,18,0.04)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40 ${borderClass}`}
+      role={preview ? undefined : "link"}
+      tabIndex={preview ? undefined : 0}
+      onClick={preview ? undefined : activate}
+      onKeyDown={preview ? undefined : onKeyDown}
+      aria-label={preview ? undefined : `Open post: ${openLabel}`}
+      className={`group bg-fo-surface border rounded-[16px] overflow-hidden ${preview ? "" : "cursor-pointer"} transition-colors p-4 shadow-[0_1px_2px_rgba(26,22,18,0.04)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fo-accent/40 ${borderClass}`}
     >
       <div className="flex gap-3">
         <div className="flex-1 min-w-0 space-y-2">

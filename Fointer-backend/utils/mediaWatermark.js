@@ -319,6 +319,33 @@ const runFfmpeg = (args) =>
     });
   });
 
+/** Extract a lightweight first-frame JPEG for public social share cards. */
+export const extractVideoPoster = async (buffer) => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "fointer-poster-"));
+  const inputPath = path.join(dir, "input");
+  const outputPath = path.join(dir, "poster.jpg");
+  try {
+    await writeFile(inputPath, buffer);
+    await runFfmpeg([
+      "-y",
+      "-ss",
+      "00:00:01",
+      "-i",
+      inputPath,
+      "-frames:v",
+      "1",
+      "-vf",
+      "scale='min(1200,iw)':-2",
+      "-q:v",
+      "3",
+      outputPath,
+    ]);
+    return await readFile(outputPath);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+};
+
 const videoOverlay = (config) => {
   const margin = (config.marginPercent / 100).toFixed(3);
   if (config.position === "center") {

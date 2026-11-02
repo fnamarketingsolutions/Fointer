@@ -72,6 +72,7 @@ export const buildPostShareHtml = ({
   title,
   description,
   imageUrls = [],
+  videoUrl = "",
 } = {}) => {
   const site = String(siteUrl || "https://fointer.net").replace(/\/$/, "");
   const canonical = isHttpUrl(pageUrl) ? String(pageUrl) : site;
@@ -90,6 +91,12 @@ export const buildPostShareHtml = ({
   const imageTags = images
     .map((src) => `<meta property="og:image" content="${escapeHtml(src)}" />`)
     .join("\n");
+  const safeVideoUrl = isHttpUrl(videoUrl) ? String(videoUrl) : "";
+  const videoTags = safeVideoUrl
+    ? `<meta property="og:video" content="${escapeHtml(safeVideoUrl)}" />
+<meta property="og:video:secure_url" content="${escapeHtml(safeVideoUrl)}" />
+<meta property="og:video:type" content="video/mp4" />`
+    : "";
   const redirectTarget = JSON.stringify(canonical).replace(/</g, "\\u003c");
 
   return `<!doctype html>
@@ -106,6 +113,7 @@ export const buildPostShareHtml = ({
 <meta property="og:title" content="${escapeHtml(safeTitle)}" />
 <meta property="og:description" content="${escapeHtml(safeDescription)}" />
 ${imageTags}
+${videoTags}
 <meta name="twitter:card" content="${card}" />
 <meta name="twitter:title" content="${escapeHtml(safeTitle)}" />
 <meta name="twitter:description" content="${escapeHtml(safeDescription)}" />

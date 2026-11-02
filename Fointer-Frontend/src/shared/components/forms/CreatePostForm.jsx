@@ -8,6 +8,7 @@ import {
 import { useAuth } from "../../../context/AuthContext";
 import FeedPostRow from "../FeedPostRow";
 import MediaPicker from "../media/MediaPicker";
+import RichTextEditor from "./RichTextEditor";
 
 /**
  * Full-page post composer (not a modal) — Reddit-style submit layout.
@@ -117,16 +118,7 @@ export default function CreatePostForm({
             </div>
 
             <div>
-              <label className="block text-[11px] uppercase tracking-wide text-fo-subtle mb-1.5">
-                Text
-              </label>
-              <textarea
-                value={text}
-                onChange={(e) => onTextChange(e.target.value)}
-                rows={8}
-                placeholder="Share something with the community…"
-                className="w-full bg-fo-bg border border-fo-border rounded-xl px-3 py-3 text-sm text-fo-text focus:outline-none focus:border-fo-accent/50 placeholder:text-fo-subtle resize-y min-h-[160px]"
-              />
+              <RichTextEditor value={text} onChange={onTextChange} disabled={saving} />
             </div>
 
             <MediaPicker

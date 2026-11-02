@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import RichTextContent from "../../../shared/components/RichTextContent";
 import {
   LuFileText as FileText,
   LuUserRound as UserRound,
@@ -149,9 +150,10 @@ export default function SearchResultsPage() {
                         {post.title || "Untitled post"}
                       </p>
                       {post.text ? (
-                        <p className="text-xs text-fo-subtle line-clamp-2 mt-1">
-                          {post.text}
-                        </p>
+                        <RichTextContent
+                          text={post.text}
+                          className="mt-1 text-xs text-fo-subtle line-clamp-2"
+                        />
                       ) : null}
                       <p className="text-[11px] text-fo-subtle mt-2">
                         {post.community?.name || "Public"}

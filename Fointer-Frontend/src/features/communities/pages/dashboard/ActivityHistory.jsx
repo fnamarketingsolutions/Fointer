@@ -28,6 +28,7 @@ import ListingCard from "../../../marketplace/components/ListingCard";
 import PostDetail from "../../../posts/pages/PostDetail";
 import UserProfileLink from "../../../../shared/components/UserProfileLink";
 import LinkifiedText from "../../../../shared/components/LinkifiedText";
+import RichTextContent from "../../../../shared/components/RichTextContent";
 import ConfirmDeleteModal from "../../../../shared/components/modals/ConfirmDeleteModal";
 import EditWindowExpiredModal from "../../../../shared/components/modals/EditWindowExpiredModal";
 import { timeAgo } from "../../../../shared/utils/date";
@@ -455,9 +456,10 @@ export default function ActivityHistory() {
                     </h2>
 
                     {post.text ? (
-                      <p className="text-xs sm:text-sm text-fo-muted line-clamp-2 leading-relaxed">
-                        <LinkifiedText text={post.text} />
-                      </p>
+                      <RichTextContent
+                        text={post.text}
+                        className="text-xs sm:text-sm text-fo-muted line-clamp-2 leading-relaxed"
+                      />
                     ) : null}
 
                     <div className="flex items-center gap-4 pt-0.5 text-xs text-fo-subtle">
@@ -673,9 +675,10 @@ export default function ActivityHistory() {
                     </h2>
 
                     {post.text ? (
-                      <p className="text-xs sm:text-sm text-fo-muted line-clamp-2 leading-relaxed">
-                        <LinkifiedText text={post.text} />
-                      </p>
+                      <RichTextContent
+                        text={post.text}
+                        className="text-xs sm:text-sm text-fo-muted line-clamp-2 leading-relaxed"
+                      />
                     ) : null}
 
                     <div className="flex items-center gap-4 pt-0.5 text-xs text-fo-subtle">
@@ -774,9 +777,10 @@ export default function ActivityHistory() {
                     </h2>
 
                     {post.text ? (
-                      <p className="text-xs sm:text-sm text-fo-muted line-clamp-2 leading-relaxed">
-                        <LinkifiedText text={post.text} />
-                      </p>
+                      <RichTextContent
+                        text={post.text}
+                        className="text-xs sm:text-sm text-fo-muted line-clamp-2 leading-relaxed"
+                      />
                     ) : null}
 
                     <div className="flex items-center gap-4 pt-0.5 text-xs text-fo-subtle">

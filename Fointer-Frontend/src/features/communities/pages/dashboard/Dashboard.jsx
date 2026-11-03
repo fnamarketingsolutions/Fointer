@@ -27,6 +27,7 @@ import RouteSuspense from "../../../../shared/components/RouteSuspense";
 import { PageLoader } from "../../../../shared/components/ThemeSpinner";
 import IncomingDmCallBridge from "../../../messages/components/IncomingDmCallBridge";
 import { DmCallProvider } from "../../../messages/components/DmCallProvider";
+import { LiveEventCallProvider } from "./LiveEventCallProvider";
 import { fetchUnreadTotal } from "../../../messages/services/messageService";
 import { getLiveSocket } from "../../../../shared/services/liveSocket";
 import {
@@ -333,8 +334,9 @@ const Dashboard = () => {
       allowGuest
     >
       <DmCallProvider>
-        <IncomingDmCallBridge />
-        <Routes>
+        <LiveEventCallProvider>
+          <IncomingDmCallBridge />
+          <Routes>
           <Route path={FEED_PATH} element={<DashboardFeed />} />
           <Route path={EXPLORE_PATH} element={<DashboardFeed />} />
           <Route path="/post/:postSlug" element={<DashboardFeed />} />
@@ -563,7 +565,8 @@ const Dashboard = () => {
               <Navigate to={isGuest ? EXPLORE_PATH : FEED_PATH} replace />
             }
           />
-        </Routes>
+          </Routes>
+        </LiveEventCallProvider>
       </DmCallProvider>
     </PanelShell>
   );

@@ -26,6 +26,7 @@ import PanelShell from "../../../../shared/layouts/PanelShell";
 import RouteSuspense from "../../../../shared/components/RouteSuspense";
 import { PageLoader } from "../../../../shared/components/ThemeSpinner";
 import IncomingDmCallBridge from "../../../messages/components/IncomingDmCallBridge";
+import { DmCallProvider } from "../../../messages/components/DmCallProvider";
 import { fetchUnreadTotal } from "../../../messages/services/messageService";
 import { getLiveSocket } from "../../../../shared/services/liveSocket";
 import {
@@ -331,8 +332,9 @@ const Dashboard = () => {
       logoutTo="/"
       allowGuest
     >
-      <IncomingDmCallBridge />
-      <Routes>
+      <DmCallProvider>
+        <IncomingDmCallBridge />
+        <Routes>
           <Route path={FEED_PATH} element={<DashboardFeed />} />
           <Route path={EXPLORE_PATH} element={<DashboardFeed />} />
           <Route path="/post/:postSlug" element={<DashboardFeed />} />
@@ -562,6 +564,7 @@ const Dashboard = () => {
             }
           />
         </Routes>
+      </DmCallProvider>
     </PanelShell>
   );
 };

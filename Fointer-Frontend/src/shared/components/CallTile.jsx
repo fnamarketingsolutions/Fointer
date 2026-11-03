@@ -12,16 +12,16 @@ export default function CallTile({
   isLocal,
   fallbackLabel = "Caller",
   size = "md",
+  mirror = false,
 }) {
   const videoRef = useRef(null);
   const audioRef = useRef(null);
-  const [playbackError, setPlaybackError] = useState(false);
+  const [playbackFailure, setPlaybackFailure] = useState(null);
+  const playbackError =
+    playbackFailure?.stream === peer.stream &&
+    playbackFailure?.version === peer.streamVersion;
   const showVideo = shouldShowRemoteVideo(peer) && !playbackError;
   const status = playbackError ? "avatar" : remoteMediaStatus(peer);
-
-  useEffect(() => {
-    setPlaybackError(false);
-  }, [peer.stream, peer.streamVersion]);
 
   useEffect(() => {
     const el = videoRef.current;
@@ -49,7 +49,12 @@ export default function CallTile({
 
   const label = isLocal ? "You" : peer.name || peer.username || fallbackLabel;
   const photo = hasProfilePhoto(peer.avatar) ? peer.avatar : "";
-  const minH = size === "sm" ? "min-h-[140px]" : "min-h-[160px]";
+  const tileClass =
+    size === "full"
+      ? "absolute inset-0 h-full w-full rounded-none border-0"
+      : size === "pip"
+        ? "absolute inset-0 h-full w-full rounded-xl border border-white/40 shadow-2xl"
+        : `relative aspect-video ${size === "sm" ? "min-h-[140px]" : "min-h-[160px]"} rounded-xl border border-fo-border`;
   const avatarClass =
     size === "sm"
       ? "w-12 h-12 text-sm"
@@ -58,14 +63,17 @@ export default function CallTile({
 
   return (
     <div
-      className={`relative aspect-video ${minH} rounded-xl overflow-hidden bg-[#0D0A08] border border-fo-border`}
+      className={`${tileClass} overflow-hidden bg-[#0D0A08]`}
     >
       <video
         ref={videoRef}
         autoPlay
         playsInline
         muted
-        onError={() => setPlaybackError(true)}
+        onError={() =>
+          setPlaybackFailure({ stream: peer.stream, version: peer.streamVersion })
+        }
+        style={{ transform: mirror && isLocal ? "scaleX(-1)" : undefined }}
         className={`absolute inset-0 w-full h-full object-cover ${
           showVideo ? "opacity-100" : "opacity-0"
         }`}

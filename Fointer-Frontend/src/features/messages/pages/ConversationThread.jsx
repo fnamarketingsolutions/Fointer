@@ -36,7 +36,7 @@ import UserProfileLink from "../../../shared/components/UserProfileLink";
 import ListingReference from "../components/ListingReference";
 import PostReference from "../components/PostReference";
 import StoreReference from "../components/StoreReference";
-import DirectCall from "../components/DirectCall";
+import { useDmCall } from "../components/DmCallContext";
 import { timeAgo } from "../../../shared/utils/date";
 import ReportContentModal from "../../../shared/components/modals/ReportContentModal";
 import EditWindowExpiredModal from "../../../shared/components/modals/EditWindowExpiredModal";
@@ -173,7 +173,7 @@ export default function ConversationThread() {
   const [replyingTo, setReplyingTo] = useState(null);
   const [lockModal, setLockModal] = useState(null);
   const listRef = useRef(null);
-  const directCallRef = useRef(null);
+  const { setConversationTarget, startCall } = useDmCall();
   const headerMenuRef = useRef(null);
   const swipeRef = useRef({ id: null, x: 0, active: false });
 
@@ -209,6 +209,12 @@ export default function ConversationThread() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (conversation?.otherUser) {
+      setConversationTarget(conversationId, conversation.otherUser);
+    }
+  }, [conversation?.otherUser, conversationId, setConversationTarget]);
 
   useEffect(() => {
     if (!headerMenuOpen) return undefined;
@@ -553,7 +559,7 @@ export default function ConversationThread() {
         <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
           <button
             type="button"
-            onClick={() => directCallRef.current?.start("audio")}
+            onClick={() => startCall(conversationId, other, "audio")}
             disabled={messagingLocked}
             className={`inline-flex ${headerIconBtn} hover:text-fo-accent`}
             title="Audio call"
@@ -563,7 +569,7 @@ export default function ConversationThread() {
           </button>
           <button
             type="button"
-            onClick={() => directCallRef.current?.start("video")}
+            onClick={() => startCall(conversationId, other, "video")}
             disabled={messagingLocked}
             className={`inline-flex ${headerIconBtn} hover:text-fo-accent`}
             title="Video call"
@@ -692,13 +698,6 @@ export default function ConversationThread() {
             : "Messaging is unavailable with this user."}
         </div>
       ) : null}
-
-      <DirectCall
-        ref={directCallRef}
-        conversationId={String(conversation.id)}
-        otherUser={other}
-        disabled={messagingLocked}
-      />
 
       <div
         ref={listRef}

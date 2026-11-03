@@ -9,8 +9,10 @@ import {
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   LuLoaderCircle as Loader2,
+  LuMaximize2 as Maximize,
   LuMic as Mic,
   LuMicOff as MicOff,
+  LuMinimize2 as Minimize,
   LuPhone as Phone,
   LuPhoneOff as PhoneOff,
   LuVideo as Video,
@@ -65,6 +67,10 @@ const DirectCall = forwardRef(function DirectCall(
   const [error, setError] = useState("");
   const [tiles, setTiles] = useState([]);
   const [incomingFrom, setIncomingFrom] = useState(null);
+  const [localExpanded, setLocalExpanded] = useState(false);
+  const [previewPosition, setPreviewPosition] = useState(null);
+  const [videoExpanded, setVideoExpanded] = useState(false);
+  const [windowPosition, setWindowPosition] = useState(null);
 
   const localStreamRef = useRef(null);
   const peersRef = useRef(new Map());
@@ -82,6 +88,12 @@ const DirectCall = forwardRef(function DirectCall(
   const syncGenRef = useRef(0);
   const cameraBusyRef = useRef(false);
   const iceConfigRef = useRef(null);
+  const previewRef = useRef(null);
+  const previewStageRef = useRef(null);
+  const previewDragRef = useRef(null);
+  const suppressPreviewClickRef = useRef(false);
+  const callWindowRef = useRef(null);
+  const windowDragRef = useRef(null);
 
   modeRef.current = mode;
   conversationIdRef.current = conversationId;
@@ -175,6 +187,10 @@ const DirectCall = forwardRef(function DirectCall(
       setMuted(false);
       setCameraOff(false);
       setTiles([]);
+      setLocalExpanded(false);
+      setPreviewPosition(null);
+      setVideoExpanded(false);
+      setWindowPosition(null);
       makingOfferRef.current.clear();
     },
     [closeAllPeers, stopLocal, stopRingtone]
@@ -859,11 +875,236 @@ const DirectCall = forwardRef(function DirectCall(
     else void turnCameraOn();
   };
 
+  const startPreviewDrag = (event) => {
+    if (event.button !== 0 && event.pointerType !== "touch") return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const stageRect = previewStageRef.current?.getBoundingClientRect();
+    previewDragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      left: rect.left - (stageRect?.left || 0),
+      top: rect.top - (stageRect?.top || 0),
+      moved: false,
+    };
+    suppressPreviewClickRef.current = false;
+    setPreviewPosition({ left: rect.left, top: rect.top });
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+
+  const movePreview = (event) => {
+    const drag = previewDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+
+    const deltaX = event.clientX - drag.startX;
+    const deltaY = event.clientY - drag.startY;
+    if (!drag.moved && Math.hypot(deltaX, deltaY) < 4) return;
+    drag.moved = true;
+
+    const preview = previewRef.current;
+    const width = preview?.offsetWidth || 160;
+    const height = preview?.offsetHeight || 90;
+    const stage = previewStageRef.current;
+    setPreviewPosition({
+      left: Math.max(8, Math.min((stage?.clientWidth || window.innerWidth) - width - 8, drag.left + deltaX)),
+      top: Math.max(8, Math.min((stage?.clientHeight || window.innerHeight) - height - 8, drag.top + deltaY)),
+    });
+  };
+
+  const stopPreviewDrag = (event) => {
+    const drag = previewDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    suppressPreviewClickRef.current = drag.moved;
+    previewDragRef.current = null;
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+  };
+
+  const startWindowDrag = (event) => {
+    if (videoExpanded || event.target.closest("button")) return;
+    if (event.button !== 0 && event.pointerType !== "touch") return;
+    const rect = callWindowRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    windowDragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      left: rect.left,
+      top: rect.top,
+    };
+    setWindowPosition({ left: rect.left, top: rect.top });
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+
+  const moveWindow = (event) => {
+    const drag = windowDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const width = callWindowRef.current?.offsetWidth || 320;
+    const height = callWindowRef.current?.offsetHeight || 280;
+    setWindowPosition({
+      left: Math.max(8, Math.min(window.innerWidth - width - 8, drag.left + event.clientX - drag.startX)),
+      top: Math.max(8, Math.min(window.innerHeight - height - 8, drag.top + event.clientY - drag.startY)),
+    });
+  };
+
+  const stopWindowDrag = (event) => {
+    const drag = windowDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    windowDragRef.current = null;
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+  };
+
   if (phase === "idle" && !error) return null;
 
   const otherLabel =
     personDisplayName(incomingFrom, "") ||
     personDisplayName(otherUser, DELETED_USER_LABEL);
+  const localTile = tiles.find((tile) => tile.isLocal);
+  const remoteTile = tiles.find((tile) => !tile.isLocal);
+
+  if (phase === "active" && mode === "video" && localTile && remoteTile) {
+    const mainTile = localExpanded ? localTile : remoteTile;
+    const previewTile = localExpanded ? remoteTile : localTile;
+    const controlButtonClass = videoExpanded
+      ? "inline-flex h-12 w-12 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur hover:bg-white/25"
+      : "inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg border border-fo-border px-3 py-2 text-xs text-fo-text hover:border-fo-accent/40";
+
+    return (
+      <div
+        ref={callWindowRef}
+        style={!videoExpanded && windowPosition ? windowPosition : undefined}
+        className={videoExpanded
+          ? "fixed inset-0 z-[70] overflow-hidden bg-black text-white"
+          : `fixed z-[70] w-[min(24rem,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border border-fo-border bg-fo-surface text-white shadow-2xl ${windowPosition ? "left-0 top-0" : "bottom-20 right-3 sm:bottom-4 sm:right-4"}`}
+      >
+        <div
+          onPointerDown={startWindowDrag}
+          onPointerMove={moveWindow}
+          onPointerUp={stopWindowDrag}
+          onPointerCancel={stopWindowDrag}
+          className={`z-10 flex items-start justify-between gap-3 px-4 py-3 touch-none ${videoExpanded ? "absolute inset-x-0 top-0 bg-gradient-to-b from-black/70 to-transparent pt-[max(1rem,env(safe-area-inset-top))] sm:px-6" : "cursor-grab border-b border-fo-border bg-fo-surface active:cursor-grabbing"}`}
+        >
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-fo-text">
+              {mainTile.name || (mainTile.isLocal ? "You" : otherLabel)}
+            </p>
+            <p className={`mt-0.5 text-xs ${videoExpanded ? "text-white/70" : "text-fo-subtle"}`}>
+              {cameraBusy ? "Updating camera…" : "Video call"}
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            {error ? <p className="max-w-[10rem] text-right text-xs text-red-300">{error}</p> : null}
+            <button
+              type="button"
+              onClick={() => {
+                setVideoExpanded((expanded) => !expanded);
+                setPreviewPosition(null);
+                setWindowPosition(null);
+              }}
+              aria-label={videoExpanded ? "Minimize video call" : "Expand video call"}
+              title={videoExpanded ? "Minimize" : "Expand"}
+              className={videoExpanded
+                ? "inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/25"
+                : "inline-flex h-9 w-9 items-center justify-center rounded-lg border border-fo-border text-fo-muted hover:text-fo-text"}
+            >
+              {videoExpanded ? <Minimize size={18} /> : <Maximize size={18} />}
+            </button>
+          </div>
+        </div>
+
+        <div
+          ref={previewStageRef}
+          className={videoExpanded ? "absolute inset-0 overflow-hidden" : "relative aspect-video min-h-[160px] overflow-hidden bg-black"}
+        >
+          <CallTile
+            peer={mainTile}
+            isLocal={mainTile.isLocal}
+            fallbackLabel="Caller"
+            size={videoExpanded ? "full" : "md"}
+            mirror={mainTile.isLocal}
+          />
+
+          <button
+            ref={previewRef}
+            type="button"
+            aria-label={`Make ${previewTile.isLocal ? "your camera" : "their camera"} the main view`}
+            title="Click to enlarge; drag to move"
+            onPointerDown={startPreviewDrag}
+            onPointerMove={movePreview}
+            onPointerUp={stopPreviewDrag}
+            onPointerCancel={stopPreviewDrag}
+            onClick={() => {
+              if (suppressPreviewClickRef.current) {
+                suppressPreviewClickRef.current = false;
+                return;
+              }
+              setLocalExpanded((expanded) => !expanded);
+            }}
+            style={previewPosition || undefined}
+            className={`absolute z-20 block aspect-video w-28 touch-none cursor-grab overflow-hidden rounded-xl border border-white/60 bg-black shadow-2xl active:cursor-grabbing sm:w-36 ${
+              previewPosition
+                ? "left-0 top-0"
+                : "right-3 top-3"
+            }`}
+          >
+            <CallTile
+              peer={previewTile}
+              isLocal={previewTile.isLocal}
+              fallbackLabel="Caller"
+              size="pip"
+              mirror={previewTile.isLocal}
+            />
+          </button>
+        </div>
+
+        <div className={videoExpanded
+          ? "absolute inset-x-0 bottom-0 z-10 flex justify-center bg-gradient-to-t from-black/75 to-transparent px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-12"
+          : "flex justify-center gap-2 px-3 py-3"}
+        >
+          <div className="flex items-center gap-3 sm:gap-4">
+            <button
+              type="button"
+              onClick={toggleMic}
+              aria-label={muted ? "Unmute microphone" : "Mute microphone"}
+              title={muted ? "Unmute" : "Mute"}
+              className={controlButtonClass}
+            >
+              {muted ? <MicOff size={18} /> : <Mic size={18} />}
+              {!videoExpanded ? (muted ? "Unmute" : "Mute") : null}
+            </button>
+            <button
+              type="button"
+              onClick={toggleCamera}
+              disabled={cameraBusy}
+              aria-label={cameraOff ? "Turn camera on" : "Turn camera off"}
+              title={cameraControlLabel({ cameraOn: !cameraOff, busy: cameraBusy })}
+              className={`${controlButtonClass} disabled:opacity-60`}
+            >
+              {cameraBusy ? (
+                <Loader2 size={18} className="animate-spin" />
+              ) : cameraOff ? (
+                <VideoOff size={18} />
+              ) : (
+                <Video size={18} />
+              )}
+              {!videoExpanded ? (cameraOff ? "Camera on" : "Camera off") : null}
+            </button>
+            <button
+              type="button"
+              onClick={() => endCall(true)}
+              aria-label="End call"
+              title="End call"
+              className={videoExpanded
+                ? "inline-flex h-14 w-14 items-center justify-center rounded-full bg-red-600 text-white shadow-lg hover:bg-red-500"
+                : "inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg bg-red-600 px-3 py-2 text-xs text-white hover:bg-red-500"}
+            >
+              <PhoneOff size={videoExpanded ? 22 : 16} />
+              {!videoExpanded ? "End" : null}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (phase === "ringing_in") {
     return (
@@ -907,7 +1148,7 @@ const DirectCall = forwardRef(function DirectCall(
   }
 
   return (
-      <div className="mt-3 shrink-0 rounded-2xl border border-fo-border bg-fo-surface overflow-hidden">
+      <div className="fixed bottom-20 sm:bottom-4 right-3 sm:right-4 z-[70] w-[min(24rem,calc(100vw-1.5rem))] max-h-[calc(100dvh-6rem)] overflow-y-auto rounded-2xl border border-fo-border bg-fo-surface shadow-2xl">
       <div className="px-4 py-2.5 border-b border-fo-border flex items-center gap-2 text-xs text-fo-muted">
         {mode === "audio" ? (
           <Phone size={14} className="text-fo-accent" />

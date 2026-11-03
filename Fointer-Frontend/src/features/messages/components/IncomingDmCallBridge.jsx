@@ -5,6 +5,7 @@ import { useToast } from "../../../shared/components/feedback/ToastContext";
 import { useAuth } from "../../../context/AuthContext";
 import { isDmCallBusy, isRetiredDmCall, retireDmCall } from "../utils/dmCallActivity";
 import { closeCallPushNotification } from "../utils/callRing";
+import { useDmCall } from "./DmCallContext";
 
 /**
  * Routes incoming 1:1 DM calls to the conversation thread so DirectCall can
@@ -15,6 +16,7 @@ export default function IncomingDmCallBridge() {
   const navigate = useNavigate();
   const location = useLocation();
   const { showToast } = useToast();
+  const { setConversationTarget } = useDmCall();
   const pathRef = useRef(location.pathname);
   const navigateRef = useRef(navigate);
   const toastRef = useRef(showToast);
@@ -37,6 +39,7 @@ export default function IncomingDmCallBridge() {
       const kind = payload.mode === "video" ? "video" : "audio";
       toastRef.current(`${from} is calling (${kind})`);
       if (isDmCallBusy()) return;
+      setConversationTarget(id, payload.from || null);
       navigateRef.current(target);
     };
 
@@ -51,7 +54,7 @@ export default function IncomingDmCallBridge() {
       socket.off("dm_call_incoming", onIncoming);
       socket.off("dm_call_ended", onEnded);
     };
-  }, [user]);
+  }, [setConversationTarget, user]);
 
   return null;
 }

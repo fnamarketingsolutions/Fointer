@@ -35,6 +35,7 @@ import subscriptionRoute from "./routes/subscriptionRoute.js";
 import storeRoute from "./routes/storeRoute.js";
 import freeListingRoute from "./routes/freeListingRoute.js";
 import freeListingsRoute from "./routes/freeListingsRoute.js";
+import webrtcRoute from "./routes/webrtcRoute.js";
 import { handleFlutterwaveWebhook } from "./controllers/sponsorship.controller.js";
 import { handleFlutterwaveSubscriptionWebhook } from "./controllers/subscription.controller.js";
 import { initLiveSocket } from "./sockets/liveSocket.js";
@@ -111,6 +112,9 @@ const io = new Server(server, {
     origin: allowedOrigins,
     credentials: true,
   },
+  pingInterval: 25_000,
+  pingTimeout: 60_000,
+  upgradeTimeout: 30_000,
   // Recover rooms/socket ids after a brief disconnect, but always re-run auth.
   connectionStateRecovery: {
     maxDisconnectionDuration: 2 * 60 * 1000,
@@ -148,6 +152,7 @@ app.use("/api", subscriptionRoute);
 app.use("/api/bookmarks", bookmarkRoute);
 app.use("/api/conversations", conversationRoute);
 app.use("/api/blocks", blockRoute);
+app.use("/api/webrtc", webrtcRoute);
 app.use("/api/locations", locationRoute);
 app.use("/api", bannerRoute);
 app.use("/api", broadcastRoute);

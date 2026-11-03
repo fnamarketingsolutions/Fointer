@@ -8,6 +8,7 @@ export const watchPeerConnection = (
     polite = false,
     sendOffer,
     isActive,
+    onStatus,
     checkingTimeoutMs = 10_000,
   } = {}
 ) => {
@@ -16,6 +17,9 @@ export const watchPeerConnection = (
   let timer = null;
   let restarting = false;
   let everConnected = false;
+  const reportStatus = (status, reason) => {
+    onStatus?.(status, { reason, attempts });
+  };
 
   const restart = async () => {
     if (
@@ -27,12 +31,14 @@ export const watchPeerConnection = (
       return;
     }
     restarting = true;
+    reportStatus("reconnecting", "ice_restart");
     try {
       const offer = await pc.createOffer({ iceRestart: true });
       if (pc.signalingState !== "stable") return;
       await pc.setLocalDescription(offer);
       sendOffer?.(pc.localDescription);
     } catch {
+      reportStatus(attempts >= 2 ? "failed" : "reconnecting", "restart_error");
       // Another state change may retry if the connection is still unhealthy.
     } finally {
       restarting = false;
@@ -46,15 +52,15 @@ export const watchPeerConnection = (
   };
 
   const scheduleRestart = (delay) => {
-    if (
-      polite ||
-      attempts >= 2 ||
-      timer ||
-      restarting ||
-      (isActive && !isActive())
-    ) {
+    if (isActive && !isActive()) {
       return;
     }
+    if (attempts >= 2) {
+      reportStatus("failed", "restart_attempts_exhausted");
+      return;
+    }
+    reportStatus("reconnecting", polite ? "waiting_for_peer_restart" : "restart_scheduled");
+    if (polite || timer || restarting) return;
     timer = setTimeout(() => {
       timer = null;
       if (isActive && !isActive()) return;
@@ -69,6 +75,7 @@ export const watchPeerConnection = (
       everConnected = true;
       attempts = 0;
       clearRestartTimer();
+      reportStatus("connected", "connection_restored");
       return;
     }
     if (state === "failed" || state === "disconnected") {
@@ -82,6 +89,7 @@ export const watchPeerConnection = (
       everConnected = true;
       attempts = 0;
       clearRestartTimer();
+      reportStatus("connected", "ice_connected");
       return;
     }
     if (state === "failed" || state === "disconnected") {

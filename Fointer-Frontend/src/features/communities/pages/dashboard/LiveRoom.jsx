@@ -22,7 +22,7 @@ import UserProfileLink from "../../../../shared/components/UserProfileLink";
 import { PageLoader } from "../../../../shared/components/ThemeSpinner";
 import { useToast } from "../../../../shared/components/feedback/ToastContext";
 import { useAuth } from "../../../../context/AuthContext";
-import EventCall from "./EventCall";
+import { useLiveEventCall } from "./LiveEventCallContext";
 import {
   DELETED_USER_LABEL,
   personDisplayName,
@@ -43,6 +43,7 @@ export default function LiveRoom() {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const { user } = useAuth();
+  const { registerEvent } = useLiveEventCall();
 
   const [event, setEvent] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -90,6 +91,16 @@ export default function LiveRoom() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!event) return;
+    registerEvent({
+      eventId,
+      eventTitle: event.title,
+      isLive: event.status === "live",
+      callMode: event.callMode || "chat",
+    });
+  }, [event, eventId, registerEvent]);
 
   useEffect(() => {
     if (!eventId || loading) return undefined;
@@ -346,14 +357,8 @@ export default function LiveRoom() {
         )}
       </div>
 
-      <div className="flex flex-col gap-3 lg:flex-1 lg:min-h-0 lg:overflow-hidden lg:grid lg:grid-cols-[minmax(0,1.15fr)_minmax(280px,0.85fr)]">
-      <EventCall
-        eventId={eventId}
-        isLive={isLive}
-        callMode={event.callMode || "chat"}
-      />
-
-      <div className="min-h-[240px] lg:min-h-0 border border-fo-border rounded-2xl bg-fo-surface flex flex-col overflow-hidden">
+      <div className="flex flex-col gap-3 lg:flex-1 lg:min-h-0 lg:overflow-hidden">
+      <div className="min-h-[240px] flex-1 lg:min-h-0 border border-fo-border rounded-2xl bg-fo-surface flex flex-col overflow-hidden">
         <div className="px-4 py-2.5 border-b border-fo-border flex items-center gap-2 text-xs text-fo-muted">
           <Radio size={14} className="text-red-500" />
           Live Commentary

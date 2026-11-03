@@ -30,7 +30,15 @@ import {
   watchRemoteTrack,
 } from "../../../../shared/webrtc/mediaSwitch";
 
-export default function EventCall({ eventId, isLive, callMode = "chat", authorized = true }) {
+export default function EventCall({
+  eventId,
+  eventTitle,
+  isLive,
+  callMode = "chat",
+  authorized = true,
+  isRouteActive,
+  onCallStateChange,
+}) {
   const { user } = useAuth();
   const [joining, setJoining] = useState(false);
   const [inCall, setInCall] = useState(false);
@@ -54,6 +62,43 @@ export default function EventCall({ eventId, isLive, callMode = "chat", authoriz
   const handlersRef = useRef({});
   const earlySignalsRef = useRef([]);
   const signalChainRef = useRef({ chain: Promise.resolve() });
+  const callWindowRef = useRef(null);
+  const windowDragRef = useRef(null);
+  const [windowPosition, setWindowPosition] = useState(null);
+
+  const startWindowDrag = (event) => {
+    if (event.target.closest("button")) return;
+    if (event.button !== 0 && event.pointerType !== "touch") return;
+    const rect = callWindowRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    windowDragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      left: rect.left,
+      top: rect.top,
+    };
+    setWindowPosition({ left: rect.left, top: rect.top });
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+
+  const moveWindow = (event) => {
+    const drag = windowDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const width = callWindowRef.current?.offsetWidth || 320;
+    const height = callWindowRef.current?.offsetHeight || 280;
+    setWindowPosition({
+      left: Math.max(8, Math.min(window.innerWidth - width - 8, drag.left + event.clientX - drag.startX)),
+      top: Math.max(8, Math.min(window.innerHeight - height - 8, drag.top + event.clientY - drag.startY)),
+    });
+  };
+
+  const stopWindowDrag = (event) => {
+    const drag = windowDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    windowDragRef.current = null;
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+  };
 
   const syncTiles = useCallback(() => {
     const local = localStreamRef.current;
@@ -115,11 +160,12 @@ export default function EventCall({ eventId, isLive, callMode = "chat", authoriz
       acceptSignalsRef.current = false;
       earlySignalsRef.current = [];
       setInCall(false);
+      onCallStateChange?.(false);
       setMuted(false);
       setCameraOff(false);
       setTiles([]);
     },
-    [closePeer, eventId, stopLocal]
+    [closePeer, eventId, onCallStateChange, stopLocal]
   );
 
   const sendSignal = useCallback(
@@ -404,6 +450,7 @@ export default function EventCall({ eventId, isLive, callMode = "chat", authoriz
         }
         inCallRef.current = true;
         setInCall(true);
+        onCallStateChange?.(true);
         setJoining(false);
         syncTiles();
         flushEarlySignals();
@@ -650,21 +697,34 @@ export default function EventCall({ eventId, isLive, callMode = "chat", authoriz
   ).length;
   const suggested = callMode === "audio" ? "audio" : "video";
 
+  if (!isRouteActive && !inCall && !joining) return null;
+
   return (
-    <div className="border border-fo-border rounded-2xl bg-fo-surface overflow-hidden">
-      <div className="px-4 py-2.5 border-b border-fo-border flex items-center gap-2 text-xs text-fo-muted">
+    <div
+      ref={callWindowRef}
+      style={windowPosition || undefined}
+      className={`fixed z-[70] w-[min(24rem,calc(100vw-1.5rem))] max-h-[calc(100dvh-6rem)] overflow-y-auto rounded-2xl border border-fo-border bg-fo-surface text-fo-text shadow-2xl ${
+        windowPosition ? "left-0 top-0" : "bottom-20 right-3 sm:bottom-4 sm:right-4"
+      }`}
+    >
+      <div
+        onPointerDown={startWindowDrag}
+        onPointerMove={moveWindow}
+        onPointerUp={stopWindowDrag}
+        onPointerCancel={stopWindowDrag}
+        className="flex items-center gap-2 border-b border-fo-border bg-fo-surface px-4 py-3 text-xs text-fo-muted touch-none cursor-grab active:cursor-grabbing"
+      >
         {(inCall ? mode : callMode) === "audio" ? (
           <Phone size={14} className="text-fo-accent" />
         ) : (
           <Video size={14} className="text-fo-accent" />
         )}
-        {inCall
-          ? mode === "audio"
-            ? "Audio call"
-            : "Video call"
-          : callMode === "audio"
-            ? "Audio call"
-            : "Video & audio call"}
+        <span className="min-w-0 flex-1 truncate font-semibold">
+          {eventTitle || "Live event call"}
+        </span>
+        <span className="shrink-0 text-fo-subtle">
+          {inCall ? (mode === "audio" ? "Audio" : "Video") : "Call"}
+        </span>
         <span className="ml-auto text-fo-subtle">
           {cameraBusy ? "Updating camera… · " : ""}
           {inCall

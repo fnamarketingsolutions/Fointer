@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   LuBell as Bell,
@@ -77,6 +77,57 @@ const typeIcon = (type) => {
   }
   return { Icon: Bell, className: "text-fo-accent" };
 };
+
+function NotificationBody({ body }) {
+  const measureRef = useRef(null);
+  const [expanded, setExpanded] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+
+  useEffect(() => {
+    const element = measureRef.current;
+    if (!element) return undefined;
+
+    const updateOverflow = () => {
+      const lineHeight = Number.parseFloat(window.getComputedStyle(element).lineHeight);
+      setHasMore(
+        Number.isFinite(lineHeight) && element.scrollHeight > lineHeight * 2 + 1
+      );
+    };
+
+    updateOverflow();
+    const observer = new ResizeObserver(updateOverflow);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [body]);
+
+  return (
+    <div className="relative min-w-0">
+      <p
+        className={`text-xs text-fo-muted leading-relaxed ${
+          expanded ? "whitespace-pre-wrap break-words" : "line-clamp-2"
+        }`}
+      >
+        {body}
+      </p>
+      <p
+        ref={measureRef}
+        aria-hidden="true"
+        className="absolute inset-x-0 top-0 invisible pointer-events-none text-xs text-fo-muted leading-relaxed whitespace-pre-wrap break-words"
+      >
+        {body}
+      </p>
+      {hasMore ? (
+        <button
+          type="button"
+          onClick={() => setExpanded((current) => !current)}
+          className="mt-1 text-xs font-medium text-fo-accent hover:text-fo-accent-hover"
+        >
+          {expanded ? "Read less" : "Read more"}
+        </button>
+      ) : null}
+    </div>
+  );
+}
 
 export default function UserNotifications({ onBack }) {
   const navigate = useNavigate();
@@ -319,11 +370,7 @@ export default function UserNotifications({ onBack }) {
                   <span className="absolute left-0 top-3 bottom-3 w-1 bg-fo-accent rounded-r-full shadow-[0_0_8px_var(--theme-accent)]" />
                 )}
 
-                <button
-                  type="button"
-                  onClick={() => openNotification(n)}
-                  className="flex items-start gap-4 flex-1 pl-2 text-left min-w-0"
-                >
+                <div className="flex items-start gap-4 flex-1 pl-2 min-w-0">
                   <div className="relative shrink-0">
                     {n.actor ? (
                       <>
@@ -343,27 +390,37 @@ export default function UserNotifications({ onBack }) {
                     )}
                   </div>
 
-                  <div className="space-y-1 pr-2 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs font-mono uppercase text-fo-accent font-semibold">
-                        {notificationTypeLabel(n)}
-                      </span>
-                      <span className="text-[10px] text-fo-subtle">
-                        • {timeAgo(n.createdAt)}
-                      </span>
-                    </div>
+                  <div className="space-y-1 pr-2 min-w-0 flex-1">
+                    <button
+                      type="button"
+                      onClick={() => openNotification(n)}
+                      className="block w-full text-left"
+                    >
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-mono uppercase text-fo-accent font-semibold">
+                          {notificationTypeLabel(n)}
+                        </span>
+                        <span className="text-[10px] text-fo-subtle">
+                          • {timeAgo(n.createdAt)}
+                        </span>
+                      </div>
 
-                    <h3 className="text-sm font-semibold text-fo-text leading-tight">
-                      {n.title}
-                    </h3>
+                      <h3 className="text-sm font-semibold text-fo-text leading-tight">
+                        {n.title}
+                      </h3>
 
-                    {n.body ? (
-                      <p className="text-xs text-fo-muted leading-relaxed line-clamp-2">
-                        {n.body}
-                      </p>
+                      {n.body && n.type !== "admin_broadcast" ? (
+                        <p className="text-xs text-fo-muted leading-relaxed line-clamp-2">
+                          {n.body}
+                        </p>
+                      ) : null}
+                    </button>
+
+                    {n.type === "admin_broadcast" && n.body ? (
+                      <NotificationBody body={n.body} />
                     ) : null}
                   </div>
-                </button>
+                </div>
 
                 <div className="flex items-center gap-1 sm:gap-2 shrink-0 opacity-80 group-hover:opacity-100 transition-opacity">
                   {n.type === "follow" && n.actor?.username ? (

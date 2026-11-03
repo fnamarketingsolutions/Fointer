@@ -21,9 +21,11 @@ const makePeerConnection = () => {
 test("restarts ICE after an initial connection stays checking", async () => {
   const pc = makePeerConnection();
   const sent = [];
+  const statuses = [];
   const stop = watchPeerConnection(pc, {
     checkingTimeoutMs: 5,
     sendOffer: (offer) => sent.push(offer),
+    onStatus: (status) => statuses.push(status),
   });
 
   pc.dispatchEvent(new Event("iceconnectionstatechange"));
@@ -32,6 +34,7 @@ test("restarts ICE after an initial connection stays checking", async () => {
 
   assert.equal(sent.length, 1);
   assert.equal(sent[0].options.iceRestart, true);
+  assert.ok(statuses.includes("reconnecting"));
 });
 
 test("a successful ICE connection cancels the pending initial restart", async () => {

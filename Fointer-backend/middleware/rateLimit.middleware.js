@@ -82,3 +82,12 @@ export const dmSendRateLimit = rateLimit({
     "Too many messages. Please wait a bit and try again."
   ),
 });
+
+/** TURN credentials are requested per call setup and should not be enumerable. */
+export const turnCredentialRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: jsonLimitMessage("Too many call network setup requests. Try again later."),
+});

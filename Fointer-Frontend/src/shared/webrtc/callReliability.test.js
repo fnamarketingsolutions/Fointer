@@ -22,6 +22,16 @@ test("profile photo is used only for a real url", () => {
 
 test("avatar stays until a live video track exists, then returns when the camera turns off", () => {
   assert.equal(remoteMediaStatus(videoPeer({ stream: { getVideoTracks: () => [] } })), "connecting");
+  assert.equal(remoteMediaStatus(videoPeer({ networkStatus: "reconnecting" })), "reconnecting");
+  assert.equal(
+    remoteStatusLabel(videoPeer({ networkStatus: "reconnecting" }), "reconnecting"),
+    "Network issue. Reconnecting…"
+  );
+  assert.equal(remoteMediaStatus(videoPeer({ networkStatus: "failed" })), "failed");
+  assert.equal(
+    remoteStatusLabel(videoPeer({ networkStatus: "failed" }), "failed"),
+    "Connection lost. Check your internet."
+  );
   assert.equal(shouldShowRemoteVideo(videoPeer()), true);
   const cameraOff = videoPeer({
     camera: false,

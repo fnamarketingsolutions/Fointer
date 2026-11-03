@@ -86,7 +86,9 @@ export default function CallTile({
             name={label}
             className={`${avatarClass} rounded-full object-cover border border-fo-accent/40`}
           />
-          <span className="text-[11px] text-fo-muted text-center">{statusLabel}</span>
+          <span className="max-w-full px-2 text-center text-xs leading-4 text-fo-muted">
+            {statusLabel}
+          </span>
         </div>
       ) : null}
       <div className="absolute left-2 bottom-2 right-2 flex items-center gap-1.5">

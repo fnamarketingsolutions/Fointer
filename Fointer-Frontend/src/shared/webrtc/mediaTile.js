@@ -18,8 +18,9 @@ export const shouldShowRemoteVideo = (peer) => {
 };
 
 export const remoteStatusLabel = (peer, status) => {
+  if (status === "reconnecting") return "Network issue. Reconnecting…";
+  if (status === "failed") return "Connection lost. Check your internet.";
   if (status === "connecting") return "Connecting video…";
-  if (status === "failed") return "Connection failed";
   const hasVideoTrack = (peer?.stream?.getVideoTracks?.() || []).some(
     (track) => track.readyState !== "ended"
   );
@@ -31,7 +32,15 @@ export const remoteStatusLabel = (peer, status) => {
 /** video | avatar | connecting | failed */
 export const remoteMediaStatus = (peer) => {
   if (!peer) return "avatar";
+  if (peer.networkStatus === "failed") return "failed";
+  if (peer.networkStatus === "reconnecting") return "reconnecting";
   if (peer.connectionState === "failed") return "failed";
+  if (
+    peer.connectionState === "disconnected" ||
+    peer.iceConnectionState === "disconnected"
+  ) {
+    return "reconnecting";
+  }
   if (shouldShowRemoteVideo(peer)) return "video";
   if (peer.mode === "audio" && peer.camera === false) return "avatar";
   if (peer.camera === false) return "avatar";

@@ -237,6 +237,8 @@ const DirectCall = forwardRef(function DirectCall(
         stream,
         streamVersion: 0,
         connectionState: "new",
+        iceConnectionState: "new",
+        networkStatus: "connecting",
         polite,
         ignoreOffer: false,
         iceQueue: createIceQueue(),
@@ -249,6 +251,58 @@ const DirectCall = forwardRef(function DirectCall(
         });
       }
 
+      const logNetwork = (eventName, details = {}) => {
+        if (!import.meta.env.DEV) return;
+        console.info("[dm-call] network", {
+          timestamp: new Date().toISOString(),
+          event: eventName,
+          conversationId: conversationIdRef.current,
+          callId: callIdRef.current || undefined,
+          peerSocketId: peer.socketId,
+          networkStatus: peer.networkStatus,
+          connectionState: pc.connectionState,
+          iceConnectionState: pc.iceConnectionState,
+          signalingState: pc.signalingState,
+          iceGatheringState: pc.iceGatheringState,
+          ...details,
+        });
+      };
+
+      const logSelectedCandidatePair = async () => {
+        if (!import.meta.env.DEV || !pc.getStats) return;
+        try {
+          const stats = await pc.getStats();
+          const reports = [...stats.values()];
+          const pair = reports.find(
+            (item) =>
+              item.type === "candidate-pair" &&
+              item.state === "succeeded" &&
+              (item.selected || item.nominated)
+          );
+          if (!pair) {
+            logNetwork("candidate_pair_unavailable");
+            return;
+          }
+          const localCandidate = stats.get(pair.localCandidateId);
+          const remoteCandidate = stats.get(pair.remoteCandidateId);
+          logNetwork("selected_candidate_pair", {
+            candidatePair: {
+              localType: localCandidate?.candidateType,
+              remoteType: remoteCandidate?.candidateType,
+              protocol: localCandidate?.protocol || remoteCandidate?.protocol,
+              relayProtocol: localCandidate?.relayProtocol || remoteCandidate?.relayProtocol,
+              roundTripTime: pair.currentRoundTripTime,
+              bytesSent: pair.bytesSent,
+              bytesReceived: pair.bytesReceived,
+            },
+          });
+        } catch (statsError) {
+          logNetwork("candidate_pair_stats_error", {
+            message: String(statsError?.message || "getStats failed"),
+          });
+        }
+      };
+
       pc.onicecandidate = (event) => {
         if (!event.candidate) return;
         sendSignal(remote.socketId, {
@@ -259,11 +313,22 @@ const DirectCall = forwardRef(function DirectCall(
 
       pc.onconnectionstatechange = () => {
         peer.connectionState = pc.connectionState;
+        if (pc.connectionState === "connected") peer.networkStatus = "connected";
+        else if (["disconnected", "failed"].includes(pc.connectionState)) {
+          peer.networkStatus = "reconnecting";
+        }
+        logNetwork("connection_state_change");
+        if (pc.connectionState === "connected") void logSelectedCandidatePair();
         syncTiles();
       };
       peer.stopIceRecovery = watchPeerConnection(pc, {
         polite,
         isActive: () => phaseRef.current !== "idle",
+        onStatus: (status, details) => {
+          peer.networkStatus = status;
+          logNetwork("ice_recovery_status", details);
+          syncTiles();
+        },
         sendOffer: (description) => {
           sendSignal(remote.socketId, { type: "offer", sdp: description });
         },
@@ -271,22 +336,24 @@ const DirectCall = forwardRef(function DirectCall(
 
       pc.oniceconnectionstatechange = () => {
         peer.iceConnectionState = pc.iceConnectionState;
+        if (["connected", "completed"].includes(pc.iceConnectionState)) {
+          peer.networkStatus = "connected";
+          void logSelectedCandidatePair();
+        } else if (["disconnected", "failed"].includes(pc.iceConnectionState)) {
+          peer.networkStatus = "reconnecting";
+        }
         if (import.meta.env.DEV) {
-          console.info("[dm-call] ICE connection state", {
-            callId: callIdRef.current || undefined,
-            state: pc.iceConnectionState,
-          });
+          logNetwork("ice_connection_state_change");
         }
         syncTiles();
       };
 
       pc.onicecandidateerror = (event) => {
-        if (import.meta.env.DEV) {
-          console.warn("[dm-call] ICE candidate error", {
-            code: event.errorCode,
-            text: event.errorText,
-          });
-        }
+        logNetwork("ice_candidate_error", {
+          code: event.errorCode,
+          text: event.errorText,
+          url: event.url,
+        });
       };
 
       pc.ontrack = (event) => {

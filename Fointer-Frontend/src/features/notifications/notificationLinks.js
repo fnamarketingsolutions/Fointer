@@ -148,6 +148,10 @@ export const notificationPath = (notification) => {
     if (slug) return `/store/${encodeURIComponent(slug)}`;
     return '/stores';
   }
+  if (type === 'live_event') {
+    const eventId = entity?.shortCode || entity?.id || entity?.targetId;
+    return eventId ? `/live-events/${eventId}` : '/live-events';
+  }
   if (type === 'admin_broadcast') {
     return '/notifications?tab=broadcast';
   }

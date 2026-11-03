@@ -65,6 +65,18 @@ test("share preview ignores non-http image urls", () => {
   assert.match(html, /fointer-logo1\.jpeg/);
 });
 
+test("share preview exposes a public video URL for compatible social cards", () => {
+  const html = buildPostShareHtml({
+    pageUrl: "https://fointer.net/post/abc",
+    title: "Video post",
+    description: "Watch this",
+    imageUrls: ["https://api.fointer.net/share/post/abc/image"],
+    videoUrl: "https://cdn.example.com/video.mp4",
+  });
+  assert.match(html, /og:video" content="https:\/\/cdn\.example\.com\/video\.mp4"/);
+  assert.match(html, /og:video:type" content="video\/mp4"/);
+});
+
 test("share card title names Fointer the way Reddit names Reddit", () => {
   assert.equal(
     shareCardTitle({

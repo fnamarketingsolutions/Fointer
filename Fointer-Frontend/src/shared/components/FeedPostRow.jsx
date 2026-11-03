@@ -11,6 +11,7 @@ import {
 import PostActions from "./PostActions";
 import UserProfileLink from "./UserProfileLink";
 import LinkifiedText from "./LinkifiedText";
+import RichTextContent from "./RichTextContent";
 import PostMediaGallery from "./media/PostMediaGallery";
 import ReportContentModal from "./modals/ReportContentModal";
 import PostAuthorAvatar from "../../features/posts/components/PostAuthorAvatar";
@@ -358,9 +359,10 @@ export default function FeedPostRow({
         ) : null}
 
         {post?.text ? (
-          <p className="px-3.5 pt-1 text-[13px] text-fo-muted whitespace-pre-wrap leading-relaxed line-clamp-3">
-            <LinkifiedText text={post.text} />
-          </p>
+          <RichTextContent
+            text={post.text}
+            className="px-3.5 pt-1 text-[13px] text-fo-muted leading-relaxed line-clamp-3"
+          />
         ) : null}
 
         {showActions ? (
@@ -414,9 +416,10 @@ export default function FeedPostRow({
           ) : null}
 
           {post?.text ? (
-            <p className="text-xs sm:text-sm text-fo-muted line-clamp-2 leading-relaxed">
-              <LinkifiedText text={post.text} />
-            </p>
+            <RichTextContent
+              text={post.text}
+              className="text-xs sm:text-sm text-fo-muted line-clamp-2 leading-relaxed"
+            />
           ) : null}
 
           {showActions ? (

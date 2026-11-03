@@ -35,6 +35,7 @@ import { fetchChannels } from "../../../api/channels";
 import PostMediaGallery from "../../../shared/components/media/PostMediaGallery";
 import PostActions from "../../../shared/components/PostActions";
 import LinkifiedText from "../../../shared/components/LinkifiedText";
+import RichTextContent from "../../../shared/components/RichTextContent";
 import { PostMoreMenu } from "../../../shared/components/FeedPostRow";
 import ConfirmDeleteModal from "../../../shared/components/modals/ConfirmDeleteModal";
 import EditWindowExpiredModal from "../../../shared/components/modals/EditWindowExpiredModal";
@@ -42,7 +43,7 @@ import ReportContentModal from "../../../shared/components/modals/ReportContentM
 import PostAuthorAvatar from "../components/PostAuthorAvatar";
 import UserProfileLink from "../../../shared/components/UserProfileLink";
 import PostCommentsSection from "../components/PostCommentsSection";
-import PostEditModal from "../components/PostEditModal";
+import CreatePostForm from "../../../shared/components/forms/CreatePostForm";
 import {
   DELETED_USER_LABEL,
   personDisplayName,
@@ -694,6 +695,30 @@ export default function PostDetail({
     );
   }
 
+  if (showEdit) {
+    return (
+      <div className={shellClass}>
+        <CreatePostForm
+          title={form.title}
+          text={form.text}
+          media={form.media}
+          onTitleChange={(title) => setForm((current) => ({ ...current, title }))}
+          onTextChange={(text) => setForm((current) => ({ ...current, text }))}
+          onMediaChange={(media) => setForm((current) => ({ ...current, media }))}
+          onSubmit={handleSaveEdit}
+          onCancel={() => {
+            if (!saving) setShowEdit(false);
+          }}
+          saving={saving}
+          submitLabel="Save changes"
+          communityLabel={post.community?.name}
+          community={post.community}
+          onError={showToast}
+        />
+      </div>
+    );
+  }
+
   const postActions = showPostActions ? (
     <div className="shrink-0 flex items-center gap-1">
       {showPostEdit && (
@@ -837,9 +862,10 @@ export default function PostDetail({
           ) : null}
 
           {post.text ? (
-            <p className="text-sm sm:text-[15px] text-fo-muted whitespace-pre-wrap leading-relaxed">
-              <LinkifiedText text={post.text} />
-            </p>
+            <RichTextContent
+              text={post.text}
+              className="text-sm sm:text-[15px] text-fo-muted leading-relaxed"
+            />
           ) : null}
 
           {needsCommunityJoin ? (
@@ -955,17 +981,6 @@ export default function PostDetail({
         </div>
         {desktopRail}
       </div>
-
-      <PostEditModal
-        open={showEdit}
-        form={form}
-        setForm={setForm}
-        saving={saving}
-        onClose={() => setShowEdit(false)}
-        onSubmit={handleSaveEdit}
-        showToast={showToast}
-      />
-
       {/* Delete Modals */}
       <ConfirmDeleteModal
         open={showDelete}

@@ -6,6 +6,9 @@ import LiveEvent, {
 import LiveMessage from "../models/liveMessage.js";
 import Community from "../models/community.js";
 import CommunityMember from "../models/communityMember.js";
+import Follow from "../models/follow.js";
+import User from "../models/user.js";
+import UserBlock from "../models/userBlock.js";
 import {
   canManageCommunity,
   canModerateCommunity,
@@ -25,8 +28,79 @@ import { respondIfBanned } from "../utils/bannedKeywords.js";
 import { formatUserRef } from "../utils/deletedUser.js";
 import { liveJoinAllowed } from "../utils/realtimeDelivery.js";
 import { getHotSnapshot } from "../utils/hotReadCache.js";
+import { notifyMany, snippet } from "../utils/notify.js";
 
 const formatUser = (user) => formatUserRef(user);
+
+const notifyCommunityEventAudience = async ({ community, event, actor, io }) => {
+  try {
+    const ownerId = community?.owner;
+    const [members, followers] = await Promise.all([
+      CommunityMember.find({ community: community._id, status: "active" })
+        .select("user")
+        .lean(),
+      ownerId
+        ? Follow.find({ following: ownerId }).select("follower").lean()
+        : Promise.resolve([]),
+    ]);
+
+    const actorId = String(actor?._id || "");
+    const audienceIds = [
+      ...new Set(
+        [
+          ownerId,
+          ...members.map((row) => row.user),
+          ...followers.map((row) => row.follower),
+        ]
+          .map((id) => String(id || ""))
+          .filter((id) => id && id !== actorId)
+      ),
+    ];
+    if (!audienceIds.length) return;
+
+    const [activeUsers, blockRows] = await Promise.all([
+      User.find({ _id: { $in: audienceIds }, status: "active" })
+        .select("_id")
+        .lean(),
+      UserBlock.find({
+        $or: [
+          { blocker: actor._id, blocked: { $in: audienceIds } },
+          { blocker: { $in: audienceIds }, blocked: actor._id },
+        ],
+      })
+        .select("blocker blocked")
+        .lean(),
+    ]);
+    const activeIds = new Set(activeUsers.map((user) => String(user._id)));
+    const blockedIds = new Set(
+      blockRows.map((row) =>
+        String(row.blocker) === actorId ? String(row.blocked) : String(row.blocker)
+      )
+    );
+    const recipients = audienceIds.filter(
+      (id) => activeIds.has(id) && !blockedIds.has(id)
+    );
+    if (!recipients.length) return;
+
+    const communityName = String(community.name || "this community").trim();
+    await notifyMany(recipients, {
+      io,
+      actor,
+      type: "live_event",
+      title: snippet(`New live event in ${communityName}`, 200),
+      body: snippet(event.title, 140),
+      community,
+      entity: {
+        kind: "live_event",
+        _id: event._id,
+        shortCode: event.shortCode || "",
+        title: event.title,
+      },
+    });
+  } catch (error) {
+    console.error("Failed to notify live event audience:", error);
+  }
+};
 
 const formatCommunity = (community) => {
   if (!community || typeof community !== "object" || !community._id) {
@@ -373,6 +447,13 @@ export const createLiveEvent = async (req, res) => {
     const populated = await LiveEvent.findById(event._id)
       .populate("community", "name shortCode coverImage owner type")
       .populate("host", "username name avatar");
+
+    await notifyCommunityEventAudience({
+      community,
+      event,
+      actor: req.user,
+      io: req.app.get("io"),
+    });
 
     return res.status(201).json({
       success: true,

@@ -31,6 +31,7 @@ export const NOTIFICATION_TYPES = [
   "referral_qualified",
   "admin_broadcast",
   "store_listing",
+  "live_event",
 ];
 export const ADMIN_NOTIFICATION_TYPES = [
   "content_report",
@@ -72,6 +73,7 @@ export const ENTITY_KINDS = [
   "watch_group",
   "broadcast",
   "store",
+  "live_event",
 ];
 
 const actorSnapshotSchema = new mongoose.Schema(

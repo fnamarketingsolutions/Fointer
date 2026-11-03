@@ -3,7 +3,11 @@ import Store from "../models/store.js";
 import { canViewPost } from "./post.controller.js";
 import { resolveDocumentId } from "../utils/shortCode.js";
 import { getPublicApiUrl, getPublicFrontendUrl } from "../utils/publicAppUrls.js";
-import { fetchFointerMedia, watermarkImage } from "../utils/mediaWatermark.js";
+import {
+  extractVideoPoster,
+  fetchFointerMedia,
+  watermarkImage,
+} from "../utils/mediaWatermark.js";
 import {
   buildPostShareHtml,
   collapseText,
@@ -56,8 +60,9 @@ const previewFromPost = (post, siteUrl, pageUrl, segment) => {
   const byline = bylineFor(post);
   const stats = statsFor(post);
   const hasImage = (post.media || []).some((item) => item?.type === "image" && item.url);
-  const imageUrls = hasImage ? [shareCardImageUrl(getPublicApiUrl(), segment)] : [];
-  const hasVideo = (post.media || []).some((item) => item?.type === "video");
+  const video = (post.media || []).find((item) => item?.type === "video" && item.url);
+  const imageUrls = hasImage || video ? [shareCardImageUrl(getPublicApiUrl(), segment)] : [];
+  const hasVideo = Boolean(video);
 
   const authorName =
     collapseText(post.author?.name) || collapseText(post.author?.username);
@@ -80,6 +85,7 @@ const previewFromPost = (post, siteUrl, pageUrl, segment) => {
     title: ogTitle,
     description: ogDescription,
     imageUrls,
+    videoUrl: video?.url || "",
   });
 };
 
@@ -125,13 +131,16 @@ export const sharePostImage = async (req, res) => {
   const segment = String(req.params.segment || "").trim();
   try {
     const post = await loadPublicPost(segment);
-    const image = (post?.media || []).find((item) => item?.type === "image" && item.url);
-    if (!image) return res.status(404).end();
+    const media = (post?.media || []).find((item) => item?.type === "image" && item.url)
+      || (post?.media || []).find((item) => item?.type === "video" && item.url);
+    if (!media) return res.status(404).end();
 
-    const source = await fetchFointerMedia(image.url);
-    if (source.isVideo) return res.redirect(302, image.url);
+    const source = await fetchFointerMedia(media.url);
+    const poster = source.isVideo
+      ? await extractVideoPoster(source.buffer)
+      : source.buffer;
 
-    const jpeg = await watermarkImage(source.buffer, SHARE_BADGE);
+    const jpeg = await watermarkImage(poster, SHARE_BADGE);
     res.set("Cache-Control", "public, max-age=86400");
     return res.type("image/jpeg").send(jpeg);
   } catch (error) {

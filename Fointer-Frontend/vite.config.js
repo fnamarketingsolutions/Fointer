@@ -3,10 +3,7 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'node:path'
 import { setDefaultResultOrder } from 'node:dns'
-import { createRequire } from 'module';
 
-var require = createRequire(import.meta.url);
-var module = { exports: {} };
 
 // Node 17+ resolves `localhost` to ::1 first; the WS proxy then hits
 // ECONNREFUSED if the backend is on IPv4. Pin to IPv4 for local proxying.

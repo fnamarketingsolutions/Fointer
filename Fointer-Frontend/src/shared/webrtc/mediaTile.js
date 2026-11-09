@@ -1,3 +1,5 @@
+import { isTransportConnected, isTransportPending } from "./callLink.js";
+
 /** Whether a profile photo URL is safe to put on an image element. */
 export const hasProfilePhoto = (src) => {
   const value = String(src || "").trim();
@@ -19,29 +21,45 @@ export const shouldShowRemoteVideo = (peer) => {
 
 export const remoteStatusLabel = (peer, status) => {
   if (status === "reconnecting") return "Network issue. Reconnecting…";
+  if (status === "one-way") return "Connected, but their audio is not arriving.";
+  if (status === "poor-video") return "Video quality is poor. Audio is still connected.";
   if (status === "failed") return "Connection lost. Check your internet.";
-  if (status === "connecting") return "Connecting video…";
+  if (status === "connecting") return "Connecting…";
+  if (status === "audio") return "Audio";
   const hasVideoTrack = (peer?.stream?.getVideoTracks?.() || []).some(
     (track) => track.readyState !== "ended"
   );
   if (peer?.camera === false && (hasVideoTrack || peer?.mode === "video")) return "Camera off";
+  if (
+    status === "avatar" &&
+    isTransportConnected(peer) &&
+    peer?.mediaStats?.audio &&
+    peer.mediaStats.audio.receiving === false
+  ) {
+    return "Waiting for audio…";
+  }
   if (peer?.mode === "audio") return "Audio";
   return "Camera off";
 };
 
-/** video | avatar | connecting | failed */
+/** video | audio | avatar | connecting | reconnecting | failed */
 export const remoteMediaStatus = (peer) => {
   if (!peer) return "avatar";
   if (peer.networkStatus === "failed") return "failed";
+  if (peer.networkStatus === "one-way") return "one-way";
+  if (peer.networkStatus === "poor-video") return "poor-video";
   if (peer.networkStatus === "reconnecting") return "reconnecting";
-  if (peer.connectionState === "failed") return "failed";
-  if (
-    peer.connectionState === "disconnected" ||
-    peer.iceConnectionState === "disconnected"
-  ) {
+  if (peer.connectionState === "failed" || peer.iceConnectionState === "failed") return "failed";
+  if (peer.connectionState === "disconnected" || peer.iceConnectionState === "disconnected") {
     return "reconnecting";
   }
   if (shouldShowRemoteVideo(peer)) return "video";
+  if (isTransportPending(peer)) return "connecting";
+  const audioReceiving = peer.mediaStats?.audio?.receiving === true;
+  const videoReceiving = peer.mediaStats?.video?.receiving === true;
+  if (audioReceiving && !videoReceiving && peer.mode !== "audio" && peer.camera !== false) {
+    return "audio";
+  }
   if (peer.mode === "audio" && peer.camera === false) return "avatar";
   if (peer.camera === false) return "avatar";
   return "connecting";
@@ -83,6 +101,9 @@ export const mergeCallTiles = ({ local = null, roster = [], peers = [] } = {}) =
       stream: peer?.stream || null,
       streamVersion: peer?.streamVersion || 0,
       connectionState: peer?.connectionState || "new",
+      iceConnectionState: peer?.iceConnectionState || "",
+      networkStatus: peer?.networkStatus || "",
+      mediaStats: peer?.mediaStats || null,
       isLocal: false,
     });
   };

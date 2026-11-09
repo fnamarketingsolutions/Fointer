@@ -19,11 +19,13 @@ import {
   MAX_CALLERS,
   callerPayload,
   callRoster,
+  claimCallerSlot,
   emitCallRoster,
   getCallMap,
   getCallRoom,
   removeCaller,
 } from "./liveCallState.js";
+import { CALL_REJOIN_GRACE_MS } from "../utils/callSession.js";
 
 const roomName = (eventId) => `live:${eventId}`;
 
@@ -199,13 +201,12 @@ export const initLiveSocket = (io) => {
         }
 
         const room = getCallRoom(eventId);
-        if (!room.has(socket.id) && room.size >= MAX_CALLERS) {
+        const userAlready = [...room.values()].some(
+          (peer) => String(peer.userId) === String(socket.user._id)
+        );
+        if (!room.has(socket.id) && !userAlready && room.size >= MAX_CALLERS) {
           throw new Error(`This call is full (${MAX_CALLERS} people).`);
         }
-
-        const existing = [...room.values()]
-          .filter((peer) => peer.socketId !== socket.id)
-          .map(callerPayload);
 
         const caller = {
           socketId: socket.id,
@@ -217,12 +218,23 @@ export const initLiveSocket = (io) => {
           mic: true,
           camera: mode === "video",
         };
-        room.set(socket.id, caller);
+        const claimed = claimCallerSlot(room, caller);
+        if (claimed.replacedSocketId) {
+          io.to(roomName(eventId)).emit("call_peer_left", {
+            eventId,
+            socketId: claimed.replacedSocketId,
+          });
+        }
+        const existing = [...room.values()]
+          .filter((peer) => peer.socketId !== socket.id)
+          .map(callerPayload);
 
-        socket.to(roomName(eventId)).emit("call_peer_joined", {
-          eventId,
-          peer: callerPayload(caller),
-        });
+        if (!claimed.already) {
+          socket.to(roomName(eventId)).emit("call_peer_joined", {
+            eventId,
+            peer: callerPayload(caller),
+          });
+        }
         emitCallRoster(io, eventId);
 
         if (typeof ack === "function") {
@@ -261,6 +273,8 @@ export const initLiveSocket = (io) => {
           type: payload.type,
           sdp: payload.sdp,
           candidate: payload.candidate,
+          messageId: payload.messageId || "",
+          generation: payload.generation ?? null,
         });
         return true;
       };
@@ -391,10 +405,16 @@ export const initLiveSocket = (io) => {
 
     socket.on("disconnect", () => {
       const eventId = membership.roomId();
-      if (eventId) {
-        removeCaller(io, eventId, socket.id);
-        emitViewerCount(io, eventId);
-      }
+      const droppedId = socket.id;
+      if (!eventId) return;
+      emitViewerCount(io, eventId);
+      setTimeout(() => {
+        const live = io.sockets.sockets.get(droppedId);
+        if (live?.connected) return;
+        const room = getCallMap(eventId);
+        if (!room?.has(droppedId)) return;
+        removeCaller(io, eventId, droppedId);
+      }, CALL_REJOIN_GRACE_MS);
     });
   });
 };

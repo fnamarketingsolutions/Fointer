@@ -32,6 +32,7 @@ import {
 import { applyParticipantMedia, callerCanCancel, signalMatchesCall } from "../utils/dmCallLifecycle.js";
 import { dmBroadcastRooms, emitToRooms } from "../utils/realtimeRooms.js";
 import { callSignalBuffer } from "../utils/callSignalBuffer.js";
+import { CALL_REJOIN_GRACE_MS, rebindParticipant } from "../utils/callSession.js";
 
 const roomName = dmRoomName;
 const DM_MEDIA_MAX = 4;
@@ -63,6 +64,8 @@ const emitCallSignal = (io, conversationId, call, from, payload) => {
     type: payload.type,
     sdp: payload.sdp,
     candidate: payload.candidate,
+    messageId: payload.messageId || "",
+    generation: payload.generation ?? null,
   });
 };
 
@@ -541,11 +544,64 @@ export const initDirectMessageSocket = (io) => {
           sdp: payload.sdp,
           candidate: payload.candidate,
           callId: payload.callId,
+          messageId: payload.messageId || "",
+          generation: payload.generation ?? null,
         });
         done({ success: true, queued: true });
         return;
       }
+      logRealtime("dm_call_signal_failed", {
+        userId: String(socket.user?._id || ""),
+        reason: "not_ready",
+      });
       done({ success: false, message: "Call is not ready." });
+    });
+
+    socket.on("dm_call_rejoin", async (payload = {}, ack) => {
+      try {
+        const conversationIdParam = payload.conversationId || membership.roomId();
+        if (!conversationIdParam) throw new Error("conversationId is required.");
+        const conversation = await findConversationByParam(conversationIdParam);
+        if (!conversation) throw new Error("Conversation not found.");
+        if (!userInConversation(conversation, socket.user._id)) {
+          throw new Error("You do not have access to this conversation.");
+        }
+        const conversationId = String(conversation._id);
+        const call = getDmCall(conversationId);
+        if (isRetiredDmCall(payload.callId) || !signalMatchesCall(call, payload.callId)) {
+          ackCall(ack, { success: false, message: "That call has ended." });
+          return;
+        }
+        const rebound = rebindParticipant(call.peers, {
+          userId: socket.user._id,
+          nextSocketId: socket.id,
+          nextPeer: buildCaller(socket, call.mode),
+        });
+        if (!rebound.ok) {
+          ackCall(ack, { success: false, message: "You are not in this call." });
+          return;
+        }
+        if (rebound.replacedSocketId) {
+          io.to(roomName(conversationId)).emit("dm_call_peer_replaced", {
+            conversationId,
+            callId: call.callId,
+            previousSocketId: rebound.replacedSocketId,
+            peer: callerPayload(rebound.peer),
+          });
+        }
+        ackCall(ack, {
+          success: true,
+          callId: call.callId,
+          peers: dmCallRoster(conversationId).filter((peer) => peer.socketId !== socket.id),
+          self: callerPayload(rebound.peer),
+        });
+      } catch (error) {
+        logRealtime("dm_call_rejoin_failed", {
+          userId: String(socket.user?._id || ""),
+          reason: String(error.message || "rejoin_failed").slice(0, 180),
+        });
+        ackCall(ack, { success: false, message: error.message });
+      }
     });
 
     socket.on("dm_call_presence", async (payload = {}, ack) => {
@@ -654,7 +710,7 @@ export const initDirectMessageSocket = (io) => {
         if (live?.connected) return;
         const found = findDmCallBySocket(droppedId);
         if (found) removeDmCaller(io, found.conversationId, droppedId);
-      }, 12000);
+      }, CALL_REJOIN_GRACE_MS);
       if (membership.roomId()) {
         socket.leave(roomName(membership.roomId()));
       }

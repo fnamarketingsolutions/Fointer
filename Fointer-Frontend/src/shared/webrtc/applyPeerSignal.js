@@ -1,4 +1,5 @@
 import { markRemoteDescriptionSet, takeIceCandidate } from "./iceQueue.js";
+import { isStaleIce, rememberSignal } from "./signalDelivery.js";
 
 const addCandidate = async (pc, candidate) => {
   try {
@@ -25,7 +26,11 @@ export const applyPeerSignal = async (
   { makingOffer = false, onAnswer, beforeAnswer } = {}
 ) => {
   if (!peer?.pc || !peer.iceQueue) return;
-  const { type, sdp, candidate } = signal || {};
+  const { type, sdp, candidate, messageId, generation } = signal || {};
+  peer.seenSignals = peer.seenSignals || new Set();
+  if (!rememberSignal(peer.seenSignals, messageId)) return;
+  if (isStaleIce({ type, generation, currentGeneration: peer.iceGeneration ?? 0 })) return;
+  if (type === "offer" && generation != null) peer.iceGeneration = Number(generation);
 
   if (type === "offer" && sdp) {
     const collision = makingOffer || peer.pc.signalingState !== "stable";

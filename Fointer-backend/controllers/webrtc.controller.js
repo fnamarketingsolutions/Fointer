@@ -1,5 +1,6 @@
 import {
   createTimeLimitedTurnServer,
+  fetchMeteredTurnCredentials,
   normalizeTurnServers,
 } from "../utils/webrtcIceServers.js";
 
@@ -9,51 +10,6 @@ const STUN_SERVERS = [
 ];
 const CREDENTIAL_TTL_MS = 60 * 60 * 1000;
 const PROVIDER_FALLBACK_TTL_MS = 5 * 60 * 1000;
-
-const providerExpiry = (body, servers) => {
-  const explicit = Date.parse(body?.expiresAt || body?.expires_at || "");
-  if (Number.isFinite(explicit) && explicit > Date.now()) return explicit;
-
-  const usernameExpiries = servers
-    .map((server) => Number(String(server.username).split(":", 1)[0]) * 1000)
-    .filter((expiry) => Number.isFinite(expiry) && expiry > Date.now());
-  return usernameExpiries.length
-    ? Math.min(...usernameExpiries)
-    : Date.now() + PROVIDER_FALLBACK_TTL_MS;
-};
-
-const fetchMeteredTurnServers = async () => {
-  const domain = String(process.env.METERED_DOMAIN || "").trim();
-  const apiKey = String(process.env.METERED_API_KEY || "").trim();
-  if (!domain || !apiKey) return [];
-
-  const providerUrl = new URL(domain.includes("://") ? domain : `https://${domain}`);
-  if (
-    providerUrl.protocol !== "https:" ||
-    !(providerUrl.hostname === "metered.ca" || providerUrl.hostname.endsWith(".metered.ca"))
-  ) {
-    throw new Error("Invalid TURN provider domain configuration.");
-  }
-
-  const credentialsUrl = new URL("/api/v1/turn/credentials", providerUrl.origin);
-  credentialsUrl.searchParams.set("apiKey", apiKey);
-  const response = await fetch(credentialsUrl, {
-    headers: { Accept: "application/json" },
-    signal: AbortSignal.timeout(5000),
-  });
-  if (!response.ok) {
-    throw new Error(`TURN provider responded with ${response.status}.`);
-  }
-
-  const body = await response.json();
-  const servers = Array.isArray(body) ? body : body?.iceServers;
-  const turnServers = normalizeTurnServers(servers);
-  if (!turnServers.length) throw new Error("TURN provider returned no usable relay.");
-  return {
-    servers: turnServers,
-    expiresAt: providerExpiry(body, turnServers),
-  };
-};
 
 const configuredTurnServers = (userId) => {
   const generated = createTimeLimitedTurnServer({
@@ -84,12 +40,21 @@ export const getIceServers = async (req, res) => {
   let expiresAt = 0;
 
   try {
-    const providerCredentials = await fetchMeteredTurnServers();
-    turnServers = providerCredentials.servers;
-    expiresAt = providerCredentials.expiresAt;
+    const providerCredentials = await fetchMeteredTurnCredentials();
+    if (providerCredentials?.servers?.length) {
+      turnServers = providerCredentials.servers;
+      expiresAt = providerCredentials.expiresAt;
+    }
   } catch (error) {
+    const diagnostics = error?.diagnostics || {};
     console.warn("[webrtc] TURN provider unavailable", {
-      message: String(error?.message || "provider request failed"),
+      message: String(error?.message || "provider request failed").slice(0, 180),
+      domain: diagnostics.domain || "",
+      apiKeyPresent: Boolean(diagnostics.apiKeyPresent),
+      apiKeyEmptyAfterTrim: Boolean(diagnostics.apiKeyEmptyAfterTrim),
+      status: Number(diagnostics.status) || 0,
+      category: String(diagnostics.category || "").slice(0, 120),
+      durationMs: Number(diagnostics.durationMs) || 0,
     });
   }
 

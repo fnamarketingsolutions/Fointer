@@ -243,10 +243,17 @@ test("a Metered timeout fails closed and does not expose the API key", async () 
         timeoutMs: 20,
         fetchImpl: (_url, { signal }) =>
           new Promise((_resolve, reject) => {
-            signal.addEventListener("abort", () => {
+            const fail = () => {
               const error = new Error("timed out");
               error.name = "TimeoutError";
               reject(error);
+            };
+            // AbortSignal.timeout does not keep the event loop alive. A referenced
+            // timer makes the rejection observable in CI instead of leaving a pending promise.
+            const timer = setTimeout(fail, 25);
+            signal?.addEventListener("abort", () => {
+              clearTimeout(timer);
+              fail();
             });
           }),
       }),

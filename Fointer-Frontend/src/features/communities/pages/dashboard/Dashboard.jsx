@@ -293,7 +293,7 @@ const Dashboard = () => {
   const navItems = [
     { id: "postfeed", label: "Feed", icon: Newspaper },
     { id: "marketplace", label: "Marketplace", icon: ShoppingBag },
-    { id: "freelistings", label: "Free Listings", icon: Gift },
+    { id: "freelistings", label: "Items for Free", icon: Gift },
     {
       id: "messages",
       label: "Messages",

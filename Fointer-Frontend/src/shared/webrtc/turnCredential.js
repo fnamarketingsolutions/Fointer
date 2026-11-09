@@ -1,6 +1,7 @@
 /**
  * Time-limited TURN password (coturn REST / use-auth-secret).
- * The Open Relay secret is published by Metered for client use.
+ * openRelayIceServers is the public demo relay and is not used by calls.
+ * Production ICE config comes from the backend only.
  */
 const textEncoder = new TextEncoder();
 

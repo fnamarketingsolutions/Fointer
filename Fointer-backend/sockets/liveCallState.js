@@ -31,6 +31,23 @@ export const clearEventCall = (io, eventId) => {
   io?.to(roomName(id)).emit("call_ended", { eventId: id });
 };
 
+/** Keep one roster row per user when a reconnected socket replaces the old one. */
+export const claimCallerSlot = (room, caller) => {
+  if (!room || !caller?.socketId || !caller?.userId) return { ok: false, reason: "missing" };
+  const uid = String(caller.userId);
+  const nextId = String(caller.socketId);
+  let replacedSocketId = null;
+  for (const [socketId, peer] of room) {
+    if (String(peer?.userId || "") === uid && socketId !== nextId) {
+      room.delete(socketId);
+      replacedSocketId = socketId;
+    }
+  }
+  const already = room.has(nextId);
+  room.set(nextId, { ...room.get(nextId), ...caller, socketId: nextId, userId: uid });
+  return { ok: true, replacedSocketId, already };
+};
+
 export const removeCaller = (io, eventId, socketId) => {
   const room = eventCalls.get(eventId);
   if (!room?.has(socketId)) return false;

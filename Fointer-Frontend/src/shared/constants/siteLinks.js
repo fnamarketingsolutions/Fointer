@@ -39,7 +39,7 @@ export const SITE_LINKS = [
     segment: "cookie-policy",
   },
   {
-    label: "User Support",
+    label: "Support",
     to: "/user-support",
     segment: "user-support",
   },

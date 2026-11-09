@@ -2,6 +2,47 @@
  * The peer that created the first offer retries ICE when the path dies.
  * The other peer only answers, so the two sides do not restart at once.
  */
+export const DEFAULT_CHECKING_TIMEOUT_MS = 25_000;
+export const MAX_RESTART_ATTEMPTS = 4;
+
+export const classifyConnection = ({
+  iceConnectionState = "",
+  connectionState = "",
+  everConnected = false,
+} = {}) => {
+  if (connectionState === "closed" || iceConnectionState === "closed") return "closed";
+  if (
+    connectionState === "connected" ||
+    iceConnectionState === "connected" ||
+    iceConnectionState === "completed"
+  ) {
+    return "connected";
+  }
+  if (connectionState === "failed" || iceConnectionState === "failed") return "failed";
+  if (connectionState === "disconnected" || iceConnectionState === "disconnected") {
+    return "disconnected";
+  }
+  if (
+    !everConnected &&
+    (iceConnectionState === "checking" || iceConnectionState === "new" || connectionState === "connecting")
+  ) {
+    return "checking";
+  }
+  if (everConnected && (iceConnectionState === "checking" || connectionState === "connecting")) {
+    return "disconnected";
+  }
+  return "idle";
+};
+
+export const restartDelayMs = (
+  attempt,
+  { baseMs = 800, capMs = 12_000, jitterRatio = 0.2, random = Math.random } = {}
+) => {
+  const exponent = Math.min(capMs, baseMs * 2 ** Math.max(0, attempt));
+  const swing = exponent * jitterRatio * ((random() * 2) - 1);
+  return Math.max(0, Math.round(exponent + swing));
+};
+
 export const watchPeerConnection = (
   pc,
   {
@@ -9,102 +50,153 @@ export const watchPeerConnection = (
     sendOffer,
     isActive,
     onStatus,
-    checkingTimeoutMs = 10_000,
+    checkingTimeoutMs = DEFAULT_CHECKING_TIMEOUT_MS,
+    maxAttempts = MAX_RESTART_ATTEMPTS,
+    disconnectedGraceMs = 4_000,
+    recoveryDelayMs = null,
+    random = Math.random,
   } = {}
 ) => {
   if (!pc?.addEventListener) return () => {};
   let attempts = 0;
   let timer = null;
+  let timerKind = "";
   let restarting = false;
+  let stopped = false;
   let everConnected = false;
+
   const reportStatus = (status, reason) => {
-    onStatus?.(status, { reason, attempts });
+    onStatus?.(status, { reason, attempts, everConnected });
   };
 
-  const restart = async () => {
-    if (
-      (isActive && !isActive()) ||
-      pc.signalingState !== "stable" ||
-      pc.connectionState === "connected" ||
-      restarting
-    ) {
-      return;
-    }
-    restarting = true;
-    reportStatus("reconnecting", "ice_restart");
-    try {
-      const offer = await pc.createOffer({ iceRestart: true });
-      if (pc.signalingState !== "stable") return;
-      await pc.setLocalDescription(offer);
-      sendOffer?.(pc.localDescription);
-    } catch {
-      reportStatus(attempts >= 2 ? "failed" : "reconnecting", "restart_error");
-      // Another state change may retry if the connection is still unhealthy.
-    } finally {
-      restarting = false;
-    }
-  };
+  const inactive = () => stopped || (isActive && !isActive()) || classifyConnection(pc) === "closed";
 
   const clearRestartTimer = () => {
     if (!timer) return;
     clearTimeout(timer);
     timer = null;
+    timerKind = "";
   };
 
-  const scheduleRestart = (delay) => {
-    if (isActive && !isActive()) {
+  const recoveryDelay = (attempt) => recoveryDelayMs ?? restartDelayMs(attempt, { random });
+
+  const schedule = (kind, delay) => {
+    if (inactive()) return;
+    if (polite) {
+      reportStatus("reconnecting", "waiting_for_peer_restart");
       return;
     }
-    if (attempts >= 2) {
+    if (timer && timerKind === "checking" && kind === "checking") return;
+    if (timer && kind !== "failed") return;
+    if (kind === "failed" && (timerKind === "checking" || timerKind === "media")) clearRestartTimer();
+    if (timer) return;
+    if (attempts >= maxAttempts) {
       reportStatus("failed", "restart_attempts_exhausted");
       return;
     }
-    reportStatus("reconnecting", polite ? "waiting_for_peer_restart" : "restart_scheduled");
-    if (polite || timer || restarting) return;
+    timerKind = kind;
+    reportStatus(
+      kind === "checking" ? "connecting" : "reconnecting",
+      kind === "checking" ? "initial_checking" : kind === "disconnected" ? "temporarily_disconnected" : "restart_scheduled"
+    );
     timer = setTimeout(() => {
       timer = null;
-      if (isActive && !isActive()) return;
-      attempts += 1;
+      timerKind = "";
+      if (inactive()) return;
+      const health = classifyConnection({ ...pc, everConnected });
+      if (health === "connected" || health === "idle" || health === "closed") return;
+      if (pc.signalingState !== "stable") {
+        schedule(kind, recoveryDelay(attempts));
+        return;
+      }
       void restart();
     }, delay);
   };
 
-  const onConnectionStateChange = () => {
-    const state = pc.connectionState;
-    if (state === "connected") {
-      everConnected = true;
-      attempts = 0;
-      clearRestartTimer();
-      reportStatus("connected", "connection_restored");
+  const restart = async ({ force = false } = {}) => {
+    if (inactive() || restarting || pc.signalingState !== "stable") return;
+    if (!force && classifyConnection({ ...pc, everConnected }) === "connected") return;
+    restarting = true;
+    reportStatus("reconnecting", "ice_restart");
+    let offered = false;
+    try {
+      const offer = await pc.createOffer({ iceRestart: true });
+      if (!inactive() && pc.signalingState === "stable") {
+        await pc.setLocalDescription(offer);
+        attempts += 1;
+        sendOffer?.(pc.localDescription);
+        offered = true;
+      }
+    } catch {
+      attempts += 1;
+      reportStatus(attempts >= maxAttempts ? "failed" : "reconnecting", "restart_error");
+    } finally {
+      restarting = false;
+    }
+    if (inactive()) return;
+    if (!offered && pc.signalingState !== "stable") {
+      schedule("failed", recoveryDelay(attempts));
       return;
     }
-    if (state === "failed" || state === "disconnected") {
-      scheduleRestart(state === "disconnected" ? 2000 : 400);
+    const after = classifyConnection({ ...pc, everConnected });
+    if (after === "failed" || after === "disconnected") {
+      schedule(after, recoveryDelay(attempts));
     }
   };
 
-  const onIceConnectionStateChange = () => {
-    const state = pc.iceConnectionState;
-    if (state === "connected" || state === "completed") {
+  const onState = () => {
+    if (inactive()) {
+      clearRestartTimer();
+      return;
+    }
+    const health = classifyConnection({ ...pc, everConnected });
+    if (health === "connected") {
       everConnected = true;
       attempts = 0;
       clearRestartTimer();
       reportStatus("connected", "ice_connected");
       return;
     }
-    if (state === "failed" || state === "disconnected") {
-      scheduleRestart(state === "disconnected" ? 2000 : 400);
-    } else if (state === "checking" && !everConnected) {
-      scheduleRestart(checkingTimeoutMs);
+    if (health === "checking") {
+      schedule("checking", checkingTimeoutMs);
+      return;
     }
+    if (health === "disconnected") {
+      schedule(
+        "disconnected",
+        everConnected ? disconnectedGraceMs : recoveryDelay(attempts)
+      );
+      return;
+    }
+    if (health === "failed") schedule("failed", recoveryDelay(attempts));
   };
 
-  pc.addEventListener("connectionstatechange", onConnectionStateChange);
-  pc.addEventListener("iceconnectionstatechange", onIceConnectionStateChange);
+  pc.addEventListener("connectionstatechange", onState);
+  pc.addEventListener("iceconnectionstatechange", onState);
 
-  return () => {
+  const stop = () => {
+    stopped = true;
     clearRestartTimer();
-    pc.removeEventListener?.("connectionstatechange", onConnectionStateChange);
-    pc.removeEventListener?.("iceconnectionstatechange", onIceConnectionStateChange);
+    pc.removeEventListener?.("connectionstatechange", onState);
+    pc.removeEventListener?.("iceconnectionstatechange", onState);
   };
+  stop.request = () => {
+    if (inactive() || polite || restarting || timer) return;
+    if (attempts >= maxAttempts) {
+      reportStatus("failed", "restart_attempts_exhausted");
+      return;
+    }
+    timerKind = "media";
+    timer = setTimeout(() => {
+      timer = null;
+      timerKind = "";
+      if (inactive()) return;
+      if (pc.signalingState !== "stable") {
+        schedule("failed", recoveryDelay(attempts));
+        return;
+      }
+      void restart({ force: true });
+    }, recoveryDelay(attempts));
+  };
+  return stop;
 };

@@ -1,98 +1,153 @@
-import { openRelayIceServers } from "./turnCredential.js";
 import api from "../services/http/client";
+import {
+  selectIceConfig,
+  STUN_SERVERS,
+  TurnUnavailableError,
+  turnServersFrom,
+  DEV_ICE_RELAY_STORAGE_KEY,
+  devRelayRequested,
+  validateIceConfig,
+  withTestRelayPolicy,
+} from "./iceConfigPolicy.js";
 
-const stunServers = [
-  { urls: "stun:stun.l.google.com:19302" },
-  { urls: "stun:stun1.l.google.com:19302" },
-];
+export { TurnUnavailableError, validateIceConfig };
 
-const turnUrls = String(import.meta.env.VITE_TURN_URL || "")
-  .split(",")
-  .map((item) => item.trim())
-  .filter(Boolean);
-const turnUsername = String(import.meta.env.VITE_TURN_USERNAME || "");
-const turnCredential = String(import.meta.env.VITE_TURN_CREDENTIAL || "");
-
-const customTurn = () => {
-  if (!turnUrls.length || !turnUsername || !turnCredential) return null;
-  return {
-    urls: turnUrls.length === 1 ? turnUrls[0] : turnUrls,
-    username: turnUsername,
-    credential: turnCredential,
-  };
+const envFlag = (name) => {
+  try {
+    return Boolean(import.meta.env?.[name]);
+  } catch {
+    return false;
+  }
 };
-
-const iceServers = [...stunServers];
-const configuredTurn = customTurn();
-if (configuredTurn) iceServers.push(configuredTurn);
-
-export const ICE_SERVERS = { iceServers, bundlePolicy: "max-bundle" };
-
-const turnServersFrom = (servers) => {
-  if (!Array.isArray(servers)) return [];
-  return servers.filter((server) => {
-    const urls = Array.isArray(server?.urls) ? server.urls : [server?.urls];
-    return (
-      Boolean(server?.username) &&
-      Boolean(server?.credential) &&
-      urls.some((url) => /^turns?:/i.test(String(url || "")))
-    );
-  });
-};
-
-const hasTurnServer = (config) => turnServersFrom(config?.iceServers).length > 0;
 
 let cached = null;
+let announcedRelay = false;
 
-/** Prefer authenticated backend TURN credentials, then existing relay fallbacks. */
+const storedRelaySwitch = () => {
+  try {
+    return globalThis.localStorage?.getItem(DEV_ICE_RELAY_STORAGE_KEY) || "";
+  } catch {
+    return "";
+  }
+};
+
+/**
+ * Read at call setup, before RTCPeerConnection is constructed.
+ * Development accepts either the automated window flag or the manual storage switch.
+ * The window flag must be the boolean true. The string "true" does not count.
+ */
+const testRelayRequested = () => {
+  try {
+    return devRelayRequested({
+      dev: envFlag("DEV"),
+      prod: envFlag("PROD"),
+      windowFlag: globalThis.__FOINTER_TEST_ICE_RELAY,
+      stored: storedRelaySwitch(),
+    });
+  } catch {
+    return false;
+  }
+};
+
+const announceRelay = (enabled) => {
+  if (!enabled || announcedRelay || !envFlag("DEV") || envFlag("PROD")) return;
+  announcedRelay = true;
+  console.info("[fointer] Development relay-only ICE is on. The next call uses iceTransportPolicy relay.");
+};
+
+if (envFlag("DEV") && !envFlag("PROD")) {
+  globalThis.fointerDevIceRelay = {
+    enable() {
+      globalThis.localStorage?.setItem(DEV_ICE_RELAY_STORAGE_KEY, "1");
+      cached = null;
+      announcedRelay = false;
+      announceRelay(true);
+    },
+    disable() {
+      globalThis.localStorage?.removeItem(DEV_ICE_RELAY_STORAGE_KEY);
+      globalThis.__FOINTER_TEST_ICE_RELAY = false;
+      cached = null;
+      announcedRelay = false;
+      console.info("[fointer] Development relay-only ICE is off. Reload before the next call.");
+    },
+  };
+  announceRelay(testRelayRequested());
+}
+
+/**
+ * Loads short-lived TURN credentials from the backend.
+ * Production refuses to place a call without them. Development can still use
+ * STUN on a local network. The public demo relay is not a fallback.
+ * A relay-only transport is applied only in development, before the peer connection is created.
+ */
 export const getIceConfig = async () => {
-  if (cached && cached.expires > Date.now()) return cached.config;
+  const production = envFlag("PROD");
+  const testRelay = testRelayRequested();
+  if (
+    cached &&
+    cached.expires > Date.now() &&
+    cached.production === production &&
+    cached.testRelay === testRelay
+  ) {
+    return cached.config;
+  }
 
-  let config;
-  let cacheMs = 60 * 60 * 1000;
   try {
     const response = await api.get("/webrtc/ice-servers", { timeout: 7000 });
     const remoteTurns = turnServersFrom(response.data?.iceServers);
-    if (!response.data?.success || !remoteTurns.length) {
-      throw new Error("Backend returned no TURN relay.");
-    }
     const expiresAt = Date.parse(response.data?.expiresAt || "");
-    if (!Number.isFinite(expiresAt) || expiresAt <= Date.now() + 30_000) {
-      throw new Error("Backend TURN credentials are expired or missing an expiry.");
-    }
-    cacheMs = Math.min(cacheMs, expiresAt - Date.now() - 30_000);
-    config = {
-      iceServers: [...stunServers, ...remoteTurns],
-      bundlePolicy: "max-bundle",
+    const fresh =
+      response.data?.success &&
+      remoteTurns.length > 0 &&
+      Number.isFinite(expiresAt) &&
+      expiresAt > Date.now() + 30_000;
+    const selected = selectIceConfig({
+      production,
+      remoteConfig: fresh
+        ? {
+            iceServers: [...STUN_SERVERS, ...remoteTurns],
+            bundlePolicy: "max-bundle",
+          }
+        : null,
+      expiresAt,
+      now: Date.now(),
+    });
+    if (selected.error) throw new TurnUnavailableError(selected.error);
+    const config = withTestRelayPolicy(selected.config, testRelay);
+    announceRelay(testRelay);
+    cached = {
+      config,
+      expires: Date.now() + selected.cacheMs,
+      production,
+      testRelay,
     };
+    return config;
   } catch (error) {
-    if (import.meta.env.DEV) {
+    cached = null;
+    if (production || error instanceof TurnUnavailableError) {
+      throw error instanceof TurnUnavailableError ? error : new TurnUnavailableError();
+    }
+    if (envFlag("DEV")) {
       console.warn("[dm-call] backend TURN credentials unavailable", {
         status: error?.response?.status,
-        code: error?.response?.data?.code || "TURN_CONFIG_FETCH_FAILED",
+        code: error?.code || error?.response?.data?.code || "TURN_CONFIG_FETCH_FAILED",
       });
     }
-    const turn = customTurn();
-    if (turn) {
-      config = { iceServers: [...stunServers, turn], bundlePolicy: "max-bundle" };
-    } else {
-      try {
-        config = { iceServers: await openRelayIceServers(), bundlePolicy: "max-bundle" };
-        cacheMs = 12 * 60 * 60 * 1000;
-      } catch {
-        config = { iceServers: [...stunServers], bundlePolicy: "max-bundle" };
-        cacheMs = 60_000;
-      }
-    }
+    const fallback = selectIceConfig({ production: false, remoteConfig: null });
+    const config = withTestRelayPolicy(fallback.config, testRelay);
+    cached = {
+      config,
+      expires: Date.now() + fallback.cacheMs,
+      production: false,
+      testRelay,
+    };
+    return config;
   }
-
-  cached = { config, expires: Date.now() + cacheMs };
-  return config;
 };
 
-/** True only when the active configuration contains a TURN relay. */
+/** True only when the cached configuration contains a non-demo TURN relay. */
 export const hasTurnRelay = () => {
-  if (cached?.expires > Date.now()) return hasTurnServer(cached.config);
-  const turn = customTurn();
-  return Boolean(turn);
+  if (!cached || cached.expires <= Date.now()) return false;
+  const verdict = validateIceConfig(cached.config, { production: true });
+  return verdict.ok;
 };

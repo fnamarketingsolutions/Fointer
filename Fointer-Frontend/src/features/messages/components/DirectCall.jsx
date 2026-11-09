@@ -22,8 +22,17 @@ import { getLiveSocket } from "../../../shared/services/liveSocket";
 import ProfileAvatar from "../../../shared/components/ProfileAvatar";
 import CallTile from "../../../shared/components/CallTile";
 import { useAuth } from "../../../context/AuthContext";
-import { getIceConfig } from "../../../shared/webrtc/iceServers";
+import { getIceConfig, validateIceConfig } from "../../../shared/webrtc/iceServers";
 import { watchPeerConnection } from "../../../shared/webrtc/iceRestart";
+import {
+  callLinkFailureMessage,
+  callLinkLabel,
+  deriveCallLink,
+  MEDIA_CONNECT_FAILURE,
+} from "../../../shared/webrtc/callLink";
+import { assessMediaHealth, emptyMediaStats, readSafeCallStats, toPublicMediaLog } from "../../../shared/webrtc/callStats";
+import { createSignalCourier } from "../../../shared/webrtc/signalDelivery";
+import { recoveryNeededAfterNetworkChange, watchNetworkChanges } from "../../../shared/webrtc/networkRecovery";
 import { applyPeerSignal } from "../../../shared/webrtc/applyPeerSignal";
 import {
   callPhaseCanSignal,
@@ -94,9 +103,39 @@ const DirectCall = forwardRef(function DirectCall(
   const suppressPreviewClickRef = useRef(false);
   const callWindowRef = useRef(null);
   const windowDragRef = useRef(null);
+  const sampleStatsRef = useRef(async () => {});
+  const [signalCourier] = useState(() => createSignalCourier({
+    isActive: () => phaseRef.current !== "idle",
+    onFailure: ({ type, reason }) => {
+      console.info("[dm-call] signal", { type, reason });
+    },
+    emit: (message, ack) => {
+      getLiveSocket().timeout(1500).emit(
+        "dm_call_signal",
+        {
+          conversationId: conversationIdRef.current,
+          callId: callIdRef.current,
+          ...message,
+        },
+        (err, body) => ack(err ? { success: false, message: "timeout" } : body)
+      );
+    },
+  }));
 
   modeRef.current = mode;
   conversationIdRef.current = conversationId;
+
+  useEffect(() => {
+    const status = deriveCallLink({
+      phase,
+      peers: tiles.filter((tile) => !tile.isLocal),
+    });
+    setError((current) => {
+      if (status === "failed") return callLinkFailureMessage(status) || MEDIA_CONNECT_FAILURE;
+      if (current === MEDIA_CONNECT_FAILURE) return "";
+      return current;
+    });
+  }, [phase, tiles]);
 
   const stopRingtone = useCallback(() => {
     if (stopRingRef.current) {
@@ -164,6 +203,9 @@ const DirectCall = forwardRef(function DirectCall(
         stream: peer.stream,
         streamVersion: peer.streamVersion || 0,
         connectionState: peer.connectionState || "",
+        iceConnectionState: peer.iceConnectionState || "",
+        networkStatus: peer.networkStatus || "",
+        mediaStats: peer.mediaStats || null,
         isLocal: false,
       });
     }
@@ -178,6 +220,7 @@ const DirectCall = forwardRef(function DirectCall(
       stopLocal();
       earlySignalsRef.current = [];
       phaseRef.current = "idle";
+      signalCourier.cancelPending();
       if (callIdRef.current) retireDmCall(callIdRef.current);
       callIdRef.current = "";
       setDmCallBusy(false);
@@ -193,17 +236,12 @@ const DirectCall = forwardRef(function DirectCall(
       setWindowPosition(null);
       makingOfferRef.current.clear();
     },
-    [closeAllPeers, stopLocal, stopRingtone]
+    [closeAllPeers, signalCourier, stopLocal, stopRingtone]
   );
 
   const sendSignal = useCallback((to, payload) => {
-    getLiveSocket().emit("dm_call_signal", {
-      conversationId: conversationIdRef.current,
-      callId: callIdRef.current,
-      to,
-      ...payload,
-    });
-  }, []);
+    signalCourier.send({ to, ...payload });
+  }, [signalCourier]);
 
   const ensurePeer = useCallback(
     (remote) => {
@@ -219,7 +257,11 @@ const DirectCall = forwardRef(function DirectCall(
         return existing;
       }
 
-      const pc = new RTCPeerConnection(iceConfigRef.current || undefined);
+      const iceConfig = iceConfigRef.current;
+      if (!validateIceConfig(iceConfig, { production: Boolean(import.meta.env?.PROD) }).ok) {
+        return null;
+      }
+      const pc = new RTCPeerConnection(iceConfig || undefined);
       const stream = new MediaStream();
       const myId = String(getLiveSocket().id || "");
       const polite = myId < String(remote.socketId);
@@ -239,9 +281,11 @@ const DirectCall = forwardRef(function DirectCall(
         connectionState: "new",
         iceConnectionState: "new",
         networkStatus: "connecting",
+        mediaStats: emptyMediaStats(),
         polite,
         ignoreOffer: false,
         iceQueue: createIceQueue(),
+        iceGeneration: 0,
       };
 
       const local = localStreamRef.current;
@@ -268,45 +312,11 @@ const DirectCall = forwardRef(function DirectCall(
         });
       };
 
-      const logSelectedCandidatePair = async () => {
-        if (!import.meta.env.DEV || !pc.getStats) return;
-        try {
-          const stats = await pc.getStats();
-          const reports = [...stats.values()];
-          const pair = reports.find(
-            (item) =>
-              item.type === "candidate-pair" &&
-              item.state === "succeeded" &&
-              (item.selected || item.nominated)
-          );
-          if (!pair) {
-            logNetwork("candidate_pair_unavailable");
-            return;
-          }
-          const localCandidate = stats.get(pair.localCandidateId);
-          const remoteCandidate = stats.get(pair.remoteCandidateId);
-          logNetwork("selected_candidate_pair", {
-            candidatePair: {
-              localType: localCandidate?.candidateType,
-              remoteType: remoteCandidate?.candidateType,
-              protocol: localCandidate?.protocol || remoteCandidate?.protocol,
-              relayProtocol: localCandidate?.relayProtocol || remoteCandidate?.relayProtocol,
-              roundTripTime: pair.currentRoundTripTime,
-              bytesSent: pair.bytesSent,
-              bytesReceived: pair.bytesReceived,
-            },
-          });
-        } catch (statsError) {
-          logNetwork("candidate_pair_stats_error", {
-            message: String(statsError?.message || "getStats failed"),
-          });
-        }
-      };
-
       pc.onicecandidate = (event) => {
         if (!event.candidate) return;
         sendSignal(remote.socketId, {
           type: "ice",
+          generation: peer.iceGeneration || 0,
           candidate: event.candidate.toJSON ? event.candidate.toJSON() : event.candidate,
         });
       };
@@ -318,7 +328,9 @@ const DirectCall = forwardRef(function DirectCall(
           peer.networkStatus = "reconnecting";
         }
         logNetwork("connection_state_change");
-        if (pc.connectionState === "connected") void logSelectedCandidatePair();
+        if (pc.connectionState === "connected" || pc.connectionState === "failed") {
+          void sampleStatsRef.current();
+        }
         syncTiles();
       };
       peer.stopIceRecovery = watchPeerConnection(pc, {
@@ -330,7 +342,13 @@ const DirectCall = forwardRef(function DirectCall(
           syncTiles();
         },
         sendOffer: (description) => {
-          sendSignal(remote.socketId, { type: "offer", sdp: description });
+          peer.iceGeneration = (peer.iceGeneration || 0) + 1;
+          signalCourier.dropOlder(peer.iceGeneration);
+          sendSignal(remote.socketId, {
+            type: "offer",
+            sdp: description,
+            generation: peer.iceGeneration,
+          });
         },
       });
 
@@ -338,7 +356,7 @@ const DirectCall = forwardRef(function DirectCall(
         peer.iceConnectionState = pc.iceConnectionState;
         if (["connected", "completed"].includes(pc.iceConnectionState)) {
           peer.networkStatus = "connected";
-          void logSelectedCandidatePair();
+          void sampleStatsRef.current();
         } else if (["disconnected", "failed"].includes(pc.iceConnectionState)) {
           peer.networkStatus = "reconnecting";
         }
@@ -349,10 +367,9 @@ const DirectCall = forwardRef(function DirectCall(
       };
 
       pc.onicecandidateerror = (event) => {
-        logNetwork("ice_candidate_error", {
-          code: event.errorCode,
-          text: event.errorText,
-          url: event.url,
+        console.info("[dm-call] media", {
+          event: "ice_candidate_error",
+          code: event.errorCode || null,
         });
       };
 
@@ -380,7 +397,7 @@ const DirectCall = forwardRef(function DirectCall(
       peersRef.current.set(remote.socketId, peer);
       return peer;
     },
-    [otherUser, sendSignal, syncTiles]
+    [otherUser, sendSignal, signalCourier, syncTiles]
   );
 
   const createOffer = useCallback(
@@ -394,6 +411,7 @@ const DirectCall = forwardRef(function DirectCall(
         sendSignal(remote.socketId, {
           type: "offer",
           sdp: peer.pc.localDescription,
+          generation: peer.iceGeneration || 0,
         });
       } catch {
         setError("Could not connect the call.");
@@ -405,7 +423,7 @@ const DirectCall = forwardRef(function DirectCall(
   );
 
   const applySignal = useCallback(
-    async ({ from, type, sdp, candidate, callId }) => {
+    async ({ from, type, sdp, candidate, callId, messageId, generation }) => {
       if (shouldIgnoreSignal({ activeCallId: callIdRef.current, signalCallId: callId })) {
         return;
       }
@@ -418,7 +436,7 @@ const DirectCall = forwardRef(function DirectCall(
       try {
         await applyPeerSignal(
           peer,
-          { type, sdp, candidate },
+          { type, sdp, candidate, messageId, generation },
           {
             makingOffer: makingOfferRef.current.has(from),
             onAnswer: (description) => {
@@ -475,6 +493,8 @@ const DirectCall = forwardRef(function DirectCall(
         sdp: payload.sdp,
         candidate: payload.candidate,
         callId: payload.callId,
+        messageId: payload.messageId,
+        generation: payload.generation,
       };
       if (!callPhaseCanSignal(phaseRef.current) || !localStreamRef.current) {
         earlySignalsRef.current.push(item);
@@ -562,6 +582,15 @@ const DirectCall = forwardRef(function DirectCall(
       setCallPhase("connecting");
       try {
         iceConfigRef.current = await getIceConfig();
+      } catch (err) {
+        resetCallUi(
+          err?.name === "TurnUnavailableError"
+            ? err.message
+            : "Reliable calling is temporarily unavailable. Please try again in a moment."
+        );
+        return;
+      }
+      try {
         await acquireMedia(nextMode);
         flushEarlySignals();
         socket.timeout(15_000).emit(
@@ -600,6 +629,16 @@ const DirectCall = forwardRef(function DirectCall(
     setCallPhase("connecting");
     try {
       iceConfigRef.current = await getIceConfig();
+    } catch (err) {
+      setCallPhase("ringing_in");
+      setError(
+        err?.name === "TurnUnavailableError"
+          ? err.message
+          : "Reliable calling is temporarily unavailable. Please try again in a moment."
+      );
+      return;
+    }
+    try {
       await acquireMedia(modeRef.current);
       flushEarlySignals();
       const socket = getLiveSocket();
@@ -751,10 +790,49 @@ const DirectCall = forwardRef(function DirectCall(
       handlersRef.current.handleSignal(payload);
     };
 
+    const rejoinCall = () => {
+      if (!callIdRef.current) return;
+      if (phaseRef.current !== "active" && phaseRef.current !== "connecting") return;
+      socket.emit(
+        "dm_call_rejoin",
+        { conversationId, callId: callIdRef.current },
+        (ack) => {
+          if (ack?.success) {
+            const mine = new Set((ack.peers || []).map((peer) => peer.socketId));
+            for (const socketId of [...peersRef.current.keys()]) {
+              if (!mine.has(socketId)) handlersRef.current.closePeer(socketId);
+            }
+            handlersRef.current.connectToPeers(ack.peers || []);
+            return;
+          }
+          if (/ended|not in this call|do not have access/i.test(ack?.message || "")) {
+            handlersRef.current.resetCallUi(ack?.message || "Call ended.");
+          }
+        }
+      );
+    };
+
+    const onReplaced = (payload) => {
+      if (!matches(payload)) return;
+      if (shouldIgnoreSignal({ activeCallId: callIdRef.current, signalCallId: payload.callId })) return;
+      if (!payload.previousSocketId || !payload.peer?.socketId) return;
+      handlersRef.current.closePeer(payload.previousSocketId);
+      handlersRef.current.connectToPeers([payload.peer]);
+    };
+
+    const stopNetworkWatch = watchNetworkChanges(() => {
+      for (const peer of peersRef.current.values()) {
+        if (recoveryNeededAfterNetworkChange(peer.pc)) peer.stopIceRecovery?.request?.();
+      }
+    });
+
     socket.emit("join_conversation", { conversationId }, () => {
       syncCall();
+      rejoinCall();
     });
     socket.on("connect", syncCall);
+    socket.on("connect", rejoinCall);
+    socket.on("dm_call_peer_replaced", onReplaced);
 
     socket.on("dm_call_incoming", onIncoming);
     socket.on("dm_call_accepted", onAccepted);
@@ -764,13 +842,16 @@ const DirectCall = forwardRef(function DirectCall(
     socket.on("dm_call_signal", onSignal);
 
     return () => {
+      stopNetworkWatch();
       socket.off("dm_call_incoming", onIncoming);
       socket.off("dm_call_accepted", onAccepted);
       socket.off("dm_call_ended", onEnded);
       socket.off("dm_call_peer_left", onPeerLeft);
+      socket.off("dm_call_peer_replaced", onReplaced);
       socket.off("dm_call_presence", onPresence);
       socket.off("dm_call_signal", onSignal);
       socket.off("connect", syncCall);
+      socket.off("connect", rejoinCall);
       if (phaseRef.current !== "idle") {
         handlersRef.current.endCall(true);
       }
@@ -820,6 +901,49 @@ const DirectCall = forwardRef(function DirectCall(
       tryAccept();
     }
   }, [conversationId, navigate, resetCallUi, searchParams]);
+
+  useEffect(() => {
+    if (phase !== "active" && phase !== "connecting") return undefined;
+    let stopped = false;
+    let lastSignature = "";
+    let lastLoggedAt = 0;
+
+    const sample = async () => {
+      let changed = false;
+      for (const peer of peersRef.current.values()) {
+        const summary = await readSafeCallStats(peer.pc);
+        if (stopped || !summary) continue;
+        const previous = peer.mediaStats;
+        peer.mediaStats = summary;
+        const health = assessMediaHealth(previous, summary);
+        if (health.restart) peer.stopIceRecovery?.request?.();
+        if (health.status === "one-way" || health.status === "poor-video") {
+          peer.networkStatus = health.status;
+        }
+        const flow = `${summary.connectionState}:${summary.iceConnectionState}:${summary.audio?.receiving}:${summary.video?.receiving}`;
+        const previousFlow = `${previous?.connectionState}:${previous?.iceConnectionState}:${previous?.audio?.receiving}:${previous?.video?.receiving}`;
+        if (flow !== previousFlow) changed = true;
+        const now = Date.now();
+        if (flow !== lastSignature || now - lastLoggedAt >= 15_000) {
+          lastSignature = flow;
+          lastLoggedAt = now;
+          console.info("[dm-call] media", toPublicMediaLog(summary));
+        }
+      }
+      if (changed && !stopped) syncTiles();
+    };
+
+    sampleStatsRef.current = sample;
+    const timer = setInterval(() => {
+      void sample();
+    }, 5000);
+    void sample();
+    return () => {
+      stopped = true;
+      sampleStatsRef.current = async () => {};
+      clearInterval(timer);
+    };
+  }, [phase, syncTiles]);
 
   const toggleMic = () => {
     const stream = localStreamRef.current;
@@ -1022,6 +1146,12 @@ const DirectCall = forwardRef(function DirectCall(
 
   if (phase === "idle" && !error) return null;
 
+  const linkStatus = deriveCallLink({
+    phase,
+    peers: tiles.filter((tile) => !tile.isLocal),
+  });
+  const linkLabel = callLinkLabel(linkStatus);
+
   const otherLabel =
     personDisplayName(incomingFrom, "") ||
     personDisplayName(otherUser, DELETED_USER_LABEL);
@@ -1055,7 +1185,7 @@ const DirectCall = forwardRef(function DirectCall(
               {mainTile.name || (mainTile.isLocal ? "You" : otherLabel)}
             </p>
             <p className={`mt-0.5 text-xs ${videoExpanded ? "text-white/70" : "text-fo-subtle"}`}>
-              {cameraBusy ? "Updating camera…" : "Video call"}
+              {cameraBusy ? "Updating camera…" : linkLabel || "Video call"}
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -1188,6 +1318,7 @@ const DirectCall = forwardRef(function DirectCall(
         <p className="relative mt-2 text-sm text-white/70">
           Incoming {mode === "video" ? "video" : "audio"} call…
         </p>
+        {error ? <p className="relative mt-3 max-w-sm text-center text-sm text-red-300">{error}</p> : null}
         <div className="relative mt-10 flex items-center gap-8">
           <button
             type="button"
@@ -1224,15 +1355,7 @@ const DirectCall = forwardRef(function DirectCall(
         )}
         {mode === "audio" ? "Audio call" : "Video call"}
         <span className="ml-auto text-fo-subtle capitalize">
-          {cameraBusy
-            ? "Updating camera…"
-            : phase === "ringing_out"
-            ? "Calling…"
-            : phase === "connecting"
-              ? "Connecting…"
-              : phase === "active"
-                ? "Connected"
-                : ""}
+          {cameraBusy ? "Updating camera…" : linkLabel}
         </span>
       </div>
 

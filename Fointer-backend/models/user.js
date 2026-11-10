@@ -22,6 +22,7 @@ const userSchema = new mongoose.Schema(
     password: {
       type: String,
       minlength: 8,
+      select: false,
       required: function () {
       return !this.googleId && !this.facebookId;
       },
@@ -233,6 +234,24 @@ userSchema.index(
     },
   }
 );
+
+const SECRET_USER_FIELDS = [
+  "password",
+  "passwordResetOtp",
+  "passwordResetOtpExpires",
+  "passwordResetOtpAttempts",
+  "emailVerificationOtp",
+  "emailVerificationOtpExpires",
+  "emailVerificationOtpAttempts",
+];
+
+const stripSecretUserFields = (_doc, ret) => {
+  for (const field of SECRET_USER_FIELDS) delete ret[field];
+  return ret;
+};
+
+userSchema.set("toJSON", { transform: stripSecretUserFields });
+userSchema.set("toObject", { transform: stripSecretUserFields });
 
 const User = mongoose.model("User", userSchema);
 

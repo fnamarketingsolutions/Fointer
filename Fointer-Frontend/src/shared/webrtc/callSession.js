@@ -22,4 +22,19 @@ export const showVideoJoinControl = ({
   isLive = false,
   inCall = false,
   authorized = true,
-} = {}) => Boolean(isLive) && !inCall && authorized !== false;
+  callMode,
+} = {}) => Boolean(isLive) && !inCall && authorized !== false && callMode !== "audio";
+
+export const showAudioJoinControl = ({
+  isLive = false,
+  inCall = false,
+  authorized = true,
+  callMode,
+} = {}) => Boolean(isLive) && !inCall && authorized !== false && callMode !== "video";
+
+/** The event's call mode decides which join controls exist. Chat keeps both. */
+export const liveCallJoinMode = (callMode, requested) => {
+  if (callMode === "audio") return requested === "video" ? null : "audio";
+  if (callMode === "video") return requested === "audio" ? null : "video";
+  return requested === "video" ? "video" : "audio";
+};

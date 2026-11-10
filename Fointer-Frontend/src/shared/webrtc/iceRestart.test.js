@@ -297,6 +297,132 @@ test("a connection during the initial check clears the checking timer", async ()
   assert.equal(sent.length, 0);
 });
 
+const dueCredentialSession = () => ({
+  expiresAt: new Date(Date.now() + 60_000).toISOString(),
+  credentialUpdate: "renegotiate",
+  restartBefore: new Date(Date.now() - 5).toISOString(),
+});
+
+test("a healthy call restarts ICE once when the credential deadline is reached", async () => {
+  const pc = makePeerConnection();
+  pc.iceConnectionState = "connected";
+  pc.connectionState = "connected";
+  const sent = [];
+  let rotations = 0;
+  const stop = watchPeerConnection(pc, {
+    maxAttempts: 1,
+    recoveryDelayMs: 5,
+    credentialRetryMs: 20,
+    getCredentialSession: dueCredentialSession,
+    beforeRestart: async () => {
+      rotations += 1;
+      return { action: "restart" };
+    },
+    sendOffer: (offer) => sent.push(offer),
+  });
+  await new Promise((resolve) => setTimeout(resolve, 15));
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].options.iceRestart, true);
+  assert.equal(rotations, 1);
+  pc.iceConnectionState = "failed";
+  pc.connectionState = "failed";
+  pc.dispatchEvent(new Event("iceconnectionstatechange"));
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  stop();
+  assert.equal(sent.length, 2);
+});
+
+test("unknown expiry does not restart a healthy call", async () => {
+  const pc = makePeerConnection();
+  pc.iceConnectionState = "connected";
+  pc.connectionState = "connected";
+  const sent = [];
+  const stop = watchPeerConnection(pc, {
+    credentialRetryMs: 5,
+    getCredentialSession: () => ({
+      expiresAt: null,
+      credentialUpdate: "next-peer-connection",
+      restartBefore: null,
+    }),
+    beforeRestart: async () => {
+      throw new Error("unknown expiry must not rotate");
+    },
+    sendOffer: (offer) => sent.push(offer),
+  });
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  stop();
+  assert.equal(sent.length, 0);
+});
+
+test("a failed credential refresh and a rejected restart stay bounded", async () => {
+  const failing = makePeerConnection();
+  failing.iceConnectionState = "connected";
+  failing.connectionState = "connected";
+  let refreshes = 0;
+  const failedStop = watchPeerConnection(failing, {
+    credentialRetryMs: 5,
+    maxCredentialFailures: 2,
+    getCredentialSession: dueCredentialSession,
+    beforeRestart: async () => {
+      refreshes += 1;
+      throw new Error("refresh failed");
+    },
+    sendOffer: () => {
+      throw new Error("offer should not be sent");
+    },
+  });
+  await new Promise((resolve) => setTimeout(resolve, 40));
+  failedStop();
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(refreshes, 2);
+
+  const rejected = makePeerConnection();
+  rejected.iceConnectionState = "connected";
+  rejected.connectionState = "connected";
+  const statuses = [];
+  let offers = 0;
+  const rejectedStop = watchPeerConnection(rejected, {
+    credentialRetryMs: 5,
+    maxCredentialFailures: 2,
+    getCredentialSession: dueCredentialSession,
+    beforeRestart: async () => ({ action: "restart" }),
+    sendOffer: () => {
+      offers += 1;
+      throw new Error("rejected");
+    },
+    onStatus: (status) => statuses.push(status),
+  });
+  await new Promise((resolve) => setTimeout(resolve, 40));
+  rejectedStop();
+  assert.equal(offers, 2);
+  assert.equal(statuses.includes("failed"), false);
+  assert.equal(rejected.connectionState, "connected");
+});
+
+test("a disconnected peer does not start credential rotation", async () => {
+  const pc = makePeerConnection();
+  pc.iceConnectionState = "connected";
+  pc.connectionState = "connected";
+  let rotations = 0;
+  const sent = [];
+  let active = true;
+  const stop = watchPeerConnection(pc, {
+    credentialRetryMs: 5,
+    isActive: () => active,
+    getCredentialSession: dueCredentialSession,
+    beforeRestart: async () => {
+      rotations += 1;
+      return { action: "restart" };
+    },
+    sendOffer: (offer) => sent.push(offer),
+  });
+  active = false;
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  stop();
+  assert.equal(rotations, 0);
+  assert.equal(sent.length, 0);
+});
+
 test("the polite peer never sends a competing restart offer", async () => {
   const pc = makePeerConnection();
   pc.iceConnectionState = "failed";

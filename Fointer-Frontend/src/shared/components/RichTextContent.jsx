@@ -34,13 +34,15 @@ function safeHtml(value) {
     }
     const element = document.createElement(node.tagName.toLowerCase());
     if (node.tagName === "A") {
-      const rawHref = node.getAttribute("href") || "";
-      const href = /^(https?:|mailto:|\/)/i.test(rawHref)
-        ? rawHref
-        : /^(?:www\.)?[a-z0-9][a-z0-9.-]*\.[a-z]{2,}(?:[/?#]|$)/i.test(rawHref)
-          ? `https://${rawHref}`
-          : "";
-      if (/^(https?:|mailto:|\/)/i.test(href)) {
+      const rawHref = String(node.getAttribute("href") || "").trim();
+      const href = /[\s\\]/.test(rawHref) || rawHref.startsWith("//")
+        ? ""
+        : /^(https?:|mailto:|\/)/i.test(rawHref)
+          ? rawHref
+          : /^(?:www\.)?[a-z0-9][a-z0-9.-]*\.[a-z]{2,}(?:[/?#]|$)/i.test(rawHref)
+            ? `https://${rawHref}`
+            : "";
+      if (/^(https?:|mailto:|\/)/i.test(href) && !href.startsWith("//")) {
         element.setAttribute("href", href);
         if (!href.startsWith("/")) {
           element.setAttribute("rel", "noopener noreferrer");

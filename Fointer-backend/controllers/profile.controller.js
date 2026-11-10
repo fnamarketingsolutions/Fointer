@@ -267,7 +267,7 @@ export const getMyProfile = async (req, res) => {
 
 export const updateMyProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
+    const user = await User.findById(req.user._id).select("+password");
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -447,7 +447,7 @@ export const updateMyProfile = async (req, res) => {
 export const updateMyPassword = async (req, res) => {
   try {
     const { currentPassword, newPassword, confirmPassword } = req.body;
-    const user = await User.findById(req.user._id);
+    const user = await User.findById(req.user._id).select("+password");
 
     if (!user) {
       return res.status(404).json({
@@ -508,7 +508,7 @@ export const updateMyPassword = async (req, res) => {
 
 export const deleteMyAccount = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
+    const user = await User.findById(req.user._id).select("+password");
     if (!user) {
       return res.status(404).json({
         success: false,

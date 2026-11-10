@@ -16,7 +16,6 @@ const sanitize = (value) =>
     .slice(0, 180);
 
 const installObserver = () => {
-  window.__FOINTER_TEST_ICE_RELAY = true;
   window.__FOINTER_TEST_PCS = [];
   const Native = window.RTCPeerConnection;
   if (!Native || Native.__fointerObserved) return;
@@ -195,6 +194,11 @@ test("two local browsers exchange relayed audio and video", async ({ browser }) 
 
     const openUser = async (email, password) => {
       const context = await browser.newContext({ permissions: ["camera", "microphone"] });
+      await context.route("**/webrtc/ice-servers*", async (route) => {
+        const url = new URL(route.request().url());
+        url.searchParams.set("relayTest", "1");
+        await route.continue({ url: url.toString() });
+      });
       await context.addInitScript(installObserver);
       const page = await context.newPage();
       page.on("pageerror", (error) => errors.push(sanitize(error?.message)));

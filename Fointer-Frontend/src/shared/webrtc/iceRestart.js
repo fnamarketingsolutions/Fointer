@@ -1,9 +1,12 @@
+import { scheduleCredentialRotation } from "./iceContract.js";
+
 /**
  * The peer that created the first offer retries ICE when the path dies.
  * The other peer only answers, so the two sides do not restart at once.
  */
 export const DEFAULT_CHECKING_TIMEOUT_MS = 25_000;
 export const MAX_RESTART_ATTEMPTS = 4;
+export const MAX_INITIAL_OFFER_RESENDS = 2;
 
 export const classifyConnection = ({
   iceConnectionState = "",
@@ -19,14 +22,21 @@ export const classifyConnection = ({
     return "connected";
   }
   if (connectionState === "failed" || iceConnectionState === "failed") return "failed";
-  if (connectionState === "disconnected" || iceConnectionState === "disconnected") {
-    return "disconnected";
-  }
+  // iOS can report disconnected while the first candidate check, including TURN, is still running.
   if (
     !everConnected &&
-    (iceConnectionState === "checking" || iceConnectionState === "new" || connectionState === "connecting")
+    (
+      iceConnectionState === "checking" ||
+      iceConnectionState === "new" ||
+      iceConnectionState === "disconnected" ||
+      connectionState === "connecting" ||
+      connectionState === "disconnected"
+    )
   ) {
     return "checking";
+  }
+  if (connectionState === "disconnected" || iceConnectionState === "disconnected") {
+    return "disconnected";
   }
   if (everConnected && (iceConnectionState === "checking" || connectionState === "connecting")) {
     return "disconnected";
@@ -52,18 +62,26 @@ export const watchPeerConnection = (
     onStatus,
     checkingTimeoutMs = DEFAULT_CHECKING_TIMEOUT_MS,
     maxAttempts = MAX_RESTART_ATTEMPTS,
+    retryInitialOffer = false,
+    maxOfferResends = MAX_INITIAL_OFFER_RESENDS,
     disconnectedGraceMs = 4_000,
     recoveryDelayMs = null,
     random = Math.random,
+    beforeRestart = null,
+    getCredentialSession = null,
+    credentialRetryMs = 5_000,
+    maxCredentialFailures = 2,
   } = {}
 ) => {
   if (!pc?.addEventListener) return () => {};
   let attempts = 0;
+  let offerResends = 0;
   let timer = null;
   let timerKind = "";
   let restarting = false;
   let stopped = false;
   let everConnected = false;
+  let credentialWatch = { stop() {}, arm() {} };
 
   const reportStatus = (status, reason) => {
     onStatus?.(status, { reason, attempts, everConnected });
@@ -83,7 +101,7 @@ export const watchPeerConnection = (
   const schedule = (kind, delay) => {
     if (inactive()) return;
     if (polite) {
-      reportStatus("reconnecting", "waiting_for_peer_restart");
+      reportStatus(everConnected ? "reconnecting" : "connecting", everConnected ? "waiting_for_peer_restart" : "initial_checking");
       return;
     }
     if (timer && timerKind === "checking" && kind === "checking") return;
@@ -105,6 +123,15 @@ export const watchPeerConnection = (
       if (inactive()) return;
       const health = classifyConnection({ ...pc, everConnected });
       if (health === "connected" || health === "idle" || health === "closed") return;
+      if (
+        retryInitialOffer &&
+        kind === "checking" &&
+        !everConnected &&
+        pc.signalingState === "have-local-offer"
+      ) {
+        resendCurrentOffer();
+        return;
+      }
       if (pc.signalingState !== "stable") {
         schedule(kind, recoveryDelay(attempts));
         return;
@@ -113,25 +140,76 @@ export const watchPeerConnection = (
     }, delay);
   };
 
-  const restart = async ({ force = false } = {}) => {
-    if (inactive() || restarting || pc.signalingState !== "stable") return;
-    if (!force && classifyConnection({ ...pc, everConnected }) === "connected") return;
+  const resendCurrentOffer = () => {
+    if (polite || inactive() || everConnected) return;
+    if (pc.signalingState !== "have-local-offer" || !pc.localDescription) {
+      reportStatus("failed", "initial_offer_missing");
+      return;
+    }
+    if (offerResends >= maxOfferResends) {
+      reportStatus("failed", "initial_offer_unanswered");
+      return;
+    }
+    offerResends += 1;
+    reportStatus("connecting", "resend_local_offer");
+    sendOffer?.(pc.localDescription, { resend: true });
+    schedule("checking", checkingTimeoutMs);
+  };
+
+  const restart = async ({ force = false, credential = false } = {}) => {
+    if (inactive() || restarting || pc.signalingState !== "stable") {
+      return credential ? "skipped" : undefined;
+    }
+    if (credential && (polite || classifyConnection({ ...pc, everConnected }) !== "connected")) {
+      return "skipped";
+    }
+    if (!force && !credential && classifyConnection({ ...pc, everConnected }) === "connected") return;
     restarting = true;
-    reportStatus("reconnecting", "ice_restart");
     let offered = false;
+    let credentialOutcome = "failed";
     try {
+      if (credential) {
+        let rotation = { action: "restart" };
+        try {
+          if (typeof beforeRestart === "function") {
+            rotation = (await beforeRestart(pc)) || { action: "none" };
+          }
+        } catch {
+          return "failed";
+        }
+        if (inactive()) return "inactive";
+        if (rotation?.action !== "restart") return "skipped";
+      } else if (typeof beforeRestart === "function") {
+        await beforeRestart(pc);
+      }
+      if (inactive() || pc.signalingState !== "stable") {
+        return credential ? "skipped" : undefined;
+      }
+      reportStatus("reconnecting", credential ? "credential_refresh" : "ice_restart");
       const offer = await pc.createOffer({ iceRestart: true });
       if (!inactive() && pc.signalingState === "stable") {
         await pc.setLocalDescription(offer);
-        attempts += 1;
-        sendOffer?.(pc.localDescription);
+        if (!credential) attempts += 1;
+        sendOffer?.(pc.localDescription, credential ? { credential: true } : undefined);
         offered = true;
+        credentialOutcome = "restarted";
       }
     } catch {
+      if (credential) {
+        if (classifyConnection({ ...pc, everConnected }) === "connected") {
+          reportStatus("connected", "credential_refresh_failed");
+        }
+        return "failed";
+      }
       attempts += 1;
       reportStatus(attempts >= maxAttempts ? "failed" : "reconnecting", "restart_error");
     } finally {
       restarting = false;
+      if (!credential) credentialWatch.arm();
+    }
+    if (credential) {
+      if (inactive()) return "inactive";
+      return offered ? "restarted" : credentialOutcome;
     }
     if (inactive()) return;
     if (!offered && pc.signalingState !== "stable") {
@@ -144,6 +222,20 @@ export const watchPeerConnection = (
     }
   };
 
+  if (typeof getCredentialSession === "function") {
+    credentialWatch = scheduleCredentialRotation({
+      getSession: getCredentialSession,
+      isActive: () => !inactive() && !polite,
+      isHealthy: () =>
+        !restarting
+        && pc.signalingState === "stable"
+        && classifyConnection({ ...pc, everConnected }) === "connected",
+      rotate: () => restart({ credential: true }),
+      retryDelayMs: credentialRetryMs,
+      maxRefreshFailures: maxCredentialFailures,
+    });
+  }
+
   const onState = () => {
     if (inactive()) {
       clearRestartTimer();
@@ -153,6 +245,7 @@ export const watchPeerConnection = (
     if (health === "connected") {
       everConnected = true;
       attempts = 0;
+      offerResends = 0;
       clearRestartTimer();
       reportStatus("connected", "ice_connected");
       return;
@@ -177,6 +270,7 @@ export const watchPeerConnection = (
   const stop = () => {
     stopped = true;
     clearRestartTimer();
+    credentialWatch.stop();
     pc.removeEventListener?.("connectionstatechange", onState);
     pc.removeEventListener?.("iceconnectionstatechange", onState);
   };

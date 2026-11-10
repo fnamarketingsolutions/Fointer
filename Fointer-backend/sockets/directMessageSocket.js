@@ -33,6 +33,8 @@ import { applyParticipantMedia, callerCanCancel, signalMatchesCall } from "../ut
 import { dmBroadcastRooms, emitToRooms } from "../utils/realtimeRooms.js";
 import { callSignalBuffer } from "../utils/callSignalBuffer.js";
 import { CALL_REJOIN_GRACE_MS, rebindParticipant } from "../utils/callSession.js";
+import { callSignalLogFields, shouldLogCallSignal } from "../utils/callSignalLog.js";
+import { serverSignalObservation } from "../utils/signalDeliveryState.js";
 
 const roomName = dmRoomName;
 const DM_MEDIA_MAX = 4;
@@ -56,6 +58,18 @@ const buildCaller = (socket, mode) => ({
   camera: mode === "video",
 });
 
+const noteCallSignal = (callId, payload, delivery, reason = "") => {
+  const type = String(payload?.type || "");
+  if (!shouldLogCallSignal(callId, type)) return;
+  const observation = serverSignalObservation(delivery);
+  logRealtime("dm_call_signal", callSignalLogFields({
+    callId,
+    type,
+    delivery: observation.delivery,
+    reason: reason || (observation.remoteApplied ? "" : "not_applied"),
+  }));
+};
+
 const emitCallSignal = (io, conversationId, call, from, payload) => {
   io.to(payload.to).emit("dm_call_signal", {
     conversationId,
@@ -74,7 +88,10 @@ const flushQueuedCallSignals = (io, conversationId, call) => {
     canRelayCallSignal(call.peers, item.from, item.to) &&
     signalMatchesCall(call, item.callId)
   );
-  for (const item of ready) emitCallSignal(io, conversationId, call, item.from, item);
+  for (const item of ready) {
+    emitCallSignal(io, conversationId, call, item.from, item);
+    noteCallSignal(call.callId, item, "emitted");
+  }
 };
 
 const ackCall = (ack, body = { success: true }) => {
@@ -532,11 +549,13 @@ export const initDirectMessageSocket = (io) => {
         signalMatchesCall(found.call, payload.callId)
       ) {
         emitCallSignal(io, found.conversationId, found.call, socket.id, payload);
+        noteCallSignal(found.call.callId, payload, "emitted");
         done({ success: true });
         return;
       }
       const sender = findDmCallBySocket(socket.id);
       if (sender && signalMatchesCall(sender.call, payload.callId)) {
+        noteCallSignal(sender.call.callId, payload, "queued");
         callSignalBuffer.push(sender.conversationId, {
           to,
           from: socket.id,
@@ -550,10 +569,7 @@ export const initDirectMessageSocket = (io) => {
         done({ success: true, queued: true });
         return;
       }
-      logRealtime("dm_call_signal_failed", {
-        userId: String(socket.user?._id || ""),
-        reason: "not_ready",
-      });
+      noteCallSignal(payload.callId, payload, "rejected", "not_ready");
       done({ success: false, message: "Call is not ready." });
     });
 

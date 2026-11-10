@@ -140,7 +140,7 @@ const passwordLogin = async (req, res, { portal }) => {
 
   const user = await User.findOne({
     email: String(email).trim().toLowerCase(),
-  });
+  }).select("+password");
 
   // Always run a bcrypt compare so missing users / social-only accounts
   // do not return faster than a wrong-password attempt (enumeration).

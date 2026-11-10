@@ -25,17 +25,17 @@ export const applyPeerSignal = async (
   signal,
   { makingOffer = false, onAnswer, beforeAnswer } = {}
 ) => {
-  if (!peer?.pc || !peer.iceQueue) return;
+  if (!peer?.pc || !peer.iceQueue) return false;
   const { type, sdp, candidate, messageId, generation } = signal || {};
   peer.seenSignals = peer.seenSignals || new Set();
-  if (!rememberSignal(peer.seenSignals, messageId)) return;
-  if (isStaleIce({ type, generation, currentGeneration: peer.iceGeneration ?? 0 })) return;
+  if (!rememberSignal(peer.seenSignals, messageId)) return false;
+  if (isStaleIce({ type, generation, currentGeneration: peer.iceGeneration ?? 0 })) return false;
   if (type === "offer" && generation != null) peer.iceGeneration = Number(generation);
 
   if (type === "offer" && sdp) {
     const collision = makingOffer || peer.pc.signalingState !== "stable";
     peer.ignoreOffer = !peer.polite && collision;
-    if (peer.ignoreOffer) return;
+    if (peer.ignoreOffer) return false;
 
     if (collision) {
       await Promise.all([
@@ -50,15 +50,14 @@ export const applyPeerSignal = async (
     const answer = await peer.pc.createAnswer();
     await peer.pc.setLocalDescription(answer);
     if (typeof onAnswer === "function") onAnswer(peer.pc.localDescription);
-    return;
+    return true;
   }
 
   if (type === "answer" && sdp) {
-    if (peer.pc.signalingState === "have-local-offer") {
-      await peer.pc.setRemoteDescription(sdp);
-      await flushIce(peer);
-    }
-    return;
+    if (peer.pc.signalingState !== "have-local-offer") return false;
+    await peer.pc.setRemoteDescription(sdp);
+    await flushIce(peer);
+    return true;
   }
 
   if (type === "ice" && candidate && !peer.ignoreOffer) {
@@ -66,5 +65,7 @@ export const applyPeerSignal = async (
     for (const item of ready) {
       await addCandidate(peer.pc, item);
     }
+    return true;
   }
+  return false;
 };

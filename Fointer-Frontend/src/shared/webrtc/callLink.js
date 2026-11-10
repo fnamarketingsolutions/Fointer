@@ -28,6 +28,7 @@ const isFailed = (peer = {}) => {
 
 const isReconnecting = (peer = {}) =>
   !isFailed(peer) &&
+  peer.networkStatus !== "connecting" &&
   (peer.networkStatus === "reconnecting" ||
     peer.connectionState === "disconnected" ||
     peer.iceConnectionState === "disconnected");

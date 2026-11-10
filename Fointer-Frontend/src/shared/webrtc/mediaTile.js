@@ -51,7 +51,7 @@ export const remoteMediaStatus = (peer) => {
   if (peer.networkStatus === "reconnecting") return "reconnecting";
   if (peer.connectionState === "failed" || peer.iceConnectionState === "failed") return "failed";
   if (peer.connectionState === "disconnected" || peer.iceConnectionState === "disconnected") {
-    return "reconnecting";
+    return peer.networkStatus === "connecting" ? "connecting" : "reconnecting";
   }
   if (shouldShowRemoteVideo(peer)) return "video";
   if (isTransportPending(peer)) return "connecting";

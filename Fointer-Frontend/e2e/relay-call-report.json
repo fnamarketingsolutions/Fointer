@@ -1,0 +1,10 @@
+{
+  "result": "FAIL",
+  "scope": "localhost forced TURN relay",
+  "internationalCallingProven": false,
+  "reason": "Missing test account environment variables: TEST_USER_A_EMAIL, TEST_USER_A_PASSWORD, TEST_USER_B_EMAIL, TEST_USER_B_PASSWORD.",
+  "userA": null,
+  "userB": null,
+  "establishmentMs": null,
+  "signalingErrors": []
+}

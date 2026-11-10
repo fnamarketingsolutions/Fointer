@@ -4,6 +4,7 @@
  */
 export const DEFAULT_CHECKING_TIMEOUT_MS = 25_000;
 export const MAX_RESTART_ATTEMPTS = 4;
+export const MAX_INITIAL_OFFER_RESENDS = 2;
 
 export const classifyConnection = ({
   iceConnectionState = "",
@@ -19,14 +20,21 @@ export const classifyConnection = ({
     return "connected";
   }
   if (connectionState === "failed" || iceConnectionState === "failed") return "failed";
-  if (connectionState === "disconnected" || iceConnectionState === "disconnected") {
-    return "disconnected";
-  }
+  // iOS can report disconnected while the first candidate check, including TURN, is still running.
   if (
     !everConnected &&
-    (iceConnectionState === "checking" || iceConnectionState === "new" || connectionState === "connecting")
+    (
+      iceConnectionState === "checking" ||
+      iceConnectionState === "new" ||
+      iceConnectionState === "disconnected" ||
+      connectionState === "connecting" ||
+      connectionState === "disconnected"
+    )
   ) {
     return "checking";
+  }
+  if (connectionState === "disconnected" || iceConnectionState === "disconnected") {
+    return "disconnected";
   }
   if (everConnected && (iceConnectionState === "checking" || connectionState === "connecting")) {
     return "disconnected";
@@ -52,6 +60,8 @@ export const watchPeerConnection = (
     onStatus,
     checkingTimeoutMs = DEFAULT_CHECKING_TIMEOUT_MS,
     maxAttempts = MAX_RESTART_ATTEMPTS,
+    retryInitialOffer = false,
+    maxOfferResends = MAX_INITIAL_OFFER_RESENDS,
     disconnectedGraceMs = 4_000,
     recoveryDelayMs = null,
     random = Math.random,
@@ -59,6 +69,7 @@ export const watchPeerConnection = (
 ) => {
   if (!pc?.addEventListener) return () => {};
   let attempts = 0;
+  let offerResends = 0;
   let timer = null;
   let timerKind = "";
   let restarting = false;
@@ -83,7 +94,7 @@ export const watchPeerConnection = (
   const schedule = (kind, delay) => {
     if (inactive()) return;
     if (polite) {
-      reportStatus("reconnecting", "waiting_for_peer_restart");
+      reportStatus(everConnected ? "reconnecting" : "connecting", everConnected ? "waiting_for_peer_restart" : "initial_checking");
       return;
     }
     if (timer && timerKind === "checking" && kind === "checking") return;
@@ -105,12 +116,37 @@ export const watchPeerConnection = (
       if (inactive()) return;
       const health = classifyConnection({ ...pc, everConnected });
       if (health === "connected" || health === "idle" || health === "closed") return;
+      if (
+        retryInitialOffer &&
+        kind === "checking" &&
+        !everConnected &&
+        pc.signalingState === "have-local-offer"
+      ) {
+        resendCurrentOffer();
+        return;
+      }
       if (pc.signalingState !== "stable") {
         schedule(kind, recoveryDelay(attempts));
         return;
       }
       void restart();
     }, delay);
+  };
+
+  const resendCurrentOffer = () => {
+    if (polite || inactive() || everConnected) return;
+    if (pc.signalingState !== "have-local-offer" || !pc.localDescription) {
+      reportStatus("failed", "initial_offer_missing");
+      return;
+    }
+    if (offerResends >= maxOfferResends) {
+      reportStatus("failed", "initial_offer_unanswered");
+      return;
+    }
+    offerResends += 1;
+    reportStatus("connecting", "resend_local_offer");
+    sendOffer?.(pc.localDescription, { resend: true });
+    schedule("checking", checkingTimeoutMs);
   };
 
   const restart = async ({ force = false } = {}) => {
@@ -153,6 +189,7 @@ export const watchPeerConnection = (
     if (health === "connected") {
       everConnected = true;
       attempts = 0;
+      offerResends = 0;
       clearRestartTimer();
       reportStatus("connected", "ice_connected");
       return;

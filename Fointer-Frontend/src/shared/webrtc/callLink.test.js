@@ -35,6 +35,28 @@ test("a failed ICE connection shows a failure instead of a connected call", () =
   assert.match(callLinkFailureMessage(status), /could not connect/i);
 });
 
+test("disconnected before the first connection stays on Connecting", () => {
+  const peer = {
+    connectionState: "disconnected",
+    iceConnectionState: "disconnected",
+    networkStatus: "connecting",
+    isLocal: false,
+  };
+  assert.equal(deriveCallLink({ phase: "active", peers: [peer] }), "connecting");
+  assert.equal(callLinkLabel("connecting"), "Connecting…");
+});
+
+test("disconnected after a connection shows Reconnecting", () => {
+  const peer = {
+    connectionState: "disconnected",
+    iceConnectionState: "disconnected",
+    networkStatus: "reconnecting",
+    everConnected: true,
+    isLocal: false,
+  };
+  assert.equal(deriveCallLink({ phase: "active", peers: [peer] }), "reconnecting");
+});
+
 test("a one-way peer connection can be established before inbound media arrives", () => {
   const status = deriveCallLink({
     phase: "active",

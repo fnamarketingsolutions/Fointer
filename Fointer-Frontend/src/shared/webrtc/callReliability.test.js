@@ -24,6 +24,21 @@ test("avatar stays until a live video track exists, then returns when the camera
   assert.equal(remoteMediaStatus(videoPeer({ stream: { getVideoTracks: () => [] } })), "connecting");
   assert.equal(remoteMediaStatus(videoPeer({ networkStatus: "reconnecting" })), "reconnecting");
   assert.equal(
+    remoteMediaStatus(videoPeer({
+      networkStatus: "connecting",
+      connectionState: "disconnected",
+      iceConnectionState: "disconnected",
+    })),
+    "connecting"
+  );
+  assert.equal(
+    remoteStatusLabel(
+      videoPeer({ networkStatus: "connecting" }),
+      "connecting"
+    ),
+    "Connecting…"
+  );
+  assert.equal(
     remoteStatusLabel(videoPeer({ networkStatus: "reconnecting" }), "reconnecting"),
     "Network issue. Reconnecting…"
   );

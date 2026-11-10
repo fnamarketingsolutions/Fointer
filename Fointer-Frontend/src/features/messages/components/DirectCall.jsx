@@ -31,6 +31,7 @@ import {
   MEDIA_CONNECT_FAILURE,
 } from "../../../shared/webrtc/callLink";
 import { assessMediaHealth, emptyMediaStats, readSafeCallStats, toPublicMediaLog } from "../../../shared/webrtc/callStats";
+import { logCallDiagnostic } from "../../../shared/webrtc/callDiagnostics";
 import { createSignalCourier } from "../../../shared/webrtc/signalDelivery";
 import { recoveryNeededAfterNetworkChange, watchNetworkChanges } from "../../../shared/webrtc/networkRecovery";
 import { applyPeerSignal } from "../../../shared/webrtc/applyPeerSignal";
@@ -107,9 +108,15 @@ const DirectCall = forwardRef(function DirectCall(
   const [signalCourier] = useState(() => createSignalCourier({
     isActive: () => phaseRef.current !== "idle",
     onFailure: ({ type, reason }) => {
-      console.info("[dm-call] signal", { type, reason });
+      logCallDiagnostic({
+        callId: callIdRef.current,
+        phase: phaseRef.current,
+        signalType: type,
+        delivery: reason === "timeout" ? "server_timeout" : "server_rejected",
+      });
     },
     emit: (message, ack) => {
+      const signalType = message?.type || "";
       getLiveSocket().timeout(1500).emit(
         "dm_call_signal",
         {
@@ -117,7 +124,17 @@ const DirectCall = forwardRef(function DirectCall(
           callId: callIdRef.current,
           ...message,
         },
-        (err, body) => ack(err ? { success: false, message: "timeout" } : body)
+        (err, body) => {
+          if (!err && body?.success && signalType !== "ice") {
+            logCallDiagnostic({
+              callId: callIdRef.current,
+              phase: phaseRef.current,
+              signalType,
+              delivery: body.queued ? "server_queued" : "server_ack",
+            });
+          }
+          ack(err ? { success: false, message: "timeout" } : body);
+        }
       );
     },
   }));
@@ -205,6 +222,7 @@ const DirectCall = forwardRef(function DirectCall(
         connectionState: peer.connectionState || "",
         iceConnectionState: peer.iceConnectionState || "",
         networkStatus: peer.networkStatus || "",
+        everConnected: peer.everConnected === true,
         mediaStats: peer.mediaStats || null,
         isLocal: false,
       });
@@ -295,21 +313,38 @@ const DirectCall = forwardRef(function DirectCall(
         });
       }
 
-      const logNetwork = (eventName, details = {}) => {
-        if (!import.meta.env.DEV) return;
-        console.info("[dm-call] network", {
-          timestamp: new Date().toISOString(),
-          event: eventName,
-          conversationId: conversationIdRef.current,
-          callId: callIdRef.current || undefined,
-          peerSocketId: peer.socketId,
-          networkStatus: peer.networkStatus,
+      let lastStateLog = "";
+      const logTransport = () => {
+        const signature = [
+          phaseRef.current,
+          pc.signalingState,
+          pc.connectionState,
+          pc.iceConnectionState,
+          peer.mediaStats?.candidate?.localType || "",
+          peer.mediaStats?.candidate?.relayProtocol || "",
+        ].join("|");
+        if (signature === lastStateLog) return;
+        lastStateLog = signature;
+        logCallDiagnostic({
+          callId: callIdRef.current,
+          phase: phaseRef.current,
+          signalingState: pc.signalingState,
           connectionState: pc.connectionState,
           iceConnectionState: pc.iceConnectionState,
-          signalingState: pc.signalingState,
-          iceGatheringState: pc.iceGatheringState,
-          ...details,
+          localCandidateType: peer.mediaStats?.candidate?.localType || "",
+          remoteCandidateType: peer.mediaStats?.candidate?.remoteType || "",
+          relayProtocol: peer.mediaStats?.candidate?.relayProtocol || "",
         });
+      };
+      const noteTransport = (state) => {
+        if (state === "connected" || state === "completed") {
+          peer.everConnected = true;
+          peer.networkStatus = "connected";
+          return;
+        }
+        if (state === "failed" || (state === "disconnected" && peer.everConnected)) {
+          peer.networkStatus = "reconnecting";
+        }
       };
 
       pc.onicecandidate = (event) => {
@@ -323,11 +358,8 @@ const DirectCall = forwardRef(function DirectCall(
 
       pc.onconnectionstatechange = () => {
         peer.connectionState = pc.connectionState;
-        if (pc.connectionState === "connected") peer.networkStatus = "connected";
-        else if (["disconnected", "failed"].includes(pc.connectionState)) {
-          peer.networkStatus = "reconnecting";
-        }
-        logNetwork("connection_state_change");
+        noteTransport(pc.connectionState);
+        logTransport();
         if (pc.connectionState === "connected" || pc.connectionState === "failed") {
           void sampleStatsRef.current();
         }
@@ -335,14 +367,28 @@ const DirectCall = forwardRef(function DirectCall(
       };
       peer.stopIceRecovery = watchPeerConnection(pc, {
         polite,
+        retryInitialOffer: true,
         isActive: () => phaseRef.current !== "idle",
-        onStatus: (status, details) => {
+        onStatus: (status) => {
           peer.networkStatus = status;
-          logNetwork("ice_recovery_status", details);
+          logTransport();
           syncTiles();
         },
-        sendOffer: (description) => {
+        sendOffer: (description, meta) => {
+          if (meta?.resend) {
+            if (!peer.localOfferMessageId) {
+              peer.localOfferMessageId = `offer_${callIdRef.current || "call"}_${remote.socketId}`;
+            }
+            sendSignal(remote.socketId, {
+              type: "offer",
+              sdp: description,
+              generation: peer.iceGeneration || 0,
+              messageId: peer.localOfferMessageId,
+            });
+            return;
+          }
           peer.iceGeneration = (peer.iceGeneration || 0) + 1;
+          peer.localOfferMessageId = "";
           signalCourier.dropOlder(peer.iceGeneration);
           sendSignal(remote.socketId, {
             type: "offer",
@@ -354,15 +400,11 @@ const DirectCall = forwardRef(function DirectCall(
 
       pc.oniceconnectionstatechange = () => {
         peer.iceConnectionState = pc.iceConnectionState;
+        noteTransport(pc.iceConnectionState);
         if (["connected", "completed"].includes(pc.iceConnectionState)) {
-          peer.networkStatus = "connected";
           void sampleStatsRef.current();
-        } else if (["disconnected", "failed"].includes(pc.iceConnectionState)) {
-          peer.networkStatus = "reconnecting";
         }
-        if (import.meta.env.DEV) {
-          logNetwork("ice_connection_state_change");
-        }
+        logTransport();
         syncTiles();
       };
 
@@ -408,10 +450,14 @@ const DirectCall = forwardRef(function DirectCall(
         makingOfferRef.current.add(remote.socketId);
         const offer = await peer.pc.createOffer();
         await peer.pc.setLocalDescription(offer);
+        if (!peer.localOfferMessageId) {
+          peer.localOfferMessageId = `offer_${callIdRef.current || "call"}_${remote.socketId}`;
+        }
         sendSignal(remote.socketId, {
           type: "offer",
           sdp: peer.pc.localDescription,
           generation: peer.iceGeneration || 0,
+          messageId: peer.localOfferMessageId,
         });
       } catch {
         setError("Could not connect the call.");
@@ -434,7 +480,7 @@ const DirectCall = forwardRef(function DirectCall(
       const peer = ensurePeer({ socketId: from });
       if (!peer) return;
       try {
-        await applyPeerSignal(
+        const applied = await applyPeerSignal(
           peer,
           { type, sdp, candidate, messageId, generation },
           {
@@ -453,6 +499,17 @@ const DirectCall = forwardRef(function DirectCall(
             },
           }
         );
+        if (applied && (type === "offer" || type === "answer")) {
+          logCallDiagnostic({
+            callId: callIdRef.current,
+            phase: phaseRef.current,
+            signalingState: peer.pc.signalingState,
+            connectionState: peer.pc.connectionState,
+            iceConnectionState: peer.pc.iceConnectionState,
+            signalType: type,
+            delivery: "applied",
+          });
+        }
         syncTiles();
       } catch {
         /* ignore stale signaling */
@@ -928,6 +985,24 @@ const DirectCall = forwardRef(function DirectCall(
           lastSignature = flow;
           lastLoggedAt = now;
           console.info("[dm-call] media", toPublicMediaLog(summary));
+        }
+        const pair = [
+          summary.candidate?.localType || "",
+          summary.candidate?.remoteType || "",
+          summary.candidate?.relayProtocol || "",
+        ].join("|");
+        if (pair !== "||" && pair !== peer.lastLoggedPair) {
+          peer.lastLoggedPair = pair;
+          logCallDiagnostic({
+            callId: callIdRef.current,
+            phase: phaseRef.current,
+            signalingState: peer.pc?.signalingState || "",
+            connectionState: summary.connectionState,
+            iceConnectionState: summary.iceConnectionState,
+            localCandidateType: summary.candidate?.localType || "",
+            remoteCandidateType: summary.candidate?.remoteType || "",
+            relayProtocol: summary.candidate?.relayProtocol || "",
+          });
         }
       }
       if (changed && !stopped) syncTiles();

@@ -196,6 +196,107 @@ test("a connected media stall can request one restart without looping", async ()
   stop();
 });
 
+test("disconnected before the first connection does not start recovery", async () => {
+  const pc = makePeerConnection();
+  pc.iceConnectionState = "disconnected";
+  pc.connectionState = "disconnected";
+  const sent = [];
+  const statuses = [];
+  const stop = watchPeerConnection(pc, {
+    checkingTimeoutMs: 40,
+    recoveryDelayMs: 5,
+    sendOffer: (offer) => sent.push(offer),
+    onStatus: (status) => statuses.push(status),
+  });
+  pc.dispatchEvent(new Event("iceconnectionstatechange"));
+  await new Promise((resolve) => setTimeout(resolve, 15));
+  stop();
+  assert.equal(sent.length, 0);
+  assert.ok(statuses.includes("connecting"));
+  assert.equal(statuses.includes("reconnecting"), false);
+});
+
+test("initial checking stays inside the checking budget", async () => {
+  const pc = makePeerConnection();
+  pc.iceConnectionState = "disconnected";
+  pc.connectionState = "connecting";
+  const sent = [];
+  const stop = watchPeerConnection(pc, {
+    checkingTimeoutMs: 30,
+    recoveryDelayMs: 5,
+    sendOffer: (offer) => sent.push(offer),
+  });
+  pc.dispatchEvent(new Event("iceconnectionstatechange"));
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.equal(sent.length, 0);
+  stop();
+});
+
+test("failure before the first connection enters bounded recovery", async () => {
+  const pc = makePeerConnection();
+  pc.iceConnectionState = "failed";
+  pc.connectionState = "failed";
+  const sent = [];
+  const stop = watchPeerConnection(pc, {
+    checkingTimeoutMs: 500,
+    recoveryDelayMs: 5,
+    maxAttempts: 1,
+    sendOffer: (offer) => sent.push(offer),
+  });
+  pc.dispatchEvent(new Event("iceconnectionstatechange"));
+  await new Promise((resolve) => setTimeout(resolve, 15));
+  stop();
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].options.iceRestart, true);
+});
+
+test("an unanswered initial offer is resent without an ICE restart", async () => {
+  const pc = makePeerConnection();
+  pc.signalingState = "have-local-offer";
+  pc.localDescription = { type: "offer", sdp: "local-offer" };
+  pc.iceConnectionState = "disconnected";
+  pc.connectionState = "connecting";
+  let created = 0;
+  pc.createOffer = async () => {
+    created += 1;
+    return { type: "offer", options: { iceRestart: true } };
+  };
+  const sent = [];
+  const stop = watchPeerConnection(pc, {
+    checkingTimeoutMs: 8,
+    retryInitialOffer: true,
+    maxOfferResends: 2,
+    sendOffer: (description, meta) => sent.push({ description, meta }),
+  });
+  pc.dispatchEvent(new Event("iceconnectionstatechange"));
+  await new Promise((resolve) => setTimeout(resolve, 40));
+  stop();
+  assert.equal(created, 0);
+  assert.equal(sent.length, 2);
+  assert.equal(sent[0].description, sent[1].description);
+  assert.equal(sent[0].meta.resend, true);
+  assert.equal(sent[1].meta.resend, true);
+});
+
+test("a connection during the initial check clears the checking timer", async () => {
+  const pc = makePeerConnection();
+  pc.iceConnectionState = "disconnected";
+  pc.connectionState = "disconnected";
+  const sent = [];
+  const stop = watchPeerConnection(pc, {
+    checkingTimeoutMs: 20,
+    sendOffer: (offer, meta) => sent.push({ offer, meta }),
+  });
+  pc.dispatchEvent(new Event("iceconnectionstatechange"));
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  pc.iceConnectionState = "connected";
+  pc.connectionState = "connected";
+  pc.dispatchEvent(new Event("iceconnectionstatechange"));
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  stop();
+  assert.equal(sent.length, 0);
+});
+
 test("the polite peer never sends a competing restart offer", async () => {
   const pc = makePeerConnection();
   pc.iceConnectionState = "failed";

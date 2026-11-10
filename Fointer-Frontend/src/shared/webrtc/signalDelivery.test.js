@@ -73,6 +73,18 @@ test("duplicate signals are ignored and stale ICE is not applied", async () => {
   assert.equal(added, 1);
 });
 
+test("a repeated initial offer is applied once", async () => {
+  const target = peer();
+  let remote = 0;
+  target.pc.setRemoteDescription = async () => {
+    remote += 1;
+  };
+  const offer = { type: "offer", sdp: { type: "offer" }, messageId: "offer-1", generation: 0 };
+  assert.equal(await applyPeerSignal(target, offer), true);
+  assert.equal(await applyPeerSignal(target, offer), false);
+  assert.equal(remote, 1);
+});
+
 test("an older ICE generation is not replayed after recovery", async () => {
   const sent = [];
   const courier = createSignalCourier({

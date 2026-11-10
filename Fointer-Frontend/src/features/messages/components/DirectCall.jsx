@@ -22,7 +22,7 @@ import { getLiveSocket } from "../../../shared/services/liveSocket";
 import ProfileAvatar from "../../../shared/components/ProfileAvatar";
 import CallTile from "../../../shared/components/CallTile";
 import { useAuth } from "../../../context/AuthContext";
-import { getIceConfig, validateIceConfig } from "../../../shared/webrtc/iceServers";
+import { getIceConfig, getIceSession, iceRefreshDue, maybeRotateIce } from "../../../shared/webrtc/iceServers";
 import { watchPeerConnection } from "../../../shared/webrtc/iceRestart";
 import {
   callLinkFailureMessage,
@@ -31,7 +31,7 @@ import {
   MEDIA_CONNECT_FAILURE,
 } from "../../../shared/webrtc/callLink";
 import { assessMediaHealth, emptyMediaStats, readSafeCallStats, toPublicMediaLog } from "../../../shared/webrtc/callStats";
-import { logCallDiagnostic } from "../../../shared/webrtc/callDiagnostics";
+import { logCallDiagnostic, reportIceCandidateError } from "../../../shared/webrtc/callDiagnostics";
 import { createSignalCourier } from "../../../shared/webrtc/signalDelivery";
 import { recoveryNeededAfterNetworkChange, watchNetworkChanges } from "../../../shared/webrtc/networkRecovery";
 import { applyPeerSignal } from "../../../shared/webrtc/applyPeerSignal";
@@ -112,7 +112,7 @@ const DirectCall = forwardRef(function DirectCall(
         callId: callIdRef.current,
         phase: phaseRef.current,
         signalType: type,
-        delivery: reason === "timeout" ? "server_timeout" : "server_rejected",
+        delivery: reason === "timeout" ? "timed-out" : "rejected",
       });
     },
     emit: (message, ack) => {
@@ -130,7 +130,7 @@ const DirectCall = forwardRef(function DirectCall(
               callId: callIdRef.current,
               phase: phaseRef.current,
               signalType,
-              delivery: body.queued ? "server_queued" : "server_ack",
+              delivery: body.queued ? "queued" : "emitted",
             });
           }
           ack(err ? { success: false, message: "timeout" } : body);
@@ -261,6 +261,14 @@ const DirectCall = forwardRef(function DirectCall(
     signalCourier.send({ to, ...payload });
   }, [signalCourier]);
 
+  const loadIceForCall = useCallback(async () => {
+    const due = iceRefreshDue(getIceSession());
+    if (!iceConfigRef.current || due) {
+      iceConfigRef.current = await getIceConfig({ force: due });
+    }
+    return iceConfigRef.current;
+  }, []);
+
   const ensurePeer = useCallback(
     (remote) => {
       if (!remote?.socketId) return null;
@@ -276,10 +284,8 @@ const DirectCall = forwardRef(function DirectCall(
       }
 
       const iceConfig = iceConfigRef.current;
-      if (!validateIceConfig(iceConfig, { production: Boolean(import.meta.env?.PROD) }).ok) {
-        return null;
-      }
-      const pc = new RTCPeerConnection(iceConfig || undefined);
+      if (!iceConfig?.iceServers?.length) return null;
+      const pc = new RTCPeerConnection(iceConfig);
       const stream = new MediaStream();
       const myId = String(getLiveSocket().id || "");
       const polite = myId < String(remote.socketId);
@@ -365,8 +371,19 @@ const DirectCall = forwardRef(function DirectCall(
         }
         syncTiles();
       };
+      const rotateIce = async (connection) => {
+        const result = await maybeRotateIce(connection, getIceSession(), async (options) => {
+          const next = await getIceConfig(options);
+          iceConfigRef.current = next;
+          return next;
+        });
+        return result;
+      };
+
       peer.stopIceRecovery = watchPeerConnection(pc, {
         polite,
+        getCredentialSession: getIceSession,
+        beforeRestart: rotateIce,
         retryInitialOffer: true,
         isActive: () => phaseRef.current !== "idle",
         onStatus: (status) => {
@@ -409,10 +426,7 @@ const DirectCall = forwardRef(function DirectCall(
       };
 
       pc.onicecandidateerror = (event) => {
-        console.info("[dm-call] media", {
-          event: "ice_candidate_error",
-          code: event.errorCode || null,
-        });
+        reportIceCandidateError(event);
       };
 
       pc.ontrack = (event) => {
@@ -444,6 +458,7 @@ const DirectCall = forwardRef(function DirectCall(
 
   const createOffer = useCallback(
     async (remote) => {
+      await loadIceForCall();
       const peer = ensurePeer(remote);
       if (!peer) return;
       try {
@@ -465,7 +480,7 @@ const DirectCall = forwardRef(function DirectCall(
         makingOfferRef.current.delete(remote.socketId);
       }
     },
-    [ensurePeer, sendSignal]
+    [ensurePeer, loadIceForCall, sendSignal]
   );
 
   const applySignal = useCallback(
@@ -476,6 +491,16 @@ const DirectCall = forwardRef(function DirectCall(
       if (!from) return;
       if (!callPhaseCanSignal(phaseRef.current) || !localStreamRef.current) {
         return;
+      }
+      const existing = peersRef.current.get(from);
+      if (existing?.pc) {
+        await maybeRotateIce(existing.pc, getIceSession(), async (options) => {
+          const next = await getIceConfig(options);
+          iceConfigRef.current = next;
+          return next;
+        });
+      } else {
+        await loadIceForCall();
       }
       const peer = ensurePeer({ socketId: from });
       if (!peer) return;
@@ -515,7 +540,7 @@ const DirectCall = forwardRef(function DirectCall(
         /* ignore stale signaling */
       }
     },
-    [ensurePeer, sendSignal, syncTiles]
+    [ensurePeer, loadIceForCall, sendSignal, syncTiles]
   );
 
   const flushEarlySignals = useCallback(() => {
@@ -586,6 +611,7 @@ const DirectCall = forwardRef(function DirectCall(
       syncTiles();
       flushEarlySignals();
       await signalChainRef.current.chain;
+      await loadIceForCall();
       const myId = String(getLiveSocket().id || "");
       for (const peer of peers) {
         if (myId > String(peer.socketId)) {
@@ -596,7 +622,7 @@ const DirectCall = forwardRef(function DirectCall(
       }
       syncTiles();
     },
-    [createOffer, ensurePeer, flushEarlySignals, setCallPhase, stopRingtone, syncTiles]
+    [createOffer, ensurePeer, flushEarlySignals, loadIceForCall, setCallPhase, stopRingtone, syncTiles]
   );
 
   const endCall = useCallback(
@@ -638,7 +664,7 @@ const DirectCall = forwardRef(function DirectCall(
       }
       setCallPhase("connecting");
       try {
-        iceConfigRef.current = await getIceConfig();
+        iceConfigRef.current = await loadIceForCall();
       } catch (err) {
         resetCallUi(
           err?.name === "TurnUnavailableError"
@@ -677,7 +703,7 @@ const DirectCall = forwardRef(function DirectCall(
         );
       }
     },
-    [acquireMedia, conversationId, disabled, flushEarlySignals, resetCallUi, setCallPhase, syncTiles]
+    [acquireMedia, conversationId, disabled, flushEarlySignals, loadIceForCall, resetCallUi, setCallPhase, syncTiles]
   );
 
   const acceptIncoming = useCallback(async () => {
@@ -685,7 +711,7 @@ const DirectCall = forwardRef(function DirectCall(
     setError("");
     setCallPhase("connecting");
     try {
-      iceConfigRef.current = await getIceConfig();
+      iceConfigRef.current = await loadIceForCall();
     } catch (err) {
       setCallPhase("ringing_in");
       setError(
@@ -715,7 +741,7 @@ const DirectCall = forwardRef(function DirectCall(
           : "Could not start your microphone or camera."
       );
     }
-  }, [acquireMedia, connectToPeers, conversationId, endCall, flushEarlySignals, resetCallUi, setCallPhase]);
+  }, [acquireMedia, connectToPeers, conversationId, endCall, flushEarlySignals, loadIceForCall, resetCallUi, setCallPhase]);
 
   useImperativeHandle(
     ref,

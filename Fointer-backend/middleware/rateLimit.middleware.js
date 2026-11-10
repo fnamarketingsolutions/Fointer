@@ -83,6 +83,15 @@ export const dmSendRateLimit = rateLimit({
   ),
 });
 
+/** Sanitized call diagnostics. High enough for ICE state changes, still bounded. */
+export const callDiagnosticRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 600,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: jsonLimitMessage("Too many call diagnostic reports. Try again later."),
+});
+
 /** TURN credentials are requested per call setup and should not be enumerable. */
 export const turnCredentialRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000,

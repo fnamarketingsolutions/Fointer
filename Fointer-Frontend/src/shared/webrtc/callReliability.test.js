@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { hasProfilePhoto, mergeCallTiles, remoteMediaStatus, remoteStatusLabel, shouldShowRemoteVideo } from "./mediaTile.js";
 import { expectedMeshConnections, planMeshOffers } from "./meshPlan.js";
-import { shouldApplyEnd, shouldIgnoreSignal, shouldStartRing, showVideoJoinControl } from "./callSession.js";
+import { liveCallJoinMode, shouldApplyEnd, shouldIgnoreSignal, shouldStartRing, showAudioJoinControl, showVideoJoinControl } from "./callSession.js";
 import { addRemoteTracks } from "./remoteTracks.js";
 
 const videoPeer = (overrides = {}) => ({
@@ -152,6 +152,21 @@ test("video join is available only for an authorized viewer who is not already i
   assert.equal(showVideoJoinControl({ isLive: true, inCall: true, authorized: true }), false);
   assert.equal(showVideoJoinControl({ isLive: false, inCall: false, authorized: true }), false);
   assert.equal(showVideoJoinControl({ isLive: true, inCall: false, authorized: false }), false);
+});
+
+test("a live event call mode limits audio and video join", () => {
+  assert.equal(showVideoJoinControl({ isLive: true, inCall: false, callMode: "audio" }), false);
+  assert.equal(showAudioJoinControl({ isLive: true, inCall: false, callMode: "audio" }), true);
+  assert.equal(showVideoJoinControl({ isLive: true, inCall: false, callMode: "video" }), true);
+  assert.equal(showAudioJoinControl({ isLive: true, inCall: false, callMode: "video" }), false);
+  assert.equal(showVideoJoinControl({ isLive: true, inCall: false, callMode: "chat" }), true);
+  assert.equal(showAudioJoinControl({ isLive: true, inCall: false, callMode: "chat" }), true);
+  assert.equal(liveCallJoinMode("audio", "video"), null);
+  assert.equal(liveCallJoinMode("audio", "audio"), "audio");
+  assert.equal(liveCallJoinMode("video", "audio"), null);
+  assert.equal(liveCallJoinMode("video", "video"), "video");
+  assert.equal(liveCallJoinMode("chat", "audio"), "audio");
+  assert.equal(liveCallJoinMode("chat", "video"), "video");
 });
 
 test("four participants produce six unique mesh connections", () => {

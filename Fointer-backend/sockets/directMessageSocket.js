@@ -34,6 +34,7 @@ import { dmBroadcastRooms, emitToRooms } from "../utils/realtimeRooms.js";
 import { callSignalBuffer } from "../utils/callSignalBuffer.js";
 import { CALL_REJOIN_GRACE_MS, rebindParticipant } from "../utils/callSession.js";
 import { callSignalLogFields, shouldLogCallSignal } from "../utils/callSignalLog.js";
+import { serverSignalObservation } from "../utils/signalDeliveryState.js";
 
 const roomName = dmRoomName;
 const DM_MEDIA_MAX = 4;
@@ -60,11 +61,12 @@ const buildCaller = (socket, mode) => ({
 const noteCallSignal = (callId, payload, delivery, reason = "") => {
   const type = String(payload?.type || "");
   if (!shouldLogCallSignal(callId, type)) return;
+  const observation = serverSignalObservation(delivery);
   logRealtime("dm_call_signal", callSignalLogFields({
     callId,
     type,
-    delivery,
-    reason,
+    delivery: observation.delivery,
+    reason: reason || (observation.remoteApplied ? "" : "not_applied"),
   }));
 };
 

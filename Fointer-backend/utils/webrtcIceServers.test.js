@@ -113,6 +113,71 @@ test("Metered credentials keep every UDP, TCP, and TLS relay the provider return
     ]
   );
   assert.equal(JSON.stringify(result).includes("stun:"), false);
+  assert.equal(result.expiresAt, null);
+});
+
+test("Metered credentials without an expiry are not given a fabricated deadline", async () => {
+  const nowMs = 1_700_000_000_000;
+  const result = await fetchMeteredTurnCredentials({
+    domain: "fointer.metered.live",
+    apiKey: "metered-test-key",
+    nowMs,
+    fetchImpl: async () => ({
+      ok: true,
+      status: 200,
+      json: async () => [
+        {
+          urls: "turn:global.relay.metered.ca:80",
+          username: "5e7dbfbe19c6c158515907a6",
+          credential: "pass",
+        },
+      ],
+    }),
+  });
+  assert.equal(result.expiresAt, null);
+});
+
+test("an explicit provider expiry is kept when it is still in the future", async () => {
+  const nowMs = 1_700_000_000_000;
+  const expiresAt = new Date(nowMs + 60 * 60 * 1000).toISOString();
+  const result = await fetchMeteredTurnCredentials({
+    domain: "fointer.metered.live",
+    apiKey: "metered-test-key",
+    nowMs,
+    fetchImpl: async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        expiresAt,
+        iceServers: [
+          { urls: "turn:turn.example.com:3478", username: "opaque", credential: "pass" },
+        ],
+      }),
+    }),
+  });
+  assert.equal(result.expiresAt, nowMs + 60 * 60 * 1000);
+});
+
+test("a coturn username expiry is read from the unix-second prefix", async () => {
+  const nowMs = 1_700_000_000_000;
+  const expirySeconds = Math.floor(nowMs / 1000) + 1800;
+  const result = await fetchMeteredTurnCredentials({
+    domain: "fointer.metered.live",
+    apiKey: "metered-test-key",
+    nowMs,
+    fetchImpl: async () => ({
+      ok: true,
+      status: 200,
+      json: async () => [
+        {
+          urls: "turn:turn.example.com:3478",
+          username: `${expirySeconds}:fointer`,
+          credential: "pass",
+        },
+      ],
+    }),
+  });
+  assert.equal(result.expiresAt, expirySeconds * 1000);
 });
 
 test("an invalid Metered response is rejected without using the response body as the error", async () => {
@@ -235,32 +300,156 @@ test("an incorrect TURN hostname is rejected before a request is sent", async ()
 
 test("a Metered timeout fails closed and does not expose the API key", async () => {
   const apiKey = "metered-test-key";
+  let pending = true;
   await assert.rejects(
     () =>
       fetchMeteredTurnCredentials({
         domain: "fointer.metered.live",
         apiKey,
+        secretKey: "",
         timeoutMs: 20,
         fetchImpl: (_url, { signal }) =>
-          new Promise((_resolve, reject) => {
-            const fail = () => {
-              const error = new Error("timed out");
-              error.name = "TimeoutError";
+          new Promise((resolve, reject) => {
+            const lateSuccess = setTimeout(() => {
+              resolve({ ok: true, status: 200, json: async () => meteredIceResponse() });
+            }, 1000);
+            const onAbort = () => {
+              clearTimeout(lateSuccess);
+              pending = false;
+              const error = new Error(`aborted ${apiKey}`);
+              error.name = "AbortError";
               reject(error);
             };
-            // AbortSignal.timeout does not keep the event loop alive. A referenced
-            // timer makes the rejection observable in CI instead of leaving a pending promise.
-            const timer = setTimeout(fail, 25);
-            signal?.addEventListener("abort", () => {
-              clearTimeout(timer);
-              fail();
-            });
+            if (signal?.aborted) onAbort();
+            else signal?.addEventListener("abort", onAbort, { once: true });
           }),
       }),
     (error) => {
       assert.equal(error.message, "TURN provider request timed out.");
-      assert.equal(String(error.message).includes(apiKey), false);
+      assert.equal(error.message.includes(apiKey), false);
+      assert.equal(JSON.stringify(error.diagnostics).includes(apiKey), false);
+      assert.equal(error.diagnostics.category, "timeout");
+      assert.equal(error.servers, undefined);
       return true;
     }
   );
+  assert.equal(pending, false);
+});
+
+test("wrapping quotes and a BOM are removed before the credential key is sent", async () => {
+  let requested = null;
+  await fetchMeteredTurnCredentials({
+    domain: "fointer.metered.live",
+    apiKey: '\uFEFF"metered-test-key"',
+    secretKey: "",
+    fetchImpl: async (url) => {
+      requested = new URL(url);
+      return { ok: true, status: 200, json: async () => meteredIceResponse() };
+    },
+  });
+  assert.equal(requested.searchParams.get("apiKey"), "metered-test-key");
+});
+
+test("a malformed provider key is rejected before a request is sent", async () => {
+  const apiKey = "metered test key";
+  let calls = 0;
+  await assert.rejects(
+    () =>
+      fetchMeteredTurnCredentials({
+        domain: "fointer.metered.live",
+        apiKey,
+        secretKey: "",
+        fetchImpl: async () => {
+          calls += 1;
+          return { ok: true, status: 200, json: async () => meteredIceResponse() };
+        },
+      }),
+    (error) => {
+      assert.equal(error.message, "Invalid TURN provider key configuration.");
+      assert.equal(error.message.includes(apiKey), false);
+      return true;
+    }
+  );
+  assert.equal(calls, 0);
+});
+
+test("an account secret rejected as a credential key resolves an existing credential", async () => {
+  const accountSecret = "account-secret-value";
+  const credentialKey = "credential-api-key";
+  const calls = [];
+  const result = await fetchMeteredTurnCredentials({
+    domain: "fointer.metered.live",
+    apiKey: accountSecret,
+    secretKey: "",
+    nowMs: 1_700_000_000_000,
+    fetchImpl: async (url, options) => {
+      const parsed = new URL(url);
+      calls.push({ method: options.method, pathname: parsed.pathname, params: [...parsed.searchParams.keys()] });
+      if (parsed.pathname === "/api/v1/turn/credentials" && parsed.searchParams.get("apiKey") === accountSecret) {
+        return { ok: false, status: 401, json: async () => ({ error: "Invalid API Key", apiKey: accountSecret }) };
+      }
+      if (parsed.pathname === "/api/v2/turn/credentials" && parsed.searchParams.get("secretKey") === accountSecret) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            data: [
+              { username: "expired-user", password: "expired-pass", apiKey: "expired-key", expired: true },
+              { username: "live-user", password: "live-pass", apiKey: credentialKey, expired: false, expiryInSeconds: 3600 },
+            ],
+          }),
+        };
+      }
+      if (parsed.pathname === "/api/v1/turn/credentials" && parsed.searchParams.get("apiKey") === credentialKey) {
+        return { ok: true, status: 200, json: async () => meteredIceResponse() };
+      }
+      return { ok: false, status: 500, json: async () => ({ error: "unexpected" }) };
+    },
+  });
+
+  assert.deepEqual(calls, [
+    { method: "GET", pathname: "/api/v1/turn/credentials", params: ["apiKey"] },
+    { method: "GET", pathname: "/api/v2/turn/credentials", params: ["secretKey"] },
+    { method: "GET", pathname: "/api/v1/turn/credentials", params: ["apiKey"] },
+  ]);
+  assert.equal(result.servers.some((server) => String(server.urls).startsWith("turn:")), true);
+  assert.equal(JSON.stringify(result).includes(accountSecret), false);
+  assert.equal(JSON.stringify(result).includes("live-pass"), false);
+  assert.equal(result.expiresAt, null);
+});
+
+test("a rejected account secret fails closed and does not expose either key", async () => {
+  const accountSecret = "account-secret-value";
+  const credentialKey = "credential-api-key";
+  let posts = 0;
+  await assert.rejects(
+    () =>
+      fetchMeteredTurnCredentials({
+        domain: "fointer.metered.live",
+        apiKey: credentialKey,
+        secretKey: accountSecret,
+        fetchImpl: async (url, options) => {
+          if (options.method === "POST") posts += 1;
+          const parsed = new URL(url);
+          const status = parsed.searchParams.has("secretKey") ? 400 : 401;
+          return {
+            ok: false,
+            status,
+            json: async () => ({ error: status === 401 ? "Invalid API Key" : "not subscribed", secret: accountSecret }),
+          };
+        },
+      }),
+    (error) => {
+      assert.equal(error.message, "TURN provider responded with 401.");
+      assert.equal(error.diagnostics.category, "Invalid API Key");
+      assert.equal(error.diagnostics.secretLookupStatus, 400);
+      assert.equal(error.diagnostics.secretLookupCategory, "not subscribed");
+      const serialized = JSON.stringify(error.diagnostics) + error.message;
+      assert.equal(serialized.includes(accountSecret), false);
+      assert.equal(serialized.includes(credentialKey), false);
+      assert.equal(error.servers, undefined);
+      return true;
+    }
+  );
+  assert.equal(posts, 0);
 });

@@ -11,6 +11,7 @@ import { logRealtime } from "../utils/realtimeLog.js";
 import { canRelayCallSignal } from "../utils/callRelay.js";
 import { publishSavedMessage } from "../utils/realtimeDelivery.js";
 import { applyParticipantMedia } from "../utils/dmCallLifecycle.js";
+import { clampLivePresence, resolveLiveJoinMode } from "../utils/liveCallMode.js";
 import { emitToRooms } from "../utils/realtimeRooms.js";
 import { userNotificationRoom } from "../utils/notify.js";
 import { allowChatMessage, chatRateLimited } from "../utils/socketRateLimit.js";
@@ -182,7 +183,6 @@ export const initLiveSocket = (io) => {
     socket.on("call_join", async (payload = {}, ack) => {
       try {
         const eventIdParam = payload.eventId || membership.roomId();
-        const mode = payload.mode === "video" ? "video" : "audio";
         if (!eventIdParam) throw new Error("eventId is required.");
 
         const event = await findLiveEventByParam(eventIdParam);
@@ -193,6 +193,10 @@ export const initLiveSocket = (io) => {
         if (!(await userCanAccessLiveEvent(event, socket.user))) {
           throw new Error("You do not have access to this live event.");
         }
+
+        const joined = resolveLiveJoinMode(event.callMode, payload.mode);
+        if (!joined.ok) throw new Error(joined.message);
+        const mode = joined.mode;
 
         const eventId = String(event._id);
         if (!socket.rooms.has(roomName(eventId))) {
@@ -216,7 +220,7 @@ export const initLiveSocket = (io) => {
           avatar: socket.user.avatar || "",
           mode,
           mic: true,
-          camera: mode === "video",
+          camera: joined.camera,
         };
         const claimed = claimCallerSlot(room, caller);
         if (claimed.replacedSocketId) {
@@ -306,10 +310,11 @@ export const initLiveSocket = (io) => {
       const eventId = await canonicalEventId(payload.eventId);
       const room = getCallMap(eventId);
       if (!room) return;
+      const event = await findLiveEventByParam(eventId);
       const caller = applyParticipantMedia(
         { status: "active", peers: room },
         socket.id,
-        payload
+        clampLivePresence(event?.callMode, payload)
       );
       if (!caller) return;
       const rooms = [roomName(eventId)];

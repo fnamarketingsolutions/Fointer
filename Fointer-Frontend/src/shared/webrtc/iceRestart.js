@@ -1,3 +1,5 @@
+import { scheduleCredentialRotation } from "./iceContract.js";
+
 /**
  * The peer that created the first offer retries ICE when the path dies.
  * The other peer only answers, so the two sides do not restart at once.
@@ -65,6 +67,10 @@ export const watchPeerConnection = (
     disconnectedGraceMs = 4_000,
     recoveryDelayMs = null,
     random = Math.random,
+    beforeRestart = null,
+    getCredentialSession = null,
+    credentialRetryMs = 5_000,
+    maxCredentialFailures = 2,
   } = {}
 ) => {
   if (!pc?.addEventListener) return () => {};
@@ -75,6 +81,7 @@ export const watchPeerConnection = (
   let restarting = false;
   let stopped = false;
   let everConnected = false;
+  let credentialWatch = { stop() {}, arm() {} };
 
   const reportStatus = (status, reason) => {
     onStatus?.(status, { reason, attempts, everConnected });
@@ -149,25 +156,60 @@ export const watchPeerConnection = (
     schedule("checking", checkingTimeoutMs);
   };
 
-  const restart = async ({ force = false } = {}) => {
-    if (inactive() || restarting || pc.signalingState !== "stable") return;
-    if (!force && classifyConnection({ ...pc, everConnected }) === "connected") return;
+  const restart = async ({ force = false, credential = false } = {}) => {
+    if (inactive() || restarting || pc.signalingState !== "stable") {
+      return credential ? "skipped" : undefined;
+    }
+    if (credential && (polite || classifyConnection({ ...pc, everConnected }) !== "connected")) {
+      return "skipped";
+    }
+    if (!force && !credential && classifyConnection({ ...pc, everConnected }) === "connected") return;
     restarting = true;
-    reportStatus("reconnecting", "ice_restart");
     let offered = false;
+    let credentialOutcome = "failed";
     try {
+      if (credential) {
+        let rotation = { action: "restart" };
+        try {
+          if (typeof beforeRestart === "function") {
+            rotation = (await beforeRestart(pc)) || { action: "none" };
+          }
+        } catch {
+          return "failed";
+        }
+        if (inactive()) return "inactive";
+        if (rotation?.action !== "restart") return "skipped";
+      } else if (typeof beforeRestart === "function") {
+        await beforeRestart(pc);
+      }
+      if (inactive() || pc.signalingState !== "stable") {
+        return credential ? "skipped" : undefined;
+      }
+      reportStatus("reconnecting", credential ? "credential_refresh" : "ice_restart");
       const offer = await pc.createOffer({ iceRestart: true });
       if (!inactive() && pc.signalingState === "stable") {
         await pc.setLocalDescription(offer);
-        attempts += 1;
-        sendOffer?.(pc.localDescription);
+        if (!credential) attempts += 1;
+        sendOffer?.(pc.localDescription, credential ? { credential: true } : undefined);
         offered = true;
+        credentialOutcome = "restarted";
       }
     } catch {
+      if (credential) {
+        if (classifyConnection({ ...pc, everConnected }) === "connected") {
+          reportStatus("connected", "credential_refresh_failed");
+        }
+        return "failed";
+      }
       attempts += 1;
       reportStatus(attempts >= maxAttempts ? "failed" : "reconnecting", "restart_error");
     } finally {
       restarting = false;
+      if (!credential) credentialWatch.arm();
+    }
+    if (credential) {
+      if (inactive()) return "inactive";
+      return offered ? "restarted" : credentialOutcome;
     }
     if (inactive()) return;
     if (!offered && pc.signalingState !== "stable") {
@@ -179,6 +221,20 @@ export const watchPeerConnection = (
       schedule(after, recoveryDelay(attempts));
     }
   };
+
+  if (typeof getCredentialSession === "function") {
+    credentialWatch = scheduleCredentialRotation({
+      getSession: getCredentialSession,
+      isActive: () => !inactive() && !polite,
+      isHealthy: () =>
+        !restarting
+        && pc.signalingState === "stable"
+        && classifyConnection({ ...pc, everConnected }) === "connected",
+      rotate: () => restart({ credential: true }),
+      retryDelayMs: credentialRetryMs,
+      maxRefreshFailures: maxCredentialFailures,
+    });
+  }
 
   const onState = () => {
     if (inactive()) {
@@ -214,6 +270,7 @@ export const watchPeerConnection = (
   const stop = () => {
     stopped = true;
     clearRestartTimer();
+    credentialWatch.stop();
     pc.removeEventListener?.("connectionstatechange", onState);
     pc.removeEventListener?.("iceconnectionstatechange", onState);
   };

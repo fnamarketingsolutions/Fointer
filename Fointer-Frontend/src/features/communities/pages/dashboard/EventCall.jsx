@@ -11,7 +11,8 @@ import {
 import { getLiveSocket } from "../../../../shared/services/liveSocket";
 import CallTile from "../../../../shared/components/CallTile";
 import { useAuth } from "../../../../context/AuthContext";
-import { getIceConfig, validateIceConfig } from "../../../../shared/webrtc/iceServers";
+import { getIceConfig, getIceSession, iceRefreshDue, maybeRotateIce } from "../../../../shared/webrtc/iceServers";
+import { reportIceCandidateError } from "../../../../shared/webrtc/callDiagnostics";
 import { watchPeerConnection } from "../../../../shared/webrtc/iceRestart";
 import { applyPeerSignal } from "../../../../shared/webrtc/applyPeerSignal";
 import { assessMediaHealth, readSafeCallStats, toPublicMediaLog } from "../../../../shared/webrtc/callStats";
@@ -21,7 +22,7 @@ import { createIceQueue, enqueueSerial } from "../../../../shared/webrtc/iceQueu
 import { addRemoteTracks } from "../../../../shared/webrtc/remoteTracks";
 import { mergeCallTiles } from "../../../../shared/webrtc/mediaTile";
 import { planMeshOffers, shouldOfferToPeer } from "../../../../shared/webrtc/meshPlan";
-import { showVideoJoinControl } from "../../../../shared/webrtc/callSession";
+import { liveCallJoinMode, showAudioJoinControl, showVideoJoinControl } from "../../../../shared/webrtc/callSession";
 import {
   applyRemoteCameraState,
   attachVideoTrack,
@@ -293,10 +294,8 @@ export default function EventCall({
       }
 
       const iceConfig = iceConfigRef.current;
-      if (!validateIceConfig(iceConfig, { production: Boolean(import.meta.env?.PROD) }).ok) {
-        return null;
-      }
-      const pc = new RTCPeerConnection(iceConfig || undefined);
+      if (!iceConfig?.iceServers?.length) return null;
+      const pc = new RTCPeerConnection(iceConfig);
       const peer = {
         pc,
         name: info.name || info.username || "Member",
@@ -318,6 +317,10 @@ export default function EventCall({
         pc.addTrack(track, localStreamRef.current);
       });
 
+      pc.onicecandidateerror = (event) => {
+        reportIceCandidateError(event);
+      };
+
       pc.onicecandidate = (event) => {
         if (!event.candidate) return;
         sendSignal(socketId, {
@@ -333,6 +336,15 @@ export default function EventCall({
       };
       peer.stopIceRecovery = watchPeerConnection(pc, {
         polite: peer.polite,
+        getCredentialSession: getIceSession,
+        beforeRestart: async (connection) => {
+          const result = await maybeRotateIce(connection, getIceSession(), async (options) => {
+            const next = await getIceConfig(options);
+            iceConfigRef.current = next;
+            return next;
+          });
+          return result;
+        },
         isActive: () => inCallRef.current,
         sendOffer: (description) => {
           peer.iceGeneration = (peer.iceGeneration || 0) + 1;
@@ -373,8 +385,17 @@ export default function EventCall({
     [sendSignal, syncTiles]
   );
 
+  const loadIceForCall = useCallback(async () => {
+    const due = iceRefreshDue(getIceSession());
+    if (!iceConfigRef.current || due) {
+      iceConfigRef.current = await getIceConfig({ force: due });
+    }
+    return iceConfigRef.current;
+  }, []);
+
   const createOffer = useCallback(
     async (remote, { force = false } = {}) => {
+      await loadIceForCall();
       const peer = ensurePeer(remote);
       if (!peer) return;
       const described = peer.pc.localDescription || peer.pc.remoteDescription;
@@ -397,12 +418,15 @@ export default function EventCall({
         makingOfferRef.current.delete(remote.socketId);
       }
     },
-    [ensurePeer, sendSignal]
+    [ensurePeer, loadIceForCall, sendSignal]
   );
 
   const reconcileRoster = useCallback(
-    (rosterPeers = []) => {
+    async (rosterPeers = []) => {
       if (!inCallRef.current) return;
+      if (iceRefreshDue(getIceSession())) {
+        iceConfigRef.current = await getIceConfig({ force: true });
+      }
       const myId = String(getLiveSocket().id || "");
       const present = new Set();
       for (const remote of rosterPeers) {
@@ -437,6 +461,16 @@ export default function EventCall({
   const applySignal = useCallback(
       async ({ from, type, sdp, candidate, messageId, generation }) => {
       if (!inCallRef.current || !from || !localStreamRef.current) return;
+      const existing = peersRef.current.get(from);
+      if (existing?.pc) {
+        await maybeRotateIce(existing.pc, getIceSession(), async (options) => {
+          const next = await getIceConfig(options);
+          iceConfigRef.current = next;
+          return next;
+        });
+      } else {
+        await loadIceForCall();
+      }
       const known = rosterRef.current.find((item) => item.socketId === from) || {};
       const peer = ensurePeer({
         socketId: from,
@@ -473,7 +507,7 @@ export default function EventCall({
         /* ignore stale signaling during leave/renegotiate */
       }
     },
-    [ensurePeer, sendSignal, syncTiles]
+    [ensurePeer, loadIceForCall, sendSignal, syncTiles]
   );
 
   const flushEarlySignals = useCallback(() => {
@@ -498,27 +532,28 @@ export default function EventCall({
   );
 
   const joinCall = async (nextMode) => {
-    if (!isLive || joining || inCall) return;
+    const resolvedMode = liveCallJoinMode(callMode, nextMode);
+    if (!isLive || joining || inCall || !resolvedMode) return;
     setError("");
     setJoining(true);
     try {
-      iceConfigRef.current = await getIceConfig();
+      iceConfigRef.current = await loadIceForCall();
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true },
         video:
-          nextMode === "video"
+          resolvedMode === "video"
             ? { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } }
             : false,
       });
       localStreamRef.current = stream;
-      modeRef.current = nextMode;
-      setMode(nextMode);
-      setCameraOff(nextMode !== "video");
+      modeRef.current = resolvedMode;
+      setMode(resolvedMode);
+      setCameraOff(resolvedMode !== "video");
       setMuted(false);
 
       const socket = getLiveSocket();
       acceptSignalsRef.current = true;
-      socket.emit("call_join", { eventId, mode: nextMode }, async (ack) => {
+      socket.emit("call_join", { eventId, mode: resolvedMode }, async (ack) => {
         if (!ack?.success) {
           acceptSignalsRef.current = false;
           earlySignalsRef.current = [];
@@ -549,7 +584,9 @@ export default function EventCall({
       const relayUnavailable = err?.name === "TurnUnavailableError";
       setError(
         denied
-          ? "Allow microphone and camera access to join the call."
+          ? resolvedMode === "video"
+            ? "Allow microphone and camera access to join the call."
+            : "Allow microphone access to join the call."
           : relayUnavailable
             ? err.message
             : "Could not start your microphone or camera."
@@ -618,7 +655,7 @@ export default function EventCall({
   };
 
   const turnCameraOn = async () => {
-    if (cameraBusyRef.current || !inCallRef.current) return;
+    if (callMode === "audio" || cameraBusyRef.current || !inCallRef.current) return;
     const liveVideo = localStreamRef.current
       ?.getVideoTracks()
       .some((track) => track.readyState === "live" && track.enabled !== false);
@@ -696,8 +733,11 @@ export default function EventCall({
       else handlersRef.current.syncTiles();
     };
 
-    const onPeerJoined = ({ peer }) => {
+    const onPeerJoined = async ({ peer }) => {
       if (!peer?.socketId) return;
+      if (iceRefreshDue(getIceSession())) {
+        iceConfigRef.current = await getIceConfig({ force: true });
+      }
       const next = rosterRef.current.filter((item) => item.socketId !== peer.socketId);
       next.push(peer);
       rosterRef.current = next;
@@ -808,7 +848,13 @@ export default function EventCall({
   const othersInCall = roster.filter(
     (peer) => peer.socketId !== getLiveSocket().id
   ).length;
-  const suggested = callMode === "audio" ? "audio" : "video";
+  const suggested = callMode === "audio" ? "audio" : callMode === "video" ? "video" : "";
+  const roomHint =
+    callMode === "audio"
+      ? "Voice only. The camera stays off."
+      : callMode === "video"
+        ? "Camera and microphone are part of this room."
+        : "Commentary chat stays open. Joining a call is optional.";
 
   if (!isRouteActive && !inCall && !joining) return null;
 
@@ -836,7 +882,15 @@ export default function EventCall({
           {eventTitle || "Live event call"}
         </span>
         <span className="shrink-0 text-fo-subtle">
-          {inCall ? (mode === "audio" ? "Audio" : "Video") : "Call"}
+          {inCall
+            ? mode === "audio"
+              ? "Audio"
+              : "Video"
+            : callMode === "audio"
+              ? "Audio"
+              : callMode === "video"
+                ? "Video"
+                : "Call"}
         </span>
         <span className="ml-auto text-fo-subtle">
           {cameraBusy ? "Updating camera… · " : ""}
@@ -877,7 +931,7 @@ export default function EventCall({
                 : "This event has ended."}
             </p>
             <p className="text-[11px] text-fo-subtle">
-              Up to 6 people can talk at once. Commentary chat stays open below.
+              {roomHint} Up to 6 people can talk at once.
             </p>
           </div>
         )}
@@ -896,6 +950,7 @@ export default function EventCall({
               {muted ? <MicOff size={14} /> : <Mic size={14} />}
               {muted ? "Unmute" : "Mute"}
             </button>
+            {callMode === "audio" ? null : (
             <button
               type="button"
               onClick={toggleCamera}
@@ -914,6 +969,7 @@ export default function EventCall({
                 busy: cameraBusy,
               })}
             </button>
+            )}
             <button
               type="button"
               onClick={() => leaveCall(true)}
@@ -925,7 +981,7 @@ export default function EventCall({
         ) : null}
         {isLive && !inCall ? (
           <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch gap-2">
-            {showVideoJoinControl({ isLive, inCall, authorized }) ? (
+            {showVideoJoinControl({ isLive, inCall, authorized, callMode }) ? (
               <button
                 type="button"
                 disabled={joining}
@@ -944,6 +1000,7 @@ export default function EventCall({
                 Join video
               </button>
             ) : null}
+            {showAudioJoinControl({ isLive, inCall, authorized, callMode }) ? (
             <button
               type="button"
               disabled={joining}
@@ -961,6 +1018,7 @@ export default function EventCall({
               )}
               Join audio
             </button>
+            ) : null}
           </div>
         ) : null}
       </div>

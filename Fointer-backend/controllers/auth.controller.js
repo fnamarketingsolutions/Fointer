@@ -14,13 +14,14 @@ import {
   parseAgeRange,
   parseGender,
 } from "../utils/profileIdentity.js";
-import { normalizePostalCode, postalCodeError } from "../utils/postalCode.js";
+import { normalizePostalCode } from "../utils/postalCode.js";
 import { validatePasswordStrength } from "../utils/validate.js";
 import {
   attachReferralOnSignup,
   ensureUserReferralCode,
   qualifyReferralForUser,
 } from "../services/referral.service.js";
+import { sendProfileReminderIfDue } from "../services/profileReminder.service.js";
 
 const MAX_OTP_ATTEMPTS = 5;
 /** Fixed bcrypt hash used only to keep login timing similar when user/password missing. */
@@ -68,32 +69,6 @@ const profileFieldsFromBody = (body = {}) => {
     gender,
     ageRange,
   };
-};
-
-const requireSignupIdentity = (res, profile) => {
-  if (!profile.gender) {
-    res.status(400).json({
-      success: false,
-      message: "Gender is required.",
-    });
-    return false;
-  }
-  if (!profile.ageRange) {
-    res.status(400).json({
-      success: false,
-      message: "Select an age range.",
-    });
-    return false;
-  }
-  const postalError = postalCodeError(profile.zipCode);
-  if (postalError) {
-    res.status(400).json({
-      success: false,
-      message: postalError,
-    });
-    return false;
-  }
-  return true;
 };
 
 const normalizeRole = (user) => {
@@ -246,7 +221,6 @@ export const signup = async (req, res) => {
     }
 
     const profile = profileFieldsFromBody(req.body);
-    if (!requireSignupIdentity(res, profile)) return;
 
     if (
       await respondIfBanned(
@@ -289,8 +263,8 @@ export const signup = async (req, res) => {
         if (profile.country) emailExists.country = profile.country;
         if (profile.zipCode) emailExists.zipCode = profile.zipCode;
         if (profile.address) emailExists.address = profile.address;
-        emailExists.gender = profile.gender;
-        emailExists.ageRange = profile.ageRange;
+        if (profile.gender) emailExists.gender = profile.gender;
+        if (profile.ageRange) emailExists.ageRange = profile.ageRange;
         await emailExists.save();
         await sendVerificationEmail({
           to: emailExists.email,
@@ -1033,6 +1007,12 @@ export const verifyEmailOtp = async (req, res) => {
     await user.save();
 
     await qualifyReferralForUser(user, { io: req.app?.get?.("io") });
+
+    try {
+      await sendProfileReminderIfDue(user);
+    } catch (reminderError) {
+      console.error("[profile-reminder]", reminderError?.message || reminderError);
+    }
 
     if (rejectIfNotMemberPortal(res, user)) return;
 

@@ -79,6 +79,7 @@ const buildResponse = ({
   fallback = null,
   relayTest = false,
   env,
+  providerCache = "generated",
 }) => {
   const relayAvailable = hasTurn(turnServers);
   const transportPolicy = relayTransportPolicy({
@@ -115,6 +116,7 @@ const buildResponse = ({
       required: production,
     },
     fallback,
+    providerCache: providerCache === "hit" ? "hit" : "generated",
     transportPolicy,
     rtc,
     iceServers,
@@ -143,13 +145,14 @@ export const createIceConfigService = ({
     return true;
   };
 
-  const respond = (material, at, production, relayTest) => buildResponse({
+  const respond = (material, at, production, relayTest, providerCache) => buildResponse({
     turnServers: material.servers,
     expiresAt: material.expiresAt ?? null,
     now: at,
     production,
     relayTest,
     env,
+    providerCache,
   });
 
   const warnProvider = (error) => {
@@ -289,16 +292,28 @@ export const createIceConfigService = ({
       const at = now();
       const production = iceProductionMode(env);
       if (!fresh && cacheFresh(appCache, at)) {
-        return respond(appCache, at, production, relayTest);
+        return respond(appCache, at, production, relayTest, "hit");
       }
 
       let material = null;
+      let providerCache = "generated";
       if (fresh || at >= providerSkippedUntil) {
         material = await loadProvider(at);
       }
-      if (!material) material = await loadUserTurn(userId, at, fresh);
-      if (!material) material = loadStaticTurn(at, fresh);
-      if (material?.servers?.length) return respond(material, at, production, relayTest);
+      if (!material) {
+        const userKey = `user:${turnIdentity(userId)}`;
+        const previousUser = userCaches.get(userKey);
+        material = await loadUserTurn(userId, at, fresh);
+        if (material && material === previousUser) providerCache = "hit";
+      }
+      if (!material) {
+        const previousStatic = staticCache;
+        material = loadStaticTurn(at, fresh);
+        if (material && material === previousStatic) providerCache = "hit";
+      }
+      if (material?.servers?.length) {
+        return respond(material, at, production, relayTest, providerCache);
+      }
 
       if (!iceStunFallbackAllowed(env)) {
         const error = new Error("Call relay is temporarily unavailable.");
@@ -313,6 +328,7 @@ export const createIceConfigService = ({
         fallback: "development-stun",
         relayTest,
         env,
+        providerCache: "generated",
       });
     },
   };

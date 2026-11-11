@@ -41,6 +41,19 @@ const safeCode = (value) => {
   return code;
 };
 
+const safeCount = (value, max) => {
+  const count = Number(value);
+  if (!Number.isInteger(count) || count < 0 || count > max) return null;
+  return count;
+};
+
+/** Stable id for a diagnostics batch retry. Anything else is dropped. */
+export const safeDiagnosticBatchId = (value) => {
+  const text = String(value || "").trim();
+  if (!/^[A-Za-z0-9_-]{8,64}$/.test(text)) return "";
+  return text;
+};
+
 /**
  * Client diagnostics accepted by the backend.
  * Credentials, SDP, candidate lines, and IP addresses are removed.
@@ -59,6 +72,11 @@ export const sanitizeCallDiagnostic = (body = {}) => {
   const signalType = safeText(body.signalType || body.type, 20);
   const delivery = safeText(body.delivery, 40);
   const event = safeText(body.event, 40);
+  const requestId = safeText(body.requestId, 40);
+  const callType = safeText(body.callType, 20);
+  const direction = safeText(body.direction, 20);
+  const cacheStatus = safeText(body.cacheStatus, 40);
+  const failureCategory = safeText(body.failureCategory, 40);
   if (callId) entry.callId = callId;
   if (phase) entry.phase = phase;
   if (signalingState) entry.signalingState = signalingState;
@@ -70,11 +88,24 @@ export const sanitizeCallDiagnostic = (body = {}) => {
   if (signalType) entry.signalType = signalType;
   if (delivery) entry.delivery = delivery;
   if (event) entry.event = event;
+  if (requestId) entry.requestId = requestId;
+  if (callType) entry.callType = callType;
+  if (direction) entry.direction = direction;
+  if (cacheStatus) entry.cacheStatus = cacheStatus;
+  if (failureCategory) entry.failureCategory = failureCategory;
 
   const errorCode = safeCode(body.errorCode);
+  const httpStatus = safeCount(body.httpStatus, 599);
+  const duration = safeCount(body.duration, 600_000);
+  const serverCount = safeCount(body.serverCount, 20);
+  const dropped = safeCount(body.dropped, 100_000);
   const errorText = safeText(body.errorText, 120);
   const url = safeIceServerUrl(body.url);
   if (errorCode != null) entry.errorCode = errorCode;
+  if (httpStatus != null) entry.httpStatus = httpStatus;
+  if (duration != null) entry.duration = duration;
+  if (serverCount != null) entry.serverCount = serverCount;
+  if (dropped != null) entry.dropped = dropped;
   if (errorText) entry.errorText = errorText;
   if (url) entry.url = url;
 

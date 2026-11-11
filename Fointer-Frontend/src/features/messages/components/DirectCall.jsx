@@ -22,7 +22,7 @@ import { getLiveSocket } from "../../../shared/services/liveSocket";
 import ProfileAvatar from "../../../shared/components/ProfileAvatar";
 import CallTile from "../../../shared/components/CallTile";
 import { useAuth } from "../../../context/AuthContext";
-import { getIceConfig, getIceSession, iceRefreshDue, maybeRotateIce } from "../../../shared/webrtc/iceServers";
+import { claimIceCall, getIceConfig, getIceRequestId, getIceSession, iceRefreshDue, maybeRotateIce, releaseIceCall } from "../../../shared/webrtc/iceServers";
 import { watchPeerConnection } from "../../../shared/webrtc/iceRestart";
 import {
   callLinkFailureMessage,
@@ -31,7 +31,7 @@ import {
   MEDIA_CONNECT_FAILURE,
 } from "../../../shared/webrtc/callLink";
 import { assessMediaHealth, emptyMediaStats, readSafeCallStats, toPublicMediaLog } from "../../../shared/webrtc/callStats";
-import { logCallDiagnostic, reportIceCandidateError } from "../../../shared/webrtc/callDiagnostics";
+import { flushCallDiagnostics, logCallDiagnostic, noteIceConfigurationApplied, reportIceCandidateError } from "../../../shared/webrtc/callDiagnostics";
 import { createSignalCourier } from "../../../shared/webrtc/signalDelivery";
 import { recoveryNeededAfterNetworkChange, watchNetworkChanges } from "../../../shared/webrtc/networkRecovery";
 import { applyPeerSignal } from "../../../shared/webrtc/applyPeerSignal";
@@ -98,6 +98,9 @@ const DirectCall = forwardRef(function DirectCall(
   const syncGenRef = useRef(0);
   const cameraBusyRef = useRef(false);
   const iceConfigRef = useRef(null);
+  const iceCallKeyRef = useRef("");
+  const iceTokenRef = useRef(0);
+  const iceDirectionRef = useRef("outgoing");
   const previewRef = useRef(null);
   const previewStageRef = useRef(null);
   const previewDragRef = useRef(null);
@@ -253,6 +256,11 @@ const DirectCall = forwardRef(function DirectCall(
       setVideoExpanded(false);
       setWindowPosition(null);
       makingOfferRef.current.clear();
+      releaseIceCall(iceTokenRef.current, iceCallKeyRef.current);
+      iceTokenRef.current = 0;
+      iceCallKeyRef.current = "";
+      iceConfigRef.current = null;
+      void flushCallDiagnostics();
     },
     [closeAllPeers, signalCourier, stopLocal, stopRingtone]
   );
@@ -261,12 +269,33 @@ const DirectCall = forwardRef(function DirectCall(
     signalCourier.send({ to, ...payload });
   }, [signalCourier]);
 
-  const loadIceForCall = useCallback(async () => {
-    const due = iceRefreshDue(getIceSession());
-    if (!iceConfigRef.current || due) {
-      iceConfigRef.current = await getIceConfig({ force: due });
+  const loadIceForCall = useCallback(async ({ fresh = false, direction = "" } = {}) => {
+    if (direction) iceDirectionRef.current = direction;
+    if (fresh) {
+      const previousToken = iceTokenRef.current;
+      const previousKey = iceCallKeyRef.current;
+      const token = claimIceCall();
+      releaseIceCall(previousToken, previousKey);
+      iceTokenRef.current = token;
+      iceConfigRef.current = null;
+      const knownId = callIdRef.current;
+      iceCallKeyRef.current = knownId
+        ? `direct:${knownId}`
+        : `direct:${conversationIdRef.current || "new"}:${token}`;
+    } else if (iceConfigRef.current && !iceRefreshDue(getIceSession(iceCallKeyRef.current))) {
+      return iceConfigRef.current;
     }
-    return iceConfigRef.current;
+    const token = iceTokenRef.current;
+    const rtc = await getIceConfig({
+      force: !fresh && iceRefreshDue(getIceSession(iceCallKeyRef.current)),
+      callKey: iceCallKeyRef.current,
+      token,
+      callType: "direct",
+      direction: iceDirectionRef.current,
+    });
+    if (iceTokenRef.current !== token) return iceConfigRef.current;
+    iceConfigRef.current = rtc;
+    return rtc;
   }, []);
 
   const ensurePeer = useCallback(
@@ -286,6 +315,12 @@ const DirectCall = forwardRef(function DirectCall(
       const iceConfig = iceConfigRef.current;
       if (!iceConfig?.iceServers?.length) return null;
       const pc = new RTCPeerConnection(iceConfig);
+      noteIceConfigurationApplied({
+        callId: callIdRef.current || iceCallKeyRef.current,
+        requestId: getIceRequestId(iceCallKeyRef.current),
+        callType: "direct",
+        direction: iceDirectionRef.current,
+      });
       const stream = new MediaStream();
       const myId = String(getLiveSocket().id || "");
       const polite = myId < String(remote.socketId);
@@ -372,9 +407,15 @@ const DirectCall = forwardRef(function DirectCall(
         syncTiles();
       };
       const rotateIce = async (connection) => {
-        const result = await maybeRotateIce(connection, getIceSession(), async (options) => {
-          const next = await getIceConfig(options);
-          iceConfigRef.current = next;
+        const result = await maybeRotateIce(connection, getIceSession(iceCallKeyRef.current), async (options) => {
+          const next = await getIceConfig({
+            ...options,
+            callKey: iceCallKeyRef.current,
+            token: iceTokenRef.current,
+            callType: "direct",
+            direction: iceDirectionRef.current,
+          });
+          if (iceTokenRef.current) iceConfigRef.current = next;
           return next;
         });
         return result;
@@ -382,7 +423,7 @@ const DirectCall = forwardRef(function DirectCall(
 
       peer.stopIceRecovery = watchPeerConnection(pc, {
         polite,
-        getCredentialSession: getIceSession,
+        getCredentialSession: () => getIceSession(iceCallKeyRef.current),
         beforeRestart: rotateIce,
         retryInitialOffer: true,
         isActive: () => phaseRef.current !== "idle",
@@ -426,7 +467,7 @@ const DirectCall = forwardRef(function DirectCall(
       };
 
       pc.onicecandidateerror = (event) => {
-        reportIceCandidateError(event);
+        reportIceCandidateError(event, { callId: callIdRef.current });
       };
 
       pc.ontrack = (event) => {
@@ -494,9 +535,15 @@ const DirectCall = forwardRef(function DirectCall(
       }
       const existing = peersRef.current.get(from);
       if (existing?.pc) {
-        await maybeRotateIce(existing.pc, getIceSession(), async (options) => {
-          const next = await getIceConfig(options);
-          iceConfigRef.current = next;
+        await maybeRotateIce(existing.pc, getIceSession(iceCallKeyRef.current), async (options) => {
+          const next = await getIceConfig({
+            ...options,
+            callKey: iceCallKeyRef.current,
+            token: iceTokenRef.current,
+            callType: "direct",
+            direction: iceDirectionRef.current,
+          });
+          if (iceTokenRef.current) iceConfigRef.current = next;
           return next;
         });
       } else {
@@ -664,7 +711,7 @@ const DirectCall = forwardRef(function DirectCall(
       }
       setCallPhase("connecting");
       try {
-        iceConfigRef.current = await loadIceForCall();
+        iceConfigRef.current = await loadIceForCall({ fresh: true, direction: "outgoing" });
       } catch (err) {
         resetCallUi(
           err?.name === "TurnUnavailableError"
@@ -711,7 +758,7 @@ const DirectCall = forwardRef(function DirectCall(
     setError("");
     setCallPhase("connecting");
     try {
-      iceConfigRef.current = await loadIceForCall();
+      iceConfigRef.current = await loadIceForCall({ fresh: true, direction: "incoming" });
     } catch (err) {
       setCallPhase("ringing_in");
       setError(

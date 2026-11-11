@@ -532,4 +532,21 @@ export const sendSupportStatusUpdateEmail = async ({
   });
 };
 
+export const sendProfileReminderEmail = async ({ to, name, actionUrl }) => {
+  await sendDashboardNotificationEmail({
+    to,
+    subject: "Complete your Fointer profile",
+    title: "Complete your profile",
+    greetingName: name,
+    bodyHtml: `
+      <p>
+        Your Fointer profile is still missing a few details.
+        Add your gender, age range, and location so people can get to know you.
+      </p>
+    `,
+    ctaLabel: "Complete",
+    actionUrl,
+  });
+};
+
 export default sendVerificationEmail;

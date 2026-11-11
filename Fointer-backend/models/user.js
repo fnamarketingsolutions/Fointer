@@ -212,6 +212,12 @@ const userSchema = new mongoose.Schema(
       default: null,
     },
 
+    /** Last incomplete-profile reminder. The next one waits six days. */
+    profileReminderSentAt: {
+      type: Date,
+      default: null,
+    },
+
     /** Who invited this account (set once at signup). */
     referredBy: {
       type: mongoose.Schema.Types.ObjectId,

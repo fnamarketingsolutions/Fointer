@@ -15,6 +15,7 @@ const isMemberUser = (user) =>
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [profilePromptNonce, setProfilePromptNonce] = useState(0);
 
   const clearUser = useCallback(() => {
     resetLiveSocket();
@@ -27,6 +28,7 @@ export function AuthProvider({ children }) {
       setUser(null);
       return false;
     }
+    setProfilePromptNonce((current) => current + 1);
     setUser(nextUser);
     return true;
   }, []);
@@ -117,8 +119,9 @@ export function AuthProvider({ children }) {
       logout,
       clearUser,
       refreshUser,
+      profilePromptNonce,
     }),
-    [user, loading, loginSuccess, logout, clearUser, refreshUser]
+    [user, loading, loginSuccess, logout, clearUser, refreshUser, profilePromptNonce]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

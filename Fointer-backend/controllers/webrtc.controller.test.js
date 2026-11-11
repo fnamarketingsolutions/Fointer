@@ -122,3 +122,65 @@ test("diagnostics drop credentials before they are recorded", async () => {
   assert.equal(logged.includes("allocation failed"), true);
   assert.equal(logged.includes("stun:stun.l.google.com"), true);
 });
+
+test("a diagnostics batch keeps every safe event and drops secrets", async () => {
+  const response = mockResponse();
+  const lines = [];
+  const original = console.info;
+  console.info = (line) => lines.push(String(line));
+  try {
+    postCallDiagnostic({
+      body: {
+        batchId: "batch_ice_1001",
+        dropped: 2,
+        events: [
+          {
+            callId: "call-a",
+            event: "fetch_success",
+            requestId: "ice1ab12",
+            callType: "direct",
+            direction: "outgoing",
+            cacheStatus: "provider_hit",
+            httpStatus: 200,
+            duration: 12,
+            serverCount: 2,
+          },
+          {
+            callId: "call-b",
+            event: "ice_candidate_error",
+            errorCode: 701,
+            errorText: "failed at 8.8.8.8 and 2001:db8::9",
+            url: "turn:user:pass@10.0.0.8:3478",
+            username: "turn-user",
+            credential: "turn-pass",
+            apiKey: "mk_live_secret",
+            token: "jwt-token",
+            cookie: "session=abc",
+            sdp: "v=0",
+            candidate: "candidate:1 1 udp 198.51.100.8 3478 typ host",
+          },
+        ],
+      },
+    }, response);
+  } finally {
+    console.info = original;
+  }
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.body.accepted, 2);
+  const logged = lines.join("\n");
+  assert.equal(logged.includes("provider_hit"), true);
+  assert.equal(logged.includes("call-b"), true);
+  for (const secret of ["8.8.8.8", "2001:db8::9", "10.0.0.8", "turn-user", "turn-pass", "mk_live_secret", "jwt-token", "session=abc", "v=0", "candidate:", "198.51.100.8"]) {
+    assert.equal(logged.includes(secret), false, secret);
+  }
+
+  const duplicate = mockResponse();
+  postCallDiagnostic({
+    body: {
+      batchId: "batch_ice_1001",
+      events: [{ callId: "call-a", event: "fetch_success" }],
+    },
+  }, duplicate);
+  assert.equal(duplicate.statusCode, 200);
+  assert.equal(duplicate.body.duplicate, true);
+});

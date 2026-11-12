@@ -25,6 +25,26 @@ const TEXT_FIELDS = [
   "direction",
   "cacheStatus",
   "failureCategory",
+  "cameraAction",
+  "videoReadyState",
+  "videoEnabled",
+  "audioReadyState",
+  "audioEnabled",
+  "videoSender",
+  "videoSenderState",
+  "audioSender",
+  "connectionBefore",
+  "connectionAfter",
+  "iceBefore",
+  "iceAfter",
+  "renegotiation",
+  "iceRestart",
+  "iceGatheringState",
+  "transportPolicy",
+  "credentialPresent",
+  "usernamePresent",
+  "addressClass",
+  "result",
 ];
 
 const NUMBER_FIELDS = [
@@ -33,6 +53,9 @@ const NUMBER_FIELDS = [
   ["duration", 600_000],
   ["serverCount", 20],
   ["dropped", 100_000],
+  ["stunCount", 20],
+  ["turnCount", 20],
+  ["signalSeq", 10_000],
 ];
 
 const CRITICAL_EVENTS = new Set([
@@ -107,6 +130,22 @@ const isIpAddress = (value) => {
 };
 
 /** ICE error fields safe to show or upload. IP addresses and secrets are omitted. */
+const addressClassOf = (value) => {
+  const host = String(value || "").trim().toLowerCase().replace(/^\[|\]$/g, "").split("%")[0];
+  if (!host) return "";
+  if (host.endsWith(".local")) return "mdns";
+  if (host.includes(":") && /^[0-9a-f:]+$/i.test(host)) {
+    if (host === "::1" || host.startsWith("fe80:")) return "private";
+    return "public";
+  }
+  if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return "hostname";
+  const [a, b] = host.split(".").map(Number);
+  if (a === 10 || a === 127 || (a === 192 && b === 168) || (a === 172 && b >= 16 && b <= 31)) {
+    return "private";
+  }
+  return "public";
+};
+
 export const sanitizeIceCandidateError = (event = {}) => {
   const errorCode = Number(event.errorCode);
   const errorText = redactIpAddresses(event.errorText).trim().slice(0, 120);
@@ -117,7 +156,35 @@ export const sanitizeIceCandidateError = (event = {}) => {
   if (rawUrl && !rawUrl.includes("@") && !isIpAddress(rawUrl) && !redactIpAddresses(rawUrl).includes("[redacted]")) {
     entry.url = rawUrl.slice(0, 180);
   }
+  const addressClass = addressClassOf(event.address);
+  if (addressClass) entry.addressClass = addressClass;
   return entry;
+};
+
+/** Counts relay and STUN URLs without copying usernames, credentials, or addresses. */
+export const describeIceConfiguration = (config = {}) => {
+  const servers = Array.isArray(config.iceServers) ? config.iceServers : [];
+  let stunCount = 0;
+  let turnCount = 0;
+  let username = false;
+  let credential = false;
+  for (const server of servers) {
+    if (server?.username) username = true;
+    if (server?.credential) credential = true;
+    const urls = Array.isArray(server?.urls) ? server.urls : [server?.urls];
+    for (const url of urls) {
+      const text = String(url || "");
+      if (/^turns?:/i.test(text)) turnCount += 1;
+      else if (/^stuns?:/i.test(text)) stunCount += 1;
+    }
+  }
+  return {
+    transportPolicy: config.iceTransportPolicy === "relay" ? "relay" : "all",
+    credentialPresent: credential ? "yes" : "no",
+    usernamePresent: username ? "yes" : "no",
+    stunCount,
+    turnCount,
+  };
 };
 
 const isCritical = (entry) => {
@@ -139,7 +206,7 @@ const dedupeKey = (entry) => {
     ].join("|");
   }
   if (entry.requestId && entry.event) {
-    return ["life", entry.callId || "", entry.event, entry.requestId].join("|");
+    return ["life", entry.callId || "", entry.event, entry.requestId, entry.signalSeq ?? ""].join("|");
   }
   return [
     entry.callId || "",
@@ -151,6 +218,10 @@ const dedupeKey = (entry) => {
     entry.delivery || "",
     entry.errorCode ?? "",
     entry.failureCategory || "",
+    entry.cameraAction || "",
+    entry.connectionBefore || "",
+    entry.connectionAfter || "",
+    entry.signalSeq ?? "",
   ].join("|");
 };
 

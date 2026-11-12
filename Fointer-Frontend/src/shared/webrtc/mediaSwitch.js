@@ -1,4 +1,5 @@
 /** Camera capture reused when an audio call gains video. */
+import { logCallDiagnostic } from "./callDiagnostics.js";
 import { enqueueSerial } from "./iceQueue.js";
 export const VIDEO_CONSTRAINTS = {
   facingMode: "user",
@@ -114,17 +115,20 @@ export const planVideoDowngrade = (pc) => {
   return { action: "release", transceiver, track };
 };
 
+const sendsVideo = (direction) => direction === "sendrecv" || direction === "sendonly";
+
 export const attachVideoTrack = (pc, track, stream) => {
   const plan = planVideoUpgrade(pc, track?.id);
-  if (!track || plan.action === "none") return { ...plan, renegotiate: false };
+  if (!track || plan.action === "none") return { ...plan, renegotiate: false, iceRestart: false };
   if (plan.action === "replace") {
-    plan.transceiver.direction = "sendrecv";
+    const wasSending = sendsVideo(plan.transceiver.direction);
+    if (!wasSending) plan.transceiver.direction = "sendrecv";
     const pending = plan.transceiver.sender?.replaceTrack?.(track);
-    return { ...plan, renegotiate: true, pending };
+    return { ...plan, renegotiate: !wasSending, iceRestart: false, pending };
   }
   if (pc?.addTrack) pc.addTrack(track, stream);
   else pc?.addTransceiver?.(track, { direction: "sendrecv" });
-  return { action: "add", renegotiate: true };
+  return { action: "add", renegotiate: true, iceRestart: false };
 };
 
 export const releaseVideoSender = async (pc) => {
@@ -147,73 +151,199 @@ export const releaseLocalVideo = (stream) => {
   return tracks;
 };
 
+const liveVideoTrack = (stream) =>
+  (stream?.getVideoTracks?.() || []).find((track) => track.readyState === "live") || null;
+
+const senderVideoTrack = (pc) => {
+  const track = findVideoTransceiver(pc)?.sender?.track;
+  return track?.kind === "video" ? track : null;
+};
+
+/** Reuse a live camera. A new capture is only opened after the previous track has ended. */
 export const enableLocalCamera = async ({
   localStream,
   peerConnections = [],
   getUserMedia,
   constraints = VIDEO_CONSTRAINTS,
 } = {}) => {
-  if (!localStream || typeof getUserMedia !== "function") {
-    return {
-      ok: false,
-      message: cameraFailureMessage({ name: "NotFoundError" }),
-      audioPreserved: audioStillLive(localStream),
-    };
-  }
-  let videoStream;
-  try {
-    videoStream = await getUserMedia({ audio: false, video: constraints });
-  } catch (error) {
-    return {
-      ok: false,
-      error,
-      message: cameraFailureMessage(error),
-      audioPreserved: audioStillLive(localStream),
-    };
-  }
-  const track = videoStream?.getVideoTracks?.()[0];
+  const fail = (error) => ({
+    ok: false,
+    error,
+    message: cameraFailureMessage(error || { name: "NotFoundError" }),
+    audioPreserved: audioStillLive(localStream),
+    renegotiate: false,
+    iceRestart: false,
+    action: "failed",
+  });
+  if (!localStream) return fail({ name: "NotFoundError" });
+
+  let track = liveVideoTrack(localStream);
   if (!track) {
-    videoStream?.getTracks?.().forEach((item) => item.stop?.());
-    return {
-      ok: false,
-      message: cameraFailureMessage({ name: "NotFoundError" }),
-      audioPreserved: audioStillLive(localStream),
-    };
+    for (const pc of peerConnections) {
+      const senderTrack = senderVideoTrack(pc);
+      if (senderTrack?.readyState === "live") {
+        track = senderTrack;
+        if (!localStream.getVideoTracks().some((item) => item.id === track.id)) {
+          localStream.addTrack(track);
+        }
+        break;
+      }
+    }
   }
+
+  let acquired = false;
+  if (track) {
+    track.enabled = true;
+  } else {
+    if (typeof getUserMedia !== "function") return fail({ name: "NotFoundError" });
+    let videoStream;
+    try {
+      videoStream = await getUserMedia({ audio: false, video: constraints });
+    } catch (error) {
+      return fail(error);
+    }
+    track = videoStream?.getVideoTracks?.()[0];
+    if (!track) {
+      videoStream?.getTracks?.().forEach((item) => item.stop?.());
+      return fail({ name: "NotFoundError" });
+    }
+    acquired = true;
+    track.enabled = true;
+  }
+
   const results = [];
   for (const pc of peerConnections) {
     if (pc) results.push(attachVideoTrack(pc, track, localStream));
   }
-  for (const result of results) {
-    if (result.pending) await result.pending;
-  }
-  for (const old of localStream.getVideoTracks?.() || []) {
-    if (old.id !== track.id) {
-      old.stop?.();
-      localStream.removeTrack?.(old);
+  try {
+    for (const result of results) {
+      if (result.pending) await result.pending;
     }
+  } catch (error) {
+    if (acquired) {
+      track.stop?.();
+      localStream.removeTrack?.(track);
+    }
+    return fail(error);
+  }
+
+  for (const old of localStream.getVideoTracks?.() || []) {
+    if (old.id === track.id) continue;
+    if (!acquired && old.readyState !== "ended") continue;
+    if (old.readyState !== "ended") old.stop?.();
+    localStream.removeTrack?.(old);
   }
   if (!localStream.getVideoTracks().some((item) => item.id === track.id)) {
     localStream.addTrack(track);
   }
+
+  const action = !acquired
+    ? "enabled"
+    : results.some((item) => item.action === "add") || results.length === 0
+      ? "added"
+      : "replaced";
   return {
     ok: true,
     track,
+    action,
     renegotiate: results.some((item) => item.renegotiate),
+    iceRestart: false,
     audioPreserved: audioStillLive(localStream),
   };
 };
 
+/** Mute the existing camera. The sender, track, and peer connection stay in place. */
 export const disableLocalCamera = async ({ localStream, peerConnections = [] } = {}) => {
+  const tracks = new Set();
+  const current = liveVideoTrack(localStream);
+  if (current) tracks.add(current);
   for (const pc of peerConnections) {
-    if (pc) await releaseVideoSender(pc);
+    const track = senderVideoTrack(pc);
+    if (track?.readyState === "live") tracks.add(track);
   }
-  releaseLocalVideo(localStream);
+  for (const track of tracks) track.enabled = false;
   return {
     ok: true,
-    renegotiate: peerConnections.some((pc) => findVideoTransceiver(pc)),
+    action: "disabled",
+    renegotiate: false,
+    iceRestart: false,
     audioPreserved: audioStillLive(localStream),
   };
+};
+
+const readyLabel = (track) => (track?.readyState === "live" || track?.readyState === "ended" ? track.readyState : "none");
+
+const enabledLabel = (track) => {
+  if (!track) return "none";
+  return track.enabled === false ? "false" : "true";
+};
+
+const audioTransceiver = (pc) =>
+  (pc?.getTransceivers?.() || []).find((transceiver) => videoKind(transceiver) === "audio") || null;
+
+export const capturePeerTransport = (peerConnections = []) =>
+  peerConnections.filter(Boolean).map((pc) => ({
+    connectionState: pc.connectionState || "",
+    iceConnectionState: pc.iceConnectionState || "",
+  }));
+
+/** Safe camera-toggle record. SDP, credentials, and addresses are not accepted. */
+export const cameraToggleRecord = ({
+  callId = "",
+  action = "",
+  localStream = null,
+  pc = null,
+  connectionBefore = "",
+  iceBefore = "",
+  renegotiation = false,
+  iceRestart = false,
+} = {}) => {
+  const video = liveVideoTrack(localStream)
+    || localStream?.getVideoTracks?.()[0]
+    || senderVideoTrack(pc);
+  const audio = (localStream?.getAudioTracks?.() || []).find((track) => track.readyState === "live")
+    || localStream?.getAudioTracks?.()[0]
+    || audioTransceiver(pc)?.sender?.track
+    || null;
+  const videoSender = findVideoTransceiver(pc)?.sender || null;
+  const audioSender = audioTransceiver(pc)?.sender
+    || (pc?.getSenders?.() || []).find((sender) => sender.track?.kind === "audio")
+    || null;
+  return {
+    callId,
+    event: "camera_toggle",
+    cameraAction: action,
+    videoReadyState: readyLabel(video),
+    videoEnabled: enabledLabel(video),
+    audioReadyState: readyLabel(audio),
+    audioEnabled: enabledLabel(audio),
+    videoSender: videoSender ? "yes" : "no",
+    videoSenderState: videoSender?.track ? readyLabel(videoSender.track) : "none",
+    audioSender: audioSender ? "yes" : "no",
+    connectionBefore,
+    connectionAfter: pc?.connectionState || "",
+    iceBefore,
+    iceAfter: pc?.iceConnectionState || "",
+    renegotiation: renegotiation ? "yes" : "no",
+    iceRestart: iceRestart ? "yes" : "no",
+  };
+};
+
+export const logCameraToggle = ({
+  peerConnections = [],
+  before = [],
+  ...details
+} = {}) => {
+  const connections = peerConnections.filter(Boolean);
+  const targets = connections.length ? connections : [null];
+  targets.forEach((pc, index) => {
+    logCallDiagnostic(cameraToggleRecord({
+      ...details,
+      pc,
+      connectionBefore: before[index]?.connectionState || "",
+      iceBefore: before[index]?.iceConnectionState || "",
+    }));
+  });
 };
 
 export const renegotiatePeer = async (peer, { makingOffer = false, sendOffer } = {}) => {

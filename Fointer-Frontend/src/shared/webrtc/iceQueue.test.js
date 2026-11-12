@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { applyPeerSignal } from "./applyPeerSignal.js";
+import { applyPeerSignal, applyQueuedAnswer } from "./applyPeerSignal.js";
 import {
   callPhaseCanSignal,
   createIceQueue,
   markRemoteDescriptionSet,
+  pushLocalCandidate,
+  replayLocalCandidates,
   takeIceCandidate,
 } from "./iceQueue.js";
 import { addRemoteTracks } from "./remoteTracks.js";
@@ -71,6 +73,59 @@ test("ICE after the remote description is applied immediately", async () => {
   assert.deepEqual(takeIceCandidate(queue, { candidate: "later" }), [
     { candidate: "later" },
   ]);
+});
+
+test("an answer that arrives before the local offer is applied once that offer exists", async () => {
+  const peer = fakePeer();
+  const queued = await applyPeerSignal(peer, {
+    type: "answer",
+    sdp: { type: "answer", sdp: "early-answer" },
+    messageId: "answer-1",
+  });
+  assert.equal(queued, false);
+  assert.equal(peer.pc.remote, null);
+  assert.ok(peer.queuedAnswer);
+
+  peer.pc.signalingState = "have-local-offer";
+  assert.equal(await applyQueuedAnswer(peer), true);
+  assert.equal(peer.pc.remote.sdp, "early-answer");
+  assert.equal(peer.pc.signalingState, "stable");
+  assert.equal(peer.queuedAnswer, null);
+  assert.equal(await applyQueuedAnswer(peer), false);
+});
+
+test("an ignored glare offer does not block later ICE", async () => {
+  const peer = fakePeer();
+  peer.polite = false;
+  peer.pc.signalingState = "have-local-offer";
+  peer.pc.remote = { type: "offer", sdp: "local-offer" };
+  peer.iceQueue.remoteReady = true;
+  const ignored = await applyPeerSignal(peer, {
+    type: "offer",
+    sdp: { type: "offer", sdp: "glare" },
+    messageId: "offer-glare",
+  });
+  assert.equal(ignored, false);
+  assert.equal(peer.ignoreOffer, true);
+  const applied = await applyPeerSignal(peer, {
+    type: "ice",
+    candidate: { candidate: "after-glare" },
+    messageId: "ice-after",
+  });
+  assert.equal(applied, true);
+  assert.deepEqual(peer.pc.ice, [{ candidate: "after-glare" }]);
+});
+
+test("local candidates are sent again once after the remote description is applied", () => {
+  const peer = {};
+  pushLocalCandidate(peer, { candidate: "one" });
+  pushLocalCandidate(peer, { candidate: "two" });
+  assert.deepEqual(
+    replayLocalCandidates(peer).map((item) => item.candidate),
+    ["one", "two"]
+  );
+  pushLocalCandidate(peer, { candidate: "three" });
+  assert.deepEqual(replayLocalCandidates(peer), []);
 });
 
 test("ringing_in cannot apply media signals yet", () => {

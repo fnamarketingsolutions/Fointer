@@ -14,11 +14,11 @@ import { useAuth } from "../../../../context/AuthContext";
 import { claimIceCall, getIceConfig, getIceRequestId, getIceSession, iceRefreshDue, maybeRotateIce, releaseIceCall } from "../../../../shared/webrtc/iceServers";
 import { flushCallDiagnostics, noteIceConfigurationApplied, reportIceCandidateError } from "../../../../shared/webrtc/callDiagnostics";
 import { watchPeerConnection } from "../../../../shared/webrtc/iceRestart";
-import { applyPeerSignal } from "../../../../shared/webrtc/applyPeerSignal";
+import { applyPeerSignal, applyQueuedAnswer, plainSessionDescription } from "../../../../shared/webrtc/applyPeerSignal";
 import { assessMediaHealth, readSafeCallStats, toPublicMediaLog } from "../../../../shared/webrtc/callStats";
 import { createSignalCourier } from "../../../../shared/webrtc/signalDelivery";
 import { recoveryNeededAfterNetworkChange, watchNetworkChanges } from "../../../../shared/webrtc/networkRecovery";
-import { createIceQueue, enqueueSerial } from "../../../../shared/webrtc/iceQueue";
+import { createIceQueue, enqueueSerial, pushLocalCandidate, replayLocalCandidates } from "../../../../shared/webrtc/iceQueue";
 import { addRemoteTracks } from "../../../../shared/webrtc/remoteTracks";
 import { mergeCallTiles } from "../../../../shared/webrtc/mediaTile";
 import { planMeshOffers, shouldOfferToPeer } from "../../../../shared/webrtc/meshPlan";
@@ -28,8 +28,10 @@ import {
   attachVideoTrack,
   cameraControlLabel,
   cameraPresencePayload,
+  capturePeerTransport,
   disableLocalCamera,
   enableLocalCamera,
+  logCameraToggle,
   queuePeerRenegotiation,
   watchRemoteTrack,
 } from "../../../../shared/webrtc/mediaSwitch";
@@ -336,10 +338,12 @@ export default function EventCall({
 
       pc.onicecandidate = (event) => {
         if (!event.candidate) return;
+        const candidate = event.candidate.toJSON ? event.candidate.toJSON() : event.candidate;
+        pushLocalCandidate(peer, candidate);
         sendSignal(socketId, {
           type: "ice",
           generation: peer.iceGeneration || 0,
-          candidate: event.candidate.toJSON ? event.candidate.toJSON() : event.candidate,
+          candidate,
         });
       };
 
@@ -365,13 +369,17 @@ export default function EventCall({
           return result;
         },
         isActive: () => inCallRef.current,
-        sendOffer: (description) => {
-          peer.iceGeneration = (peer.iceGeneration || 0) + 1;
-          signalCourierRef.current?.dropOlder(peer.iceGeneration);
+        sendOffer: (description, meta) => {
+          if (!meta?.resend) {
+            peer.iceGeneration = (peer.iceGeneration || 0) + 1;
+            peer.localIceReplayed = false;
+            peer.localCandidates = [];
+            signalCourierRef.current?.dropOlder(peer.iceGeneration);
+          }
           sendSignal(socketId, {
             type: "offer",
-            sdp: description,
-            generation: peer.iceGeneration,
+            sdp: plainSessionDescription(description),
+            generation: peer.iceGeneration || 0,
           });
         },
       });
@@ -442,11 +450,29 @@ export default function EventCall({
         makingOfferRef.current.add(remote.socketId);
         const offer = await peer.pc.createOffer();
         await peer.pc.setLocalDescription(offer);
+        const description = plainSessionDescription(peer.pc.localDescription);
         sendSignal(remote.socketId, {
           type: "offer",
-          sdp: peer.pc.localDescription,
+          sdp: description,
           generation: peer.iceGeneration || 0,
         });
+        try {
+          if (await applyQueuedAnswer(peer, {
+            onAnswer: (answer) => {
+              sendSignal(remote.socketId, { type: "answer", sdp: plainSessionDescription(answer) });
+            },
+          })) {
+            for (const candidate of replayLocalCandidates(peer)) {
+              sendSignal(remote.socketId, {
+                type: "ice",
+                generation: peer.iceGeneration || 0,
+                candidate,
+              });
+            }
+          }
+        } catch {
+          /* a stale early answer must not block the offer */
+        }
       } catch {
         peer.offered = false;
         setError("Could not connect to a caller.");
@@ -531,13 +557,13 @@ export default function EventCall({
       });
       if (!peer) return;
       try {
-        await applyPeerSignal(
+        const applied = await applyPeerSignal(
           peer,
           { type, sdp, candidate, messageId, generation },
           {
             makingOffer: makingOfferRef.current.has(from),
             onAnswer: (description) => {
-              sendSignal(from, { type: "answer", sdp: description });
+              sendSignal(from, { type: "answer", sdp: plainSessionDescription(description) });
             },
             beforeAnswer: async () => {
               const stream = localStreamRef.current;
@@ -550,6 +576,15 @@ export default function EventCall({
             },
           }
         );
+        if (applied && (type === "offer" || type === "answer")) {
+          for (const item of replayLocalCandidates(peer)) {
+            sendSignal(from, {
+              type: "ice",
+              generation: peer.iceGeneration || 0,
+              candidate: item,
+            });
+          }
+        }
         syncTiles();
       } catch {
         /* ignore stale signaling during leave/renegotiate */
@@ -671,7 +706,7 @@ export default function EventCall({
       makingOffer: makingOfferRef.current,
       isActive: () => inCallRef.current,
       sendOffer: (socketId, description) => {
-        sendSignal(socketId, { type: "offer", sdp: description });
+        sendSignal(socketId, { type: "offer", sdp: plainSessionDescription(description) });
       },
       onError: () => setError("Video update failed. Audio is still connected."),
     });
@@ -685,14 +720,25 @@ export default function EventCall({
     cameraBusyRef.current = true;
     setCameraBusy(true);
     setError("");
+    const peerConnections = [...peersRef.current.values()].map((peer) => peer.pc);
+    const before = capturePeerTransport(peerConnections);
     try {
-      await disableLocalCamera({
+      const result = await disableLocalCamera({
         localStream: localStreamRef.current,
-        peerConnections: [...peersRef.current.values()].map((peer) => peer.pc),
+        peerConnections,
       });
       if (!inCallRef.current) return;
       publishLiveCamera(false);
-      await renegotiateLivePeers();
+      if (result.renegotiate) await renegotiateLivePeers();
+      logCameraToggle({
+        callId: eventIdRef.current,
+        action: "disabled",
+        localStream: localStreamRef.current,
+        peerConnections,
+        before,
+        renegotiation: Boolean(result.renegotiate),
+        iceRestart: Boolean(result.iceRestart),
+      });
     } catch {
       setError("Video update failed. Audio is still connected.");
     } finally {
@@ -711,10 +757,12 @@ export default function EventCall({
     cameraBusyRef.current = true;
     setCameraBusy(true);
     setError("");
+    const peerConnections = [...peersRef.current.values()].map((peer) => peer.pc);
+    const before = capturePeerTransport(peerConnections);
     try {
       const result = await enableLocalCamera({
         localStream: localStreamRef.current,
-        peerConnections: [...peersRef.current.values()].map((peer) => peer.pc),
+        peerConnections,
         getUserMedia: (constraints) => {
           if (!navigator.mediaDevices?.getUserMedia) {
             const error = new Error("Camera unavailable");
@@ -725,10 +773,19 @@ export default function EventCall({
         },
       });
       if (!inCallRef.current) {
-        result.track?.stop?.();
+        if (result.action !== "enabled") result.track?.stop?.();
         return;
       }
       if (!result.ok) {
+        logCameraToggle({
+          callId: eventIdRef.current,
+          action: "failed",
+          localStream: localStreamRef.current,
+          peerConnections,
+          before,
+          renegotiation: false,
+          iceRestart: false,
+        });
         setError(result.message);
         return;
       }
@@ -740,7 +797,16 @@ export default function EventCall({
         if (!stillLive && inCallRef.current) void turnCameraOff();
       };
       publishLiveCamera(true);
-      await renegotiateLivePeers();
+      if (result.renegotiate) await renegotiateLivePeers();
+      logCameraToggle({
+        callId: eventIdRef.current,
+        action: result.action || "enabled",
+        localStream: localStreamRef.current,
+        peerConnections,
+        before,
+        renegotiation: Boolean(result.renegotiate),
+        iceRestart: Boolean(result.iceRestart),
+      });
     } catch {
       setError("Video update failed. Audio is still connected.");
     } finally {

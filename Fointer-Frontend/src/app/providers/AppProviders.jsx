@@ -4,6 +4,7 @@ import { SiteContactProvider } from '../../context/SiteContactContext';
 import { NotificationProvider } from '../../context/NotificationContext';
 import { ToastProvider } from '../../shared/components/feedback/ToastContext';
 import WatermarkDownloadGuard from '../../shared/components/media/WatermarkDownloadGuard';
+import CompleteProfilePrompt from '../../shared/components/CompleteProfilePrompt';
 import { EntitlementProvider } from '../../features/subscription/context/EntitlementContext';
 
 export default function AppProviders({ children }) {
@@ -15,6 +16,7 @@ export default function AppProviders({ children }) {
             <NotificationProvider>
               <ToastProvider>
                 <WatermarkDownloadGuard />
+                <CompleteProfilePrompt />
                 {children}
               </ToastProvider>
             </NotificationProvider>

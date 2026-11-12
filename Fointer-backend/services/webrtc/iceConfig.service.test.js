@@ -44,6 +44,8 @@ test("a Metered response without expiry is cached and does not require renegotia
   assert.equal(first.transportPolicy, "all");
   assert.equal(first.rtc.iceTransportPolicy, "all");
   assert.equal(first.refreshAt, new Date(now + 300000).toISOString());
+  assert.equal(first.providerCache, "generated");
+  assert.equal(second.providerCache, "hit");
   assert.equal(second.issuedAt, first.issuedAt);
   assert.equal(JSON.stringify(first).includes("pass"), true);
   assert.equal(first.fallback, null);

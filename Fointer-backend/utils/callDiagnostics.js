@@ -41,6 +41,19 @@ const safeCode = (value) => {
   return code;
 };
 
+const safeCount = (value, max) => {
+  const count = Number(value);
+  if (!Number.isInteger(count) || count < 0 || count > max) return null;
+  return count;
+};
+
+/** Stable id for a diagnostics batch retry. Anything else is dropped. */
+export const safeDiagnosticBatchId = (value) => {
+  const text = String(value || "").trim();
+  if (!/^[A-Za-z0-9_-]{8,64}$/.test(text)) return "";
+  return text;
+};
+
 /**
  * Client diagnostics accepted by the backend.
  * Credentials, SDP, candidate lines, and IP addresses are removed.
@@ -59,6 +72,25 @@ export const sanitizeCallDiagnostic = (body = {}) => {
   const signalType = safeText(body.signalType || body.type, 20);
   const delivery = safeText(body.delivery, 40);
   const event = safeText(body.event, 40);
+  const requestId = safeText(body.requestId, 40);
+  const callType = safeText(body.callType, 20);
+  const direction = safeText(body.direction, 20);
+  const cacheStatus = safeText(body.cacheStatus, 40);
+  const failureCategory = safeText(body.failureCategory, 40);
+  const cameraAction = safeText(body.cameraAction, 20);
+  const videoReadyState = safeText(body.videoReadyState, 20);
+  const videoEnabled = safeText(body.videoEnabled, 10);
+  const audioReadyState = safeText(body.audioReadyState, 20);
+  const audioEnabled = safeText(body.audioEnabled, 10);
+  const videoSender = safeText(body.videoSender, 10);
+  const videoSenderState = safeText(body.videoSenderState, 20);
+  const audioSender = safeText(body.audioSender, 10);
+  const connectionBefore = safeText(body.connectionBefore, 40);
+  const connectionAfter = safeText(body.connectionAfter, 40);
+  const iceBefore = safeText(body.iceBefore, 40);
+  const iceAfter = safeText(body.iceAfter, 40);
+  const renegotiation = safeText(body.renegotiation, 10);
+  const iceRestart = safeText(body.iceRestart, 10);
   if (callId) entry.callId = callId;
   if (phase) entry.phase = phase;
   if (signalingState) entry.signalingState = signalingState;
@@ -70,13 +102,58 @@ export const sanitizeCallDiagnostic = (body = {}) => {
   if (signalType) entry.signalType = signalType;
   if (delivery) entry.delivery = delivery;
   if (event) entry.event = event;
+  if (requestId) entry.requestId = requestId;
+  if (callType) entry.callType = callType;
+  if (direction) entry.direction = direction;
+  if (cacheStatus) entry.cacheStatus = cacheStatus;
+  if (failureCategory) entry.failureCategory = failureCategory;
+  if (cameraAction) entry.cameraAction = cameraAction;
+  if (videoReadyState) entry.videoReadyState = videoReadyState;
+  if (videoEnabled) entry.videoEnabled = videoEnabled;
+  if (audioReadyState) entry.audioReadyState = audioReadyState;
+  if (audioEnabled) entry.audioEnabled = audioEnabled;
+  if (videoSender) entry.videoSender = videoSender;
+  if (videoSenderState) entry.videoSenderState = videoSenderState;
+  if (audioSender) entry.audioSender = audioSender;
+  if (connectionBefore) entry.connectionBefore = connectionBefore;
+  if (connectionAfter) entry.connectionAfter = connectionAfter;
+  if (iceBefore) entry.iceBefore = iceBefore;
+  if (iceAfter) entry.iceAfter = iceAfter;
+  if (renegotiation) entry.renegotiation = renegotiation;
+  if (iceRestart) entry.iceRestart = iceRestart;
 
   const errorCode = safeCode(body.errorCode);
+  const httpStatus = safeCount(body.httpStatus, 599);
+  const duration = safeCount(body.duration, 600_000);
+  const serverCount = safeCount(body.serverCount, 20);
+  const dropped = safeCount(body.dropped, 100_000);
+  const stunCount = safeCount(body.stunCount, 20);
+  const turnCount = safeCount(body.turnCount, 20);
+  const signalSeq = safeCount(body.signalSeq, 10_000);
   const errorText = safeText(body.errorText, 120);
   const url = safeIceServerUrl(body.url);
+  const iceGatheringState = safeText(body.iceGatheringState, 20);
+  const transportPolicy = safeText(body.transportPolicy, 20);
+  const credentialPresent = safeText(body.credentialPresent, 10);
+  const usernamePresent = safeText(body.usernamePresent, 10);
+  const addressClass = safeText(body.addressClass, 20);
+  const result = safeText(body.result, 20);
   if (errorCode != null) entry.errorCode = errorCode;
+  if (httpStatus != null) entry.httpStatus = httpStatus;
+  if (duration != null) entry.duration = duration;
+  if (serverCount != null) entry.serverCount = serverCount;
+  if (dropped != null) entry.dropped = dropped;
+  if (stunCount != null) entry.stunCount = stunCount;
+  if (turnCount != null) entry.turnCount = turnCount;
+  if (signalSeq != null) entry.signalSeq = signalSeq;
   if (errorText) entry.errorText = errorText;
   if (url) entry.url = url;
+  if (iceGatheringState) entry.iceGatheringState = iceGatheringState;
+  if (transportPolicy) entry.transportPolicy = transportPolicy;
+  if (credentialPresent) entry.credentialPresent = credentialPresent;
+  if (usernamePresent) entry.usernamePresent = usernamePresent;
+  if (addressClass) entry.addressClass = addressClass;
+  if (result) entry.result = result;
 
   return Object.keys(entry).length ? entry : null;
 };

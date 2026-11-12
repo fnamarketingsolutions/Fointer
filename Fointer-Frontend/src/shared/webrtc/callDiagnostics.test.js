@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { safeCallDiagnostic, sanitizeIceCandidateError } from "./callDiagnostics.js";
+import { describeIceConfiguration, safeCallDiagnostic, sanitizeIceCandidateError } from "./callDiagnostics.js";
 
 test("call diagnostics keep state and candidate type without secrets", () => {
   const entry = safeCallDiagnostic({
@@ -53,4 +53,89 @@ test("ICE error text redacts embedded addresses and keeps the failure reason", (
   assert.equal(entry.url, undefined);
   assert.equal(entry.username, undefined);
   assert.equal(entry.credential, undefined);
+});
+
+test("call timeline keeps signaling steps and drops SDP, secrets, and addresses", () => {
+  const entry = safeCallDiagnostic({
+    callId: "call-7",
+    requestId: "ice1ab12cd",
+    event: "answer_applied",
+    signalType: "answer",
+    delivery: "applied",
+    result: "applied",
+    signalSeq: 4,
+    iceGatheringState: "complete",
+    transportPolicy: "all",
+    credentialPresent: "yes",
+    usernamePresent: "yes",
+    stunCount: 1,
+    turnCount: 3,
+    sdp: "v=0\r\no=- 1 1 IN IP4 192.168.1.9",
+    username: "metered-user",
+    credential: "metered-secret",
+    token: "session-token",
+  });
+  const serialized = JSON.stringify(entry);
+  assert.equal(entry.event, "answer_applied");
+  assert.equal(entry.requestId, "ice1ab12cd");
+  assert.equal(entry.signalSeq, 4);
+  assert.equal(entry.transportPolicy, "all");
+  assert.equal(entry.credentialPresent, "yes");
+  assert.equal(entry.usernamePresent, "yes");
+  assert.equal(entry.stunCount, 1);
+  assert.equal(entry.turnCount, 3);
+  assert.equal(entry.iceGatheringState, "complete");
+  for (const secret of ["v=0", "192.168.1.9", "metered-user", "metered-secret", "session-token"]) {
+    assert.equal(serialized.includes(secret), false, secret);
+  }
+});
+
+test("ICE configuration description counts servers without copying secrets", () => {
+  const described = describeIceConfiguration({
+    iceTransportPolicy: "all",
+    iceServers: [
+      { urls: "stun:stun.l.google.com:19302" },
+      {
+        urls: [
+          "turn:relay.example:3478?transport=udp",
+          "turn:relay.example:3478?transport=tcp",
+          "turns:relay.example:443?transport=tcp",
+        ],
+        username: "metered-user",
+        credential: "metered-secret",
+      },
+    ],
+  });
+  const serialized = JSON.stringify(described);
+  assert.deepEqual(described, {
+    transportPolicy: "all",
+    credentialPresent: "yes",
+    usernamePresent: "yes",
+    stunCount: 1,
+    turnCount: 3,
+  });
+  assert.equal(serialized.includes("metered-user"), false);
+  assert.equal(serialized.includes("metered-secret"), false);
+  assert.equal(serialized.includes("relay.example"), false);
+});
+
+test("ICE candidate errors keep an address class and omit the address", () => {
+  const entry = sanitizeIceCandidateError({
+    errorCode: 701,
+    errorText: "STUN binding request timed out",
+    url: "stun:stun.l.google.com:19302",
+    address: "192.168.1.20",
+    username: "metered-user",
+    credential: "metered-secret",
+  });
+  const serialized = JSON.stringify(entry);
+  assert.equal(entry.errorCode, 701);
+  assert.equal(entry.addressClass, "private");
+  assert.equal(entry.address, undefined);
+  assert.equal(serialized.includes("192.168.1.20"), false);
+  assert.equal(serialized.includes("metered-user"), false);
+  assert.equal(serialized.includes("metered-secret"), false);
+  assert.equal(sanitizeIceCandidateError({ address: "203.0.113.10" }).addressClass, "public");
+  assert.equal(sanitizeIceCandidateError({ address: "host.local" }).addressClass, "mdns");
+  assert.equal(sanitizeIceCandidateError({ address: "relay.example" }).addressClass, "hostname");
 });

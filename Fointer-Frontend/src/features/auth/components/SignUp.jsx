@@ -11,11 +11,7 @@ import { useToast } from '../../../shared/components/feedback/ToastContext';
 import SocialAuthButtons from './SocialAuthButtons';
 import BrandLogo from '../../../shared/components/BrandLogo';
 import ThemeToggle from '../../../shared/components/ThemeToggle';
-import LocationFields from '../../../shared/components/LocationFields';
-import InterestSuggestions from '../../../shared/components/InterestSuggestions';
 import { displayImageUrl } from '../../../shared/utils/imageUrl';
-import { AGE_RANGES, ageRangeError } from '../../../shared/lib/ageRange';
-import { postalCodeError } from '../../../shared/lib/postalCode';
 import { getPostAuthPath } from '../../../shared/lib/roles';
 import {
   captureReferralCode,
@@ -27,7 +23,6 @@ import {
 
 const STEPS = [
   { id: 'account', label: 'Account' },
-  { id: 'profile', label: 'Profile' },
   { id: 'verify', label: 'Verify' },
 ];
 
@@ -53,17 +48,8 @@ export default function SignUp() {
     email: '',
     password: '',
     confirmPassword: '',
-    bio: '',
-    gender: '',
-    ageRange: '',
-    city: '',
-    state: '',
-    country: '',
-    zipCode: '',
-    address: '',
     referralCode: '',
   });
-  const [interests, setInterests] = useState([]);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [emailLoading, setEmailLoading] = useState(false);
@@ -116,19 +102,6 @@ export default function SignUp() {
     setFormData((current) => ({ ...current, [name]: value }));
   };
 
-  const addInterest = (raw) => {
-    const value = String(raw || '').trim();
-    if (!value) return;
-    setInterests((prev) => {
-      if (prev.includes(value) || prev.length >= 20) return prev;
-      return [...prev, value];
-    });
-  };
-
-  const removeInterest = (tag) => {
-    setInterests((prev) => prev.filter((item) => item !== tag));
-  };
-
   const validateAccount = () => {
     if (!formData.username.trim() || !formData.name.trim() || !formData.email.trim()) {
       showToast('Please fill in all account fields.');
@@ -155,37 +128,9 @@ export default function SignUp() {
     return true;
   };
 
-  const validateProfile = () => {
-    if (!formData.gender) {
-      showToast('Gender is required.');
-      return false;
-    }
-    const ageError = ageRangeError(formData.ageRange);
-    if (ageError) {
-      showToast(ageError);
-      return false;
-    }
-    const postalError = postalCodeError(formData.zipCode);
-    if (postalError) {
-      showToast(postalError);
-      return false;
-    }
-    return true;
-  };
-
-  const goToProfileStep = (e) => {
-    e.preventDefault();
-    if (!validateAccount()) return;
-    setStep('profile');
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!validateAccount()) {
-      setStep('account');
-      return;
-    }
-    if (!validateProfile()) return;
+    if (!validateAccount()) return;
 
     setEmailLoading(true);
     setSocialError('');
@@ -198,15 +143,6 @@ export default function SignUp() {
         email: formData.email.trim(),
         password: formData.password,
         confirmPassword: formData.confirmPassword,
-        bio: formData.bio.trim(),
-        interests,
-        gender: formData.gender,
-        ageRange: formData.ageRange,
-        city: formData.city.trim(),
-        state: formData.state.trim(),
-        country: formData.country.trim(),
-        zipCode: formData.zipCode.trim(),
-        address: formData.address.trim(),
       };
       const referralCode =
         normalizeReferralCode(formData.referralCode) || getStoredReferralCode();
@@ -271,19 +207,12 @@ export default function SignUp() {
   const inputClass =
     'w-full px-4 py-3 rounded-lg bg-fo-surface-hover border border-fo-border text-fo-auth-fg placeholder-fo-auth-muted focus:outline-none focus:border-fo-brand transition-all text-sm';
 
-  const stepTitle =
-    step === 'account'
-      ? 'Create an Account'
-      : step === 'profile'
-        ? 'Tell us about you'
-        : 'Verify your email';
+  const stepTitle = step === 'account' ? 'Create an Account' : 'Verify your email';
 
   const stepSubtitle =
     step === 'account'
       ? 'Enter your details to register and get started.'
-      : step === 'profile'
-        ? 'Gender and age range are required. A postal code fills in your country, state, and city.'
-        : `Enter the 6-digit OTP sent to ${activeVerificationEmail}.`;
+      : `Enter the 6-digit OTP sent to ${activeVerificationEmail}.`;
 
   return (
     <div className="auth-page relative min-h-screen w-full flex flex-col md:flex-row font-sans overflow-x-hidden">
@@ -333,8 +262,7 @@ Discover your people. Find where you belong.  </p>
           <div className="mb-8">
             <button
               onClick={() => {
-                if (step === 'profile') setStep('account');
-                else if (step === 'verify' && !pendingVerification) setStep('profile');
+                if (step === 'verify' && !pendingVerification) setStep('account');
                 else window.history.back();
               }}
               className="mb-4 inline-flex items-center text-xs font-medium text-fo-text hover:text-fo-brand transition-colors group cursor-pointer border-b border-fo-border hover:border-fo-brand pb-1 gap-1"
@@ -389,7 +317,7 @@ Discover your people. Find where you belong.  </p>
           </div>
 
           {step === 'account' ? (
-            <form onSubmit={goToProfileStep} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs font-medium text-fo-muted uppercase tracking-wider mb-1.5">
                   Username
@@ -513,9 +441,10 @@ Discover your people. Find where you belong.  </p>
                 primarySlot={
                   <button
                     type="submit"
-                    className="w-full py-3 px-4 bg-fo-brand text-fo-brand-fg font-bold text-sm rounded-lg hover:bg-fo-brand-hover transition-colors shadow-md shadow-fo-brand/10 active:scale-[0.98]"
+                    disabled={emailLoading}
+                    className="w-full py-3 px-4 bg-fo-brand text-fo-brand-fg font-bold text-sm rounded-lg hover:bg-fo-brand-hover transition-colors shadow-md shadow-fo-brand/10 active:scale-[0.98] disabled:opacity-50"
                   >
-                    Continue
+                    {emailLoading ? 'Creating account…' : 'Create account'}
                   </button>
                 }
                 onGoogleCredential={handleGoogleCredential}
@@ -523,102 +452,6 @@ Discover your people. Find where you belong.  </p>
                 googleLoading={socialLoading.google}
                 facebookLoading={socialLoading.facebook}
               />
-            </form>
-          ) : null}
-
-          {step === 'profile' ? (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-fo-muted uppercase tracking-wider mb-1.5">
-                  Bio <span className="normal-case tracking-normal text-fo-subtle">(optional)</span>
-                </label>
-                <textarea
-                  name="bio"
-                  value={formData.bio}
-                  onChange={handleChange}
-                  rows={3}
-                  maxLength={500}
-                  placeholder="A short intro about yourself…"
-                  className={`${inputClass} resize-y min-h-[88px]`}
-                />
-                <p className="mt-1 text-[11px] text-fo-subtle text-right">
-                  {formData.bio.length}/500
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-fo-muted uppercase tracking-wider mb-1.5">
-                  Interests <span className="normal-case tracking-normal text-fo-subtle">(optional)</span>
-                </label>
-                <InterestSuggestions
-                  selected={interests}
-                  onAdd={addInterest}
-                  onRemove={removeInterest}
-                  inputClass={inputClass}
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-fo-muted uppercase tracking-wider mb-1.5">
-                    Gender
-                  </label>
-                  <select
-                    name="gender"
-                    value={formData.gender}
-                    onChange={handleChange}
-                    required
-                    className={inputClass}
-                  >
-                    <option value="">Select gender</option>
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                    <option value="Other">Other</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-fo-muted uppercase tracking-wider mb-1.5">
-                    Age range
-                  </label>
-                  <select
-                    name="ageRange"
-                    value={formData.ageRange}
-                    onChange={handleChange}
-                    required
-                    className={inputClass}
-                  >
-                    <option value="">Select age range</option>
-                    {AGE_RANGES.map((range) => (
-                      <option key={range} value={range}>
-                        {range}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <LocationFields
-                value={{
-                  zipCode: formData.zipCode,
-                  state: formData.state,
-                  city: formData.city,
-                  country: formData.country,
-                  address: formData.address,
-                }}
-                onChange={(location) =>
-                  setFormData((current) => ({ ...current, ...location }))
-                }
-                inputClass={inputClass}
-                labelClass="block text-xs font-medium text-fo-muted uppercase tracking-wider mb-1.5"
-              />
-
-              <button
-                type="submit"
-                disabled={emailLoading}
-                className="w-full py-3 px-4 bg-fo-brand text-fo-brand-fg font-bold text-sm rounded-lg hover:bg-fo-brand-hover transition-colors shadow-md shadow-fo-brand/10 active:scale-[0.98] disabled:opacity-50"
-              >
-                {emailLoading ? 'Creating account…' : 'Create account'}
-              </button>
             </form>
           ) : null}
 

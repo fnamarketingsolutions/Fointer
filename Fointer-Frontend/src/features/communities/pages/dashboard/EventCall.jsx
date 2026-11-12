@@ -11,14 +11,14 @@ import {
 import { getLiveSocket } from "../../../../shared/services/liveSocket";
 import CallTile from "../../../../shared/components/CallTile";
 import { useAuth } from "../../../../context/AuthContext";
-import { getIceConfig, getIceSession, iceRefreshDue, maybeRotateIce } from "../../../../shared/webrtc/iceServers";
-import { reportIceCandidateError } from "../../../../shared/webrtc/callDiagnostics";
+import { claimIceCall, getIceConfig, getIceRequestId, getIceSession, iceRefreshDue, maybeRotateIce, releaseIceCall } from "../../../../shared/webrtc/iceServers";
+import { flushCallDiagnostics, noteIceConfigurationApplied, reportIceCandidateError } from "../../../../shared/webrtc/callDiagnostics";
 import { watchPeerConnection } from "../../../../shared/webrtc/iceRestart";
-import { applyPeerSignal } from "../../../../shared/webrtc/applyPeerSignal";
+import { applyPeerSignal, applyQueuedAnswer, plainSessionDescription } from "../../../../shared/webrtc/applyPeerSignal";
 import { assessMediaHealth, readSafeCallStats, toPublicMediaLog } from "../../../../shared/webrtc/callStats";
 import { createSignalCourier } from "../../../../shared/webrtc/signalDelivery";
 import { recoveryNeededAfterNetworkChange, watchNetworkChanges } from "../../../../shared/webrtc/networkRecovery";
-import { createIceQueue, enqueueSerial } from "../../../../shared/webrtc/iceQueue";
+import { createIceQueue, enqueueSerial, pushLocalCandidate, replayLocalCandidates } from "../../../../shared/webrtc/iceQueue";
 import { addRemoteTracks } from "../../../../shared/webrtc/remoteTracks";
 import { mergeCallTiles } from "../../../../shared/webrtc/mediaTile";
 import { planMeshOffers, shouldOfferToPeer } from "../../../../shared/webrtc/meshPlan";
@@ -28,8 +28,10 @@ import {
   attachVideoTrack,
   cameraControlLabel,
   cameraPresencePayload,
+  capturePeerTransport,
   disableLocalCamera,
   enableLocalCamera,
+  logCameraToggle,
   queuePeerRenegotiation,
   watchRemoteTrack,
 } from "../../../../shared/webrtc/mediaSwitch";
@@ -64,6 +66,8 @@ export default function EventCall({
   const cameraBusyRef = useRef(false);
   const modeRef = useRef(mode);
   const iceConfigRef = useRef(null);
+  const iceCallKeyRef = useRef("");
+  const iceTokenRef = useRef(0);
   const makingOfferRef = useRef(new Set());
   const handlersRef = useRef({});
   const earlySignalsRef = useRef([]);
@@ -209,6 +213,11 @@ export default function EventCall({
       setMuted(false);
       setCameraOff(false);
       setTiles([]);
+      releaseIceCall(iceTokenRef.current, iceCallKeyRef.current);
+      iceTokenRef.current = 0;
+      iceCallKeyRef.current = "";
+      iceConfigRef.current = null;
+      void flushCallDiagnostics();
     },
     [closePeer, eventId, onCallStateChange, stopLocal]
   );
@@ -296,6 +305,12 @@ export default function EventCall({
       const iceConfig = iceConfigRef.current;
       if (!iceConfig?.iceServers?.length) return null;
       const pc = new RTCPeerConnection(iceConfig);
+      noteIceConfigurationApplied({
+        callId: eventIdRef.current || iceCallKeyRef.current,
+        requestId: getIceRequestId(iceCallKeyRef.current),
+        callType: "event",
+        direction: "join",
+      });
       const peer = {
         pc,
         name: info.name || info.username || "Member",
@@ -318,15 +333,17 @@ export default function EventCall({
       });
 
       pc.onicecandidateerror = (event) => {
-        reportIceCandidateError(event);
+        reportIceCandidateError(event, { callId: eventIdRef.current });
       };
 
       pc.onicecandidate = (event) => {
         if (!event.candidate) return;
+        const candidate = event.candidate.toJSON ? event.candidate.toJSON() : event.candidate;
+        pushLocalCandidate(peer, candidate);
         sendSignal(socketId, {
           type: "ice",
           generation: peer.iceGeneration || 0,
-          candidate: event.candidate.toJSON ? event.candidate.toJSON() : event.candidate,
+          candidate,
         });
       };
 
@@ -336,23 +353,33 @@ export default function EventCall({
       };
       peer.stopIceRecovery = watchPeerConnection(pc, {
         polite: peer.polite,
-        getCredentialSession: getIceSession,
+        getCredentialSession: () => getIceSession(iceCallKeyRef.current),
         beforeRestart: async (connection) => {
-          const result = await maybeRotateIce(connection, getIceSession(), async (options) => {
-            const next = await getIceConfig(options);
-            iceConfigRef.current = next;
+          const result = await maybeRotateIce(connection, getIceSession(iceCallKeyRef.current), async (options) => {
+            const next = await getIceConfig({
+              ...options,
+              callKey: iceCallKeyRef.current,
+              token: iceTokenRef.current,
+              callType: "event",
+              direction: "join",
+            });
+            if (iceTokenRef.current) iceConfigRef.current = next;
             return next;
           });
           return result;
         },
         isActive: () => inCallRef.current,
-        sendOffer: (description) => {
-          peer.iceGeneration = (peer.iceGeneration || 0) + 1;
-          signalCourierRef.current?.dropOlder(peer.iceGeneration);
+        sendOffer: (description, meta) => {
+          if (!meta?.resend) {
+            peer.iceGeneration = (peer.iceGeneration || 0) + 1;
+            peer.localIceReplayed = false;
+            peer.localCandidates = [];
+            signalCourierRef.current?.dropOlder(peer.iceGeneration);
+          }
           sendSignal(socketId, {
             type: "offer",
-            sdp: description,
-            generation: peer.iceGeneration,
+            sdp: plainSessionDescription(description),
+            generation: peer.iceGeneration || 0,
           });
         },
       });
@@ -385,12 +412,29 @@ export default function EventCall({
     [sendSignal, syncTiles]
   );
 
-  const loadIceForCall = useCallback(async () => {
-    const due = iceRefreshDue(getIceSession());
-    if (!iceConfigRef.current || due) {
-      iceConfigRef.current = await getIceConfig({ force: due });
+  const loadIceForCall = useCallback(async ({ fresh = false } = {}) => {
+    if (fresh) {
+      const previousToken = iceTokenRef.current;
+      const previousKey = iceCallKeyRef.current;
+      const token = claimIceCall();
+      releaseIceCall(previousToken, previousKey);
+      iceTokenRef.current = token;
+      iceConfigRef.current = null;
+      iceCallKeyRef.current = `event:${eventIdRef.current || "live"}:${token}`;
+    } else if (iceConfigRef.current && !iceRefreshDue(getIceSession(iceCallKeyRef.current))) {
+      return iceConfigRef.current;
     }
-    return iceConfigRef.current;
+    const token = iceTokenRef.current;
+    const rtc = await getIceConfig({
+      force: !fresh && iceRefreshDue(getIceSession(iceCallKeyRef.current)),
+      callKey: iceCallKeyRef.current,
+      token,
+      callType: "event",
+      direction: "join",
+    });
+    if (iceTokenRef.current !== token) return iceConfigRef.current;
+    iceConfigRef.current = rtc;
+    return rtc;
   }, []);
 
   const createOffer = useCallback(
@@ -406,11 +450,29 @@ export default function EventCall({
         makingOfferRef.current.add(remote.socketId);
         const offer = await peer.pc.createOffer();
         await peer.pc.setLocalDescription(offer);
+        const description = plainSessionDescription(peer.pc.localDescription);
         sendSignal(remote.socketId, {
           type: "offer",
-          sdp: peer.pc.localDescription,
+          sdp: description,
           generation: peer.iceGeneration || 0,
         });
+        try {
+          if (await applyQueuedAnswer(peer, {
+            onAnswer: (answer) => {
+              sendSignal(remote.socketId, { type: "answer", sdp: plainSessionDescription(answer) });
+            },
+          })) {
+            for (const candidate of replayLocalCandidates(peer)) {
+              sendSignal(remote.socketId, {
+                type: "ice",
+                generation: peer.iceGeneration || 0,
+                candidate,
+              });
+            }
+          }
+        } catch {
+          /* a stale early answer must not block the offer */
+        }
       } catch {
         peer.offered = false;
         setError("Could not connect to a caller.");
@@ -424,8 +486,14 @@ export default function EventCall({
   const reconcileRoster = useCallback(
     async (rosterPeers = []) => {
       if (!inCallRef.current) return;
-      if (iceRefreshDue(getIceSession())) {
-        iceConfigRef.current = await getIceConfig({ force: true });
+      if (iceRefreshDue(getIceSession(iceCallKeyRef.current))) {
+        iceConfigRef.current = await getIceConfig({
+          force: true,
+          callKey: iceCallKeyRef.current,
+          token: iceTokenRef.current,
+          callType: "event",
+          direction: "join",
+        });
       }
       const myId = String(getLiveSocket().id || "");
       const present = new Set();
@@ -463,9 +531,15 @@ export default function EventCall({
       if (!inCallRef.current || !from || !localStreamRef.current) return;
       const existing = peersRef.current.get(from);
       if (existing?.pc) {
-        await maybeRotateIce(existing.pc, getIceSession(), async (options) => {
-          const next = await getIceConfig(options);
-          iceConfigRef.current = next;
+        await maybeRotateIce(existing.pc, getIceSession(iceCallKeyRef.current), async (options) => {
+          const next = await getIceConfig({
+            ...options,
+            callKey: iceCallKeyRef.current,
+            token: iceTokenRef.current,
+            callType: "event",
+            direction: "join",
+          });
+          if (iceTokenRef.current) iceConfigRef.current = next;
           return next;
         });
       } else {
@@ -483,13 +557,13 @@ export default function EventCall({
       });
       if (!peer) return;
       try {
-        await applyPeerSignal(
+        const applied = await applyPeerSignal(
           peer,
           { type, sdp, candidate, messageId, generation },
           {
             makingOffer: makingOfferRef.current.has(from),
             onAnswer: (description) => {
-              sendSignal(from, { type: "answer", sdp: description });
+              sendSignal(from, { type: "answer", sdp: plainSessionDescription(description) });
             },
             beforeAnswer: async () => {
               const stream = localStreamRef.current;
@@ -502,6 +576,15 @@ export default function EventCall({
             },
           }
         );
+        if (applied && (type === "offer" || type === "answer")) {
+          for (const item of replayLocalCandidates(peer)) {
+            sendSignal(from, {
+              type: "ice",
+              generation: peer.iceGeneration || 0,
+              candidate: item,
+            });
+          }
+        }
         syncTiles();
       } catch {
         /* ignore stale signaling during leave/renegotiate */
@@ -537,7 +620,7 @@ export default function EventCall({
     setError("");
     setJoining(true);
     try {
-      iceConfigRef.current = await loadIceForCall();
+      iceConfigRef.current = await loadIceForCall({ fresh: true });
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true },
         video:
@@ -623,7 +706,7 @@ export default function EventCall({
       makingOffer: makingOfferRef.current,
       isActive: () => inCallRef.current,
       sendOffer: (socketId, description) => {
-        sendSignal(socketId, { type: "offer", sdp: description });
+        sendSignal(socketId, { type: "offer", sdp: plainSessionDescription(description) });
       },
       onError: () => setError("Video update failed. Audio is still connected."),
     });
@@ -637,14 +720,25 @@ export default function EventCall({
     cameraBusyRef.current = true;
     setCameraBusy(true);
     setError("");
+    const peerConnections = [...peersRef.current.values()].map((peer) => peer.pc);
+    const before = capturePeerTransport(peerConnections);
     try {
-      await disableLocalCamera({
+      const result = await disableLocalCamera({
         localStream: localStreamRef.current,
-        peerConnections: [...peersRef.current.values()].map((peer) => peer.pc),
+        peerConnections,
       });
       if (!inCallRef.current) return;
       publishLiveCamera(false);
-      await renegotiateLivePeers();
+      if (result.renegotiate) await renegotiateLivePeers();
+      logCameraToggle({
+        callId: eventIdRef.current,
+        action: "disabled",
+        localStream: localStreamRef.current,
+        peerConnections,
+        before,
+        renegotiation: Boolean(result.renegotiate),
+        iceRestart: Boolean(result.iceRestart),
+      });
     } catch {
       setError("Video update failed. Audio is still connected.");
     } finally {
@@ -663,10 +757,12 @@ export default function EventCall({
     cameraBusyRef.current = true;
     setCameraBusy(true);
     setError("");
+    const peerConnections = [...peersRef.current.values()].map((peer) => peer.pc);
+    const before = capturePeerTransport(peerConnections);
     try {
       const result = await enableLocalCamera({
         localStream: localStreamRef.current,
-        peerConnections: [...peersRef.current.values()].map((peer) => peer.pc),
+        peerConnections,
         getUserMedia: (constraints) => {
           if (!navigator.mediaDevices?.getUserMedia) {
             const error = new Error("Camera unavailable");
@@ -677,10 +773,19 @@ export default function EventCall({
         },
       });
       if (!inCallRef.current) {
-        result.track?.stop?.();
+        if (result.action !== "enabled") result.track?.stop?.();
         return;
       }
       if (!result.ok) {
+        logCameraToggle({
+          callId: eventIdRef.current,
+          action: "failed",
+          localStream: localStreamRef.current,
+          peerConnections,
+          before,
+          renegotiation: false,
+          iceRestart: false,
+        });
         setError(result.message);
         return;
       }
@@ -692,7 +797,16 @@ export default function EventCall({
         if (!stillLive && inCallRef.current) void turnCameraOff();
       };
       publishLiveCamera(true);
-      await renegotiateLivePeers();
+      if (result.renegotiate) await renegotiateLivePeers();
+      logCameraToggle({
+        callId: eventIdRef.current,
+        action: result.action || "enabled",
+        localStream: localStreamRef.current,
+        peerConnections,
+        before,
+        renegotiation: Boolean(result.renegotiate),
+        iceRestart: Boolean(result.iceRestart),
+      });
     } catch {
       setError("Video update failed. Audio is still connected.");
     } finally {
@@ -735,8 +849,14 @@ export default function EventCall({
 
     const onPeerJoined = async ({ peer }) => {
       if (!peer?.socketId) return;
-      if (iceRefreshDue(getIceSession())) {
-        iceConfigRef.current = await getIceConfig({ force: true });
+      if (iceRefreshDue(getIceSession(iceCallKeyRef.current))) {
+        iceConfigRef.current = await getIceConfig({
+          force: true,
+          callKey: iceCallKeyRef.current,
+          token: iceTokenRef.current,
+          callType: "event",
+          direction: "join",
+        });
       }
       const next = rosterRef.current.filter((item) => item.socketId !== peer.socketId);
       next.push(peer);

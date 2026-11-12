@@ -39,6 +39,7 @@ import webrtcRoute from "./routes/webrtcRoute.js";
 import { handleFlutterwaveWebhook } from "./controllers/sponsorship.controller.js";
 import { handleFlutterwaveSubscriptionWebhook } from "./controllers/subscription.controller.js";
 import { initLiveSocket } from "./sockets/liveSocket.js";
+import { startProfileReminderSchedule } from "./services/profileReminder.service.js";
 import { initWatchGroupSocket } from "./sockets/watchGroupSocket.js";
 import { initNotificationSocket } from "./sockets/notificationSocket.js";
 import { initDirectMessageSocket } from "./sockets/directMessageSocket.js";
@@ -183,5 +184,6 @@ connectDB()
   .then(() => {
     server.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);
+      startProfileReminderSchedule();
     });
   });

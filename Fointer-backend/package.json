@@ -4,12 +4,12 @@
   "description": "",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js",
+    "start": "node init && node server.js",
+    "dev": "node init && nodemon server.js",
     "smoke:auth": "node scripts/smoke-auth-portals.js",
     "seed:super-admins": "node scripts/seed-super-admins.js",
     "migrate:free-listings": "node scripts/migrate-free-listings.js",
-    "test": "node --test utils/dmCallLifecycle.test.js utils/callRelay.test.js utils/realtimeDelivery.test.js utils/authRevocation.test.js utils/socketRateLimit.test.js sockets/roomMembership.test.js utils/subscriptionEntitlement.test.js utils/sharePreview.test.js utils/storeSlug.test.js utils/storeListingAccess.test.js utils/profileReminder.test.js utils/callDiagnostics.test.js controllers/webrtc.controller.test.js services/webrtc/iceConfig.service.test.js"
+    "test": "node --test utils/dmCallLifecycle.test.js utils/callRelay.test.js utils/realtimeDelivery.test.js utils/authRevocation.test.js utils/socketRateLimit.test.js sockets/roomMembership.test.js utils/subscriptionEntitlement.test.js utils/sharePreview.test.js utils/storeSlug.test.js utils/storeListingAccess.test.js utils/profileReminder.test.js utils/callDiagnostics.test.js utils/webrtcIceServers.test.js controllers/webrtc.controller.test.js services/webrtc/iceConfig.service.test.js"
   },
   "keywords": [],
   "author": "",

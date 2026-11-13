@@ -3,8 +3,11 @@ import { createHmac } from "node:crypto";
 import test from "node:test";
 import {
   createTimeLimitedTurnServer,
+  fetchCloudflareTurnCredentials,
+  fetchConfiguredTurnCredentials,
   fetchMeteredTurnCredentials,
   normalizeTurnServers,
+  resolveCloudflareTurnTtl,
   resolveMeteredProviderOrigin,
 } from "./webrtcIceServers.js";
 
@@ -452,4 +455,368 @@ test("a rejected account secret fails closed and does not expose either key", as
     }
   );
   assert.equal(posts, 0);
+});
+
+const CLOUDFLARE_KEY_ID = "abc123def456";
+const CLOUDFLARE_TOKEN = "cf-test-token";
+const CLOUDFLARE_USER = "cf-turn-username";
+const CLOUDFLARE_PASS = "cf-turn-credential";
+const cloudflareNow = 1_700_000_000_000;
+
+const cloudflareTurnUrls = [
+  "turn:turn.cloudflare.com:3478?transport=udp",
+  "turn:turn.cloudflare.com:443?transport=udp",
+  "turn:turn.cloudflare.com:53?transport=udp",
+  "turn:turn.cloudflare.com:3478?transport=tcp",
+  "turn:turn.cloudflare.com:80?transport=tcp",
+  "turns:turn.cloudflare.com:5349?transport=tcp",
+  "turns:turn.cloudflare.com:443?transport=tcp",
+];
+
+const cloudflareIceBody = (extra = {}) => ({
+  iceServers: [
+    { urls: ["stun:stun.cloudflare.com:3478", "stun:stun.cloudflare.com:53"] },
+    {
+      urls: cloudflareTurnUrls,
+      username: CLOUDFLARE_USER,
+      credential: CLOUDFLARE_PASS,
+    },
+  ],
+  ...extra,
+});
+
+const cloudflareSuccess = (body = cloudflareIceBody()) => ({
+  ok: true,
+  status: 201,
+  json: async () => body,
+});
+
+test("Cloudflare credential generation keeps every UDP, TCP, and TLS URL", async () => {
+  let requested = null;
+  const result = await fetchCloudflareTurnCredentials({
+    keyId: ` ${CLOUDFLARE_KEY_ID} `,
+    apiToken: `\uFEFF"${CLOUDFLARE_TOKEN}"`,
+    ttlSeconds: "86400",
+    nowMs: cloudflareNow,
+    fetchImpl: async (url, options) => {
+      requested = { href: String(url), ...options };
+      return cloudflareSuccess();
+    },
+  });
+
+  assert.equal(resolveCloudflareTurnTtl(""), 86400);
+  assert.equal(resolveCloudflareTurnTtl("3600"), 3600);
+  assert.equal(resolveCloudflareTurnTtl("59"), null);
+  assert.equal(resolveCloudflareTurnTtl("172801"), null);
+  assert.equal(
+    requested.href,
+    `https://rtc.live.cloudflare.com/v1/turn/keys/${CLOUDFLARE_KEY_ID}/credentials/generate-ice-servers`
+  );
+  assert.equal(requested.method, "POST");
+  assert.equal(requested.redirect, "error");
+  assert.equal(requested.headers.Authorization, `Bearer ${CLOUDFLARE_TOKEN}`);
+  assert.equal(requested.headers["Content-Type"], "application/json");
+  assert.equal(requested.body, JSON.stringify({ ttl: 86400 }));
+  assert.equal(requested.href.includes(CLOUDFLARE_TOKEN), false);
+  assert.equal(requested.body.includes(CLOUDFLARE_TOKEN), false);
+  assert.equal(result.servers.length, 1);
+  assert.deepEqual(result.servers[0].urls, cloudflareTurnUrls);
+  assert.equal(result.servers[0].username, CLOUDFLARE_USER);
+  assert.equal(result.servers[0].credential, CLOUDFLARE_PASS);
+  assert.equal(result.expiresAt, cloudflareNow + 86400 * 1000);
+  assert.equal(JSON.stringify(result).includes("stun:"), false);
+  assert.equal(JSON.stringify(result).includes(CLOUDFLARE_TOKEN), false);
+});
+
+test("Cloudflare expiry follows the configured TTL and ignores a longer echo", async () => {
+  const shorter = await fetchCloudflareTurnCredentials({
+    keyId: CLOUDFLARE_KEY_ID,
+    apiToken: CLOUDFLARE_TOKEN,
+    ttlSeconds: 86400,
+    nowMs: cloudflareNow,
+    fetchImpl: async (_url, options) => {
+      assert.equal(options.body, JSON.stringify({ ttl: 86400 }));
+      return cloudflareSuccess(cloudflareIceBody({ ttl: 3600 }));
+    },
+  });
+  assert.equal(shorter.expiresAt, cloudflareNow + 3600 * 1000);
+
+  const capped = await fetchCloudflareTurnCredentials({
+    keyId: CLOUDFLARE_KEY_ID,
+    apiToken: CLOUDFLARE_TOKEN,
+    ttlSeconds: "3600",
+    nowMs: cloudflareNow,
+    fetchImpl: async (_url, options) => {
+      assert.equal(options.body, JSON.stringify({ ttl: 3600 }));
+      return cloudflareSuccess(cloudflareIceBody({ ttl: 172800 }));
+    },
+  });
+  assert.equal(capped.expiresAt, cloudflareNow + 3600 * 1000);
+
+  const unchanged = await fetchCloudflareTurnCredentials({
+    keyId: CLOUDFLARE_KEY_ID,
+    apiToken: CLOUDFLARE_TOKEN,
+    ttlSeconds: 86400,
+    nowMs: cloudflareNow,
+    fetchImpl: async () => cloudflareSuccess(cloudflareIceBody({ ttl: 0 })),
+  });
+  assert.equal(unchanged.expiresAt, cloudflareNow + 86400 * 1000);
+});
+
+test("an invalid Cloudflare response is rejected without copying the body", async () => {
+  const cases = [
+    { iceServers: [{ urls: ["stun:stun.cloudflare.com:3478"] }] },
+    { iceServers: [{ urls: cloudflareTurnUrls, username: CLOUDFLARE_USER }] },
+    { iceServers: { urls: cloudflareTurnUrls, username: CLOUDFLARE_USER, credential: CLOUDFLARE_PASS } },
+    null,
+  ];
+  for (const body of cases) {
+    let calls = 0;
+    await assert.rejects(
+      () => fetchCloudflareTurnCredentials({
+        keyId: CLOUDFLARE_KEY_ID,
+        apiToken: CLOUDFLARE_TOKEN,
+        ttlSeconds: 86400,
+        fetchImpl: async () => {
+          calls += 1;
+          return { ok: true, status: 201, json: async () => body };
+        },
+      }),
+      (error) => {
+        assert.equal(calls, 1);
+        assert.match(error.message, /invalid response|no usable relay/);
+        const serialized = `${error.message} ${JSON.stringify(error.diagnostics)}`;
+        assert.equal(serialized.includes(CLOUDFLARE_TOKEN), false);
+        assert.equal(serialized.includes(CLOUDFLARE_USER), false);
+        assert.equal(serialized.includes(CLOUDFLARE_PASS), false);
+        assert.equal(error.servers, undefined);
+        return true;
+      }
+    );
+  }
+});
+
+test("Cloudflare API errors stay sanitized and auth failures are not retried", async () => {
+  let calls = 0;
+  await assert.rejects(
+    () => fetchCloudflareTurnCredentials({
+      keyId: CLOUDFLARE_KEY_ID,
+      apiToken: CLOUDFLARE_TOKEN,
+      ttlSeconds: 86400,
+      retryDelayMs: 0,
+      fetchImpl: async () => {
+        calls += 1;
+        return {
+          ok: false,
+          status: 401,
+          json: async () => ({
+            error: `denied ${CLOUDFLARE_TOKEN} ${CLOUDFLARE_USER} ${CLOUDFLARE_PASS} at 203.0.113.10`,
+            sdp: "v=0",
+            candidate: "candidate:1 1 UDP 203.0.113.10",
+          }),
+        };
+      },
+    }),
+    (error) => {
+      assert.equal(error.message, "TURN provider responded with 401.");
+      assert.equal(error.diagnostics.provider, "cloudflare");
+      assert.equal(error.diagnostics.status, 401);
+      assert.equal(error.diagnostics.category, "unrecognized");
+      assert.equal(error.diagnostics.keyIdPresent, true);
+      assert.equal(error.diagnostics.apiKeyPresent, true);
+      const serialized = `${error.message} ${JSON.stringify(error.diagnostics)}`;
+      for (const secret of [CLOUDFLARE_TOKEN, CLOUDFLARE_KEY_ID, CLOUDFLARE_USER, CLOUDFLARE_PASS, "203.0.113.10", "v=0", "candidate:"]) {
+        assert.equal(serialized.includes(secret), false, secret);
+      }
+      return true;
+    }
+  );
+  assert.equal(calls, 1);
+
+  calls = 0;
+  await assert.rejects(
+    () => fetchCloudflareTurnCredentials({
+      keyId: CLOUDFLARE_KEY_ID,
+      apiToken: CLOUDFLARE_TOKEN,
+      ttlSeconds: 86400,
+      retryDelayMs: 0,
+      maxAttempts: 2,
+      fetchImpl: async () => {
+        calls += 1;
+        return { ok: false, status: 500, json: async () => ({ error: "unavailable" }) };
+      },
+    }),
+    (error) => {
+      assert.equal(error.message, "TURN provider responded with 500.");
+      assert.equal(error.diagnostics.category, "unavailable");
+      assert.equal(error.diagnostics.attempts, 2);
+      return true;
+    }
+  );
+  assert.equal(calls, 2);
+});
+
+test("a transient Cloudflare failure can succeed on the bounded retry", async () => {
+  let calls = 0;
+  const result = await fetchCloudflareTurnCredentials({
+    keyId: CLOUDFLARE_KEY_ID,
+    apiToken: CLOUDFLARE_TOKEN,
+    ttlSeconds: 86400,
+    nowMs: cloudflareNow,
+    retryDelayMs: 0,
+    fetchImpl: async () => {
+      calls += 1;
+      if (calls === 1) return { ok: false, status: 503, json: async () => ({ error: "unavailable" }) };
+      return cloudflareSuccess();
+    },
+  });
+  assert.equal(calls, 2);
+  assert.equal(result.servers[0].credential, CLOUDFLARE_PASS);
+  assert.equal(result.expiresAt, cloudflareNow + 86400 * 1000);
+});
+
+test("a Cloudflare timeout aborts every attempt and does not expose the token", async () => {
+  let calls = 0;
+  let active = 0;
+  await assert.rejects(
+    () => fetchCloudflareTurnCredentials({
+      keyId: CLOUDFLARE_KEY_ID,
+      apiToken: CLOUDFLARE_TOKEN,
+      ttlSeconds: 86400,
+      timeoutMs: 20,
+      maxAttempts: 2,
+      retryDelayMs: 0,
+      fetchImpl: (_url, { signal }) => {
+        calls += 1;
+        active += 1;
+        return new Promise((resolve, reject) => {
+          const lateSuccess = setTimeout(() => {
+            active -= 1;
+            resolve(cloudflareSuccess());
+          }, 1000);
+          const onAbort = () => {
+            clearTimeout(lateSuccess);
+            active -= 1;
+            const error = new Error(`aborted ${CLOUDFLARE_TOKEN}`);
+            error.name = "AbortError";
+            reject(error);
+          };
+          if (signal?.aborted) onAbort();
+          else signal?.addEventListener("abort", onAbort, { once: true });
+        });
+      },
+    }),
+    (error) => {
+      assert.equal(error.message, "TURN provider request timed out.");
+      assert.equal(error.diagnostics.category, "timeout");
+      assert.equal(error.diagnostics.attempts, 2);
+      const serialized = `${error.message} ${JSON.stringify(error.diagnostics)}`;
+      assert.equal(serialized.includes(CLOUDFLARE_TOKEN), false);
+      assert.equal(error.servers, undefined);
+      return true;
+    }
+  );
+  assert.equal(calls, 2);
+  assert.equal(active, 0);
+});
+
+test("incomplete or malformed Cloudflare configuration does not call the provider", async () => {
+  let calls = 0;
+  const fetchImpl = async () => {
+    calls += 1;
+    return cloudflareSuccess();
+  };
+  assert.equal(
+    await fetchCloudflareTurnCredentials({ keyId: "", apiToken: "", fetchImpl }),
+    null
+  );
+  await assert.rejects(
+    () => fetchCloudflareTurnCredentials({
+      keyId: CLOUDFLARE_KEY_ID,
+      apiToken: "",
+      fetchImpl,
+    }),
+    (error) => error.diagnostics.category === "malformed-key"
+  );
+  await assert.rejects(
+    () => fetchCloudflareTurnCredentials({
+      keyId: "../admin",
+      apiToken: CLOUDFLARE_TOKEN,
+      fetchImpl,
+    }),
+    (error) => {
+      assert.equal(error.message, "Invalid TURN provider key configuration.");
+      assert.equal(error.message.includes(CLOUDFLARE_TOKEN), false);
+      return true;
+    }
+  );
+  await assert.rejects(
+    () => fetchCloudflareTurnCredentials({
+      keyId: CLOUDFLARE_KEY_ID,
+      apiToken: CLOUDFLARE_TOKEN,
+      ttlSeconds: "10",
+      fetchImpl,
+    }),
+    (error) => error.diagnostics.category === "invalid-ttl"
+  );
+  assert.equal(calls, 0);
+});
+
+test("selecting Cloudflare does not call Metered, and Metered remains the rollback", async () => {
+  const calls = [];
+  const fetchImpl = async (url, options) => {
+    calls.push({ href: String(url), method: options.method });
+    if (String(url).includes("cloudflare")) return cloudflareSuccess();
+    return { ok: true, status: 200, json: async () => meteredIceResponse() };
+  };
+  const sharedEnv = {
+    CLOUDFLARE_TURN_KEY_ID: CLOUDFLARE_KEY_ID,
+    CLOUDFLARE_TURN_API_TOKEN: CLOUDFLARE_TOKEN,
+    CLOUDFLARE_TURN_TTL: "86400",
+    METERED_DOMAIN: "fointer.metered.live",
+    METERED_API_KEY: "metered-test-key",
+  };
+
+  const cloudflare = await fetchConfiguredTurnCredentials({
+    env: { ...sharedEnv, WEBRTC_TURN_PROVIDER: "cloudflare" },
+    fetchImpl,
+    nowMs: cloudflareNow,
+  });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].method, "POST");
+  assert.match(calls[0].href, /\/credentials\/generate-ice-servers$/);
+  assert.equal(cloudflare.expiresAt, cloudflareNow + 86400 * 1000);
+
+  calls.length = 0;
+  const metered = await fetchConfiguredTurnCredentials({
+    env: { ...sharedEnv, WEBRTC_TURN_PROVIDER: "metered" },
+    fetchImpl,
+    nowMs: cloudflareNow,
+  });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].method, "GET");
+  assert.match(calls[0].href, /^https:\/\/fointer\.metered\.live\/api\/v1\/turn\/credentials\?/);
+  assert.equal(metered.expiresAt, null);
+
+  calls.length = 0;
+  await fetchConfiguredTurnCredentials({
+    env: sharedEnv,
+    fetchImpl,
+    nowMs: cloudflareNow,
+  });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].method, "GET");
+
+  let invalidCalls = 0;
+  await assert.rejects(
+    () => fetchConfiguredTurnCredentials({
+      env: { ...sharedEnv, WEBRTC_TURN_PROVIDER: "cloudflare-metered" },
+      fetchImpl: async () => {
+        invalidCalls += 1;
+        return cloudflareSuccess();
+      },
+    }),
+    (error) => error.diagnostics.category === "invalid-provider"
+  );
+  assert.equal(invalidCalls, 0);
 });

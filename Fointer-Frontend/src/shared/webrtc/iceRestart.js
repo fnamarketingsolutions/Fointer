@@ -68,6 +68,8 @@ export const watchPeerConnection = (
     recoveryDelayMs = null,
     random = Math.random,
     beforeRestart = null,
+    claimOffer = null,
+    releaseOffer = null,
     getCredentialSession = null,
     credentialRetryMs = 5_000,
     maxCredentialFailures = 2,
@@ -76,6 +78,7 @@ export const watchPeerConnection = (
   if (!pc?.addEventListener) return () => {};
   let attempts = 0;
   let offerResends = 0;
+  let lockWaits = 0;
   let timer = null;
   let timerKind = "";
   let restarting = false;
@@ -140,6 +143,13 @@ export const watchPeerConnection = (
     }, delay);
   };
 
+  const deferLockedRestart = () => {
+    if (inactive() || attempts >= maxAttempts || lockWaits >= maxAttempts) return;
+    lockWaits += 1;
+    if (lockWaits >= maxAttempts) return;
+    schedule("failed", recoveryDelay(lockWaits - 1));
+  };
+
   const resendCurrentOffer = () => {
     if (polite || inactive() || everConnected) return;
     if (pc.signalingState !== "have-local-offer" || !pc.localDescription) {
@@ -164,6 +174,14 @@ export const watchPeerConnection = (
       return "skipped";
     }
     if (!force && !credential && classifyConnection({ ...pc, everConnected }) === "connected") return;
+    let claimed = false;
+    if (typeof claimOffer === "function") {
+      claimed = claimOffer() === true;
+      if (!claimed) {
+        if (!credential) deferLockedRestart();
+        return credential ? "skipped" : undefined;
+      }
+    }
     restarting = true;
     let offered = false;
     let credentialOutcome = "failed";
@@ -189,6 +207,7 @@ export const watchPeerConnection = (
       const offer = await pc.createOffer({ iceRestart: true });
       if (!inactive() && pc.signalingState === "stable") {
         await pc.setLocalDescription(offer);
+        lockWaits = 0;
         if (!credential) attempts += 1;
         sendOffer?.(pc.localDescription, credential ? { credential: true } : undefined);
         offered = true;
@@ -205,6 +224,7 @@ export const watchPeerConnection = (
       reportStatus(attempts >= maxAttempts ? "failed" : "reconnecting", "restart_error");
     } finally {
       restarting = false;
+      if (claimed) releaseOffer?.();
       if (!credential) credentialWatch.arm();
     }
     if (credential) {
@@ -246,6 +266,7 @@ export const watchPeerConnection = (
       everConnected = true;
       attempts = 0;
       offerResends = 0;
+      lockWaits = 0;
       clearRestartTimer();
       reportStatus("connected", "ice_connected");
       return;

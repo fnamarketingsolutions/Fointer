@@ -36,6 +36,14 @@ import { createSignalCourier } from "../../../shared/webrtc/signalDelivery";
 import { recoveryNeededAfterNetworkChange, watchNetworkChanges } from "../../../shared/webrtc/networkRecovery";
 import { applyPeerSignal, applyQueuedAnswer, plainSessionDescription } from "../../../shared/webrtc/applyPeerSignal";
 import {
+  attachLocalMedia,
+  bindTracksToOffer,
+  canCreateOffer,
+  claimOfferLock,
+  missingLocalKinds,
+  releaseOfferLock,
+} from "../../../shared/webrtc/sdpNegotiation";
+import {
   callPhaseCanSignal,
   createIceQueue,
   enqueueSerial,
@@ -59,6 +67,7 @@ import {
   enableLocalCamera,
   logCameraToggle,
   queuePeerRenegotiation,
+  renegotiatePeer,
   watchRemoteTrack,
 } from "../../../shared/webrtc/mediaSwitch";
 import {
@@ -383,11 +392,7 @@ const DirectCall = forwardRef(function DirectCall(
       };
 
       const local = localStreamRef.current;
-      if (local) {
-        local.getTracks().forEach((track) => {
-          pc.addTrack(track, local);
-        });
-      }
+      if (local) attachLocalMedia(pc, local);
 
       let lastStateLog = "";
       const logTransport = () => {
@@ -460,6 +465,12 @@ const DirectCall = forwardRef(function DirectCall(
         });
       };
 
+      pc.onnegotiationneeded = () => {
+        peer.negotiationNeeded = true;
+        if (peer.polite || peer.offerLock || !canCreateOffer(pc)) return;
+        enqueueSerial(signalChainRef.current, () => handlersRef.current.createOffer?.(remote));
+      };
+
       pc.onconnectionstatechange = () => {
         peer.connectionState = pc.connectionState;
         noteTransport(pc.connectionState);
@@ -488,6 +499,8 @@ const DirectCall = forwardRef(function DirectCall(
         polite,
         getCredentialSession: () => getIceSession(iceCallKeyRef.current),
         beforeRestart: rotateIce,
+        claimOffer: () => claimOfferLock(peer, pc),
+        releaseOffer: () => releaseOfferLock(peer),
         retryInitialOffer: true,
         isActive: () => phaseRef.current !== "idle",
         onStatus: (status) => {
@@ -565,13 +578,21 @@ const DirectCall = forwardRef(function DirectCall(
 
   const createOffer = useCallback(
     async (remote) => {
-      await loadIceForCall();
-      const peer = ensurePeer(remote);
-      if (!peer) return;
+      const known = peersRef.current.get(remote?.socketId);
+      if (known?.offerLock) return;
+      let peer = known;
+      let claimed = false;
       try {
+        await loadIceForCall();
+        peer = ensurePeer(remote);
+        if (!peer || !claimOfferLock(peer, peer.pc)) return;
+        claimed = true;
         makingOfferRef.current.add(remote.socketId);
+        if (!canCreateOffer(peer.pc)) return;
+        attachLocalMedia(peer.pc, localStreamRef.current);
         logSignal({ event: "offer_created", signalType: "offer" });
         const offer = await peer.pc.createOffer();
+        if (!canCreateOffer(peer.pc)) return;
         await peer.pc.setLocalDescription(offer);
         const description = plainSessionDescription(peer.pc.localDescription);
         if (!peer.localOfferMessageId) {
@@ -612,9 +633,16 @@ const DirectCall = forwardRef(function DirectCall(
         } catch {
           /* a stale early answer must not block the offer */
         }
-      } catch {
-        setError("Could not connect the call.");
+      } catch (error) {
+        const mLine = /m-line/i.test(error?.message || "");
+        logSignal({
+          event: "offer_created",
+          signalType: "offer",
+          result: mLine ? "m-line" : "failed",
+        });
+        if (peer?.pc?.connectionState !== "connected") setError("Could not connect the call.");
       } finally {
+        if (claimed) releaseOfferLock(peer);
         makingOfferRef.current.delete(remote.socketId);
       }
     },
@@ -658,13 +686,8 @@ const DirectCall = forwardRef(function DirectCall(
               sendSignal(from, { type: "answer", sdp: plainSessionDescription(description) });
             },
             beforeAnswer: async () => {
-              const stream = localStreamRef.current;
-              const track = stream
-                ?.getVideoTracks?.()
-                .find((item) => item.readyState === "live" && item.enabled !== false);
-              if (!track) return;
-              const plan = attachVideoTrack(peer.pc, track, stream);
-              if (plan.pending) await plan.pending;
+              const bound = bindTracksToOffer(peer.pc, localStreamRef.current);
+              if (bound.pending) await bound.pending;
             },
             onTrace: (trace) => {
               logSignal({
@@ -688,6 +711,23 @@ const DirectCall = forwardRef(function DirectCall(
               candidate: item,
             });
           }
+        }
+        if (applied && type === "offer" && missingLocalKinds(peer.pc, localStreamRef.current).length) {
+          enqueueSerial(signalChainRef.current, async () => {
+            const { added } = attachLocalMedia(peer.pc, localStreamRef.current);
+            if (!added.length || peer.offerLock || !canCreateOffer(peer.pc)) return;
+            makingOfferRef.current.add(from);
+            try {
+              await renegotiatePeer(peer, {
+                makingOffer: false,
+                sendOffer: (description) => {
+                  sendSignal(from, { type: "offer", sdp: plainSessionDescription(description) });
+                },
+              });
+            } finally {
+              makingOfferRef.current.delete(from);
+            }
+          });
         }
         syncTiles();
       } catch {

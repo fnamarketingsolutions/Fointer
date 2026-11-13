@@ -15,6 +15,14 @@ import { claimIceCall, getIceConfig, getIceRequestId, getIceSession, iceRefreshD
 import { flushCallDiagnostics, noteIceConfigurationApplied, reportIceCandidateError } from "../../../../shared/webrtc/callDiagnostics";
 import { watchPeerConnection } from "../../../../shared/webrtc/iceRestart";
 import { applyPeerSignal, applyQueuedAnswer, plainSessionDescription } from "../../../../shared/webrtc/applyPeerSignal";
+import {
+  attachLocalMedia,
+  bindTracksToOffer,
+  canCreateOffer,
+  claimOfferLock,
+  missingLocalKinds,
+  releaseOfferLock,
+} from "../../../../shared/webrtc/sdpNegotiation";
 import { assessMediaHealth, readSafeCallStats, toPublicMediaLog } from "../../../../shared/webrtc/callStats";
 import { createSignalCourier } from "../../../../shared/webrtc/signalDelivery";
 import { recoveryNeededAfterNetworkChange, watchNetworkChanges } from "../../../../shared/webrtc/networkRecovery";
@@ -25,7 +33,6 @@ import { planMeshOffers, shouldOfferToPeer } from "../../../../shared/webrtc/mes
 import { liveCallJoinMode, showAudioJoinControl, showVideoJoinControl } from "../../../../shared/webrtc/callSession";
 import {
   applyRemoteCameraState,
-  attachVideoTrack,
   cameraControlLabel,
   cameraPresencePayload,
   capturePeerTransport,
@@ -33,6 +40,7 @@ import {
   enableLocalCamera,
   logCameraToggle,
   queuePeerRenegotiation,
+  renegotiatePeer,
   watchRemoteTrack,
 } from "../../../../shared/webrtc/mediaSwitch";
 
@@ -251,30 +259,7 @@ export default function EventCall({
     signalCourierRef.current?.send({ to, ...payload });
   }, []);
 
-  const attachLocalTracks = (pc) => {
-    const stream = localStreamRef.current;
-    if (!stream || !pc?.getSenders) return false;
-    let added = false;
-    const senders = pc.getSenders();
-    for (const track of stream.getTracks()) {
-      if (!track || track.readyState === "ended") continue;
-      if (track.kind === "video") {
-        const plan = attachVideoTrack(pc, track, stream);
-        if (plan.action === "add" || plan.action === "replace") added = true;
-        continue;
-      }
-      const exists = senders.some(
-        (sender) =>
-          sender.track &&
-          (sender.track.id === track.id || sender.track.kind === track.kind)
-      );
-      if (!exists) {
-        pc.addTrack(track, stream);
-        added = true;
-      }
-    }
-    return added;
-  };
+  const attachLocalTracks = (pc) => attachLocalMedia(pc, localStreamRef.current).added.length > 0;
 
   const ensurePeer = useCallback(
     (remote) => {
@@ -328,9 +313,12 @@ export default function EventCall({
         iceGeneration: 0,
       };
 
-      localStreamRef.current?.getTracks().forEach((track) => {
-        pc.addTrack(track, localStreamRef.current);
-      });
+      attachLocalMedia(pc, localStreamRef.current);
+      pc.onnegotiationneeded = () => {
+        peer.negotiationNeeded = true;
+        if (peer.polite || peer.offerLock || !canCreateOffer(pc)) return;
+        enqueueSerial(signalChainRef.current, () => handlersRef.current.createOffer?.(remote));
+      };
 
       pc.onicecandidateerror = (event) => {
         reportIceCandidateError(event, { callId: eventIdRef.current });
@@ -369,6 +357,8 @@ export default function EventCall({
           return result;
         },
         isActive: () => inCallRef.current,
+        claimOffer: () => claimOfferLock(peer, pc),
+        releaseOffer: () => releaseOfferLock(peer),
         sendOffer: (description, meta) => {
           if (!meta?.resend) {
             peer.iceGeneration = (peer.iceGeneration || 0) + 1;
@@ -444,11 +434,14 @@ export default function EventCall({
       if (!peer) return;
       const described = peer.pc.localDescription || peer.pc.remoteDescription;
       if (!force && (peer.offered || described)) return;
-      if (force && peer.pc.signalingState && peer.pc.signalingState !== "stable") return;
+      if (peer.pc.signalingState && peer.pc.signalingState !== "stable") return;
+      if (!claimOfferLock(peer, peer.pc)) return;
       peer.offered = true;
       try {
         makingOfferRef.current.add(remote.socketId);
+        attachLocalMedia(peer.pc, localStreamRef.current);
         const offer = await peer.pc.createOffer();
+        if (!canCreateOffer(peer.pc)) return;
         await peer.pc.setLocalDescription(offer);
         const description = plainSessionDescription(peer.pc.localDescription);
         sendSignal(remote.socketId, {
@@ -473,10 +466,13 @@ export default function EventCall({
         } catch {
           /* a stale early answer must not block the offer */
         }
-      } catch {
-        peer.offered = false;
-        setError("Could not connect to a caller.");
+      } catch (error) {
+        peer.offered = peer.pc?.signalingState === "have-local-offer";
+        if (peer.pc?.connectionState !== "connected" && !/m-line/i.test(error?.message || "")) {
+          setError("Could not connect to a caller.");
+        }
       } finally {
+        releaseOfferLock(peer);
         makingOfferRef.current.delete(remote.socketId);
       }
     },
@@ -566,13 +562,8 @@ export default function EventCall({
               sendSignal(from, { type: "answer", sdp: plainSessionDescription(description) });
             },
             beforeAnswer: async () => {
-              const stream = localStreamRef.current;
-              const track = stream
-                ?.getVideoTracks?.()
-                .find((item) => item.readyState === "live" && item.enabled !== false);
-              if (!track) return;
-              const plan = attachVideoTrack(peer.pc, track, stream);
-              if (plan.pending) await plan.pending;
+              const bound = bindTracksToOffer(peer.pc, localStreamRef.current);
+              if (bound.pending) await bound.pending;
             },
           }
         );
@@ -584,6 +575,23 @@ export default function EventCall({
               candidate: item,
             });
           }
+        }
+        if (applied && type === "offer" && missingLocalKinds(peer.pc, localStreamRef.current).length) {
+          enqueueSerial(signalChainRef.current, async () => {
+            const { added } = attachLocalMedia(peer.pc, localStreamRef.current);
+            if (!added.length || peer.offerLock || !canCreateOffer(peer.pc)) return;
+            makingOfferRef.current.add(from);
+            try {
+              await renegotiatePeer(peer, {
+                makingOffer: false,
+                sendOffer: (description) => {
+                  sendSignal(from, { type: "offer", sdp: plainSessionDescription(description) });
+                },
+              });
+            } finally {
+              makingOfferRef.current.delete(from);
+            }
+          });
         }
         syncTiles();
       } catch {

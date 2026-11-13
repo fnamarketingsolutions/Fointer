@@ -1,6 +1,7 @@
 /** Camera capture reused when an audio call gains video. */
 import { logCallDiagnostic } from "./callDiagnostics.js";
 import { enqueueSerial } from "./iceQueue.js";
+import { canCreateOffer, claimOfferLock, releaseOfferLock } from "./sdpNegotiation.js";
 export const VIDEO_CONSTRAINTS = {
   facingMode: "user",
   width: { ideal: 640 },
@@ -79,12 +80,15 @@ const videoKind = (transceiver) =>
   transceiver?.kind ||
   "";
 
+const usableTransceiver = (transceiver) =>
+  transceiver && transceiver.stopped !== true && transceiver.direction !== "stopped";
+
 export const findVideoTransceiver = (pc) =>
-  (pc?.getTransceivers?.() || []).find((transceiver) => videoKind(transceiver) === "video") ||
+  (pc?.getTransceivers?.() || []).find((transceiver) => usableTransceiver(transceiver) && videoKind(transceiver) === "video") ||
   null;
 
 export const countVideoTransceivers = (pc) =>
-  (pc?.getTransceivers?.() || []).filter((transceiver) => videoKind(transceiver) === "video")
+  (pc?.getTransceivers?.() || []).filter((transceiver) => usableTransceiver(transceiver) && videoKind(transceiver) === "video")
     .length;
 
 /** add | replace | none. An existing video transceiver is reused. */
@@ -279,7 +283,7 @@ const enabledLabel = (track) => {
 };
 
 const audioTransceiver = (pc) =>
-  (pc?.getTransceivers?.() || []).find((transceiver) => videoKind(transceiver) === "audio") || null;
+  (pc?.getTransceivers?.() || []).find((transceiver) => usableTransceiver(transceiver) && videoKind(transceiver) === "audio") || null;
 
 export const capturePeerTransport = (peerConnections = []) =>
   peerConnections.filter(Boolean).map((pc) => ({
@@ -354,13 +358,16 @@ export const renegotiatePeer = async (peer, { makingOffer = false, sendOffer } =
   if (!canStartRenegotiation({ signalingState: pc.signalingState, makingOffer })) {
     return { ok: false, reason: pc.signalingState && pc.signalingState !== "stable" ? "glare" : "busy" };
   }
-  const offer = await pc.createOffer();
-  if (pc.signalingState && pc.signalingState !== "stable") {
-    return { ok: false, reason: "glare" };
+  if (!claimOfferLock(peer, pc)) return { ok: false, reason: "busy" };
+  try {
+    const offer = await pc.createOffer();
+    if (!canCreateOffer(pc)) return { ok: false, reason: "glare" };
+    await pc.setLocalDescription(offer);
+    sendOffer(pc.localDescription);
+    return { ok: true };
+  } finally {
+    releaseOfferLock(peer);
   }
-  await pc.setLocalDescription(offer);
-  sendOffer(pc.localDescription);
-  return { ok: true };
 };
 
 /** Serializes camera switches so a second click waits for the first. */

@@ -1,4 +1,5 @@
 import { markRemoteDescriptionSet, takeIceCandidate } from "./iceQueue.js";
+import { prepareForRemoteOffer } from "./sdpNegotiation.js";
 import { isStaleIce, rememberSignal } from "./signalDelivery.js";
 
 const addCandidate = async (pc, candidate) => {
@@ -65,14 +66,9 @@ export const applyPeerSignal = async (
     }
 
     try {
-      if (collision) {
-        await Promise.all([
-          peer.pc.setLocalDescription({ type: "rollback" }),
-          peer.pc.setRemoteDescription(description),
-        ]);
-      } else {
-        await peer.pc.setRemoteDescription(description);
-      }
+      if (collision) await peer.pc.setLocalDescription({ type: "rollback" });
+      prepareForRemoteOffer(peer.pc, description);
+      await peer.pc.setRemoteDescription(description);
     } catch (error) {
       if (peer.localAnswer && peer.pc.signalingState === "stable") {
         onAnswer?.(peer.localAnswer);

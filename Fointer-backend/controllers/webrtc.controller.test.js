@@ -6,6 +6,7 @@ import { clearIceConfigCache } from "../services/webrtc/iceConfig.service.js";
 const TURN_ENV_KEYS = [
   "METERED_DOMAIN",
   "METERED_API_KEY",
+  "METERED_SECRET_KEY",
   "TURN_URL",
   "TURN_SHARED_SECRET",
   "TURN_USERNAME",
@@ -14,6 +15,10 @@ const TURN_ENV_KEYS = [
   "ICE_RELAY_ONLY",
   "ICE_ALLOW_STUN_FALLBACK",
   "ICE_REQUIRE_TURN",
+  "WEBRTC_TURN_PROVIDER",
+  "CLOUDFLARE_TURN_KEY_ID",
+  "CLOUDFLARE_TURN_API_TOKEN",
+  "CLOUDFLARE_TURN_TTL",
 ];
 
 const withTurnEnv = async (values, run) => {
@@ -50,6 +55,17 @@ const mockResponse = () => {
   };
   return response;
 };
+
+test("production cloudflare selection fails closed when the provider is not configured", async () => {
+  await withTurnEnv({ NODE_ENV: "production", WEBRTC_TURN_PROVIDER: "cloudflare" }, async () => {
+    const response = mockResponse();
+    await getIceServers({ user: { _id: "user-1" }, query: {} }, response);
+    assert.equal(response.statusCode, 503);
+    assert.equal(response.body.code, "TURN_NOT_CONFIGURED");
+    assert.equal(response.body.success, false);
+    assert.equal(JSON.stringify(response.body).includes("iceServers"), false);
+  });
+});
 
 test("production ICE setup fails closed when no TURN provider is configured", async () => {
   await withTurnEnv({ NODE_ENV: "production" }, async () => {

@@ -1,6 +1,6 @@
 import {
   createTimeLimitedTurnServer,
-  fetchMeteredTurnCredentials,
+  fetchConfiguredTurnCredentials,
   normalizeTurnServers,
 } from "../../utils/webrtcIceServers.js";
 
@@ -124,11 +124,12 @@ const buildResponse = ({
 };
 
 export const createIceConfigService = ({
-  fetchCredentials = fetchMeteredTurnCredentials,
+  fetchCredentials = fetchConfiguredTurnCredentials,
   createTurn = createTimeLimitedTurnServer,
   now = () => Date.now(),
   env = process.env,
   warn = console.warn,
+  fetchImpl,
 } = {}) => {
   let appCache = null;
   let staticCache = null;
@@ -155,22 +156,34 @@ export const createIceConfigService = ({
     providerCache,
   });
 
+  const safeProviderLogText = (value) => String(value || "")
+    .replace(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g, "[redacted]")
+    .replace(/(?:[0-9a-f]{1,4}:){2,}[0-9a-f:]*/gi, "[redacted]")
+    .replace(/[A-Za-z0-9+/=_-]{24,}/g, "[redacted]")
+    .slice(0, 180);
+
   const warnProvider = (error) => {
     const diagnostics = error?.diagnostics || {};
+    const attempts = Number(diagnostics.attempts);
     warn("[webrtc] TURN provider unavailable", {
-      message: String(error?.message || "provider request failed").slice(0, 180),
-      domain: diagnostics.domain || "",
+      provider: String(diagnostics.provider || "metered").slice(0, 32),
+      message: safeProviderLogText(error?.message || "provider request failed"),
+      domain: safeProviderLogText(diagnostics.domain || ""),
       apiKeyPresent: Boolean(diagnostics.apiKeyPresent),
       apiKeyEmptyAfterTrim: Boolean(diagnostics.apiKeyEmptyAfterTrim),
       status: Number(diagnostics.status) || 0,
-      category: String(diagnostics.category || "").slice(0, 120),
+      category: safeProviderLogText(diagnostics.category || "").slice(0, 120),
+      ...(diagnostics.keyIdPresent == null
+        ? {}
+        : { keyIdPresent: Boolean(diagnostics.keyIdPresent) }),
       ...(diagnostics.secretLookupCategory
         ? {
             secretLookupStatus: Number(diagnostics.secretLookupStatus) || 0,
-            secretLookupCategory: String(diagnostics.secretLookupCategory).slice(0, 120),
+            secretLookupCategory: safeProviderLogText(diagnostics.secretLookupCategory).slice(0, 120),
           }
         : {}),
       durationMs: Number(diagnostics.durationMs) || 0,
+      ...(Number.isInteger(attempts) && attempts >= 0 && attempts <= 3 ? { attempts } : {}),
     });
   };
 
@@ -191,10 +204,16 @@ export const createIceConfigService = ({
     };
     try {
       const provider = await fetchCredentials({
+        env,
+        provider: env.WEBRTC_TURN_PROVIDER,
         domain: env.METERED_DOMAIN,
         apiKey: env.METERED_API_KEY,
         secretKey: env.METERED_SECRET_KEY,
+        keyId: env.CLOUDFLARE_TURN_KEY_ID,
+        apiToken: env.CLOUDFLARE_TURN_API_TOKEN,
+        ttlSeconds: env.CLOUDFLARE_TURN_TTL,
         nowMs: at,
+        fetchImpl,
       });
       if (generation !== providerGeneration) return finish(null);
       if (provider?.servers?.length) {

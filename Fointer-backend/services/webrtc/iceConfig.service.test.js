@@ -294,3 +294,226 @@ test("a long-running call with no provider expiry does not rotate the active con
   assert.equal(Date.parse(body.refreshAt) < later, true);
   assert.equal(body.expiresAt, null);
 });
+
+const CLOUDFLARE_KEY_ID = "abc123def456";
+const CLOUDFLARE_TOKEN = "cf-test-token";
+const CLOUDFLARE_USER = "cf-turn-username";
+const CLOUDFLARE_PASS = "cf-turn-credential";
+const cloudflareTurnUrls = [
+  "turn:turn.cloudflare.com:3478?transport=udp",
+  "turn:turn.cloudflare.com:443?transport=udp",
+  "turn:turn.cloudflare.com:53?transport=udp",
+  "turn:turn.cloudflare.com:3478?transport=tcp",
+  "turn:turn.cloudflare.com:80?transport=tcp",
+  "turns:turn.cloudflare.com:5349?transport=tcp",
+  "turns:turn.cloudflare.com:443?transport=tcp",
+];
+
+const cloudflareEnv = (extra = {}) => ({
+  NODE_ENV: "production",
+  WEBRTC_TURN_PROVIDER: "cloudflare",
+  CLOUDFLARE_TURN_KEY_ID: CLOUDFLARE_KEY_ID,
+  CLOUDFLARE_TURN_API_TOKEN: CLOUDFLARE_TOKEN,
+  CLOUDFLARE_TURN_TTL: "86400",
+  ICE_CONFIG_REFRESH_MS: "300000",
+  ICE_RELAY_ONLY: "1",
+  METERED_DOMAIN: "fointer.metered.live",
+  METERED_API_KEY: "metered-test-key",
+  ...extra,
+});
+
+const cloudflareResponse = () => ({
+  ok: true,
+  status: 201,
+  json: async () => ({
+    iceServers: [
+      { urls: ["stun:stun.cloudflare.com:3478"] },
+      { urls: cloudflareTurnUrls, username: CLOUDFLARE_USER, credential: CLOUDFLARE_PASS },
+    ],
+  }),
+});
+
+test("Cloudflare credentials keep the response contract and separate cache refresh from expiry", async () => {
+  let clock = now;
+  const calls = [];
+  const service = createIceConfigService({
+    env: cloudflareEnv(),
+    now: () => clock,
+    warn() {},
+    fetchImpl: async (url, options) => {
+      calls.push({ href: String(url), method: options.method, body: options.body });
+      return cloudflareResponse();
+    },
+  });
+
+  const first = await service.getConfig({ userId: "user-1" });
+  const cached = await service.getConfig({ userId: "user-2" });
+  const expiresAt = now + 86400 * 1000;
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].method, "POST");
+  assert.equal(calls[0].body, JSON.stringify({ ttl: 86400 }));
+  assert.equal(calls[0].href.includes("metered"), false);
+  assert.equal(calls[0].href.includes(CLOUDFLARE_TOKEN), false);
+  assert.equal(first.success, true);
+  assert.equal(first.version, 1);
+  assert.equal(first.expiresAt, new Date(expiresAt).toISOString());
+  assert.equal(first.credentialUpdate, "renegotiate");
+  assert.equal(first.restartBefore, new Date(expiresAt - 30_000).toISOString());
+  assert.equal(first.refreshAt, new Date(now + 300_000).toISOString());
+  assert.notEqual(first.refreshAt, first.expiresAt);
+  assert.notEqual(first.refreshAt, first.restartBefore);
+  assert.equal(first.transportPolicy, "all");
+  assert.equal(first.rtc.iceTransportPolicy, "all");
+  assert.equal(first.rtc.bundlePolicy, "max-bundle");
+  assert.equal(first.relay.available, true);
+  assert.equal(first.relay.required, true);
+  assert.equal(first.fallback, null);
+  assert.equal(first.providerCache, "generated");
+  assert.equal(cached.providerCache, "hit");
+  assert.equal(cached.expiresAt, first.expiresAt);
+  assert.equal(JSON.stringify(first.rtc.iceServers), JSON.stringify(first.iceServers));
+  const turn = first.rtc.iceServers.find((server) => server.username);
+  assert.deepEqual(turn.urls, cloudflareTurnUrls);
+  assert.equal(turn.username, CLOUDFLARE_USER);
+  assert.equal(turn.credential, CLOUDFLARE_PASS);
+  assert.equal(first.rtc.iceServers.some((server) => String(server.urls).startsWith("stun:")), true);
+  assert.equal(JSON.stringify(first).includes(CLOUDFLARE_TOKEN), false);
+
+  clock = now + 300_000;
+  const refreshed = await service.getConfig({ userId: "user-1" });
+  assert.equal(calls.length, 2);
+  assert.equal(refreshed.expiresAt, new Date(clock + 86400 * 1000).toISOString());
+  assert.equal(refreshed.refreshAt, new Date(clock + 300_000).toISOString());
+  assert.notEqual(Date.parse(refreshed.expiresAt) - clock, 300_000);
+});
+
+test("Cloudflare credentials are refreshed inside the expiry margin even when the cache window is longer", async () => {
+  let clock = now;
+  let calls = 0;
+  const service = createIceConfigService({
+    env: cloudflareEnv({ CLOUDFLARE_TURN_TTL: "120", ICE_CONFIG_REFRESH_MS: "3600000" }),
+    now: () => clock,
+    warn() {},
+    fetchImpl: async () => {
+      calls += 1;
+      return cloudflareResponse();
+    },
+  });
+  const first = await service.getConfig();
+  const expiresAt = now + 120_000;
+  assert.equal(first.expiresAt, new Date(expiresAt).toISOString());
+  assert.equal(first.refreshAt, first.restartBefore);
+  assert.equal(first.credentialUpdate, "renegotiate");
+
+  clock = now + 89_000;
+  const stillCached = await service.getConfig();
+  assert.equal(calls, 1);
+  assert.equal(stillCached.providerCache, "hit");
+  assert.equal(stillCached.expiresAt, first.expiresAt);
+
+  clock = now + 90_000;
+  const rotated = await service.getConfig();
+  assert.equal(calls, 2);
+  assert.equal(rotated.providerCache, "generated");
+  assert.equal(rotated.expiresAt, new Date(clock + 120_000).toISOString());
+  assert.notEqual(rotated.expiresAt, first.expiresAt);
+});
+
+test("concurrent Cloudflare requests share one credential mint", async () => {
+  let calls = 0;
+  let release;
+  const gate = new Promise((resolve) => {
+    release = resolve;
+  });
+  const service = createIceConfigService({
+    env: cloudflareEnv(),
+    now: () => now,
+    warn() {},
+    fetchImpl: async () => {
+      calls += 1;
+      await gate;
+      return cloudflareResponse();
+    },
+  });
+  const pendingA = service.getConfig({ userId: "user-a" });
+  const pendingB = service.getConfig({ userId: "user-b" });
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(calls, 1);
+  release();
+  const [first, second] = await Promise.all([pendingA, pendingB]);
+  assert.equal(relayIdentity(first).username, CLOUDFLARE_USER);
+  assert.equal(relayIdentity(second).credential, CLOUDFLARE_PASS);
+  assert.equal(calls, 1);
+});
+
+test("production does not fall back to STUN or Metered when Cloudflare fails", async () => {
+  const warnings = [];
+  const calls = [];
+  const service = createIceConfigService({
+    env: cloudflareEnv(),
+    now: () => now,
+    warn: (_message, details) => warnings.push(details),
+    fetchImpl: async (url) => {
+      calls.push(String(url));
+      return {
+        ok: false,
+        status: 401,
+        json: async () => ({
+          error: `denied ${CLOUDFLARE_TOKEN} ${CLOUDFLARE_USER} ${CLOUDFLARE_PASS} at 203.0.113.10`,
+          sdp: "v=0",
+          candidate: "candidate:1 1 UDP 203.0.113.10",
+        }),
+      };
+    },
+  });
+  await assert.rejects(
+    () => service.getConfig({ userId: "user-1" }),
+    (error) => {
+      assert.equal(error.code, "TURN_NOT_CONFIGURED");
+      assert.equal(error.message.includes(CLOUDFLARE_TOKEN), false);
+      return true;
+    }
+  );
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].includes("rtc.live.cloudflare.com"), true);
+  assert.equal(calls[0].includes("metered"), false);
+  assert.equal(warnings.length, 1);
+  assert.equal(warnings[0].provider, "cloudflare");
+  assert.equal(warnings[0].status, 401);
+  assert.equal(warnings[0].category, "unrecognized");
+  assert.equal(warnings[0].keyIdPresent, true);
+  const logged = JSON.stringify(warnings);
+  for (const secret of [CLOUDFLARE_TOKEN, CLOUDFLARE_KEY_ID, CLOUDFLARE_USER, CLOUDFLARE_PASS, "203.0.113.10", "v=0", "candidate:", "stun:"]) {
+    assert.equal(logged.includes(secret), false, secret);
+  }
+});
+
+test("development can use STUN only after Cloudflare fails, and production cannot", async () => {
+  const failingFetch = async () => ({
+    ok: false,
+    status: 503,
+    json: async () => ({ error: "unavailable" }),
+  });
+  const development = createIceConfigService({
+    env: cloudflareEnv({ NODE_ENV: "development", ICE_RELAY_ONLY: "1" }),
+    now: () => now,
+    warn() {},
+    fetchImpl: failingFetch,
+  });
+  const body = await development.getConfig({ relayTest: true });
+  assert.equal(body.fallback, "development-stun");
+  assert.equal(body.relay.available, false);
+  assert.equal(body.transportPolicy, "all");
+  assert.equal(body.iceServers.every((server) => String(server.urls).startsWith("stun:")), true);
+
+  const production = createIceConfigService({
+    env: cloudflareEnv(),
+    now: () => now,
+    warn() {},
+    fetchImpl: failingFetch,
+  });
+  await assert.rejects(
+    () => production.getConfig(),
+    (error) => error.code === "TURN_NOT_CONFIGURED"
+  );
+});

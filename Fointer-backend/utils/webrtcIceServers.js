@@ -109,10 +109,19 @@ export const turnProviderConfigState = ({ domain, apiKey } = {}) => {
   };
 };
 
+const sensitiveProviderText = (value) => {
+  const text = String(value || "");
+  if (/\b(?:\d{1,3}\.){3}\d{1,3}\b/.test(text)) return true;
+  if (/(?:[0-9a-f]{1,4}:){2,}/i.test(text)) return true;
+  if (/candidate:|\bv=0\b|\ba=/i.test(text)) return true;
+  return false;
+};
+
 const providerErrorCategory = (body, secrets) => {
   const error = typeof body?.error === "string" ? body.error.trim() : "";
   const hidden = (Array.isArray(secrets) ? secrets : [secrets]).filter(Boolean);
-  if (!error || error.length > 120 || hidden.some((secret) => error.includes(secret))) return "unrecognized";
+  if (!error || error.length > 120 || hidden.some((secret) => secret && error.includes(secret))) return "unrecognized";
+  if (sensitiveProviderText(error)) return "unrecognized";
   if (!/^[A-Za-z0-9 .,'-]{1,120}$/.test(error)) return "unrecognized";
   return error;
 };
@@ -160,6 +169,7 @@ export const fetchMeteredTurnCredentials = async ({
   const hiddenKeys = [credentialKey, accountSecret].filter(Boolean);
   const startedAt = Date.now();
   const failure = (message, extra = {}) => providerFailure(message, {
+    provider: "metered",
     domain: configuredDomain,
     apiKeyPresent: configState.apiKeyPresent || accountSecret.length > 0,
     apiKeyEmptyAfterTrim: configState.apiKeyEmptyAfterTrim,
@@ -303,6 +313,266 @@ export const fetchMeteredTurnCredentials = async ({
     if (!invalidCredentialKey) throw error;
     return afterRejectedCredentialKey(accountSecret || credentialKey, error);
   }
+};
+
+const CLOUDFLARE_TURN_ORIGIN = "https://rtc.live.cloudflare.com";
+const CLOUDFLARE_TTL_DEFAULT_SECONDS = 86400;
+const CLOUDFLARE_TTL_MIN_SECONDS = 60;
+const CLOUDFLARE_TTL_MAX_SECONDS = 48 * 60 * 60;
+const CLOUDFLARE_TIMEOUT_MS = 2500;
+const CLOUDFLARE_MAX_ATTEMPTS = 2;
+const CLOUDFLARE_RETRY_DELAY_MS = 200;
+const CLOUDFLARE_KEY_ID_PATTERN = /^[A-Za-z0-9_-]{8,128}$/;
+const RETRYABLE_PROVIDER_STATUS = new Set([408, 429, 500, 502, 503, 504]);
+
+const responseOk = (response) => {
+  if (typeof response?.ok === "boolean") return response.ok;
+  const status = Number(response?.status) || 0;
+  return status >= 200 && status < 300;
+};
+
+/** Blank uses 24 hours. Values outside Cloudflare's 60s–48h window are rejected. */
+export const resolveCloudflareTurnTtl = (value) => {
+  if (value == null || String(value).trim() === "") return CLOUDFLARE_TTL_DEFAULT_SECONDS;
+  const text = String(value).trim();
+  if (!/^\d+$/.test(text)) return null;
+  const seconds = Number(text);
+  if (seconds < CLOUDFLARE_TTL_MIN_SECONDS || seconds > CLOUDFLARE_TTL_MAX_SECONDS) return null;
+  return seconds;
+};
+
+/**
+ * Lifetime to store for a credential.
+ * The generate-ice-servers response does not include expiry, so the TTL we
+ * requested is the lifetime. A shorter TTL echoed by Cloudflare is honored.
+ * A longer or invalid echo cannot extend the configured lifetime.
+ */
+const issuedCloudflareTtl = (body, requested) => {
+  const raw = body?.ttl;
+  const text = typeof raw === "number" && Number.isFinite(raw)
+    ? String(Math.floor(raw))
+    : (typeof raw === "string" ? raw.trim() : "");
+  if (!/^\d+$/.test(text)) return requested;
+  const echoed = Number(text);
+  if (echoed >= CLOUDFLARE_TTL_MIN_SECONDS && echoed < requested) return echoed;
+  return requested;
+};
+
+const retryableProviderFailure = (error) => {
+  const category = error?.diagnostics?.category;
+  if (category === "timeout" || category === "network") return true;
+  return RETRYABLE_PROVIDER_STATUS.has(Number(error?.diagnostics?.status) || 0);
+};
+
+const cloudflareAttemptLimit = (value) => {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed)) return CLOUDFLARE_MAX_ATTEMPTS;
+  return Math.min(3, Math.max(1, parsed));
+};
+
+/**
+ * Mints short-lived Cloudflare Realtime TURN credentials.
+ * Returns null when Cloudflare is not configured. The permanent API token
+ * stays in the Authorization header and is never returned or logged.
+ */
+export const fetchCloudflareTurnCredentials = async ({
+  keyId = process.env.CLOUDFLARE_TURN_KEY_ID,
+  apiToken = process.env.CLOUDFLARE_TURN_API_TOKEN,
+  ttlSeconds = process.env.CLOUDFLARE_TURN_TTL,
+  fetchImpl = globalThis.fetch,
+  timeoutMs = CLOUDFLARE_TIMEOUT_MS,
+  maxAttempts = CLOUDFLARE_MAX_ATTEMPTS,
+  retryDelayMs = CLOUDFLARE_RETRY_DELAY_MS,
+  sleepImpl = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  nowMs = Date.now(),
+} = {}) => {
+  const rawKeyId = keyId == null ? "" : String(keyId);
+  const rawToken = apiToken == null ? "" : String(apiToken);
+  const normalizedKeyId = rawKeyId.trim();
+  const token = normalizeMeteredKey(rawToken);
+  if (!normalizedKeyId && !token) return null;
+
+  const startedAt = Date.now();
+  const failure = (message, extra = {}) => providerFailure(message, {
+    provider: "cloudflare",
+    domain: "rtc.live.cloudflare.com",
+    apiKeyPresent: rawToken.length > 0,
+    apiKeyEmptyAfterTrim: rawToken.length > 0 && token.length === 0,
+    keyIdPresent: normalizedKeyId.length > 0,
+    durationMs: Date.now() - startedAt,
+    ...extra,
+  });
+
+  if (!normalizedKeyId || !token || !CLOUDFLARE_KEY_ID_PATTERN.test(normalizedKeyId) || malformedMeteredKey(token)) {
+    throw failure("Invalid TURN provider key configuration.", { status: 0, category: "malformed-key" });
+  }
+
+  const ttl = resolveCloudflareTurnTtl(ttlSeconds);
+  if (ttl == null) {
+    throw failure("Invalid TURN credential lifetime configuration.", { status: 0, category: "invalid-ttl" });
+  }
+
+  const url = new URL(
+    `/v1/turn/keys/${normalizedKeyId}/credentials/generate-ice-servers`,
+    CLOUDFLARE_TURN_ORIGIN
+  );
+  if (
+    url.origin !== CLOUDFLARE_TURN_ORIGIN
+    || url.username
+    || url.password
+    || url.search
+    || url.hash
+    || url.pathname !== `/v1/turn/keys/${normalizedKeyId}/credentials/generate-ice-servers`
+  ) {
+    throw failure("Invalid TURN provider key configuration.", { status: 0, category: "malformed-key" });
+  }
+
+  const timeout = Number.isFinite(Number(timeoutMs)) && Number(timeoutMs) >= 1
+    ? Number(timeoutMs)
+    : CLOUDFLARE_TIMEOUT_MS;
+  const attempts = cloudflareAttemptLimit(maxAttempts);
+  const delay = Number.isFinite(Number(retryDelayMs))
+    ? Math.min(1000, Math.max(0, Number(retryDelayMs)))
+    : CLOUDFLARE_RETRY_DELAY_MS;
+  const hidden = [token, normalizedKeyId];
+
+  const providerPost = async (attempt) => {
+    const controller = new AbortController();
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, timeout);
+    try {
+      return await fetchImpl(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({ ttl }),
+        redirect: "error",
+        signal: controller.signal,
+      });
+    } catch (error) {
+      const name = error?.name || "";
+      if (timedOut || name === "TimeoutError" || name === "AbortError") {
+        throw failure("TURN provider request timed out.", { status: 0, category: "timeout", attempts: attempt });
+      }
+      throw failure("TURN provider request failed.", { status: 0, category: "network", attempts: attempt });
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
+  const rejected = async (response, attempt) => {
+    const status = Number(response?.status) || 0;
+    let category = "unrecognized";
+    try {
+      category = providerErrorCategory(await response.json(), hidden);
+    } catch {
+      category = "unrecognized";
+    }
+    return failure(
+      status ? `TURN provider responded with ${status}.` : "TURN provider request failed.",
+      { status, category, attempts: attempt }
+    );
+  };
+
+  const readCredential = async (response) => {
+    const status = Number(response?.status) || 0;
+    let body;
+    try {
+      body = await response.json();
+    } catch {
+      throw failure("TURN provider returned an invalid response.", { status, category: "invalid-response" });
+    }
+    if (!body || typeof body !== "object" || Array.isArray(body) || !Array.isArray(body.iceServers)) {
+      throw failure("TURN provider returned an invalid response.", { status, category: "invalid-response" });
+    }
+    const turnServers = normalizeTurnServers(body.iceServers);
+    const usable = turnServers.some((server) => {
+      const urls = Array.isArray(server?.urls) ? server.urls : [server?.urls];
+      return Boolean(server?.username && server?.credential)
+        && urls.some((item) => /^turns?:/i.test(String(item || "")));
+    });
+    if (!usable) {
+      throw failure("TURN provider returned no usable relay.", { status, category: "no-usable-relay" });
+    }
+    const lifetime = issuedCloudflareTtl(body, ttl);
+    return {
+      servers: turnServers,
+      expiresAt: nowMs + lifetime * 1000,
+    };
+  };
+
+  let lastError = null;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const response = await providerPost(attempt);
+      if (!responseOk(response)) lastError = await rejected(response, attempt);
+      else return await readCredential(response);
+    } catch (error) {
+      lastError = error?.diagnostics
+        ? error
+        : failure("TURN provider request failed.", { status: 0, category: "network", attempts: attempt });
+    }
+    if (!retryableProviderFailure(lastError) || attempt === attempts) throw lastError;
+    if (delay > 0) await sleepImpl(delay);
+  }
+  throw lastError;
+};
+
+/** Blank or "metered" keeps the previous provider. Anything else must be explicit. */
+export const resolveTurnProvider = (value) => {
+  const name = String(value ?? "").trim().toLowerCase();
+  if (!name || name === "metered") return "metered";
+  if (name === "cloudflare") return "cloudflare";
+  return "invalid";
+};
+
+/**
+ * Selects the TURN provider from WEBRTC_TURN_PROVIDER.
+ * Cloudflare and Metered are not tried together. An unknown name fails closed.
+ */
+export const fetchConfiguredTurnCredentials = async (options = {}) => {
+  const env = options.env || process.env;
+  const provider = resolveTurnProvider(options.provider ?? env.WEBRTC_TURN_PROVIDER);
+  if (provider === "cloudflare") {
+    return fetchCloudflareTurnCredentials({
+      keyId: options.keyId ?? env.CLOUDFLARE_TURN_KEY_ID,
+      apiToken: options.apiToken ?? env.CLOUDFLARE_TURN_API_TOKEN,
+      ttlSeconds: options.ttlSeconds ?? env.CLOUDFLARE_TURN_TTL,
+      fetchImpl: options.fetchImpl,
+      timeoutMs: options.timeoutMs,
+      maxAttempts: options.maxAttempts,
+      retryDelayMs: options.retryDelayMs,
+      sleepImpl: options.sleepImpl,
+      nowMs: options.nowMs,
+    });
+  }
+  if (provider === "metered") {
+    return fetchMeteredTurnCredentials({
+      domain: options.domain ?? env.METERED_DOMAIN,
+      apiKey: options.apiKey ?? env.METERED_API_KEY,
+      secretKey: options.secretKey ?? env.METERED_SECRET_KEY,
+      fetchImpl: options.fetchImpl,
+      timeoutMs: options.timeoutMs,
+      nowMs: options.nowMs,
+    });
+  }
+  const error = new Error("Invalid TURN provider configuration.");
+  error.diagnostics = {
+    provider: "invalid",
+    domain: "",
+    apiKeyPresent: false,
+    apiKeyEmptyAfterTrim: false,
+    status: 0,
+    category: "invalid-provider",
+    durationMs: 0,
+  };
+  throw error;
 };
 
 export const createTimeLimitedTurnServer = ({

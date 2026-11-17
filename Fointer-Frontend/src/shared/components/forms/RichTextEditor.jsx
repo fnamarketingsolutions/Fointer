@@ -121,18 +121,18 @@ export default function RichTextEditor({ value = "", onChange, disabled = false 
 
   return (
     <div className="relative overflow-visible rounded-xl border border-fo-border bg-fo-bg focus-within:border-fo-accent/60 focus-within:ring-1 focus-within:ring-fo-accent/20">
-      <div className="flex flex-wrap items-center gap-0.5 border-b border-fo-border px-2 py-1.5">
+      <div className="sticky -top-3 z-20 flex flex-wrap items-center gap-0.5 border-b border-fo-border bg-fo-bg px-1.5 py-1.5 sm:-top-5 sm:px-2">
         {TOOLBAR.map(([Icon, label, command]) => (
-          <button key={command} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => run(command)} disabled={disabled} title={label} aria-label={label} className="grid size-8 place-items-center rounded text-fo-muted hover:bg-fo-surface-2 hover:text-fo-text disabled:opacity-50">
+          <button key={command} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => run(command)} disabled={disabled} title={label} aria-label={label} className="grid size-9 shrink-0 place-items-center rounded text-fo-muted hover:bg-fo-surface-2 hover:text-fo-text disabled:opacity-50 sm:size-8">
             <Icon size={16} />
           </button>
         ))}
-        <span className="mx-1 h-5 w-px bg-fo-border" />
-        <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={addLink} disabled={disabled} title="Add link" aria-label="Add link" className="grid size-8 place-items-center rounded text-fo-muted hover:bg-fo-surface-2 hover:text-fo-text disabled:opacity-50"><Link size={16} /></button>
-        <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => run("removeFormat")} disabled={disabled} title="Clear formatting" aria-label="Clear formatting" className="grid size-8 place-items-center rounded text-fo-muted hover:bg-fo-surface-2 hover:text-fo-text disabled:opacity-50"><RemoveFormatting size={16} /></button>
-        <span className="mx-1 h-5 w-px bg-fo-border" />
-        <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => run("undo")} disabled={disabled} title="Undo" aria-label="Undo" className="grid size-8 place-items-center rounded text-fo-muted hover:bg-fo-surface-2 hover:text-fo-text disabled:opacity-50"><Undo size={16} /></button>
-        <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => run("redo")} disabled={disabled} title="Redo" aria-label="Redo" className="grid size-8 place-items-center rounded text-fo-muted hover:bg-fo-surface-2 hover:text-fo-text disabled:opacity-50"><Redo size={16} /></button>
+        <span className="mx-1 h-5 w-px shrink-0 bg-fo-border" />
+        <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={addLink} disabled={disabled} title="Add link" aria-label="Add link" className="grid size-9 shrink-0 place-items-center rounded text-fo-muted hover:bg-fo-surface-2 hover:text-fo-text disabled:opacity-50 sm:size-8"><Link size={16} /></button>
+        <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => run("removeFormat")} disabled={disabled} title="Clear formatting" aria-label="Clear formatting" className="grid size-9 shrink-0 place-items-center rounded text-fo-muted hover:bg-fo-surface-2 hover:text-fo-text disabled:opacity-50 sm:size-8"><RemoveFormatting size={16} /></button>
+        <span className="mx-1 h-5 w-px shrink-0 bg-fo-border" />
+        <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => run("undo")} disabled={disabled} title="Undo" aria-label="Undo" className="grid size-9 shrink-0 place-items-center rounded text-fo-muted hover:bg-fo-surface-2 hover:text-fo-text disabled:opacity-50 sm:size-8"><Undo size={16} /></button>
+        <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => run("redo")} disabled={disabled} title="Redo" aria-label="Redo" className="grid size-9 shrink-0 place-items-center rounded text-fo-muted hover:bg-fo-surface-2 hover:text-fo-text disabled:opacity-50 sm:size-8"><Redo size={16} /></button>
       </div>
       <div ref={editorRef} contentEditable={!disabled} suppressContentEditableWarning role="textbox" aria-multiline="true" aria-label="Post content editor" data-placeholder="Share something with the community…" onInput={emitValue} onKeyUp={updateCompletion} onBlur={() => window.setTimeout(() => setCompletion(null), 150)} onPaste={(event) => { event.preventDefault(); document.execCommand("insertText", false, event.clipboardData.getData("text/plain")); emitValue(); }} className="rich-text-editor min-h-[260px] px-4 py-4 text-[15px] leading-7 text-fo-text outline-none empty:before:pointer-events-none empty:before:text-fo-subtle empty:before:content-[attr(data-placeholder)] [&_a]:text-fo-accent [&_a]:underline [&_blockquote]:my-2 [&_blockquote]:border-l-2 [&_blockquote]:border-fo-accent [&_blockquote]:pl-3 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-6 [&_pre]:my-2 [&_pre]:overflow-x-auto [&_pre]:rounded [&_pre]:bg-fo-surface-2 [&_pre]:p-3 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-6" />
       {completion ? (

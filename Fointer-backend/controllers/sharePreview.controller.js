@@ -4,17 +4,23 @@ import { canViewPost } from "./post.controller.js";
 import { resolveDocumentId } from "../utils/shortCode.js";
 import { getPublicApiUrl, getPublicFrontendUrl } from "../utils/publicAppUrls.js";
 import {
+  assertFointerMediaUrl,
   extractVideoPoster,
   fetchFointerMedia,
+  fitPosterToFrame,
   watermarkImage,
 } from "../utils/mediaWatermark.js";
 import {
+  applyPlayerFrameHeaders,
   buildPostShareHtml,
+  buildVideoPlayerHtml,
   collapseText,
   shareCardImageUrl,
   shareCardTitle,
+  sharePlayerUrl,
   storeShareCopy,
 } from "../utils/sharePreview.js";
+import { resolvePlayerFrame } from "../utils/videoFrameSize.js";
 
 const SHARE_BADGE = {
   enabled: true,
@@ -54,7 +60,16 @@ const loadPublicPost = async (segment) => {
   return post;
 };
 
-const previewFromPost = (post, siteUrl, pageUrl, segment) => {
+const playableVideoUrl = (video) => {
+  if (!video?.url) return "";
+  try {
+    return assertFointerMediaUrl(video.url).toString();
+  } catch {
+    return "";
+  }
+};
+
+const previewFromPost = async (post, siteUrl, pageUrl, segment) => {
   const title = collapseText(post.title);
   const text = collapseText(post.text);
   const byline = bylineFor(post);
@@ -62,7 +77,9 @@ const previewFromPost = (post, siteUrl, pageUrl, segment) => {
   const hasImage = (post.media || []).some((item) => item?.type === "image" && item.url);
   const video = (post.media || []).find((item) => item?.type === "video" && item.url);
   const imageUrls = hasImage || video ? [shareCardImageUrl(getPublicApiUrl(), segment)] : [];
+  const videoUrl = playableVideoUrl(video);
   const hasVideo = Boolean(video);
+  const frame = videoUrl ? await resolvePlayerFrame(videoUrl) : null;
 
   const authorName =
     collapseText(post.author?.name) || collapseText(post.author?.username);
@@ -85,7 +102,10 @@ const previewFromPost = (post, siteUrl, pageUrl, segment) => {
     title: ogTitle,
     description: ogDescription,
     imageUrls,
-    videoUrl: video?.url || "",
+    videoUrl,
+    playerUrl: videoUrl ? sharePlayerUrl(getPublicApiUrl(), segment) : "",
+    playerWidth: frame?.width || 0,
+    playerHeight: frame?.height || 0,
   });
 };
 
@@ -119,10 +139,35 @@ export const sharePostPreview = async (req, res) => {
       return res.status(200).send(genericPreview(siteUrl, pageUrl));
     }
 
-    return res.status(200).send(previewFromPost(post, siteUrl, pageUrl, segment));
+    return res.status(200).send(await previewFromPost(post, siteUrl, pageUrl, segment));
   } catch (error) {
     console.error(error);
     return res.status(200).send(genericPreview(siteUrl, pageUrl));
+  }
+};
+
+/** Video page X frames inside a post. No chrome, so the whole frame stays visible. */
+export const sharePostPlayer = async (req, res) => {
+  const segment = String(req.params.segment || "").trim();
+  const siteUrl = getPublicFrontendUrl();
+  const pageUrl = segment
+    ? `${siteUrl}/post/${encodeURIComponent(segment)}`
+    : siteUrl;
+
+  applyPlayerFrameHeaders(res);
+  res.set("Cache-Control", "public, max-age=300");
+  res.set("X-Robots-Tag", "noindex");
+  res.type("html");
+
+  try {
+    const post = await loadPublicPost(segment);
+    const video = (post?.media || []).find((item) => item?.type === "video" && item.url);
+    const videoUrl = playableVideoUrl(video);
+    if (!videoUrl) return res.status(404).end();
+    return res.status(200).send(buildVideoPlayerHtml({ videoUrl, pageUrl }));
+  } catch {
+    console.error("Share player failed");
+    return res.status(404).end();
   }
 };
 
@@ -140,7 +185,11 @@ export const sharePostImage = async (req, res) => {
       ? await extractVideoPoster(source.buffer)
       : source.buffer;
 
-    const jpeg = await watermarkImage(poster, SHARE_BADGE);
+    let jpeg = await watermarkImage(poster, SHARE_BADGE);
+    if (source.isVideo) {
+      const frame = await resolvePlayerFrame(media.url);
+      jpeg = await fitPosterToFrame(jpeg, frame.width, frame.height);
+    }
     res.set("Cache-Control", "public, max-age=86400");
     return res.type("image/jpeg").send(jpeg);
   } catch (error) {

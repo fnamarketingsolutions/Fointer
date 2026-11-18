@@ -1,11 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  applyPlayerFrameHeaders,
   buildPostShareHtml,
+  buildVideoPlayerHtml,
   clipText,
   escapeHtml,
   shareCardImageUrl,
   shareCardTitle,
+  sharePlayerUrl,
   storeShareCopy,
 } from "./sharePreview.js";
 
@@ -63,6 +66,96 @@ test("share preview ignores non-http image urls", () => {
   });
   assert.equal(html.includes("javascript:"), false);
   assert.match(html, /fointer-logo1\.jpeg/);
+});
+
+test("video share uses one player card at the video's own shape", () => {
+  const html = buildPostShareHtml({
+    pageUrl: "https://fointer.net/post/abc",
+    title: "From Amelia on Fointer: a very long headline that must stay inside the player card limit",
+    description: "Watch this",
+    imageUrls: ["https://api.fointer.net/share/post/abc/image"],
+    videoUrl: "https://cdn.example.com/video.mp4",
+    playerUrl: "https://api.fointer.net/share/post/abc/player",
+    playerWidth: 720,
+    playerHeight: 1280,
+  });
+  assert.equal(html.match(/twitter:card/g).length, 1);
+  assert.match(html, /twitter:card" content="player"/);
+  assert.match(html, /twitter:player" content="https:\/\/api\.fointer\.net\/share\/post\/abc\/player"/);
+  assert.match(html, /twitter:player:width" content="720"/);
+  assert.match(html, /twitter:player:height" content="1280"/);
+  assert.equal(html.includes("twitter:player:stream"), false);
+  assert.match(html, /og:video" content="https:\/\/cdn\.example\.com\/video\.mp4"/);
+  assert.equal(html.includes("summary_large_image"), false);
+});
+
+test("player card names the site when X_SITE_HANDLE is set", () => {
+  const previous = process.env.X_SITE_HANDLE;
+  process.env.X_SITE_HANDLE = "fointer";
+  try {
+    const html = buildPostShareHtml({
+      pageUrl: "https://fointer.net/post/abc",
+      title: "Video post",
+      description: "Watch this",
+      imageUrls: ["https://api.fointer.net/share/post/abc/image"],
+      videoUrl: "https://cdn.example.com/video.mp4",
+      playerUrl: "https://api.fointer.net/share/post/abc/player",
+      playerWidth: 1280,
+      playerHeight: 720,
+    });
+    assert.match(html, /twitter:site" content="@fointer"/);
+  } finally {
+    if (previous === undefined) delete process.env.X_SITE_HANDLE;
+    else process.env.X_SITE_HANDLE = previous;
+  }
+});
+
+test("an http player address does not become a player card", () => {
+  const html = buildPostShareHtml({
+    pageUrl: "https://fointer.net/post/abc",
+    title: "Video post",
+    description: "Watch this",
+    imageUrls: ["https://api.fointer.net/share/post/abc/image"],
+    videoUrl: "https://cdn.example.com/video.mp4",
+    playerUrl: "http://api.fointer.net/share/post/abc/player",
+    playerWidth: 720,
+    playerHeight: 1280,
+  });
+  assert.match(html, /twitter:card" content="summary_large_image"/);
+  assert.equal(html.includes("twitter:player"), false);
+});
+
+test("the framed player page is only the full video", () => {
+  const html = buildVideoPlayerHtml({
+    videoUrl: `https://cdn.example.com/clip.mp4?token=a&b="x"`,
+    pageUrl: "https://fointer.net/post/abc",
+  });
+  assert.match(html, /object-fit:contain/);
+  assert.match(html, /<video src="https:\/\/cdn\.example\.com\/clip\.mp4\?token=a&amp;b=&quot;x&quot;"/);
+  assert.equal(html.includes("location.replace"), false);
+  assert.equal(html.includes("<header"), false);
+});
+
+test("player route drops the frame-blocking header", () => {
+  const headers = new Map([["x-frame-options", "SAMEORIGIN"]]);
+  applyPlayerFrameHeaders({
+    removeHeader(name) {
+      headers.delete(String(name).toLowerCase());
+    },
+    set(name, value) {
+      headers.set(String(name).toLowerCase(), value);
+    },
+  });
+  assert.equal(headers.has("x-frame-options"), false);
+  assert.match(headers.get("content-security-policy"), /https:\/\/x\.com/);
+  assert.match(headers.get("content-security-policy"), /https:\/\/twitter\.com/);
+});
+
+test("share player url points at the video page", () => {
+  assert.equal(
+    sharePlayerUrl("https://api.fointer.net/", "ff2xtv3"),
+    "https://api.fointer.net/share/post/ff2xtv3/player"
+  );
 });
 
 test("share preview exposes a public video URL for compatible social cards", () => {

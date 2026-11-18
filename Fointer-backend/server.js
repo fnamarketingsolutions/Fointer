@@ -47,7 +47,7 @@ import { startHotReadCache } from "./utils/hotReadCache.js";
 import { safeErrorMessage } from "./utils/safeError.js";
 import { getAllowedOrigins } from "./utils/allowedOrigins.js";
 import { csrfProtect } from "./middleware/csrf.middleware.js";
-import { sharePostImage, sharePostPreview, shareStorePreview } from "./controllers/sharePreview.controller.js";
+import { sharePostImage, sharePostPlayer, sharePostPreview, shareStorePreview } from "./controllers/sharePreview.controller.js";
 
 dns.setServers(["8.8.8.8", "8.8.4.4"]);
  
@@ -158,6 +158,7 @@ app.use("/api/locations", locationRoute);
 app.use("/api", bannerRoute);
 app.use("/api", broadcastRoute);
 app.use("/api", userSupportRoute);
+app.get("/share/post/:segment/player", sharePostPlayer);
 app.get("/share/post/:segment/image", sharePostImage);
 app.get("/share/post/:segment", sharePostPreview);
 app.get("/share/store/:slug", shareStorePreview);

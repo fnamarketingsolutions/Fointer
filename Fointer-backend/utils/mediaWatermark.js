@@ -289,6 +289,26 @@ export const watermarkImage = async (buffer, config) => {
     .toBuffer();
 };
 
+/**
+ * Place the whole frame inside the player size. Black bars keep the
+ * picture intact when the video is taller or wider than the card.
+ */
+export const fitPosterToFrame = async (buffer, frameWidth, frameHeight) => {
+  const width = Math.round(Number(frameWidth));
+  const height = Math.round(Number(frameHeight));
+  if (width < 2 || height < 2) return buffer;
+  return sharp(buffer, { failOn: "none" })
+    .rotate()
+    .resize({
+      width,
+      height,
+      fit: "contain",
+      background: { r: 0, g: 0, b: 0 },
+    })
+    .jpeg({ quality: 92 })
+    .toBuffer();
+};
+
 const runFfmpeg = (args) =>
   new Promise((resolve, reject) => {
     if (!ffmpegPath) {

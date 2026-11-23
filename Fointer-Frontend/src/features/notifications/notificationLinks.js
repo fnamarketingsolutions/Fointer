@@ -32,6 +32,7 @@ const TYPE_LABELS = {
   referral_qualified: 'Referral',
   ownership_transferred: 'Ownership',
   admin_broadcast: 'Admin broadcast',
+  community_post: 'Community post',
 };
 
 export const isSystemNotification = (type) => SYSTEM_TYPES.has(type);
@@ -81,7 +82,8 @@ export const notificationPath = (notification) => {
     type === 'reply' ||
     type === 'like' ||
     type === 'reshare' ||
-    type === 'mention'
+    type === 'mention' ||
+    type === 'community_post'
   ) {
     if (communityPath && entity?.id) {
       const postPath = postSegment({

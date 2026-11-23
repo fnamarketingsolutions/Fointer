@@ -32,6 +32,7 @@ export const NOTIFICATION_TYPES = [
   "admin_broadcast",
   "store_listing",
   "live_event",
+  "community_post",
 ];
 export const ADMIN_NOTIFICATION_TYPES = [
   "content_report",

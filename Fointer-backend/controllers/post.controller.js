@@ -6,6 +6,7 @@ import Bookmark from "../models/bookmark.js";
 import Community from "../models/community.js";
 import CommunityMember from "../models/communityMember.js";
 import User from "../models/user.js";
+import UserBlock from "../models/userBlock.js";
 import {
   canEngageInCommunity,
   canManagePostsInCommunity,
@@ -25,7 +26,7 @@ import { parseObjectIdInput, resolveDocumentId } from "../utils/shortCode.js";
 import { sendServerError } from "../utils/safeError.js";
 import { escapeRegex } from "../utils/validate.js";
 import { respondIfBanned } from "../utils/bannedKeywords.js";
-import { notify, personName, snippet } from "../utils/notify.js";
+import { notify, notifyMany, personName, snippet } from "../utils/notify.js";
 import { getFollowedUserIds } from "../utils/followHelpers.js";
 import { getBookmarkMeta } from "../utils/bookmarkHelpers.js";
 import {
@@ -38,6 +39,74 @@ import { getHotSnapshot, refreshHotReads } from "../utils/hotReadCache.js";
 const POST_SORT_MAP = {
   newest: { createdAt: -1 },
   oldest: { createdAt: 1 },
+};
+
+/** Tell active community members about a new post. Never fails createPost. */
+const notifyCommunityPostAudience = async ({ community, post, actor, io }) => {
+  try {
+    if (!community?._id || !post?._id || !actor?._id) return;
+
+    const actorId = String(actor._id);
+    const members = await CommunityMember.find({
+      community: community._id,
+      status: "active",
+    })
+      .select("user")
+      .lean();
+
+    const memberIds = [
+      ...new Set(
+        members
+          .map((row) => String(row.user || ""))
+          .filter((id) => id && id !== actorId)
+      ),
+    ];
+    if (!memberIds.length) return;
+
+    const [activeUsers, blockRows] = await Promise.all([
+      User.find({ _id: { $in: memberIds }, status: "active" })
+        .select("_id")
+        .lean(),
+      UserBlock.find({
+        $or: [
+          { blocker: actor._id, blocked: { $in: memberIds } },
+          { blocker: { $in: memberIds }, blocked: actor._id },
+        ],
+      })
+        .select("blocker blocked")
+        .lean(),
+    ]);
+
+    const activeIds = new Set(activeUsers.map((user) => String(user._id)));
+    const blockedIds = new Set(
+      blockRows.map((row) =>
+        String(row.blocker) === actorId ? String(row.blocked) : String(row.blocker)
+      )
+    );
+    const recipients = memberIds.filter(
+      (id) => activeIds.has(id) && !blockedIds.has(id)
+    );
+    if (!recipients.length) return;
+
+    const communityName = String(community.name || "this community").trim();
+    const preview = snippet(post.title || post.text, 140);
+    await notifyMany(recipients, {
+      io,
+      actor,
+      type: "community_post",
+      title: snippet(`${personName(actor)} posted in ${communityName}`, 200),
+      body: preview,
+      community,
+      entity: {
+        kind: "post",
+        id: post._id,
+        shortCode: post.shortCode || "",
+        title: post.title || "",
+      },
+    });
+  } catch (error) {
+    console.error("Failed to notify community post audience:", error);
+  }
 };
 
 const formatUser = (user) =>
@@ -1067,6 +1136,12 @@ export const createPost = async (req, res) => {
     await post.populate("author", "username name avatar role");
     if (hasCommunity) {
       await post.populate("community", "name coverImage shortCode");
+      await notifyCommunityPostAudience({
+        community: post.community,
+        post,
+        actor: req.user,
+        io: req.app.get("io"),
+      });
     }
 
     refreshHotReads();

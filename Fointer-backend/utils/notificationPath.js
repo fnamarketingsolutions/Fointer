@@ -55,7 +55,8 @@ export const notificationPath = (notification) => {
     type === "reply" ||
     type === "like" ||
     type === "reshare" ||
-    type === "mention"
+    type === "mention" ||
+    type === "community_post"
   ) {
     if (communityPath && entity?.id) {
       const postPath = postSegment(entity);
